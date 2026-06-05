@@ -151,6 +151,15 @@ class TestPriceCRUD:
         assert len(history) == 2
 
 
+class TestAppConfigCRUD:
+    def test_set_and_get_config_value(self, db):
+        db.set_config_value("field_notes_markdown", "# Hello")
+        assert db.get_config_value("field_notes_markdown") == "# Hello"
+
+    def test_get_config_value_default(self, db):
+        assert db.get_config_value("missing_key", default="fallback") == "fallback"
+
+
 class TestShoppingListCRUD:
     def test_create_list(self, db):
         sl = db.create_shopping_list(goal="weekly groceries")
@@ -202,6 +211,18 @@ class TestPurchaseCRUD:
         db.add_purchase_event(PurchaseEvent(canonical_name="b", quantity=1.0, unit="unit", total_price=20.0))
         purchases = db.get_purchase_events()
         assert len(purchases) == 2
+
+    def test_get_purchases_alias(self, db):
+        db.add_purchase_event(PurchaseEvent(canonical_name="a", quantity=1.0, unit="unit", total_price=10.0))
+        db.add_purchase_event(PurchaseEvent(canonical_name="b", quantity=1.0, unit="unit", total_price=20.0))
+        purchases = db.get_purchases()
+        assert len(purchases) == 2
+
+    def test_resolve_inventory_lot_id_prefix(self, db):
+        lot = InventoryLot(canonical_name="rice", display_name="Rice", quantity=1.0, unit="kg")
+        db.add_inventory_lot(lot)
+        matches = db.get_inventory_lot_ids(lot.lot_id[:6])
+        assert matches == [lot.lot_id]
 
 
 class TestTraceCRUD:

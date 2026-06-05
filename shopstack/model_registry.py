@@ -199,4 +199,10 @@ def get_active(group: str) -> list[ModelEntry]:
 
 
 def total_active_params() -> float:
-    return sum(m.params_b for m in MODEL_REGISTRY if m.status in ("active", "candidate"))
+    return sum(m.params_b for m in MODEL_REGISTRY if m.status == "active")
+
+
+def total_selected_params(include_candidates: bool = False) -> float:
+    if include_candidates:
+        return sum(m.params_b for m in MODEL_REGISTRY if m.status in ("active", "candidate"))
+    return total_active_params()

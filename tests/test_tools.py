@@ -59,6 +59,22 @@ class TestConsumeItem:
         result = tool_registry.execute("consume_inventory_item", lot_id=lot_id, quantity=1.0)
         assert result["result"]["status"] == "used"
 
+    def test_consume_negative_quantity_error(self, tool_registry):
+        tool_registry.execute("add_inventory_item", canonical_name="milk", quantity=2.0, unit="L")
+        lot_id = tool_registry.db.get_inventory()[0].lot_id
+        result = tool_registry.execute("consume_inventory_item", lot_id=lot_id, quantity=-0.5)
+        assert result["success"] is True
+        assert "positive" in result["result"].get("error", "")
+
+    def test_consume_prefix_resolves(self, tool_registry):
+        tool_registry.execute("add_inventory_item", canonical_name="butter", quantity=1.0, unit="pack")
+        tool_registry.execute("add_inventory_item", canonical_name="bread", quantity=1.0, unit="loaf")
+        lot_id = tool_registry.db.get_inventory()[0].lot_id
+        prefix = lot_id[:6]
+        result = tool_registry.execute("consume_inventory_item", lot_id=prefix, quantity=0.2)
+        assert result["success"] is True
+        assert result["result"].get("remaining") == 0.8
+
 
 class TestFindItem:
     def test_find_existing(self, tool_registry):

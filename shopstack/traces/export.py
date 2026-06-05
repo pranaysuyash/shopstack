@@ -56,15 +56,46 @@ def _redact_trace(trace: dict) -> dict:
     for field in text_fields:
         val = trace.get(field, "")
         if val:
-            val = re.sub(r"\b\d{10,}\b", "[REDACTED_NUMBER]", str(val))
-            val = re.sub(r"\b[\w\.-]+@[\w\.-]+\.\w+\b", "[REDACTED_EMAIL]", val)
-            trace[field] = val
+            trace[field] = _redact_text(str(val))
 
     tool_calls = trace.get("proposed_tool_calls", [])
     if isinstance(tool_calls, list):
-        for tc in tool_calls:
-            if isinstance(tc, dict) and "args" in tc:
-                for key in list(tc["args"].keys()):
-                    if any(s in key.lower() for s in ["address", "phone", "email", "aadhar", "pan"]):
-                        tc["args"][key] = "[REDACTED]"
+        trace["proposed_tool_calls"] = [
+            _redact_args_dict(tc) if isinstance(tc, dict) else tc for tc in tool_calls
+        ]
+
+    for nested_key in ["perception", "inventory_context", "decision"]:
+        if nested_key in trace:
+            trace[nested_key] = _redact_obj(trace[nested_key])
+
     return trace
+
+
+def _redact_text(value: str) -> str:
+    value = re.sub(r"\b\d{10,}\b", "[REDACTED_NUMBER]", value)
+    value = re.sub(r"\b[\w\.-]+@[\w\.-]+\.\w+\b", "[REDACTED_EMAIL]", value)
+    value = re.sub(r"\b[A-Z]{5}\d{4}[A-Z]\b", "[REDACTED]", value)
+    return value
+
+
+def _redact_args_dict(args: dict) -> dict:
+    redacted: dict = {}
+    for key, value in args.items():
+        lowered = key.lower()
+        if key == "args" and isinstance(value, dict):
+            redacted[key] = _redact_args_dict(value)
+        elif any(s in lowered for s in ["address", "phone", "email", "aadhar", "pan"]):
+            redacted[key] = "[REDACTED]"
+        else:
+            redacted[key] = _redact_obj(value)
+    return redacted
+
+
+def _redact_obj(value):
+    if isinstance(value, dict):
+        return {k: _redact_obj(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_redact_obj(v) for v in value]
+    if isinstance(value, str):
+        return _redact_text(value)
+    return value

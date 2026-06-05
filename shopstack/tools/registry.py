@@ -114,6 +114,16 @@ class ToolRegistry:
 
     # --- Tool implementations ---
 
+    def _resolve_lot_id(self, lot_id: str) -> tuple[str | None, str | None]:
+        if not lot_id:
+            return None, "Lot id cannot be empty"
+        candidates = self.db.get_inventory_lot_ids(lot_id)
+        if not candidates:
+            return None, f"Lot {lot_id} not found"
+        if len(candidates) > 1:
+            return None, f"Lot id '{lot_id}' is ambiguous, use more characters"
+        return candidates[0], None
+
     def add_inventory_item(
         self,
         canonical_name: str,
@@ -147,7 +157,10 @@ class ToolRegistry:
         return {"lot": lot.model_dump(), "lot_id": lot.lot_id}
 
     def update_inventory_item(self, lot_id: str, updates: dict) -> dict[str, Any]:
-        lot = self.db.update_inventory_lot(lot_id, updates)
+        resolved_id, resolve_error = self._resolve_lot_id(lot_id)
+        if resolve_error:
+            return {"error": resolve_error}
+        lot = self.db.update_inventory_lot(resolved_id, updates)
         if not lot:
             return {"error": f"Lot {lot_id} not found"}
         return {"lot": lot.model_dump()}
@@ -155,12 +168,17 @@ class ToolRegistry:
     def consume_inventory_item(
         self, lot_id: str, quantity: float = 1.0, reason: str | None = None
     ) -> dict[str, Any]:
-        lot = self.db.get_inventory_lot(lot_id)
+        resolved_id, resolve_error = self._resolve_lot_id(lot_id)
+        if resolve_error:
+            return {"error": resolve_error}
+        lot = self.db.get_inventory_lot(resolved_id) if resolved_id else None
         if not lot:
             return {"error": f"Lot {lot_id} not found"}
+        if quantity <= 0:
+            return {"error": "Quantity to consume must be a positive number"}
         if lot.quantity < quantity:
             quantity = lot.quantity
-        updated = self.db.consume_inventory(lot_id, quantity)
+        updated = self.db.consume_inventory(resolved_id, quantity)
         if not updated:
             return {"error": "Consumption failed"}
         return {
@@ -173,14 +191,17 @@ class ToolRegistry:
     def move_inventory_item(
         self, lot_id: str, to_location_id: str, source: str = "manual"
     ) -> dict[str, Any]:
-        lot = self.db.get_inventory_lot(lot_id)
+        resolved_id, resolve_error = self._resolve_lot_id(lot_id)
+        if resolve_error:
+            return {"error": resolve_error}
+        lot = self.db.get_inventory_lot(resolved_id)
         if not lot:
             return {"error": f"Lot {lot_id} not found"}
         location = self.db.get_location(to_location_id)
         if not location:
             return {"error": f"Location {to_location_id} not found"}
         movement = MovementEvent(
-            lot_id=lot_id,
+            lot_id=resolved_id,
             from_location_id=lot.storage_location_id or None,
             to_location_id=to_location_id,
             source=source,

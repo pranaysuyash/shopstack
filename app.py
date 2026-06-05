@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -13,23 +14,40 @@ from shopstack.model_registry import get_registry
 from shopstack.persistence.database import Database
 from shopstack.providers.registry import ProviderRegistry
 from shopstack.tools.registry import ToolRegistry
+from shopstack.ui_support import build_price_memory_view, load_field_notes, save_field_notes
+from shopstack.ui.components.cards import (
+    card as ui_card,
+    empty_state,
+    render_decision_card,
+    render_grouped_cards,
+    render_metric,
+)
 from shopstack.traces.export import create_trace
 
 settings = Settings()
-db = Database(settings.database_path)
+db = Database(settings.db_path)
 providers = ProviderRegistry(settings)
 tools = ToolRegistry(db)
 model_registry = get_registry()
 
 CSS = """
 :root {
-  --bg: #0f0f11; --bg-card: #1a1a1e; --bg-input: #242428;
-  --border: #2e2e34; --text: #e4e4e7; --text-dim: #888899;
-  --accent: #6c5ce7; --accent-hover: #7c6df7;
-  --green: #00b894; --red: #e17055; --amber: #fdcb6e; --blue: #74b9ff;
-  --radius: 12px; --radius-sm: 8px;
+  --bg: #FFF8ED;
+  --bg-card: #FFFFFF;
+  --bg-warm: #FFF3DA;
+  --bg-input: #FFF3DA;
+  --border: #E8DCCB;
+  --text: #201A14;
+  --text-dim: #75685A;
+  --accent: #6D5BD0;
+  --accent-hover: #5c4bc5;
+  --green: #1F8A5B;
+  --red: #C94A3A;
+  --amber: #D98A1F;
+  --blue: #3F6FB5;
+  --radius: 20px; --radius-sm: 12px;
 }
-.gradio-container { background: var(--bg) !important; color: var(--text) !important; font-family: 'Inter', -apple-system, system-ui, sans-serif; max-width: 1280px !important; margin: 0 auto; }
+.gradio-container { background: var(--bg) !important; color: var(--text) !important; font-family: Inter, ui-sans-serif, system-ui, sans-serif; max-width: 1280px !important; margin: 0 auto; }
 .tabs { border: none !important; }
 .tab-nav { background: var(--bg-card) !important; border: 1px solid var(--border) !important; border-radius: var(--radius) !important; padding: 4px !important; gap: 2px !important; }
 .tab-nav button { background: transparent !important; border: none !important; color: var(--text-dim) !important; font-size: 13px !important; padding: 8px 14px !important; border-radius: var(--radius-sm) !important; transition: all 0.15s; }
@@ -43,20 +61,26 @@ CSS = """
 .gr-button.secondary { background: var(--bg-input) !important; border: 1px solid var(--border) !important; }
 .gr-button.secondary:hover { background: var(--border) !important; }
 h1, h2, h3 { color: var(--text) !important; font-weight: 600 !important; margin: 0 0 8px 0 !important; }
-label, .gr-form-label { color: var(--text-dim) !important; font-size: 12px !important; font-weight: 500 !important; text-transform: uppercase !important; letter-spacing: 0.5px !important; }
+label, .gr-form-label { color: var(--text) !important; font-size: 13px !important; font-weight: 500 !important; letter-spacing: 0.2px !important; }
 .gr-dataframe { background: var(--bg-card) !important; border: 1px solid var(--border) !important; border-radius: var(--radius) !important; }
 .gr-dataframe table { font-size: 13px !important; }
 .gr-dataframe th { background: var(--bg-input) !important; color: var(--text-dim) !important; border-bottom: 1px solid var(--border) !important; padding: 10px 12px !important; }
 .gr-dataframe td { border-bottom: 1px solid var(--border) !important; padding: 8px 12px !important; color: var(--text) !important; }
 .badge { display: inline-block; padding: 2px 10px; border-radius: 100px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
-.badge-green { background: rgba(0,184,148,0.15); color: var(--green); }
-.badge-red { background: rgba(225,112,85,0.15); color: var(--red); }
-.badge-amber { background: rgba(253,203,110,0.15); color: var(--amber); }
-.badge-blue { background: rgba(116,185,255,0.15); color: var(--blue); }
-.stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; text-align: center; }
-.stat-value { font-size: 32px; font-weight: 700; color: var(--text); line-height: 1; }
+.badge-green { background: rgba(31,138,91,0.12); color: var(--green); }
+.badge-red { background: rgba(201,74,58,0.12); color: var(--red); }
+.badge-amber { background: rgba(217,138,31,0.12); color: var(--amber); }
+.badge-blue { background: rgba(63,111,181,0.12); color: var(--blue); }
+.badge-gray { background: rgba(117,104,90,0.12); color: var(--text-dim); }
+.home-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: 0 6px 20px rgba(80, 50, 20, 0.06); }
+.stat-card { background: var(--bg-warm); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; text-align: center; }
+.stat-value { font-size: 34px; font-weight: 700; color: var(--text); line-height: 1; }
+.metric-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; text-align: left; }
 .stat-label { font-size: 12px; color: var(--text-dim); margin-top: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
 .action-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.item-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); align-items: center; }
+.item-card { margin-bottom: 10px; }
+.chip { display: inline-block; border: 1px solid var(--border); border-radius: 999px; padding: 5px 10px; font-size: 11px; background: #fff; color: var(--text); }
 """
 
 
@@ -70,6 +94,87 @@ def _list_to_table(items: list[dict[str, Any]], cols: list[str] | None = None) -
     return [header] + rows
 
 
+ITEM_ALIASES: dict[str, list[str]] = {
+    "tomato": ["tamatar", "tomatoes"],
+    "coriander": ["dhania", "cilantro"],
+    "curd": ["dahi", "yogurt"],
+    "wheat flour": ["atta", "aata"],
+    "rice": ["chawal"],
+    "lentils": ["dal", "daal"],
+    "onion": ["pyaaz", "pyaz"],
+    "potato": ["aloo", "alu"],
+}
+
+
+def normalize_item_name(name: str) -> str:
+    normal = re.sub(r"[^\w\s]", " ", name.lower()).strip()
+    for canonical, aliases in ITEM_ALIASES.items():
+        if normal == canonical or normal in aliases:
+            return canonical
+    return normal
+
+
+def _parse_shopping_text(items_text: str) -> list[str]:
+    if not items_text:
+        return []
+    chunks = [t.strip() for t in re.split(r"[,;\n]", items_text) if t.strip()]
+    parsed: list[str] = []
+    for chunk in chunks:
+        candidate = chunk.strip()
+        m = re.match(r"^\s*([a-z].*?)\s+\d", candidate)
+        if m:
+            candidate = m.group(1)
+        if candidate:
+            parsed.append(normalize_item_name(candidate))
+    return parsed
+
+
+def _extract_query_for_action(question: str, keyword: str) -> str:
+    q = question.lower()
+    for stop in ("do we have", "kya", "hai", "kharidna", "should i buy", "what about", "where is", "where's", "where are", "kahan hai", "kahan"):
+        q = q.replace(stop, " ")
+    q = re.sub(r"\b(what|should|do|need|today|today's|for|can|you|tell|me)\b", " ", q)
+    q = re.sub(r"\s+", " ", q).strip()
+    if not q and keyword:
+        return keyword
+    return q or keyword
+
+
+def _shopping_list_items_from_text(goal: str, raw: str) -> tuple[list[dict[str, Any]], str]:
+    raw = (raw or "").strip()
+    parsed = _parse_shopping_text(raw)
+    if parsed:
+        items = []
+        for item in parsed:
+            if not item:
+                continue
+            items.append({
+                "canonical_name": item,
+                "requested_quantity": 1.0,
+                "unit": "unit",
+                "priority": "must_buy",
+            })
+        return items, raw
+
+    if raw:
+        # If this is not parseable as a list, treat it as a goal phrase and use
+        # suggestions from next-buy intelligence.
+        suggestions = tools.get_next_buy_suggestions().get("suggestions", [])
+        fallback_items = []
+        for s in suggestions[:5]:
+            fallback_items.append({
+                "canonical_name": s["canonical_name"],
+                "requested_quantity": s.get("suggested_quantity", 1),
+                "unit": "unit",
+                "priority": s.get("priority", "optional"),
+                "reason": s.get("reason", ""),
+            })
+        if fallback_items:
+            return fallback_items, f"Suggested from home memory: {goal}"
+
+    return [], "No clear items were detected. Share a rough list like `milk, bread, tomato`."
+
+
 def today_dashboard():
     use_soon = tools.get_use_soon_items(days=3)
     soon_count = use_soon["count"]
@@ -77,17 +182,26 @@ def today_dashboard():
     all_inv = db.get_inventory()
     active_inv = [l for l in all_inv if l.status == "active"]
     low_items = [l for l in active_inv if l.quantity <= 0.5 or l.status == "low"]
-    purchases = db.get_purchases(limit=5)
+    purchases = db.get_purchase_events(limit=5)
+
+    hero = (
+        "<div class='home-card' style='margin-bottom:10px;'>"
+        "<h2>Good day. What should your home remember today?</h2>"
+        "<div style='color:var(--text-dim);'>Use what you've got, buy what you need, and skip what you already have.</div>"
+        "</div>"
+    )
+    quick_actions = (
+        "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:12px 0 16px 0;'>"
+        f"{render_metric('Active items', str(len(active_inv)))}"
+        f"{render_metric('Use soon', str(soon_count))}"
+        f"{render_metric('Low stock', str(len(low_items)))}"
+        f"{render_metric('Recent purchases', str(len(purchases)))}"
+        "</div>"
+    )
 
     return [
-        gr.HTML(f"""
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px;">
-  <div class="stat-card"><div class="stat-value">{len(active_inv)}</div><div class="stat-label">Active Items</div></div>
-  <div class="stat-card"><div class="stat-value">{soon_count}</div><div class="stat-label">Use Soon</div></div>
-  <div class="stat-card"><div class="stat-value">{len(low_items)}</div><div class="stat-label">Low Stock</div></div>
-  <div class="stat-card"><div class="stat-value">{len(purchases)}</div><div class="stat-label">Recent Purchases</div></div>
-</div>"""),
-        _render_use_soon(use_soon),
+        f"{hero}{quick_actions}",
+        _render_home_advice(active_inv, low_items, use_soon["items"][:3]),
         _render_list_summary(active_list),
         _render_low_stock(low_items),
         _render_recent_purchases(purchases),
@@ -106,6 +220,30 @@ def _render_use_soon(data: dict) -> str:
         for i in items[:5]
     )
     return f'<div class="stat-card" style="text-align:left;margin-bottom:12px;"><h3>⚠ Use Soon</h3>{rows}</div>'
+
+
+def _render_home_advice(active_inv: list, low_items: list, use_soon_items: list[dict[str, Any]]) -> str:
+    buy = []
+    skip = []
+    for lot in active_inv:
+        if lot.status == "low" or lot.quantity <= 0.4:
+            buy.append(f"Buy {lot.display_name}")
+        if lot.quantity > 0.7 and lot.canonical_name not in use_soon_items:
+            skip.append(f"You already have {lot.display_name}")
+    for item in use_soon_items[:2]:
+        buy.append(f"Use {item.get('display_name', item.get('canonical_name', ''))} before buying more")
+    if not buy and not skip:
+        return ui_card("Today's note", "Your pantry looks healthy. No immediate action needed.")
+    body = ""
+    if buy:
+        body += "<div style='margin-bottom:10px;'><strong>Buy</strong><ul>" + "".join(
+            f"<li>{line}</li>" for line in buy[:3]
+        ) + "</ul></div>"
+    if skip:
+        body += "<div><strong>Skip</strong><ul>" + "".join(
+            f"<li>{line}</li>" for line in skip[:3]
+        ) + "</ul></div>"
+    return ui_card("Today’s Shopping Advice", body)
 
 
 def _render_list_summary(sl) -> str:
@@ -165,9 +303,147 @@ def shopping_list_view():
 
 
 def shopping_list_create(goal: str, items_json: str) -> str:
-    items = json.loads(items_json) if items_json else []
+    if not items_json:
+        items = []
+        plan_note = "No items specified yet."
+    else:
+        try:
+            parsed_json = json.loads(items_json)
+            if isinstance(parsed_json, list):
+                items = parsed_json
+                plan_note = None
+            elif isinstance(parsed_json, dict):
+                items = [parsed_json]
+                plan_note = None
+            else:
+                return "<div style='color:var(--red);'>Input must be a list (or one item).</div>"
+        except json.JSONDecodeError:
+            items, plan_note = _shopping_list_items_from_text(goal, items_json)
+            if not items:
+                return f"<div style='color:var(--amber);'>{plan_note}</div>"
+        except TypeError:
+            return "<div style='color:var(--red);'>Unable to parse input.</div>"
+
+    if not items:
+        items = []
+    for item in items:
+        if not item.get("canonical_name"):
+            item["canonical_name"] = normalize_item_name(str(item.get("name", "")))
+            item["canonical_name"] = item["canonical_name"] or "unknown"
+    items = [
+        {
+            "canonical_name": normalize_item_name(item.get("canonical_name") or item.get("item", "")),
+            "requested_quantity": item.get("requested_quantity") or 1.0,
+            "unit": item.get("unit", "unit"),
+            "priority": item.get("priority", "must_buy"),
+            "reason": item.get("reason", ""),
+        }
+        for item in items if isinstance(item, dict)
+    ]
+    if items:
+        must_buy, optional, skipped = _classify_shopping_items(items)
+        plan_note = _render_shopping_plan_html(must_buy, optional, skipped)
+    else:
+        plan_note = "<div style='color:var(--text-dim);'>Created an empty active list. Add more items anytime.</div>"
     result = tools.create_or_update_shopping_list(items=items, goal=goal)
-    return f"<div style='color:var(--green);'>Created list: {result.get('list', {}).get('list_id', '')} with {len(items)} items</div>"
+    return (
+        f"<div style='color:var(--green);'>Created list: {result.get('list', {}).get('list_id', '')} with {len(items)} items</div>"
+        f"{plan_note}"
+    )
+
+
+def _classify_shopping_items(items: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    must_buy: list[dict[str, Any]] = []
+    optional: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    for item in items:
+        name = item["canonical_name"]
+        qty = float(item.get("requested_quantity", 1.0) or 1.0)
+        unit = item.get("unit", "unit") or "unit"
+        comparison = tools.compare_visible_item_to_inventory(name, qty, unit)
+        decision = comparison.get("decision", "maybe")
+        enriched = {
+            "canonical_name": name.title(),
+            "decision": decision,
+            "reason": comparison.get("reason", ""),
+            "confidence": 1.0,
+            "requested_quantity": qty,
+            "unit": unit,
+        }
+        if decision == "skip":
+            skipped.append(enriched)
+        elif decision == "optional":
+            optional.append(enriched)
+        else:
+            must_buy.append(enriched)
+    return must_buy, optional, skipped
+
+
+def _render_shopping_plan_html(
+    must_buy: list[dict[str, Any]], optional: list[dict[str, Any]], skipped: list[dict[str, Any]]
+) -> str:
+    return (
+        "<div style='margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;'>"
+        f"{render_grouped_cards('Must buy', must_buy)}"
+        f"{render_grouped_cards('Optional', optional)}"
+        f"{render_grouped_cards('Skip', skipped)}"
+        "</div>"
+    )
+
+
+def ask_shopstack(question: str) -> str:
+    question = (question or "").strip()
+    if not question:
+        return "<div style='color:var(--text-dim);'>Ask ShopStack anything — e.g. “Do we have milk?” or “What should I buy today?”</div>"
+
+    lowered = question.lower()
+
+    if any(k in lowered for k in ["do we have", "kya", "hai kya", "where is", "where's", "where"]):
+        query = _extract_query_for_action(question, "item")
+        result = tools.find_item(query)
+        results = result.get("results", [])
+        lines = [
+            f"<li>{r['lot'].get('canonical_name', '')} · {r['lot'].get('quantity', 0)} {r['lot'].get('unit', '')} @ {r.get('location_name', 'Unknown')}</li>"
+            for r in results
+        ]
+        if lines:
+            cards = "".join(render_decision_card(r["lot"].get("display_name", ""), "buy", "Found in inventory", 1.0, r["lot"].get("quantity"), r["lot"].get("unit")) for r in results)
+            return ui_card("Location match", cards)
+        return empty_state(f"We looked for <strong>{query}</strong> but found nothing. Add it to your next list if needed.")
+
+    if any(k in lowered for k in ["expiring", "expires", "use soon", "use soon", "urgent", "skip"]):
+        soon = tools.get_use_soon_items(days=7).get("items", [])
+        if not soon:
+            return empty_state("No urgent expiry items. You can hold steady today.")
+        body = "".join(
+            f"{render_decision_card(item.get('display_name', item.get('canonical_name', '')), 'use_soon', item.get('reason', 'Use soon'), 0.92, item.get('quantity'), item.get('unit', 'unit'), False)}"
+            for item in soon[:6]
+        )
+        return ui_card("Use-Soon Items", body)
+
+    if "should i buy" in lowered or "what should i buy" in lowered or "what do i need" in lowered:
+        suggestions = tools.get_next_buy_suggestions().get("suggestions", [])
+        if not suggestions:
+            return empty_state("No clear buy suggestions right now.")
+        items = [
+            {
+                "canonical_name": s.get("canonical_name", ""),
+                "reason": s.get("reason", ""),
+                "decision": "buy",
+                "confidence": 0.91,
+            }
+            for s in suggestions[:8]
+        ]
+        return ui_card("Today’s shopping suggestions", "".join(
+            render_decision_card(i["canonical_name"], i["decision"], i["reason"], i["confidence"], None, show_actions=False)
+            for i in items
+        ))
+
+    return ui_card(
+        "Quick answer",
+        f"{empty_state(f'Question understood: {question}')}"
+        "<div style='margin-top:8px;color:var(--text-dim);'>Try: “Do we have milk?”, “What should I buy today?”, or “Where is toothpaste?”</div>",
+    )
 
 
 def _market_lens_process(image_path: str | None, audio_path: str | None) -> tuple:
@@ -178,22 +454,62 @@ def _market_lens_process(image_path: str | None, audio_path: str | None) -> tupl
     if image_path:
         detections = providers.object_detection.detect(image_path)
         ocr_result = providers.ocr.extract(image_path)
-        items_found = [d["label"] for d in detections if d["confidence"] > 0.3]
-        analysis_html = "<div style='margin:12px 0;'>"
+        if isinstance(ocr_result, dict):
+            raw_product = ocr_result.get("product_name", "")
+        else:
+            raw_product = ""
+        decisions: list[dict[str, Any]] = []
         for d in detections[:8]:
-            comparison = tools.compare_visible_item_to_inventory(d["label"], d.get("quantity", 1.0), "unit")
-            badge = "badge-green" if comparison["decision"] == "skip" else "badge-red" if comparison["decision"] == "buy" else "badge-amber"
-            analysis_html += f"<div style='display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);'>"
-            analysis_html += f"<span>{d['label']} ({d['confidence']:.0%})</span>"
-            analysis_html += f"<span><span class='badge {badge}'>{comparison['decision']}</span> {comparison.get('reason','')[:50]}</span>"
-            analysis_html += f"</div>"
-        analysis_html += "</div>"
-        result_html = analysis_html
-        analysis = analysis_html
+            item_name = normalize_item_name(str(d.get("label", "")))
+            comparison = tools.compare_visible_item_to_inventory(item_name, d.get("quantity", 1.0), "unit")
+            decisions.append(
+                {
+                    "canonical_name": item_name.title(),
+                    "decision": comparison.get("decision", "maybe"),
+                    "reason": comparison.get("reason", ""),
+                    "confidence": float(d.get("confidence", 0.0)),
+                    "unit": "unit",
+                    "quantity": d.get("quantity", 1.0),
+                    "suggested_quantity": max(0.0, d.get("quantity", 1.0)),
+                    "source": raw_product,
+                }
+            )
+            items_found.append(item_name.title())
+
+        buys = [d for d in decisions if d["decision"] == "buy"]
+        skips = [d for d in decisions if d["decision"] == "skip"]
+        maybes = [d for d in decisions if d["decision"] in ("optional", "maybe")]
+        analysis = (
+            "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;'>"
+            f"{render_grouped_cards('BUY', buys)}"
+            f"{render_grouped_cards('SKIP', skips)}"
+            f"{render_grouped_cards('MAYBE', maybes)}"
+            "</div>"
+        )
+        result_html = (
+            "<div class='home-card'>"
+            f"<h3>Market Lens</h3>{analysis}"
+            "</div>"
+            "<div style='margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;'>"
+            "<span class='chip'>Confirm selected BUY</span>"
+            "<span class='chip'>Skip selected</span>"
+            "<span class='chip'>Save trace</span>"
+            "</div>"
+        )
+        analysis = json.dumps({"items": decisions}, indent=2)
 
     if audio_path:
         transcript = providers.stt.transcribe(audio_path)
-        result_html += f"<div style='margin-top:12px;'><strong>Heard:</strong> {transcript}</div>"
+        if isinstance(transcript, dict):
+            transcript_text = transcript.get("text", "")
+        else:
+            transcript_text = str(transcript)
+        result_html += f"<div style='margin-top:12px;'><strong>Heard:</strong> {transcript_text}</div>"
+        if not image_path and transcript_text:
+            result_html = ask_shopstack(transcript_text)
+            analysis = json.dumps({"audio_query": transcript_text}, indent=2)
+        else:
+            result_html += f"<div style='margin-top:8px;color:var(--text-dim);'>Spoken note processed for context.</div>"
 
     return result_html, str(items_found), analysis
 
@@ -237,13 +553,53 @@ def inventory_view(search: str = "") -> list[list[str]]:
                 "status": l.status,
                 "purchased": l.purchase_date.isoformat() if l.purchase_date else "",
                 "expires": (l.label_expiry_date or l.estimated_use_by_date or "").isoformat() if (l.label_expiry_date or l.estimated_use_by_date) else "",
-                "lot_id": l.lot_id[:8],
+                "lot_id": l.lot_id,
             }
             for l in items
         ],
         ["name", "qty", "unit", "location", "status", "purchased", "expires", "lot_id"],
     )
     return tbl
+
+
+def inventory_cards_view(search: str = "") -> str:
+    items = db.get_inventory()
+    if search:
+        q = search.lower()
+        items = [l for l in items if q in l.canonical_name.lower() or q in l.display_name.lower()]
+    locations = {loc.location_id: loc.name for loc in db.get_locations()}
+    if not items:
+        return empty_state("Your inventory is empty. Add one item in Add Purchase to start.")
+
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for lot in items:
+        loc = locations.get(lot.storage_location_id, lot.storage_location_id or "Unknown")
+        grouped.setdefault(loc, []).append(
+            {
+                "name": lot.display_name,
+                "qty": lot.quantity,
+                "unit": lot.unit,
+                "status": lot.status,
+                "reason": f"Added {lot.purchase_date.isoformat() if lot.purchase_date else 'today'}",
+                "expiry": (lot.label_expiry_date.isoformat() if lot.label_expiry_date else ""),
+                "reason": f"Last seen: {lot.storage_location_id or 'Unknown'}",
+            }
+        )
+
+    cards = ""
+    for loc_name, lots in grouped.items():
+        body = "<div style='margin-bottom:8px;'>"
+        for lot in lots:
+            body += "<div class='item-row'>"
+            body += f"<div><strong>{lot['name']}</strong><div style='font-size:11px;color:var(--text-dim)'>{lot['reason']}</div></div>"
+            body += f"<div style='text-align:right'>{lot['qty']} {lot['unit']}</div>"
+            body += "</div>"
+        body += "</div>"
+        cards += (
+            "<div class='home-card' style='margin-bottom:10px;'>"
+            f"<h4>{loc_name}</h4>{body}</div>"
+        )
+    return cards
 
 
 def consume_item(lot_id: str, qty: float) -> str:
@@ -273,25 +629,9 @@ def use_soon_view(days: int = 3) -> list[list[str]]:
     return tbl
 
 
-def price_memory_view(item_name: str = "") -> list[list[str]]:
-    if not item_name:
-        return [["Enter an item name to see price history"]]
-    history = db.get_price_history(item_name)
-    tbl = _list_to_table(
-        [
-            {
-                "store": p.store_name or "Unknown",
-                "price": f"₹{p.price:.2f}",
-                "qty": p.quantity,
-                "unit": p.unit,
-                "date": p.observation_date.isoformat(),
-                "notes": p.notes or "",
-            }
-            for p in history
-        ],
-        ["store", "price", "qty", "unit", "date", "notes"],
-    )
-    return tbl
+def price_memory_view(item_name: str = ""):
+    view = build_price_memory_view(db, item_name)
+    return view.summary_html, view.df, view.table
 
 
 def household_map_view() -> str:
@@ -305,7 +645,7 @@ def household_map_view() -> str:
     cards = ""
     for loc in locations:
         count = loc_counts.get(loc.location_id, 0)
-        parent = loc.parent_id or ""
+        parent = loc.parent_location_id or ""
         cards += f"""
 <div class="stat-card" style="text-align:left;margin-bottom:8px;cursor:pointer;"
      onclick="alert('Location: {loc.name}\\nItems: {count}\\nType: {loc.location_type}')">
@@ -329,7 +669,7 @@ def agent_trace_view() -> tuple:
             {
                 "trace_id": t.trace_id[:12],
                 "type": t.input_type,
-                "time": t.timestamp.split(".")[0] if t.timestamp else "",
+                "time": t.timestamp.strftime("%Y-%m-%d %H:%M") if t.timestamp else "",
                 "goal": (t.user_goal or "")[:40],
                 "tool_calls": len(t.proposed_tool_calls or []),
             }
@@ -348,43 +688,28 @@ def agent_trace_detail(trace_id: str) -> str:
     return "<div style='color:var(--text-dim);'>Trace not found.</div>"
 
 
-def field_notes_view() -> str:
-    traces = db.get_traces(limit=20)
-    if not traces:
-        return "<div style='color:var(--text-dim);'>No agent sessions recorded yet.</div>"
-    entries = ""
-    for t in reversed(traces):
-        decision = t.decision or {}
-        perception = t.perception or {}
-        entries += f"""
-<div class="stat-card" style="text-align:left;margin-bottom:8px;">
-  <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-bottom:6px;">
-    <span>{t.input_type}</span>
-    <span>{t.timestamp[:19]}</span>
-  </div>
-  <div style="margin-bottom:4px;"><strong>Goal:</strong> {t.user_goal or '—'}</div>
-  <div style="margin-bottom:4px;"><strong>Decision:</strong> {json.dumps(decision, default=str)[:200]}</div>
-  <div style="font-size:11px;color:var(--text-dim);">
-    <strong>Perception:</strong> {json.dumps(perception, default=str)[:100]}
-    | <strong>Tools:</strong> {len(t.proposed_tool_calls or [])}
-    | <strong>Response:</strong> {(t.final_response or '')[:80]}
-  </div>
-</div>"""
-    return entries
+def field_notes_view():
+    view = load_field_notes(db)
+    return view.editor_value, view.preview_value, view.status_html
+
+
+def field_notes_save(note_text: str):
+    view = save_field_notes(db, note_text)
+    return view.editor_value, view.preview_value, view.status_html
 
 
 def build_app() -> gr.Blocks:
-    with gr.Blocks(title="ShopStack", css=CSS, theme=gr.themes.Base()) as app:
+    with gr.Blocks(title="ShopStack") as app:
         gr.HTML("""
 <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid var(--border);margin-bottom:20px;">
   <div>
     <h1 style="font-size:22px;margin:0;">ShopStack</h1>
-    <div style="font-size:12px;color:var(--text-dim);">Off the Grid · Local-First Household Inventory</div>
+    <div style="font-size:12px;color:var(--text-dim);">Your home’s shopping memory.</div>
   </div>
   <div style="text-align:right;font-size:11px;color:var(--text-dim);">
-    Off the Grid · Mock Providers
+    <div>v0.1.0</div>
   </div>
-</div>""")
+</div>""", padding=True)
 
         with gr.Tabs(elem_classes="tabs") as tabs:
             with gr.Tab("Today", id="today"):
@@ -395,18 +720,36 @@ def build_app() -> gr.Blocks:
                 today_recent = gr.HTML("")
                 app.load(today_dashboard, outputs=[today_stats, today_soon, today_list, today_low, today_recent])
 
+            with gr.Tab("Ask ShopStack", id="ask"):
+                ask_input = gr.Textbox(
+                    label="Ask ShopStack",
+                    placeholder="Do we have milk?  |  What should I buy today?  |  Where is toothpaste?",
+                    lines=2,
+                )
+                ask_btn = gr.Button("Ask")
+                ask_output = gr.HTML("")
+                ask_btn.click(ask_shopstack, ask_input, ask_output)
+                ask_input.submit(ask_shopstack, ask_input, ask_output)
+
             with gr.Tab("Shopping List", id="shopping"):
                 sl_display = gr.HTML("")
+                sl_plan = gr.HTML("")
                 sl_table = gr.DataFrame(label="Items")
                 sl_list_id = gr.State("")
                 sl_goal = gr.State("")
                 with gr.Row():
                     goal_input = gr.Textbox(label="List Goal (e.g. Weekly Groceries)", placeholder="What's this list for?")
-                    items_input = gr.Textbox(label="Items JSON (optional)", placeholder='[{"canonical_name":"milk","requested_quantity":2}]', lines=2)
+                    items_input = gr.Textbox(
+                        label="Shopping list",
+                        placeholder='milk, bread, tomato (natural)  |  [{"canonical_name":"milk","requested_quantity":2}]',
+                        lines=3,
+                    )
                 with gr.Row():
-                    create_btn = gr.Button("Create / Update List")
+                    create_btn = gr.Button("Build Shopping Plan")
                     refresh_btn = gr.Button("Refresh", elem_classes="secondary")
                 create_output = gr.HTML("")
+                create_btn.click(shopping_list_create, [goal_input, items_input], [create_output, sl_plan])
+                sl_plan = gr.HTML("", visible=True)
                 create_btn.click(shopping_list_create, [goal_input, items_input], create_output)
                 refresh_btn.click(shopping_list_view, outputs=[sl_display, sl_table, sl_list_id, sl_goal])
                 app.load(shopping_list_view, outputs=[sl_display, sl_table, sl_list_id, sl_goal])
@@ -445,14 +788,18 @@ def build_app() -> gr.Blocks:
                     inv_refresh = gr.Button("Refresh", elem_classes="secondary")
                 inv_table = gr.DataFrame(label="All Inventory Items")
                 with gr.Row():
-                    cons_lot = gr.Textbox(label="Lot ID (first 8 chars)", placeholder="abcdef12")
+                    cons_lot = gr.Textbox(label="Lot ID (full or first 8 chars)", placeholder="abcdef123456")
                     cons_qty = gr.Number(label="Quantity to Consume", value=1.0)
                     cons_btn = gr.Button("Consume")
                 cons_result = gr.HTML("")
+                inv_cards = gr.HTML("")
                 inv_search.change(inventory_view, inv_search, inv_table)
+                inv_search.change(inventory_cards_view, inv_search, inv_cards)
                 inv_refresh.click(inventory_view, outputs=inv_table)
+                inv_refresh.click(inventory_cards_view, outputs=inv_cards)
                 cons_btn.click(consume_item, [cons_lot, cons_qty], cons_result)
                 app.load(inventory_view, outputs=inv_table)
+                app.load(inventory_cards_view, outputs=inv_cards)
 
             with gr.Tab("Use Soon", id="usesoon"):
                 with gr.Row():
@@ -466,8 +813,19 @@ def build_app() -> gr.Blocks:
                 with gr.Row():
                     price_item = gr.Textbox(label="Item Name", placeholder="e.g. basmati rice")
                     price_search = gr.Button("Search")
+                price_summary = gr.HTML("")
+                price_plot = gr.LinePlot(
+                    label="Price Trend",
+                    x="date",
+                    y="price",
+                    title="Price trend over time",
+                    x_title="Date",
+                    y_title="Price (₹)",
+                    height=300,
+                )
                 price_table = gr.DataFrame(label="Price History")
-                price_search.click(price_memory_view, price_item, price_table)
+                price_search.click(price_memory_view, price_item, [price_summary, price_plot, price_table])
+                app.load(price_memory_view, inputs=price_item, outputs=[price_summary, price_plot, price_table])
 
             with gr.Tab("Household Map", id="map"):
                 map_html = gr.HTML("")
@@ -483,8 +841,18 @@ def build_app() -> gr.Blocks:
                 app.load(agent_trace_view, outputs=[trace_table, first_trace])
 
             with gr.Tab("Field Notes", id="notes"):
-                notes_html = gr.HTML("")
-                app.load(field_notes_view, outputs=notes_html)
+                gr.Markdown("### Field Notes")
+                gr.Markdown("Use this area to capture the story behind the build, the failures, and what changed after real testing.")
+                notes_editor = gr.Textbox(label="Editable Draft", lines=16, placeholder="# Field Notes\n\nWrite what we learned...")
+                notes_preview = gr.Markdown()
+                notes_status = gr.HTML("")
+                with gr.Row():
+                    notes_reload = gr.Button("Reload Draft", elem_classes="secondary")
+                    notes_save = gr.Button("Save Notes")
+                notes_reload.click(field_notes_view, outputs=[notes_editor, notes_preview, notes_status])
+                notes_save.click(field_notes_save, notes_editor, outputs=[notes_editor, notes_preview, notes_status])
+                notes_editor.change(lambda text: text, notes_editor, notes_preview)
+                app.load(field_notes_view, outputs=[notes_editor, notes_preview, notes_status])
 
     return app
 
@@ -498,4 +866,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     app = build_app()
-    app.launch(server_port=args.port, share=args.share)
+    app.launch(server_port=args.port, share=args.share, theme=gr.themes.Base(), css=CSS)

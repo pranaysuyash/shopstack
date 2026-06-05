@@ -44,6 +44,25 @@ class TestTraceRedaction:
         assert call["args"]["email"] == "[REDACTED]"
         assert call["args"]["name"] == "milk"
 
+    def test_redact_nested_text_fields(self):
+        trace_dict = {
+            "user_goal": "Need details from receipt",
+            "redacted_user_request": "Call me 9999999999 and email test@example.com",
+            "final_response": "Receipt contains store: ABCMart",
+            "perception": {
+                "notes": ["send to user@test.com", "phone 1111111111"],
+                "details": {"raw_text": "Aadhar 123412341234"},
+            },
+            "proposed_tool_calls": [
+                {"tool_name": "add_inventory", "args": {"raw_text": "phone 1010101010", "store": "Big Basket", "meta": {"aadhar": "ABCDE1234F"}}}
+            ],
+        }
+        redacted = _redact_trace(trace_dict)
+        assert "[REDACTED_NUMBER]" in redacted["redacted_user_request"]
+        assert "[REDACTED_EMAIL]" in redacted["redacted_user_request"]
+        assert "[REDACTED_NUMBER]" in redacted["proposed_tool_calls"][0]["args"]["raw_text"]
+        assert redacted["proposed_tool_calls"][0]["args"]["meta"]["aadhar"] == "[REDACTED]"
+
     def test_redact_aadhar(self):
         trace_dict = {
             "user_goal": "My aadhar is 123456789012",

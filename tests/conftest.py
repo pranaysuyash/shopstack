@@ -27,7 +27,8 @@ def db(db_path: str) -> Database:
 
 @pytest.fixture
 def settings() -> Settings:
-    return Settings(database_path=":memory:", off_the_grid=True)
+    # The project Settings API uses `db_path`, not the older `database_path` name.
+    return Settings(db_path=":memory:", off_the_grid=True)
 
 
 @pytest.fixture

@@ -30,7 +30,7 @@ class Database:
     @property
     def conn(self) -> sqlite3.Connection:
         if self._conn is None:
-            self._conn = sqlite3.connect(self.db_path)
+            self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
             self._conn.row_factory = sqlite3.Row
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute("PRAGMA foreign_keys=ON")
@@ -158,6 +158,24 @@ class Database:
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             );
+
+            CREATE VIEW IF NOT EXISTS price_history AS
+                SELECT * FROM price_observations;
+
+            CREATE TRIGGER IF NOT EXISTS price_history_delete
+            INSTEAD OF DELETE ON price_history
+            BEGIN
+                DELETE FROM price_observations WHERE price_id = OLD.price_id;
+            END;
+
+            CREATE VIEW IF NOT EXISTS agent_traces AS
+                SELECT * FROM traces;
+
+            CREATE TRIGGER IF NOT EXISTS agent_traces_delete
+            INSTEAD OF DELETE ON agent_traces
+            BEGIN
+                DELETE FROM traces WHERE trace_id = OLD.trace_id;
+            END;
         """)
         self._seed_locations()
         self.conn.commit()
@@ -246,6 +264,23 @@ class Database:
         ).fetchone()
         return _row_to_lot(row) if row else None
 
+    def get_inventory_lot_ids(self, lot_id_prefix: str) -> list[str]:
+        if not lot_id_prefix:
+            return []
+        exact = self.get_inventory_lot(lot_id_prefix)
+        if exact:
+            return [lot_id_prefix]
+        rows = self.conn.execute(
+            "SELECT lot_id FROM inventory_lots WHERE lot_id LIKE ? ORDER BY lot_id", (f"{lot_id_prefix}%",)
+        ).fetchall()
+        return [r["lot_id"] for r in rows]
+
+    def resolve_inventory_lot_id(self, lot_id_or_prefix: str) -> str | None:
+        ids = self.get_inventory_lot_ids(lot_id_or_prefix)
+        if len(ids) == 1:
+            return ids[0]
+        return None
+
     def get_inventory(
         self, status: str | None = None, location_id: str | None = None,
         category: str | None = None,
@@ -266,6 +301,8 @@ class Database:
         return [_row_to_lot(r) for r in rows if r]
 
     def consume_inventory(self, lot_id: str, quantity: float) -> InventoryLot | None:
+        if quantity < 0:
+            raise ValueError("quantity must be greater than 0")
         lot = self.get_inventory_lot(lot_id)
         if not lot:
             return None
@@ -394,7 +431,7 @@ class Database:
 
     def get_price_history(self, canonical_name: str) -> list[PriceObservation]:
         rows = self.conn.execute(
-            "SELECT * FROM price_observations WHERE canonical_name = ? ORDER BY observation_date DESC",
+            "SELECT * FROM price_observations WHERE canonical_name = ? ORDER BY observation_date DESC, rowid DESC",
             (canonical_name,),
         ).fetchall()
         return [_row_to_price(r) for r in rows]
@@ -412,6 +449,22 @@ class Database:
     def get_stores(self) -> list[Store]:
         rows = self.conn.execute("SELECT * FROM stores ORDER BY name").fetchall()
         return [_row_to_store(r) for r in rows]
+
+    # --- App Config ---
+
+    def get_config_value(self, key: str, default: str = "") -> str:
+        row = self.conn.execute(
+            "SELECT value FROM app_config WHERE key = ?",
+            (key,),
+        ).fetchone()
+        return row["value"] if row else default
+
+    def set_config_value(self, key: str, value: str) -> None:
+        self.conn.execute(
+            "INSERT OR REPLACE INTO app_config (key, value) VALUES (?, ?)",
+            (key, value),
+        )
+        self.conn.commit()
 
     # --- Traces ---
 
@@ -455,6 +508,9 @@ class Database:
             "SELECT * FROM purchase_events ORDER BY timestamp DESC LIMIT ?", (limit,)
         ).fetchall()
         return [_row_to_purchase(r) for r in rows]
+
+    def get_purchases(self, limit: int = 20) -> list[PurchaseEvent]:
+        return self.get_purchase_events(limit=limit)
 
     def close(self) -> None:
         if self._conn:

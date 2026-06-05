@@ -24,3 +24,19 @@ class TestSettings:
         assert s.stt_backend == "mock"
         assert s.tts_backend == "mock"
         assert s.vision_backend == "mock"
+
+    def test_provider_backends_compat_alias(self):
+        s = Settings(stt_backend="mock", tts_backend="mock", vision_backend="mock", ocr_backend="mock")
+        assert s.provider_backends["stt"] == "mock"
+        assert s.provider_backends["tts"] == "mock"
+        assert s.provider_backends["vision"] == "mock"
+
+    def test_database_path_alias(self):
+        s = Settings(db_path="/tmp/legacy.db")
+        assert s.database_path == "/tmp/legacy.db"
+
+    def test_legacy_env_database_path_alias(self, monkeypatch):
+        monkeypatch.setenv("SHOPSTACK_DATABASE_PATH", "/tmp/legacy-env.db")
+        monkeypatch.delenv("SHOPSTACK_DB_PATH", raising=False)
+        s = Settings()
+        assert s.db_path == "/tmp/legacy-env.db"

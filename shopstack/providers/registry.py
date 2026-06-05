@@ -57,29 +57,30 @@ class ProviderRegistry:
         self.register("image_edit", MockImageEditProvider())
 
     def _init_configured(self) -> None:
+        backend_map = {
+            "stt": (MockSTTProvider, self._get_mock("stt")),
+            "tts": (MockTTSProvider, self._get_mock("tts")),
+            "vision": (MockVisionProvider, self._get_mock("vision")),
+            "object_detection": (MockDetectionProvider, self._get_mock("object_detection")),
+            "grounding": (MockGroundingProvider, self._get_mock("grounding")),
+            "segmentation": (MockSegmentationProvider, self._get_mock("segmentation")),
+            "ocr": (MockOCRProvider, self._get_mock("ocr")),
+            "planner": (MockPlannerProvider, self._get_mock("planner")),
+            "tool_call_parser": (MockToolCallParser, self._get_mock("tool_call_parser")),
+            "embeddings": (MockEmbeddingsProvider, self._get_mock("embeddings")),
+            "image_edit": (MockImageEditProvider, self._get_mock("image_edit")),
+        }
+        for provider_name, (mock_factory, backend) in backend_map.items():
+            if backend == "mock":
+                self.register(provider_name, mock_factory())
+
+    def _get_mock(self, provider_name: str) -> str:
         backends = self._settings.provider_backends
-        if backends.get("stt") == "mock":
-            self.register("stt", MockSTTProvider())
-        if backends.get("tts") == "mock":
-            self.register("tts", MockTTSProvider())
-        if backends.get("vision") == "mock":
-            self.register("vision", MockVisionProvider())
-        if backends.get("object_detection") == "mock":
-            self.register("object_detection", MockDetectionProvider())
-        if backends.get("grounding") == "mock":
-            self.register("grounding", MockGroundingProvider())
-        if backends.get("segmentation") == "mock":
-            self.register("segmentation", MockSegmentationProvider())
-        if backends.get("ocr") == "mock":
-            self.register("ocr", MockOCRProvider())
-        if backends.get("planner") == "mock":
-            self.register("planner", MockPlannerProvider())
-        if backends.get("tool_call_parser") == "mock":
-            self.register("tool_call_parser", MockToolCallParser())
-        if backends.get("embeddings") == "mock":
-            self.register("embeddings", MockEmbeddingsProvider())
-        if backends.get("image_edit") == "mock":
-            self.register("image_edit", MockImageEditProvider())
+        backend = (backends.get(provider_name) or "mock").lower().strip()
+        if backend not in {"mock", "mocked"}:
+            # Real provider execution is not yet implemented, so fallback to mock.
+            return "mock"
+        return backend
 
     def register(self, name: str, provider: Any) -> None:
         self._providers[name] = provider
