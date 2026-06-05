@@ -21,17 +21,19 @@ Open `http://localhost:7860` in your browser.
 ## Tests
 
 ```bash
-uv run pytest tests/ -v          # 82 passed in 0.22s
-uv run pytest benchmarks/ -v -m benchmark  # 9 passed in 0.04s
+uv run pytest tests/ -v          # 118 passed in 2.40s
+uv run pytest benchmarks/ -v -m benchmark  # 9 passed in 0.05s
 ```
 
 | Module | Tests | What it covers |
 |--------|-------|----------------|
 | `test_config.py` | 3 | Settings defaults, env overrides, provider backend defaults |
 | `test_schemas.py` | 17 | All 14+ Pydantic models: validation, defaults, serialization |
-| `test_database.py` | 21 | CRUD for all 9 tables, location seeding, edge cases |
+| `test_database.py` | 23 | CRUD for all core tables, config storage, location seeding, edge cases |
 | `test_tools.py` | 18 | All 11 tool implementations, error paths |
 | `test_traces.py` | 23 | PII redaction (phone, email, Aadhar, PAN), create/export traces |
+| `test_views.py` | 20 | Gradio view helpers and UI flows |
+| `test_ui_support.py` | 4 | Price memory charting and field-note persistence helpers |
 
 ## Project Structure
 
@@ -107,7 +109,9 @@ Gradio Blocks (app.py)
 
 ### 9 Database Tables
 
-`inventory_lots`, `movement_events`, `purchase_events`, `price_history`, `shopping_lists`, `shopping_list_items`, `household_locations`, `detection_events`, `agent_traces`
+`inventory_lots`, `movement_events`, `purchase_events`, `price_observations`, `shopping_lists`, `shopping_list_items`, `household_locations`, `detection_events`, `traces`
+
+Compatibility aliases: `price_history` and `agent_traces` are exposed as read/delete-compatible views for older docs, tests, and scripts.
 
 18 hierarchical household locations seeded on every init (safe via COUNT check): Home → Kitchen → Fridge → Fridge Door → ..., Pantry → Shelf → ..., etc.
 
