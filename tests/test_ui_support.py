@@ -46,6 +46,13 @@ def test_build_price_memory_view_handles_missing_item(db: Database):
     assert view.table[0][0] == "Enter an item name to see price history"
 
 
+def test_build_price_memory_view_handles_none_item(db: Database):
+    view = build_price_memory_view(db, None)
+    assert "Enter an item name" in view.summary_html
+    assert view.df.empty
+    assert view.table[0][0] == "Enter an item name to see price history"
+
+
 def test_build_price_memory_view_handles_no_history(db: Database):
     view = build_price_memory_view(db, "nonexistent")
     assert "No price observations found" in view.summary_html

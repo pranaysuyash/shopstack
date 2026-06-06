@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -61,6 +62,8 @@ class LocalProvider:
         self._error: str | None = None
         self._llm: Any = None
         self._tokenizer: Any = None
+        self._last_latency_ms: float | None = None
+        self._last_token_count: int | None = None
         self._init()
 
     def _init(self) -> None:
@@ -132,6 +135,8 @@ class LocalProvider:
             temperature = kwargs.get("temperature", 0.3)
             stop = kwargs.get("stop", [])
 
+            t0 = time.monotonic()
+
             if self._backend == "mlx":
                 from mlx_lm import generate
 
@@ -143,7 +148,8 @@ class LocalProvider:
                     max_tokens=max_tokens,
                     temperature=temperature,
                 )
-                return {"text": text, "model": self._mlx_model, "usage": {"total_tokens": max_tokens}}
+                token_count = max_tokens
+                result = {"text": text, "model": self._mlx_model, "usage": {"total_tokens": token_count}}
             else:
                 response = self._llm.create_chat_completion(
                     messages=[{"role": "user", "content": prompt}],
@@ -152,11 +158,17 @@ class LocalProvider:
                     stop=stop or None,
                 )
                 text = response["choices"][0]["message"]["content"]
-                return {
+                token_count = response.get("usage", {}).get("total_tokens", 0)
+                result = {
                     "text": text,
                     "model": f"{self._model_repo}/{self._model_file}",
-                    "usage": {"total_tokens": response.get("usage", {}).get("total_tokens", 0)},
+                    "usage": {"total_tokens": token_count},
                 }
+
+            elapsed = time.monotonic() - t0
+            self._last_latency_ms = round(elapsed * 1000, 1)
+            self._last_token_count = token_count
+            return result
         except Exception as e:
             logger.warning("Local completion failed", exc_info=True)
             return {"error": str(e), "model": self.name}
@@ -203,3 +215,11 @@ class LocalProvider:
     @property
     def backend(self) -> str:
         return self._backend
+
+    @property
+    def last_latency_ms(self) -> float | None:
+        return self._last_latency_ms
+
+    @property
+    def last_token_count(self) -> int | None:
+        return self._last_token_count

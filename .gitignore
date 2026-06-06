@@ -5,6 +5,9 @@ dist/
 build/
 .venv/
 data/*.db
+data/*.db-shm
+data/*.db-wal
+mcp-shell.log
 .pytest_cache/
 benchmarks/.pytest_cache/
 *.swp

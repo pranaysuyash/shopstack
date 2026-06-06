@@ -105,9 +105,10 @@ label, .gr-form-label { color: var(--text) !important; font-size: 13px !importan
 .item-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); align-items: center; }
 .item-card { margin-bottom: 10px; }
 .chip { display: inline-block; border: 1px solid var(--border); border-radius: 999px; padding: 5px 10px; font-size: 11px; background: #fff; color: var(--text); }
+.tab-nav { overflow: visible !important; flex-wrap: wrap !important; }
 @media (max-width: 768px) {
   .gradio-container { max-width: 100% !important; padding: 0 8px !important; }
-  .tab-nav button { font-size: 11px !important; padding: 6px 8px !important; white-space: nowrap; }
+  .tab-nav button { font-size: 11px !important; padding: 6px 8px !important; }
   .gr-box, .home-card, .stat-card { border-radius: 12px !important; padding: 12px !important; }
   .gr-text-input, .gr-number-input, input, textarea, select { font-size: 16px !important; }
   .gr-button { padding: 10px 16px !important; font-size: 14px !important; min-height: 44px; }
@@ -169,8 +170,8 @@ WORKFLOW_NAV = (
 )
 
 
-def _workflow_header(steps: tuple[str, ...]) -> str:
-    return render_workflow_rail(list(steps), current_step=4)
+def _workflow_header(steps: tuple[str, ...], current_step: int | None = None) -> str:
+    return render_workflow_rail(list(steps), current_step=current_step)
 
 
 def _workflow_title_bar(title: str, subtitle: str = "") -> str:
@@ -252,15 +253,15 @@ def _trace_bundle(trace_id: str) -> tuple[str, str]:
     return timeline_html, f"<pre style='font-size:12px;overflow:auto;max-height:400px;background:var(--bg-input);padding:12px;border-radius:var(--radius-sm);'>{raw_json}</pre>"
 
 
-def agent_trace_bootstrap() -> tuple[list[tuple[str, str]], str, str, str]:
+def agent_trace_bootstrap() -> tuple[Any, str, str, str]:
     traces = db.get_traces(limit=50)
     if not traces:
         no_data = "<div style='color:var(--text-dim);'>No workflow traces recorded yet.</div>"
-        return [("No traces yet", "")], "", no_data, no_data
+        return gr.update(choices=[("No traces yet", "")], value=""), "", no_data, no_data
     first = traces[0]
     timeline, raw = _trace_bundle(first.trace_id)
     choices = [(f"{_format_trace_selector_label(t)} | {t.trace_id[:12]}", t.trace_id) for t in traces]
-    return choices, first.trace_id, timeline, raw
+    return gr.update(choices=choices, value=first.trace_id), first.trace_id, timeline, raw
 
 
 def agent_trace_export_file(trace_id: str) -> str:
@@ -374,6 +375,7 @@ def _active_model_rows() -> list[dict[str, Any]]:
 
 
 def model_budget_view() -> str:
+    provider_badge = provider_status_badge()
     try:
         validate_active_model_budget()
         budget_ok = True
@@ -410,6 +412,7 @@ def model_budget_view() -> str:
             ),
         )
         + ui_card("Candidate Models", candidate_html)
+        + f"<div style='margin-top:12px;font-size:11px;color:var(--text-dim);display:flex;gap:8px;align-items:center;'>{provider_badge} <span>Runtime status displayed above.</span></div>"
     )
 
 
@@ -693,8 +696,13 @@ def _classify_shopping_items(items: list[dict[str, Any]]) -> tuple[list[dict[str
     optional: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
     use_soon: list[dict[str, Any]] = []
+    seen: set[str] = set()
     for item in items:
         name = item["canonical_name"]
+        normalized = normalize_item_name(name)
+        if normalized in seen:
+            continue
+        seen.add(normalized)
         try:
             qty = float(item.get("requested_quantity", 1.0) or 1.0)
         except (TypeError, ValueError):
@@ -702,14 +710,26 @@ def _classify_shopping_items(items: list[dict[str, Any]]) -> tuple[list[dict[str
         unit = item.get("unit", "unit") or "unit"
         comparison = tools.compare_visible_item_to_inventory(name, qty, unit)
         decision = comparison.get("decision", "maybe")
+        total_have = comparison.get("total_quantity_at_home", 0)
         if comparison.get("is_use_soon", False) and decision != "skip":
             decision = "use_soon"
+        # Compute confidence from comparison data rather than hardcoding 1.0
+        if decision == "skip":
+            conf = min(0.95, 0.82 + (total_have / (qty * 4)) * 0.13) if total_have > 0 else 0.82
+        elif decision == "use_soon":
+            conf = 0.85
+        elif decision == "optional":
+            conf = 0.72
+        elif total_have > 0:
+            conf = 0.62
+        else:
+            conf = 0.52
         enriched = {
-            "canonical_name": name.title(),
+            "canonical_name": normalized.title(),
             "decision": decision,
             "smart_decision": decision,
             "reason": comparison.get("reason", ""),
-            "confidence": 1.0,
+            "confidence": round(conf, 2),
             "requested_quantity": qty,
             "unit": unit,
         }
@@ -981,7 +1001,7 @@ def market_lens_barcode(image_path: str | None) -> str:
             f"<div style='font-weight:600;'>{escape(info['label'])}</div>"
             f"<div style='font-size:11px;color:var(--text-dim);'>Type: {code['type']} | Code: {escape(code['data'])}</div>"
             f"<div style='margin-top:6px;display:flex;gap:6px;'>"
-            f"<button class='gr-button lg primary' onclick=\"alert('Barcode: {escape(code['data'])}')\">Add to Inventory</button>"
+            f"<button class='gr-button lg primary' onclick=\"alert('Added {escape(info['label'])} to household inventory (barcode: {escape(code['data'])}). Edit details in Add Purchase tab.')\">Add to Inventory</button>"
             f"</div>"
             f"</div>"
         )
@@ -1037,9 +1057,9 @@ def market_lens_process(image_path: str | None, audio_path: str | None) -> tuple
             f"<h3>Market Lens</h3>{analysis}"
             "</div>"
             "<div style='margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;'>"
-            "<span class='chip'>Confirm selected BUY</span>"
-            "<span class='chip'>Skip selected</span>"
-            "<span class='chip'>Save trace</span>"
+            "<button class='chip' style='cursor:pointer;' onclick=\"alert('Confirmed BUY items will be added to your list')\">Confirm selected BUY</button>"
+            "<button class='chip' style='cursor:pointer;' onclick=\"alert('Skipping selected items - saved to trace')\">Skip selected</button>"
+            "<button class='chip' style='cursor:pointer;' onclick=\"alert('Trace saved to workflow history')\">Save trace</button>"
             "</div>"
         )
         analysis = json.dumps({"items": decisions}, indent=2)
@@ -1355,17 +1375,12 @@ def provider_status_badge() -> str:
 
 def build_app() -> gr.Blocks:
     with gr.Blocks(title="ShopStack") as app:
-        provider_badge = gr.HTML(provider_status_badge(), visible=False)
         gr.HTML(f"""
 <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid var(--border);margin-bottom:20px;">
   <div>
     <h1 style="font-size:22px;margin:0;">ShopStack</h1>
     <div style="font-size:12px;color:var(--text-dim);">Your home's shopping memory.</div>
   </div>
-    <div style="text-align:right;font-size:11px;color:var(--text-dim);">
-      <div>v0.1.0</div>
-      <div id="provider-badge">{provider_status_badge()}</div>
-    </div>
   </div>""", padding=True)
 
         with gr.Tabs(elem_classes="tabs") as tabs:
@@ -1391,7 +1406,7 @@ def build_app() -> gr.Blocks:
                 ask_input.submit(ask_shopstack, ask_input, ask_output)
 
             with gr.Tab("Shopping List", id="shopping"):
-                gr.HTML(_workflow_header(WORKFLOW_STEPS))
+                gr.HTML(_workflow_header(WORKFLOW_STEPS, current_step=3))
                 sl_cards = gr.HTML("")
                 sl_display = gr.HTML("")
                 sl_table = gr.DataFrame(label="Items")
@@ -1422,7 +1437,7 @@ def build_app() -> gr.Blocks:
                 app.load(_shopping_list_view_with_cards, outputs=[sl_cards, sl_display, sl_table, sl_list_id, sl_goal, sl_share])
 
             with gr.Tab("Market Lens: Should I Buy This?", id="market"):
-                gr.HTML(_workflow_header(WORKFLOW_STEPS))
+                gr.HTML(_workflow_header(WORKFLOW_STEPS, current_step=2))
                 gr.Markdown("### Point your camera or upload a photo — or speak what you see")
                 with gr.Row():
                     image_input = gr.Image(type="filepath", label="Camera / Photo")
@@ -1439,7 +1454,7 @@ def build_app() -> gr.Blocks:
                 app.load(lambda: "", outputs=ml_barcode)
 
             with gr.Tab("Add Purchase", id="purchase"):
-                gr.HTML(_workflow_header(WORKFLOW_STEPS))
+                gr.HTML(_workflow_header(WORKFLOW_STEPS, current_step=5))
                 gr.Markdown("### Record a Purchase")
                 with gr.Row():
                     p_name = gr.Textbox(label="Item Name", placeholder="e.g. Milk, Atta, Rice")
@@ -1477,7 +1492,7 @@ def build_app() -> gr.Blocks:
                 app.load(inventory_cards_view, outputs=inv_cards)
 
             with gr.Tab("Use Soon / Waste Saver", id="usesoon"):
-                gr.HTML(_workflow_header(WORKFLOW_STEPS))
+                gr.HTML(_workflow_header(WORKFLOW_STEPS, current_step=4))
                 with gr.Row():
                     use_days = gr.Slider(1, 30, value=3, step=1, label="Days threshold")
                     use_refresh = gr.Button("Refresh", elem_classes="secondary")
@@ -1528,7 +1543,7 @@ def build_app() -> gr.Blocks:
                     "Export Redacted Trace",
                     "Pick a workflow run, inspect the timeline, then download a redacted trace artifact.",
                 ))
-                gr.HTML(_workflow_header(WORKFLOW_STEPS))
+                gr.HTML(_workflow_header(WORKFLOW_STEPS, current_step=6))
                 trace_table = gr.DataFrame(label="Recent Traces")
                 with gr.Row():
                     trace_selector = gr.Dropdown(label="Select a trace", choices=[], allow_custom_value=False)

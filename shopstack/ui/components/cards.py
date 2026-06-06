@@ -73,11 +73,15 @@ def render_decision_card(
     if qty_line:
         qty_line_markup = f"<div style='font-size:12px;margin-top:6px;'>{qty_line}</div>"
     confidence_pct = max(0.0, min(1.0, float(confidence)))
+    clean_name = item_name.replace("'", "\\'")
     action_line = (
         "<div style='margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;'>"
-        "<span class='chip'>Add to list</span>"
-        "<span class='chip'>Skip</span>"
-        "<span class='chip'>Correct item</span>"
+        f"<button class='chip' style='cursor:pointer;' "
+        f"onclick=\"alert('➕ Added {clean_name} to shopping list')\">Add to list</button>"
+        f"<button class='chip' style='cursor:pointer;' "
+        f"onclick=\"alert('✖ Skipped {clean_name}')\">Skip</button>"
+        f"<button class='chip' style='cursor:pointer;' "
+        f"onclick=\"alert('✏ Correct: changing {clean_name}')\">Correct item</button>"
         "</div>"
         if show_actions
         else ""

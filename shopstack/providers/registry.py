@@ -17,6 +17,7 @@ from shopstack.providers.interfaces import (
     TTSProvider,
     VisionProvider,
 )
+
 from shopstack.providers.mock_providers import (
     MockEmbeddingsProvider,
     MockGroundingProvider,
@@ -216,3 +217,7 @@ class ProviderRegistry:
             }
             for name, provider in self._providers.items()
         ]
+
+    def get_runtime_diagnostics(self) -> Any:
+        from shopstack.providers.runtime import collect_runtime_diagnostics
+        return collect_runtime_diagnostics(self)

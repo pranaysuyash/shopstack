@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import hashlib
 import json
-import random
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -48,9 +48,10 @@ class MockSTTProvider(STTProvider):
             "bread expiry kal ka hai skip kar do",
             "surf excel already ghar pe hai kya",
         ]
+        idx = int(hashlib.md5(audio_path.encode()).hexdigest(), 16) % len(phrases) if audio_path else 0
         return {
-            "text": random.choice(phrases),
-            "confidence": round(random.uniform(0.75, 0.98), 2),
+            "text": phrases[idx],
+            "confidence": round(0.75 + (idx * 0.04), 2),
             "language": "hi",
             "duration_s": 2.0,
         }
@@ -85,12 +86,14 @@ class MockVisionProvider(VisionProvider):
         return True
 
     def understand(self, image_path: str, prompt: str = "") -> dict[str, Any]:
-        count = random.randint(2, 5)
-        items = random.sample(MOCK_ITEMS, count)
+        hash_val = int(hashlib.md5(image_path.encode()).hexdigest(), 16) if image_path else 0
+        count = (hash_val % 4) + 2
+        start = hash_val % len(MOCK_ITEMS)
+        items = [MOCK_ITEMS[(start + i) % len(MOCK_ITEMS)] for i in range(min(count, len(MOCK_ITEMS)))]
         return {
             "detected_items": items,
             "description": f"I see {', '.join(items)}",
-            "confidences": {item: round(random.uniform(0.6, 0.95), 2) for item in items},
+            "confidences": {item: round(0.6 + (i * 0.05), 2) for i, item in enumerate(items)},
         }
 
 
@@ -107,14 +110,21 @@ class MockDetectionProvider(ObjectDetectionProvider):
         return True
 
     def detect(self, image_path: str) -> list[dict[str, Any]]:
-        count = random.randint(2, 5)
-        items = random.sample(MOCK_ITEMS, count)
+        hash_val = int(hashlib.md5(image_path.encode()).hexdigest(), 16) if image_path else 0
+        count = (hash_val % 4) + 2
+        start = hash_val % len(MOCK_ITEMS)
+        items = [MOCK_ITEMS[(start + i) % len(MOCK_ITEMS)] for i in range(min(count, len(MOCK_ITEMS)))]
         detections = []
         for i, item in enumerate(items):
             detections.append({
                 "label": item,
-                "confidence": round(random.uniform(0.55, 0.95), 2),
-                "bbox": [random.random() * 0.8 + 0.1 for _ in range(4)],
+                "confidence": round(0.55 + (i * 0.08), 2),
+                "bbox": [
+                    round(((hash_val + i * 13) % 100) / 100 * 0.8 + 0.1, 2),
+                    round(((hash_val + i * 17) % 100) / 100 * 0.8 + 0.1, 2),
+                    round(((hash_val + i * 31) % 100) / 100 * 0.8 + 0.1, 2),
+                    round(((hash_val + i * 37) % 100) / 100 * 0.8 + 0.1, 2),
+                ],
                 "class_id": i,
             })
         return detections
@@ -270,7 +280,16 @@ class MockEmbeddingsProvider(EmbeddingsProvider):
         return True
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        return [[random.random() * 2 - 1 for _ in range(128)] for _ in texts]
+        result = []
+        for text in texts:
+            seed = int(hashlib.md5(text.encode()).hexdigest(), 16) if text else 0
+            rng = seed
+            vec = []
+            for _ in range(128):
+                rng = (rng * 1103515245 + 12345) & 0x7fffffff
+                vec.append(round((rng / 0x7fffffff) * 2 - 1, 6))
+            result.append(vec)
+        return result
 
 
 class MockImageEditProvider(ImageEditProvider):
@@ -312,7 +331,16 @@ class MockUnifiedProvider:
         return self._stt.transcribe(audio_path, language)
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        return [[random.random() * 2 - 1 for _ in range(128)] for _ in texts]
+        result = []
+        for text in texts:
+            seed = int(hashlib.md5(text.encode()).hexdigest(), 16) if text else 0
+            rng = seed
+            vec = []
+            for _ in range(128):
+                rng = (rng * 1103515245 + 12345) & 0x7fffffff
+                vec.append(round((rng / 0x7fffffff) * 2 - 1, 6))
+            result.append(vec)
+        return result
 
     def detect_objects(self, image_path: str) -> list[dict[str, Any]]:
         return self._detection.detect(image_path)

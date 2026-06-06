@@ -34,6 +34,7 @@ def create_trace(
     decision: dict | None = None,
     proposed_tool_calls: list | None = None,
     final_response: str = "",
+    human_confirmation: str | None = None,
 ) -> Trace:
     trace = Trace(
         input_type=input_type,
@@ -44,6 +45,7 @@ def create_trace(
         decision=decision or {},
         proposed_tool_calls=proposed_tool_calls or [],
         final_response=final_response,
+        human_confirmation=human_confirmation,
     )
     db.save_trace(trace)
     return trace
@@ -56,16 +58,127 @@ def trace_payload_for_export(trace: Trace, redact: bool = True) -> dict[str, Any
 
 def export_trace_by_id(
     db: Database, trace_id: str, output_path: str, redact: bool = True
-) -> int:
+) -> bool:
     target = (trace_id or "").strip()
     if not target:
-        return 0
+        return False
     for t in db.get_traces(limit=200):
         if t.trace_id == target:
             with open(output_path, "w") as f:
                 f.write(json.dumps(trace_payload_for_export(t, redact=redact), default=str) + "\n")
-            return 1
-    return 0
+            return True
+    return False
+
+
+def create_market_lens_trace(
+    db: Database,
+    items_detected: list[str] | None = None,
+    audio_present: bool = False,
+    image_present: bool = False,
+    barcode_data: str | None = None,
+    analysis_text: str = "",
+    analysis_result: str = "",
+    decision_items: list[dict] | None = None,
+    proposed_tool_calls: list | None = None,
+    human_confirmation: str | None = None,
+) -> Trace:
+    items = items_detected or []
+    perception: dict[str, Any] = {
+        "items_detected": items,
+        "audio": audio_present,
+        "image": image_present,
+    }
+    if barcode_data:
+        perception["barcode"] = barcode_data
+    return create_trace(
+        db,
+        input_type="market_lens",
+        user_goal="market_lens",
+        redacted_user_request=analysis_text,
+        perception=perception,
+        inventory_context={"decision_count": len(decision_items or [])},
+        decision={"items": (decision_items or [])[:6]},
+        proposed_tool_calls=proposed_tool_calls or [],
+        final_response=analysis_result,
+        human_confirmation=human_confirmation,
+    )
+
+
+def create_shopping_list_trace(
+    db: Database,
+    goal: str = "",
+    items: list[dict] | None = None,
+    proposed_tool_calls: list | None = None,
+    final_response: str = "",
+    human_confirmation: str | None = None,
+) -> Trace:
+    safe_items = items or []
+    perception: dict[str, Any] = {
+        "goal": goal,
+        "item_count": len(safe_items),
+        "items": safe_items,
+    }
+    return create_trace(
+        db,
+        input_type="shopping_list",
+        user_goal=goal or "create_shopping_list",
+        redacted_user_request=f"create shopping list: {goal}" if goal else "",
+        perception=perception,
+        inventory_context={},
+        decision={"action": "create_shopping_list"},
+        proposed_tool_calls=proposed_tool_calls or [],
+        final_response=final_response,
+        human_confirmation=human_confirmation,
+    )
+
+
+def create_add_purchase_trace(
+    db: Database,
+    item_name: str,
+    quantity: float = 1.0,
+    unit: str = "unit",
+    price: float = 0.0,
+    store: str = "",
+    location: str = "",
+    category: str = "",
+    proposed_tool_calls: list | None = None,
+    final_response: str = "",
+    human_confirmation: str | None = None,
+) -> Trace:
+    return create_trace(
+        db,
+        input_type="form",
+        user_goal="add_purchase",
+        redacted_user_request=f"add purchase: {item_name}",
+        perception={
+            "item": item_name,
+            "quantity": quantity,
+            "unit": unit,
+            "store": store,
+        },
+        inventory_context={
+            "storage_location": location,
+            "category": category,
+        },
+        decision={"action": "add_inventory_item"},
+        proposed_tool_calls=proposed_tool_calls or [],
+        final_response=final_response,
+        human_confirmation=human_confirmation,
+    )
+
+
+def find_trace_by_id(db: Database, trace_id: str) -> Trace | None:
+    target = (trace_id or "").strip()
+    if not target:
+        return None
+    for t in db.get_traces(limit=200):
+        if t.trace_id == target:
+            return t
+    return None
+
+
+def redact_trace_payload(trace_dict: dict[str, Any]) -> dict[str, Any]:
+    return _redact_trace(trace_dict)
 
 
 def _redact_trace(trace: dict) -> dict:

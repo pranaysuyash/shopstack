@@ -79,8 +79,8 @@ def _unit_label(unit: str) -> str:
     return f"/{unit}"
 
 
-def build_price_memory_view(database: Database, item_name: str) -> PriceMemoryView:
-    cleaned_name = item_name.strip()
+def build_price_memory_view(database: Database, item_name: str | None) -> PriceMemoryView:
+    cleaned_name = (item_name or "").strip()
     if not cleaned_name:
         return PriceMemoryView(
             summary_html="<div style='color:var(--text-dim);'>Enter an item name to see price history.</div>",
