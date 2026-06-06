@@ -74,12 +74,33 @@ shopstack/
     registry.py         (11 tools)
   traces/
     export.py           (PII redaction, JSONL)
+  market/               (market intelligence — Swiggy + future sources)
+    __init__.py         (public API exports)
+    schema.py           (NormalizedMarketRecord, MarketSnapshot)
+    normalization.py    (size parser, unit prices, canonical mapping, combo detection)
+    analytics.py        (snapshot analytics, cheapest option finder)
+    basket.py           (basket builder, canonical matching from user input)
+    metadata.py         (produce shelf-life, waste-risk, storage hints)
+    sources/
+      swiggy.py         (Swiggy loader, normalizer, snapshot loader)
   ui/                   (consolidated UI package)
     __init__.py         (re-exports views + components)
     views.py            (PriceMemoryView, FieldNotesView, build_price_memory_view, load_field_notes, save_field_notes)
     components/
       __init__.py       (re-exports cards)
       cards.py          (badge_html, card, empty_state, render_rows, render_decision_card, render_grouped_cards, render_metric)
+    screens/            (screen builders for each tab)
+      __init__.py       (re-exports all screen functions)
+      dashboard.py      (today_dashboard with 6-value return)
+      shopping.py       (shopping list create/view/complete + cards + mark purchased)
+      market_lens.py    (barcode scan + buy/skip/save + barcode add)
+      ask.py            (voice add commands + ask ShopStack)
+      inventory.py      (add purchase, consume, batch ops, seed demo, use-soon)
+      traces.py         (trace list, detail, export)
+      model_stack.py    (model budget view, provider badge)
+      other.py          (price memory, price intelligence, map, field notes, Swiggy market + basket estimator)
+      portability.py    (JSON/CSV export/import)
+      _utils.py         (workflow header, steps, shared UI helpers)
 ```
 
 ## Active Decisions
@@ -145,7 +166,8 @@ A hook at `.git/hooks/pre-commit` runs `tools/sync-readme-stats` which extracts 
 | `tests/test_portability.py` | 18 | JSON + CSV export/import, dedup, validation, summary HTML |
 | `tests/test_local_provider.py` | 10 | Local provider init, graceful fallback, capability checks |
 | `tests/test_planner.py` | 25 | JSON extraction, tool-call parsing, inventory formatting, planner engine |
-| **Total** | **211** | (growing) |
+| `tests/test_market.py` | 52 | Swiggy loader, size parser, unit prices, canonical matching, analytics, basket, produce metadata |
+| **Total** | **298** | (growing) |
 
 ## Next Work
 

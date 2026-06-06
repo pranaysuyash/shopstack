@@ -42,6 +42,8 @@ from shopstack.ui.screens.other import (
     household_map_view,
     field_notes_view,
     field_notes_save,
+    swiggy_market_view,
+    swiggy_basket_estimate,
 )
 from shopstack.ui.screens.portability import export_data_json, export_data_csv, import_data_file
 
@@ -82,6 +84,8 @@ __all__ = [
     "household_map_view",
     "field_notes_view",
     "field_notes_save",
+    "swiggy_market_view",
+    "swiggy_basket_estimate",
     "export_data_json",
     "export_data_csv",
     "import_data_file",

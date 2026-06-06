@@ -4,11 +4,13 @@ from datetime import date
 
 import gradio as gr
 
-from shopstack.app_context import db
+from shopstack.app_context import db, tools, providers
 from shopstack.ui.screens import (
     today_dashboard,
-    shopping_list_view_with_cards,
-    build_shopping_list_and_refresh,
+    shopping_list_view,
+    shopping_list_create,
+    _shopping_list_view_with_cards,
+    _build_shopping_list_and_refresh,
     complete_shopping_list,
     shopping_list_item_choices,
     mark_items_purchased,
@@ -30,11 +32,14 @@ from shopstack.ui.screens import (
     provider_status_badge,
     price_memory_view,
     price_intelligence_view,
+    swiggy_market_view,
+    swiggy_basket_estimate,
     household_map_view,
     agent_trace_view,
+    agent_trace_detail,
     agent_trace_bootstrap,
     agent_trace_export_file,
-    trace_bundle,
+    _trace_bundle,
     field_notes_view,
     field_notes_save,
     export_data_json,
@@ -43,6 +48,8 @@ from shopstack.ui.screens import (
 )
 from shopstack.ui.screens.other import move_inventory_to_location
 from shopstack.ui.screens._utils import WORKFLOW_STEPS, workflow_header, workflow_title_bar
+
+_workflow_header = workflow_header
 
 from shopstack.ui.theme import CSS
 
@@ -249,6 +256,24 @@ def build_app() -> gr.Blocks:
                 pi_refresh = gr.Button("Refresh", elem_classes="secondary")
                 pi_refresh.click(price_intelligence_view, outputs=pi_html)
                 app.load(price_intelligence_view, outputs=pi_html)
+                gr.Markdown("### Live Market — Swiggy Fresh Vegetables")
+                swiggy_html = gr.HTML("")
+                swiggy_refresh = gr.Button("Refresh Market Data", elem_classes="secondary")
+                swiggy_refresh.click(swiggy_market_view, outputs=swiggy_html)
+                app.load(swiggy_market_view, outputs=swiggy_html)
+                gr.Markdown("#### Basket Estimator")
+                swiggy_basket_input = gr.Textbox(
+                    label="Items (one per line)",
+                    placeholder="tomato\nonion\npotato\ncarrot",
+                    lines=5,
+                )
+                swiggy_basket_btn = gr.Button("Estimate Basket")
+                swiggy_basket_output = gr.HTML("")
+                swiggy_basket_btn.click(
+                    swiggy_basket_estimate,
+                    inputs=swiggy_basket_input,
+                    outputs=swiggy_basket_output,
+                )
 
             with gr.Tab("Map", id="map"):
                 gr.HTML(workflow_header(WORKFLOW_STEPS))
