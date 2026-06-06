@@ -63,8 +63,8 @@ Imported observations are tagged with `source_event_id = swiggy_fresh_vegetables
 ## Tests
 
 ```bash
-uv run pytest tests/ -v          # 376 passed in 9.47s
-uv run pytest benchmarks/ -v -m benchmark  # 9 passed in 0.03s
+uv run pytest tests/ -v          # 376 passed in 9.45s
+uv run pytest benchmarks/ -v -m benchmark  # 9 passed in 0.04s
 ```
 
 | Module | Tests | What it covers |
