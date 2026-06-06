@@ -38,6 +38,14 @@ logger = logging.getLogger(__name__)
 _REAL_PROVIDER_MAP: dict[str, str] = {}
 
 
+def _load_local_whisper():
+    try:
+        from shopstack.providers.local_whisper_provider import LocalWhisperProvider
+        return LocalWhisperProvider
+    except ImportError:
+        return None
+
+
 def _load_openai():
     try:
         from shopstack.providers.openai_provider import OpenAIProvider
@@ -63,6 +71,15 @@ def _load_local():
 
 
 def _try_real_provider(backend: str, settings: Settings) -> Any | None:
+    if backend == "local_whisper":
+        cls = _load_local_whisper()
+        if cls:
+            return cls(
+                model_dir=settings.local_model_dir,
+                model_size=settings.local_whisper_size,
+            )
+        logger.info("Local Whisper provider not available (mlx-whisper / faster-whisper missing), falling back to mock")
+        return None
     if backend == "openai":
         cls = _load_openai()
         if cls:

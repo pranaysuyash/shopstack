@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     local_model_file: str = "Llama-3.2-3B-Instruct-Q4_K_M.gguf"
     local_auto_download: bool = False
 
+    local_whisper_size: str = "tiny"
+
     planner_backend: str = "mock"
     stt_backend: str = "mock"
     tts_backend: str = "mock"
