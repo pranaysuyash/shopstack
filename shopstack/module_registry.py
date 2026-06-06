@@ -1,0 +1,368 @@
+"""Module registry — single source of truth for ShopStack module metadata.
+
+Each ShopStack module (ShopStock, ShopBasket, ShopCompare, etc.) registers its
+name, slug, description, tab IDs, key service paths, and dependencies here.
+Any UI surface that needs module metadata imports from this registry instead of
+hardcoding strings.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+
+@dataclass(frozen=True)
+class ModuleMetadata:
+    """Metadata for a single ShopStack module.
+
+    This is the canonical source for all module-level information.
+    Any UI surface that needs a module name, tab label, description,
+    or navigation order should read it from here — never hardcode it.
+
+    Attributes:
+        slug: Short machine-friendly identifier (e.g. \"stock\", \"basket\").
+        name: Human-readable module name (e.g. \"ShopStock\").
+        label: Short UI label for the module itself (e.g. \"My Stock\").
+        description: One-line summary of the module's purpose.
+        tab_ids: Gradio tab IDs associated with this module.
+        tab_labels: Canonical display labels keyed by tab_id.
+                     If a tab_id is missing here, the module's ``label`` is used.
+                     Example: tab_labels={"inventory": "Find Item at Home", "purchase": "Add Purchase"}
+        order: Display order in the UI navigation bar (lower = earlier).
+        service_modules: Python module paths providing this module's logic.
+        depends_on: Slugs of modules this module typically depends on.
+        is_source: Whether this module is a retailer/source adapter.
+    """
+    slug: str
+    name: str
+    label: str
+    description: str
+    tab_ids: tuple[str, ...] = ()
+    tab_labels: dict[str, str] = field(default_factory=dict)
+    order: int = 999
+    service_modules: tuple[str, ...] = ()
+    depends_on: tuple[str, ...] = ()
+    is_source: bool = False
+
+    def tab_label(self, tab_id: str) -> str:
+        """Return the canonical display label for a given tab_id.
+
+        Falls back to ``self.label`` if no per-tab label is registered.
+        """
+        return self.tab_labels.get(tab_id, self.label)
+
+
+__all__ = [
+    "ModuleMetadata",
+    "SHOPSTOCK",
+    "SHOPBASKET",
+    "SHOPCOMPARE",
+    "SHOPLENS",
+    "SHOPMEMORY",
+    "SHOPAGENT",
+    "SOURCES",
+    "RUNTIME",
+    "get_all",
+    "get_by_slug",
+    "get_by_tab_id",
+    "TAB_ORDER",
+    "TAB_LABELS",
+    "get_tab_ids",
+    "tab_order",
+    "tab_label",
+    "navigation",
+    "module_dependencies",
+    "summary_table",
+]
+
+
+# ── Registry ─────────────────────────────────────────────────────────
+
+_MODULES: dict[str, ModuleMetadata] = {}
+
+
+def _register(m: ModuleMetadata) -> ModuleMetadata:
+    """Register a module and index it by slug."""
+    _MODULES[m.slug] = m
+    return m
+
+
+# ── Tab order map ──────────────────────────────────────────────────
+
+# This is the canonical ordering for the Gradio tab bar.
+# Every tab that appears in the UI must have an entry here.
+# Order = explicit integer; lower values appear first.
+#
+# Adding a new tab: add it here with the position where it should appear.
+# The `order` field on each ModuleMetadata auto-aligns via the module's
+# lowest-order tab, but this dict is the single source of truth for the
+# actual tab bar sequence.
+TAB_ORDER: dict[str, int] = {
+    "today":       10,
+    "ask":         20,
+    "shopping":    30,
+    "market":      40,
+    "purchase":    50,
+    "inventory":   60,
+    "usesoon":     70,
+    "prices":      80,
+    "map":         90,
+    "modelstack":  100,
+    "trace":       110,
+    "portability": 120,
+    "notes":       130,
+}
+
+# ── Tab display labels ────────────────────────────────────────────
+# Canonical display names for every UI tab.
+# A module's `tab_labels` dict overrides these for module-specific labels.
+TAB_LABELS: dict[str, str] = {
+    "today":       "Today",
+    "ask":         "Ask ShopStack",
+    "shopping":    "Shopping List",
+    "market":      "Market Lens",
+    "purchase":    "Add Purchase",
+    "inventory":   "Find Item at Home",
+    "usesoon":     "Use Soon",
+    "prices":      "Price Memory Check",
+    "map":         "Map",
+    "modelstack":  "Model Stack",
+    "trace":       "Traces",
+    "portability": "Data",
+    "notes":       "Field Notes",
+}
+
+
+# ── Module definitions ───────────────────────────────────────────────
+#
+# Each module registers with:
+#   - slug:          machine-friendly ID
+#   - name:          canonical module name
+#   - label:         short UI label for the module itself
+#   - tab_labels:    per-tab display labels (override TAB_LABELS)
+#   - order:         display priority (auto-derived from TAB_ORDER)
+#   - tab_ids:       which Gradio tab IDs belong to this module
+#   - service_modules: Python paths implementing the module
+#   - depends_on:    module slugs this module depends on
+
+SHOPSTOCK = _register(ModuleMetadata(
+    slug="stock",
+    name="ShopStock",
+    label="My Stock",
+    description="Inventory, pantry, fridge, expiry, low-stock, use-soon, and household storage.",
+    tab_ids=("purchase", "inventory", "usesoon", "map", "portability"),
+    tab_labels={
+        "purchase": "Add Purchase",
+        "inventory": "Find Item at Home",
+        "usesoon": "Use Soon",
+        "map": "Map",
+        "portability": "Data",
+    },
+    order=TAB_ORDER.get("inventory", 999),
+    service_modules=(
+        "shopstack.ui.screens.inventory",
+        "shopstack.ui.screens.portability",
+        "shopstack.portability",
+    ),
+))
+
+SHOPBASKET = _register(ModuleMetadata(
+    slug="basket",
+    name="ShopBasket",
+    label="Buy List",
+    description="Shopping list creation, decision classification (buy/skip/use-soon), cart planning, and market basket optimization.",
+    tab_ids=("shopping",),
+    tab_labels={"shopping": "Shopping List"},
+    order=TAB_ORDER.get("shopping", 999),
+    service_modules=(
+        "shopstack.services.shopping",
+        "shopstack.ui.screens.shopping",
+    ),
+    depends_on=("stock",),
+))
+
+SHOPCOMPARE = _register(ModuleMetadata(
+    slug="compare",
+    name="ShopCompare",
+    label="Compare",
+    description="Retailer price comparison, unit price normalization, price-drop alerts, and best-store recommendations.",
+    tab_ids=("prices",),
+    tab_labels={"prices": "Price Memory Check"},
+    order=TAB_ORDER.get("prices", 999),
+    service_modules=(
+        "shopstack.market",
+        "shopstack.market.analytics",
+        "shopstack.market.normalization",
+    ),
+    depends_on=("sources",),
+))
+
+SHOPLENS = _register(ModuleMetadata(
+    slug="lens",
+    name="ShopLens",
+    label="Market Lens",
+    description="Scanning and import: barcode, photo, receipt, object detection, OCR, and voice input.",
+    tab_ids=("market",),
+    tab_labels={"market": "Market Lens"},
+    order=TAB_ORDER.get("market", 999),
+    service_modules=(
+        "shopstack.services.market_lens",
+        "shopstack.ui.screens.market_lens",
+        "shopstack.scanner",
+    ),
+    depends_on=("stock",),
+))
+
+SHOPMEMORY = _register(ModuleMetadata(
+    slug="memory",
+    name="ShopMemory",
+    label="Price Memory",
+    description="Price history, household preferences, field notes, purchase cadence, and waste pattern tracking.",
+    tab_ids=("prices", "notes"),
+    tab_labels={
+        "prices": "Price Memory Check",
+        "notes": "Field Notes",
+    },
+    order=TAB_ORDER.get("prices", 999),
+    service_modules=(
+        "shopstack.ui.views",
+        "shopstack.ui.screens.other",
+    ),
+))
+
+SHOPAGENT = _register(ModuleMetadata(
+    slug="agent",
+    name="ShopAgent",
+    label="Ask ShopStack",
+    description="Reasoning layer: AI planner with tool-calling, decision classification, and trace audit trail.",
+    tab_ids=("today", "ask", "trace"),
+    tab_labels={
+        "today": "Today",
+        "ask": "Ask ShopStack",
+        "trace": "Traces",
+    },
+    order=TAB_ORDER.get("today", 999),
+    service_modules=(
+        "shopstack.planner.engine",
+        "shopstack.planner.prompts",
+        "shopstack.planner.parser",
+        "shopstack.decisions",
+        "shopstack.traces.export",
+    ),
+    depends_on=("stock", "basket", "memory"),
+))
+
+SOURCES = _register(ModuleMetadata(
+    slug="sources",
+    name="Sources",
+    label="Sources",
+    description="Retailer dataset adapters for price intelligence and basket comparison. Includes Swiggy Instamart.",
+    tab_ids=(),
+    order=999,
+    service_modules=(
+        "shopstack.market.sources.swiggy",
+        "shopstack.data_sources.swiggy",
+    ),
+    is_source=True,
+))
+
+RUNTIME = _register(ModuleMetadata(
+    slug="runtime",
+    name="Runtime",
+    label="Model Stack",
+    description="Provider/model runtime diagnostics, budget status, and candidate model catalog.",
+    tab_ids=("modelstack",),
+    tab_labels={"modelstack": "Model Stack"},
+    order=TAB_ORDER.get("modelstack", 999),
+    service_modules=(
+        "shopstack.ui.screens.model_stack",
+        "shopstack.model_registry",
+        "shopstack.providers.runtime",
+    ),
+))
+
+
+# ── Lookup helpers ───────────────────────────────────────────────────
+
+def get_all() -> list[ModuleMetadata]:
+    """Return all registered modules, ordered by definition."""
+    return list(_MODULES.values())
+
+
+def tab_order() -> list[tuple[str, str]]:
+    """Return (tab_id, display_label) pairs in UI navigation order.
+
+    This is the canonical source for building the Gradio tab bar in app.py.
+    Every registered tab appears once, ordered by ``TAB_ORDER``.
+    Unknown tab_ids (not in TAB_ORDER) are sorted last alphabetically.
+    """
+    known = [(TAB_ORDER[tid], tid, TAB_LABELS.get(tid, tid)) for tid in TAB_ORDER]
+    known.sort(key=lambda x: x[0])
+    return [(tid, label) for _, tid, label in known]
+
+
+def tab_label(tab_id: str) -> str:
+    """Return the canonical display label for a tab ID.
+
+    Checks per-module tab_labels first (for module-specific overrides),
+    then the global TAB_LABELS, then falls back to the raw tab_id.
+    """
+    # Check if any module has a per-tab override
+    for m in _MODULES.values():
+        if tab_id in m.tab_labels:
+            return m.tab_labels[tab_id]
+    return TAB_LABELS.get(tab_id, tab_id)
+
+
+def get_by_slug(slug: str) -> ModuleMetadata | None:
+    """Look up a module by its slug (e.g. \"stock\", \"basket\")."""
+    return _MODULES.get(slug)
+
+
+def get_by_tab_id(tab_id: str) -> list[ModuleMetadata]:
+    """Find all modules associated with a given Gradio tab ID.
+
+    A single tab may belong to multiple modules (e.g. \"prices\" belongs to
+    both ShopMemory and ShopCompare).
+    """
+    return [m for m in _MODULES.values() if tab_id in m.tab_ids]
+
+
+def get_tab_ids(slug: str) -> tuple[str, ...]:
+    """Return all tab IDs for a given module slug."""
+    m = _MODULES.get(slug)
+    return m.tab_ids if m else ()
+
+
+def navigation() -> list[tuple[str, str, str]]:
+    """Return an ordered list of (tab_id, label, module_name) for navigation.
+
+    This is the canonical source for building tab navigation in app.py and
+    other UI surfaces. Only modules with at least one tab ID are included.
+    """
+    entries: list[tuple[str, str, str]] = []
+    for m in _MODULES.values():
+        for tid in m.tab_ids:
+            entries.append((tid, m.label, m.name))
+    return entries
+
+
+def module_dependencies(slug: str) -> list[ModuleMetadata]:
+    """Return the ModuleMetadata objects this module depends on."""
+    m = _MODULES.get(slug)
+    if not m:
+        return []
+    return [dep for dep_slug in m.depends_on if (dep := _MODULES.get(dep_slug))]
+
+
+def summary_table() -> list[dict[str, str]]:
+    """Return a table-friendly list of dicts for display/export."""
+    return [
+        {
+            "Module": m.name,
+            "Label": m.label,
+            "Description": m.description,
+            "Tabs": ", ".join(m.tab_ids) if m.tab_ids else "(none)",
+        }
+        for m in _MODULES.values()
+    ]

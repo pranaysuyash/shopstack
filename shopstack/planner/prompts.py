@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from typing import Any
 
+from shopstack.config import settings
 from shopstack.tools.registry import ToolRegistry
 
-SYSTEM_PROMPT = """You are ShopStack's household inventory assistant. You help users manage their kitchen and home inventory, shopping lists, purchases, and price tracking.
+SYSTEM_PROMPT = f"""You are {settings.app_name}'s household inventory assistant. You help users manage their kitchen and home inventory, shopping lists, purchases, and price tracking.
 
 You have access to these tools. Use them to answer questions and perform actions:
 
-{tool_descriptions}
+{{tool_descriptions}}
 
 RULES:
 1. Return a JSON array of tool calls.
@@ -27,7 +28,7 @@ Return ONLY a JSON array. No markdown fences, no explanatory text, no code block
 ]
 
 INVENTORY CONTEXT:
-{inventory_context}
+{{inventory_context}}
 """
 
 TOOL_DESCRIPTIONS: list[dict[str, Any]] = [
@@ -148,7 +149,7 @@ def build_planner_prompt(question: str, db: Any) -> str:
     inventory_context = format_inventory_context(db)
     tool_descriptions = _format_tool_descriptions()
     prompt = (
-        f"You are ShopStack's household inventory assistant. You help users manage their "
+        f"You are {settings.app_name}'s household inventory assistant. You help users manage their "
         f"kitchen and home inventory, shopping lists, purchases, and price tracking.\n\n"
         f"You have access to these tools. Use them to answer questions and perform actions:\n\n"
         f"{tool_descriptions}\n\n"

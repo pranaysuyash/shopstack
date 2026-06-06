@@ -66,15 +66,11 @@ WORKFLOW_ACTION_STEPS = (
     "Human Confirmation",
     "Saved Trace",
 )
-WORKFLOW_NAV = (
-    "Plan Today\u2019s Shopping",
-    "Market Lens: Should I Buy This?",
-    "Add Purchase to Home Memory",
-    "Use Soon / Waste Saver",
-    "Find an Item at Home",
-    "Price Memory Check",
-    "Export Redacted Trace",
-)
+from shopstack.module_registry import tab_order as _tab_order
+
+# Derive workflow navigation labels from the module registry.
+# These map to tab IDs in the UI and stay in sync automatically.
+WORKFLOW_NAV: tuple[str, ...] = tuple(label for _tid, label in _tab_order())
 
 
 def workflow_header(steps: tuple[str, ...], current_step: int | None = None) -> str:

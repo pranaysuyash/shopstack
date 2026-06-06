@@ -5,7 +5,7 @@ import re
 from html import escape
 from typing import Any
 
-from shopstack.app_context import db, planner, providers, tools
+from shopstack.app_context import APP_NAME, db, planner, providers, tools
 from shopstack.ui import card as ui_card, empty_state
 from shopstack.ui.components import render_decision_card
 from shopstack.traces.export import create_trace
@@ -165,7 +165,7 @@ def _render_planner_response(response: str) -> str:
     response_text = response or ""
     rendered = response_text if response_text.lstrip().startswith("<") else escape(response_text)
     return ui_card(
-        "ShopStack AI",
+        f"{APP_NAME} AI",
         rendered
         + "<div style='margin-top:8px;font-size:11px;color:var(--text-dim);'>"
         "Rendered through the same Ask ShopStack HTML boundary as heuristic answers.</div>",

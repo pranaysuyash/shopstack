@@ -6,10 +6,10 @@ from html import escape
 from typing import Any
 
 from shopstack.app_context import db, providers, tools
-from shopstack.scanner import decode_barcode, infer_product_from_code
+from shopstack.services.market_lens import MarketLensResult, analyze_market_lens
 from shopstack.ui.components import render_grouped_cards
 from shopstack.traces.export import create_trace, update_trace_confirmation
-from shopstack.ui.screens._utils import WORKFLOW_STEPS, normalize_item_name
+from shopstack.ui.screens._utils import WORKFLOW_STEPS
 from shopstack.ui.screens.ask import ask_shopstack
 
 logger = logging.getLogger(__name__)
@@ -31,103 +31,14 @@ def _swiggy_freshness_note() -> str:
 
 def market_lens_process(image_path: str | None, audio_path: str | None) -> tuple:
     result_html = "<div style='color:var(--text-dim);'>No input provided.</div>"
-    items_found = []
-    analysis = ""
-    trace_decisions: list[dict[str, Any]] = []
-    tool_calls: list[dict[str, Any]] = []
-    final_text = ""
-    barcode_info: list[dict[str, Any]] = []
-
-    barcode_result = ""
-    if image_path:
-        codes = decode_barcode(image_path)
-        if codes:
-            barcode_parts = []
-            for code in codes:
-                info = infer_product_from_code(code["data"])
-                barcode_info.append({
-                    "label": info["label"],
-                    "code": code["data"],
-                    "type": code["type"],
-                })
-                barcode_parts.append(
-                    f"<div class='stat-card' style='margin-bottom:8px;'>"
-                    f"<div style='font-weight:600;'>{escape(info['label'])}</div>"
-                    f"<div style='font-size:11px;color:var(--text-dim);'>Type: {escape(str(code['type']))} | Code: {escape(code['data'])}</div>"
-                    f"<div style='margin-top:6px;color:var(--text-dim);font-size:11px;'>Barcode scanned — use the button below to add to inventory.</div>"
-                    f"</div>"
-                )
-            barcode_result = "<div class='home-card'><h3>Barcode detected</h3>" + "".join(barcode_parts) + "</div>"
+    service_result = analyze_market_lens(image_path, audio_path, providers, tools)
+    analysis = service_result.analysis_json
 
     if image_path:
-        detections = providers.object_detection.detect(image_path)
-        ocr_result = providers.ocr.extract(image_path)
-        if isinstance(ocr_result, dict):
-            raw_product = ocr_result.get("product_name", "")
-        else:
-            raw_product = ""
-        decisions: list[dict[str, Any]] = []
-        for d in detections[:8]:
-            item_name = normalize_item_name(str(d.get("label", "")))
-            comparison = tools.compare_visible_item_to_inventory(item_name, d.get("quantity", 1.0), "unit")
-            decisions.append(
-                {
-                    "canonical_name": item_name.title(),
-                    "decision": comparison.get("decision", "maybe"),
-                    "reason": comparison.get("reason", ""),
-                    "confidence": float(d.get("confidence", 0.0)),
-                    "unit": "unit",
-                    "quantity": d.get("quantity", 1.0),
-                    "suggested_quantity": max(0.0, d.get("quantity", 1.0)),
-                    "source": raw_product,
-                }
-            )
-            items_found.append(item_name.title())
-        trace_decisions.extend(decisions)
-
-        try:
-            from shopstack.decisions import check_swiggy_availability
-            swiggy_prices = check_swiggy_availability([d["canonical_name"].lower() for d in decisions])
-            for d in decisions:
-                info = swiggy_prices.get(d["canonical_name"].lower())
-                if info:
-                    d["swiggy_price"] = info["price"]
-                    d["swiggy_available"] = info["available"]
-                    d["swiggy_price_per_kg"] = info["price_per_kg"]
-        except Exception:
-            pass
-
-        swiggy_section = ""
-        swiggy_items = [d for d in decisions if d.get("swiggy_price") is not None or d.get("swiggy_available") is False]
-        if swiggy_items:
-            swiggy_rows = []
-            for d in swiggy_items[:5]:
-                name = escape(d["canonical_name"])
-                if d.get("swiggy_available") is False:
-                    swiggy_rows.append(
-                        f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'>"
-                        f"<strong>{name}</strong> <span style='color:#ef4444;font-size:11px;'>Sold out on Swiggy</span>"
-                        f"</div>"
-                    )
-                elif d.get("swiggy_price"):
-                    ppk = d.get("swiggy_price_per_kg", 0)
-                    ppk_str = f" ({ppk:.0f}/kg)" if ppk else ""
-                    swiggy_rows.append(
-                        f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'>"
-                        f"<strong>{name}</strong> <span style='color:#22c55e;'>&#8377;{d['swiggy_price']:.0f}{ppk_str}</span>"
-                        f"</div>"
-                    )
-            swiggy_section = (
-                "<div class='stat-card' style='margin-top:10px;'>"
-                "<h4>Swiggy Instamart Prices</h4>"
-                + "".join(swiggy_rows) +
-                _swiggy_freshness_note() +
-                "</div>"
-            )
-
-        buys = [d for d in decisions if d["decision"] == "buy"]
-        skips = [d for d in decisions if d["decision"] == "skip"]
-        maybes = [d for d in decisions if d["decision"] in ("optional", "maybe")]
+        swiggy_section = _render_swiggy_section(service_result.decisions)
+        buys = [d for d in service_result.decisions if d["decision"] == "buy"]
+        skips = [d for d in service_result.decisions if d["decision"] == "skip"]
+        maybes = [d for d in service_result.decisions if d["decision"] in ("optional", "maybe")]
         analysis = (
             "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;'>"
             f"{render_grouped_cards('BUY', buys)}"
@@ -135,6 +46,7 @@ def market_lens_process(image_path: str | None, audio_path: str | None) -> tuple
             f"{render_grouped_cards('MAYBE', maybes)}"
             "</div>"
         )
+        barcode_result = _render_barcode_section(service_result)
         barcode_section = barcode_result + "<br>" if barcode_result else ""
         result_html = (
             barcode_section
@@ -143,62 +55,82 @@ def market_lens_process(image_path: str | None, audio_path: str | None) -> tuple
             f"{swiggy_section}"
             "</div>"
         )
-        analysis = json.dumps({"items": decisions}, indent=2)
-        tool_calls.append(
-            {
-                "tool_name": "compare_visible_item_to_inventory",
-                "args": {"items": [d.get("canonical_name", "") for d in decisions]},
-            }
-        )
+        analysis = service_result.analysis_json
 
     if audio_path:
-        transcript = providers.stt.transcribe(audio_path)
-        if isinstance(transcript, dict):
-            transcript_text = transcript.get("text", "")
-        else:
-            transcript_text = str(transcript)
+        transcript_text = service_result.transcript_text
         result_html += f"<div style='margin-top:12px;'><strong>Heard:</strong> {escape(transcript_text)}</div>"
         if not image_path and transcript_text:
             result_html = ask_shopstack(transcript_text)
-            analysis = json.dumps({"audio_query": transcript_text}, indent=2)
-            tool_calls.append(
-                {
-                    "tool_name": "ask_shopstack",
-                    "args": {"question": transcript_text},
-                }
-            )
-            trace_decisions.append({"canonical_name": "", "decision": "text_query", "reason": transcript_text})
+            analysis = service_result.analysis_json
+            service_result.decisions.append({"canonical_name": "", "decision": "text_query", "reason": transcript_text})
         else:
             result_html += f"<div style='margin-top:8px;color:var(--text-dim);'>Spoken note processed for context.</div>"
-            tool_calls.append(
-                {
-                    "tool_name": "stt.transcribe",
-                    "args": {"audio_path": audio_path or ""},
-                }
-            )
 
     ml_trace_id = ""
     if image_path or audio_path:
-        final_text = result_html
         try:
             trace = create_trace(
                 db,
                 input_type="vision" if image_path else "audio",
                 user_goal="market_lens",
                 redacted_user_request=analysis,
-                perception={"items_detected": items_found, "audio": bool(audio_path), "image": bool(image_path)},
-                inventory_context={"decision_count": len(trace_decisions)},
-                decision={"steps": list(WORKFLOW_STEPS), "items": trace_decisions[:6]},
-                proposed_tool_calls=tool_calls,
-                final_response=final_text,
+                perception={"items_detected": service_result.items_found, "audio": bool(audio_path), "image": bool(image_path)},
+                inventory_context={"decision_count": len(service_result.decisions)},
+                decision={"steps": list(WORKFLOW_STEPS), "items": service_result.decisions[:6]},
+                proposed_tool_calls=service_result.tool_calls,
+                final_response=result_html,
                 human_confirmation="uncommitted",
             )
             ml_trace_id = trace.trace_id
         except Exception:
             ml_trace_id = ""
-    barcode_json_str = json.dumps(barcode_info) if barcode_info else "[]"
-    detected_items_json = json.dumps({"items": items_found}, ensure_ascii=False)
-    return result_html, detected_items_json, analysis, ml_trace_id, barcode_json_str
+    return result_html, service_result.detected_items_json, analysis, ml_trace_id, service_result.barcode_json
+
+
+def _render_barcode_section(result: MarketLensResult) -> str:
+    if not result.barcode_info:
+        return ""
+    barcode_parts = []
+    for code in result.barcode_info:
+        barcode_parts.append(
+            f"<div class='stat-card' style='margin-bottom:8px;'>"
+            f"<div style='font-weight:600;'>{escape(code['label'])}</div>"
+            f"<div style='font-size:11px;color:var(--text-dim);'>Type: {escape(str(code['type']))} | Code: {escape(code['code'])}</div>"
+            f"<div style='margin-top:6px;color:var(--text-dim);font-size:11px;'>Barcode scanned — use the button below to add to inventory.</div>"
+            f"</div>"
+        )
+    return "<div class='home-card'><h3>Barcode detected</h3>" + "".join(barcode_parts) + "</div>"
+
+
+def _render_swiggy_section(decisions: list[dict[str, Any]]) -> str:
+    swiggy_items = [d for d in decisions if d.get("swiggy_price") is not None or d.get("swiggy_available") is False]
+    if not swiggy_items:
+        return ""
+    swiggy_rows = []
+    for d in swiggy_items[:5]:
+        name = escape(d["canonical_name"])
+        if d.get("swiggy_available") is False:
+            swiggy_rows.append(
+                f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'>"
+                f"<strong>{name}</strong> <span style='color:#ef4444;font-size:11px;'>Sold out on Swiggy</span>"
+                f"</div>"
+            )
+        elif d.get("swiggy_price"):
+            ppk = d.get("swiggy_price_per_kg", 0)
+            ppk_str = f" ({ppk:.0f}/kg)" if ppk else ""
+            swiggy_rows.append(
+                f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'>"
+                f"<strong>{name}</strong> <span style='color:#22c55e;'>&#8377;{d['swiggy_price']:.0f}{ppk_str}</span>"
+                f"</div>"
+            )
+    return (
+        "<div class='stat-card' style='margin-top:10px;'>"
+        "<h4>Swiggy Instamart Prices</h4>"
+        + "".join(swiggy_rows)
+        + _swiggy_freshness_note()
+        + "</div>"
+    )
 
 
 def market_lens_confirm_buy(ml_analysis_json: str, ml_trace_id: str) -> str:

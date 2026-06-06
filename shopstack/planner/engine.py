@@ -4,6 +4,7 @@ import logging
 from html import escape
 from typing import Any
 
+from shopstack.config import settings
 from shopstack.persistence.database import Database
 from shopstack.planner.parser import parse_tool_calls
 from shopstack.providers.registry import ProviderRegistry
@@ -127,7 +128,7 @@ class PlannerEngine:
         if not html_parts:
             return "<div class='stat-card'>No actions taken.</div>"
 
-        title = "ShopStack AI"
+        title = f"{settings.app_name} AI"
         body = "".join(html_parts)
         return (
             f"<div class='stat-card'>"

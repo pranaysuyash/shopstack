@@ -38,21 +38,21 @@ from shopstack.ui.screens import (
     export_data_json,
     export_data_csv,
     import_data_file,
+    # Backward compatibility for tests
+    shopping_list_view,
+    shopping_list_create,
+    _shopping_list_view_with_cards,
+    _build_shopping_list_and_refresh,
+    agent_trace_detail,
 )
 from shopstack.ui.screens.other import move_inventory_to_location
 from shopstack.ui.screens._utils import WORKFLOW_STEPS, workflow_header, workflow_title_bar
 from shopstack.ui.theme import CSS
 
-# Backward compatibility wrappers for tests
-from shopstack.ui.screens.shopping import (
-    shopping_list_view,
-    shopping_list_create,
-    _shopping_list_view_with_cards,
-    _build_shopping_list_and_refresh,
-)
-from shopstack.ui.screens.traces import _trace_bundle, agent_trace_detail
-from shopstack.app_context import db, providers, tools, planner, model_registry
+from shopstack.app_context import APP_DESCRIPTION, APP_NAME, db, providers, tools, planner, model_registry
+from shopstack.module_registry import tab_label as _tab_label
 
+_workflow_header = workflow_header
 _workflow_header = workflow_header
 
 
@@ -67,12 +67,12 @@ def _runtime_label() -> str:
 
 def build_app() -> gr.Blocks:
     runtime_label = _runtime_label()
-    with gr.Blocks(title="ShopStack") as app:
+    with gr.Blocks(title=APP_NAME) as app:
         gr.HTML(f"""
 <div class="app-header">
   <div>
-    <h1 class="brand-title">ShopStack</h1>
-    <div class="brand-subtitle">Your home's shopping memory.</div>
+    <h1 class="brand-title">{APP_NAME}</h1>
+    <div class="brand-subtitle">{APP_DESCRIPTION}</div>
   </div>
   <div>
     <div class="env-badge">{runtime_label}</div>
@@ -80,7 +80,7 @@ def build_app() -> gr.Blocks:
 </div>""", padding=True)
 
         with gr.Tabs(elem_classes="tabs") as tabs:
-            with gr.Tab("Today", id="today"):
+            with gr.Tab(_tab_label("today"), id="today"):
                 gr.HTML(workflow_header(WORKFLOW_STEPS))
                 today_stats = gr.HTML("")
                 today_soon = gr.HTML("")
@@ -89,7 +89,7 @@ def build_app() -> gr.Blocks:
                 today_recent = gr.HTML("")
                 app.load(today_dashboard, outputs=[today_stats, today_soon, today_list, today_low, today_recent])
 
-            with gr.Tab("Ask ShopStack", id="ask"):
+            with gr.Tab(_tab_label("ask"), id="ask"):
                 gr.HTML(workflow_header(WORKFLOW_STEPS))
                 ask_input = gr.Textbox(
                     label="Ask ShopStack",
@@ -101,7 +101,7 @@ def build_app() -> gr.Blocks:
                 ask_btn.click(ask_shopstack, ask_input, ask_output)
                 ask_input.submit(ask_shopstack, ask_input, ask_output)
 
-            with gr.Tab("Shopping List", id="shopping"):
+            with gr.Tab(_tab_label("shopping"), id="shopping"):
                 gr.HTML(workflow_header(WORKFLOW_STEPS, current_step=3))
                 sl_cards = gr.HTML("")
                 sl_display = gr.HTML("")
@@ -117,6 +117,7 @@ def build_app() -> gr.Blocks:
                     )
                 sl_share = gr.HTML("")
                 sl_complete_result = gr.HTML("")
+
                 with gr.Row():
                     sl_item_dropdown = gr.Dropdown(
                         label="Select items to mark as purchased",
@@ -126,6 +127,17 @@ def build_app() -> gr.Blocks:
                     )
                     sl_item_refresh = gr.Button("Refresh Items", elem_classes="secondary")
                     sl_mark_purchased_btn = gr.Button("Mark Selected as Purchased", variant="primary")
+                sl_mark_result = gr.HTML("")
+                sl_item_refresh.click(shopping_list_item_choices, outputs=sl_item_dropdown)
+                sl_mark_purchased_btn.click(mark_items_purchased, sl_item_dropdown, sl_mark_result).then(
+                    shopping_list_view_with_cards,
+                    outputs=[sl_cards, sl_display, sl_table, sl_list_id, sl_goal, sl_share]
+                ).then(
+                    shopping_list_item_choices,
+                    outputs=sl_item_dropdown
+                )
+                app.load(shopping_list_item_choices, outputs=sl_item_dropdown)
+                app.load(shopping_list_view_with_cards, outputs=[sl_cards, sl_display, sl_table, sl_list_id, sl_goal, sl_share])
 
                 with gr.Row():
                     create_btn = gr.Button("Build Shopping Plan")
@@ -149,28 +161,7 @@ def build_app() -> gr.Blocks:
                     outputs=sl_item_dropdown
                 )
 
-                with gr.Row():
-                    sl_item_dropdown = gr.Dropdown(
-                        label="Select items to mark as purchased",
-                        choices=[],
-                        multiselect=True,
-                        interactive=True,
-                    )
-                    sl_item_refresh = gr.Button("Refresh Items", elem_classes="secondary")
-                    sl_mark_purchased_btn = gr.Button("Mark Selected as Purchased", variant="primary")
-                sl_mark_result = gr.HTML("")
-                sl_item_refresh.click(shopping_list_item_choices, outputs=sl_item_dropdown)
-                sl_mark_purchased_btn.click(mark_items_purchased, sl_item_dropdown, sl_mark_result).then(
-                    shopping_list_view_with_cards,
-                    outputs=[sl_cards, sl_display, sl_table, sl_list_id, sl_goal, sl_share]
-                ).then(
-                    shopping_list_item_choices,
-                    outputs=sl_item_dropdown
-                )
-                app.load(shopping_list_item_choices, outputs=sl_item_dropdown)
-                app.load(shopping_list_view_with_cards, outputs=[sl_cards, sl_display, sl_table, sl_list_id, sl_goal, sl_share])
-
-            with gr.Tab("Market Lens", id="market"):
+            with gr.Tab(_tab_label("market"), id="market"):
                 gr.HTML(workflow_header(WORKFLOW_STEPS, current_step=2))
                 gr.Markdown("### Point your camera or upload a photo \u2014 or speak what you see")
                 with gr.Row():
@@ -195,7 +186,7 @@ def build_app() -> gr.Blocks:
                 ml_save_btn.click(market_lens_save_trace, [ml_analysis, ml_last_trace_id], ml_action_result)
                 ml_barcode_add_btn.click(market_lens_barcode_add, ml_barcode_state, ml_action_result)
 
-            with gr.Tab("Add Purchase", id="purchase"):
+            with gr.Tab(_tab_label("purchase"), id="purchase"):
                 gr.HTML(workflow_header(WORKFLOW_STEPS, current_step=5))
                 gr.Markdown("### Record a Purchase")
                 location_choices = [(l.name, l.location_id) for l in db.get_locations()]
@@ -225,7 +216,7 @@ def build_app() -> gr.Blocks:
                 p_batch_result = gr.HTML("")
                 p_batch_btn.click(add_purchase_batch, p_batch_input, p_batch_result)
 
-            with gr.Tab("Find Item at Home", id="inventory"):
+            with gr.Tab(_tab_label("inventory"), id="inventory"):
                 gr.HTML(workflow_header(WORKFLOW_STEPS))
                 with gr.Row():
                     inv_search = gr.Textbox(label="Search Inventory", placeholder="Type to filter...")
@@ -250,7 +241,7 @@ def build_app() -> gr.Blocks:
                 app.load(inventory_view, outputs=inv_table)
                 app.load(inventory_cards_view, outputs=inv_cards)
 
-            with gr.Tab("Use Soon", id="usesoon"):
+            with gr.Tab(_tab_label("usesoon"), id="usesoon"):
                 gr.HTML(workflow_header(WORKFLOW_STEPS, current_step=4))
                 with gr.Row():
                     use_days = gr.Slider(1, 30, value=3, step=1, label="Days threshold")
@@ -259,7 +250,7 @@ def build_app() -> gr.Blocks:
                 use_refresh.click(use_soon_view, use_days, use_table)
                 app.load(use_soon_view, inputs=use_days, outputs=use_table)
 
-            with gr.Tab("Price Memory Check", id="prices"):
+            with gr.Tab(_tab_label("prices"), id="prices"):
                 gr.HTML(workflow_header(WORKFLOW_STEPS))
                 with gr.Row():
                     price_item = gr.Textbox(label="Item Name", placeholder="e.g. basmati rice")
@@ -293,7 +284,7 @@ def build_app() -> gr.Blocks:
                 pi_refresh.click(price_intelligence_view, outputs=pi_html)
                 app.load(price_intelligence_view, outputs=pi_html)
 
-            with gr.Tab("Map", id="map"):
+            with gr.Tab(_tab_label("map"), id="map"):
                 gr.HTML(workflow_header(WORKFLOW_STEPS))
                 map_html = gr.HTML("")
                 gr.Markdown("### Move Item Between Locations")
@@ -308,11 +299,11 @@ def build_app() -> gr.Blocks:
                 move_btn.click(move_inventory_to_location, [move_lot_input, move_dest], move_result)
                 app.load(household_map_view, outputs=map_html)
 
-            with gr.Tab("Model Stack", id="modelstack"):
+            with gr.Tab(_tab_label("modelstack"), id="modelstack"):
                 model_stack_html = gr.HTML("")
                 app.load(model_budget_view, outputs=model_stack_html)
 
-            with gr.Tab("Traces", id="trace"):
+            with gr.Tab(_tab_label("trace"), id="trace"):
                 gr.HTML(workflow_title_bar(
                     "Export Redacted Trace",
                     "Pick a workflow run, inspect the timeline, then download a redacted trace artifact.",
@@ -382,7 +373,7 @@ def build_app() -> gr.Blocks:
                     outputs=[trace_selector, trace_timeline, trace_raw, trace_bootstrap_state],
                 )
 
-            with gr.Tab("Data", id="portability"):
+            with gr.Tab(_tab_label("portability"), id="portability"):
                 gr.HTML(workflow_header(WORKFLOW_STEPS))
                 with gr.Tab("Export"):
                     export_json_btn = gr.Button("Export Inventory as JSON")
@@ -410,7 +401,7 @@ def build_app() -> gr.Blocks:
                     import_result = gr.HTML("")
                     import_btn.click(import_data_file, import_file, import_result)
 
-            with gr.Tab("Field Notes", id="notes"):
+            with gr.Tab(_tab_label("notes"), id="notes"):
                 gr.HTML(workflow_header(WORKFLOW_STEPS))
                 gr.Markdown("### Field Notes")
                 gr.Markdown("Use this area to capture household notes, shopping decisions, price changes, and things to remember next time.")

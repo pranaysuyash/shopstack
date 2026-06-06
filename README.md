@@ -1,6 +1,8 @@
 # ShopStack
 
-Local-first, off-the-grid household inventory management. Know what you have, what needs using, and what to buy next — without sending your data to the cloud.
+Local-first, off-the-grid **shopping intelligence platform**. Know what you have, what to use soon, what to buy, what to skip, and where to buy from — without sending your data to the cloud.
+
+ShopStack is a stack of shopping intelligence layers: home inventory (ShopStock), shopping lists and market baskets (ShopBasket), retailer price comparison (ShopCompare), scanning and import (ShopLens), price history and preferences (ShopMemory), and a reasoning agent (ShopAgent) that decides buy/skip/use-soon across all modules.
 
 ## Philosophy
 
@@ -9,18 +11,34 @@ The default mock providers let you build and test the full app without loading a
 
 **Total parameter limit:** ≤32 billion parameters across all loaded models.
 
+## Modules
+
+| Module | Purpose |
+|--------|---------|
+| **ShopStock** | Inventory, pantry, fridge, expiry, low-stock, use-soon |
+| **ShopBasket** | Shopping list, cart builder, market basket optimization |
+| **ShopCompare** | Retailer price comparison (Swiggy, Blinkit, Zepto, ...) |
+| **ShopLens** | Scanning: barcode, photo, receipt, barcode |
+| **ShopMemory** | Price history, household preferences, field notes |
+| **ShopAgent** | Reasoning: buy/skip/use-soon/compare decisions |
+| **Sources** | Retailer datasets (Swiggy Instamart + future) |
+
+See `Docs/SHOPSTACK_PRODUCT_ARCHITECTURE.md` for full details.
+
 ## Gradio Workflows
 
 ShopStack is organized around workflow experiences:
 
-- Plan Today's Shopping
-- Market Lens: Should I Buy This?
-- Add Purchase to Home Memory
-- Find an Item at Home
-- Use Soon / Waste Saver
-- Price Memory Check
-- Agent Trace & Field Notes
-- Model Stack / Budget
+- **Today** — Decision-first dashboard: what to buy, skip, use soon, and compare
+- **Ask ShopStack** — Natural language queries across all modules
+- **Shopping List** — Create, classify (buy/skip/use-soon), and complete shopping plans
+- **Market Lens** — Scan items via camera or voice, compare to inventory
+- **Add Purchase** — Record what was bought (price, store, location)
+- **Find Item at Home** — Search inventory by location and status
+- **Use Soon** — Expiring and aging items flagged for attention
+- **Price Memory Check** — Price history, trends, and best-store intelligence
+- **Traces** — Workflow audit trail with redacted export
+- **Field Notes** — Household notes and preferences
 
 ## Quick Start
 
@@ -45,8 +63,8 @@ Imported observations are tagged with `source_event_id = swiggy_fresh_vegetables
 ## Tests
 
 ```bash
-uv run pytest tests/ -v          # 353 passed in 3.62s
-uv run pytest benchmarks/ -v -m benchmark  # 9 passed in 0.04s
+uv run pytest tests/ -v          # 371 passed in 6.30s
+uv run pytest benchmarks/ -v -m benchmark  # 9 passed in 0.05s
 ```
 
 | Module | Tests | What it covers |

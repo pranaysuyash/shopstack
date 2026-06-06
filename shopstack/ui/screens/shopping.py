@@ -7,7 +7,7 @@ from datetime import date
 from typing import Any
 from urllib.parse import quote
 
-from shopstack.app_context import db, tools
+from shopstack.app_context import APP_NAME, db, tools
 from shopstack.services.shopping import (
     classify_shopping_items,
     enrich_items_with_swiggy,
@@ -248,7 +248,7 @@ def _record_shopping_trace(
 
 def _shopping_list_share_text(items: list[dict[str, Any]]) -> str:
     if not items:
-        return "ShopStack list for today\nNo items in list."
+        return f"{APP_NAME} list for today\nNo items in list."
     must_buy: list[str] = []
     optional: list[str] = []
     skipped: list[str] = []
@@ -271,7 +271,7 @@ def _shopping_list_share_text(items: list[dict[str, Any]]) -> str:
         else:
             must_buy.append(f"\u2022 {name}{suffix}")
 
-    sections: list[str] = ["ShopStack list for today"]
+    sections: list[str] = [f"{APP_NAME} list for today"]
     if must_buy:
         sections.append("\nMust Buy:\n" + "\n".join(must_buy))
     if optional:

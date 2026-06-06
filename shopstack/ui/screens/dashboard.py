@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from html import escape
 
-from shopstack.app_context import db, tools
+from shopstack.app_context import APP_DESCRIPTION, APP_NAME, db, tools
 from shopstack.ui import render_action_grid, render_hero_panel, render_metric
 from shopstack.ui.screens._utils import (
     safe_render,
@@ -49,9 +49,9 @@ def today_dashboard():
     purchases = db.get_purchase_events(limit=5)
 
     hero = render_hero_panel(
-        "Good day. What should your home remember today?",
+        f"Good day. {APP_DESCRIPTION}",
         f"{len(ds.buy)} to buy, {len(ds.skip)} to skip, {len(ds.use_soon)} to use soon.",
-        "Household Memory",
+        APP_NAME,
     )
 
     quick_actions = (

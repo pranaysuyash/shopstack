@@ -7,6 +7,7 @@ from typing import Any
 
 import pandas as pd
 
+from shopstack.app_context import APP_NAME
 from shopstack.persistence.database import Database
 
 FIELD_NOTES_CONFIG_KEY = "field_notes_markdown"
@@ -328,7 +329,7 @@ def _field_notes_template(
         sections = [
             "# Field Notes (Dev)",
             "",
-            f"_Generated on {today.isoformat()} from the live ShopStack database._",
+            f"_Generated on {today.isoformat()} from the live {APP_NAME} database._",
             "",
             "## What we built",
             "- Local-first inventory memory",
@@ -353,7 +354,7 @@ def _field_notes_template(
         sections = [
             "# Household Snapshot",
             "",
-            f"_Updated {today.isoformat()} from your local ShopStack database._",
+            f"_Updated {today.isoformat()} from your local {APP_NAME} database._",
             "",
             "## Recent activity",
             *trace_lines,

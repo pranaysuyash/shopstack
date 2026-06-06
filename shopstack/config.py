@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     app_name: str = "ShopStack"
+    app_description: str = "Shopping intelligence platform: know what you have, what to buy, what to skip, and where to buy from."
     app_version: str = "0.1.0"
     debug: bool = True
 

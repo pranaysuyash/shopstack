@@ -191,3 +191,31 @@ This file is a project guidance snapshot; current source of truth remains code/r
 - Header runtime badge is derived from provider runtime state instead of hardcoded `Mock`/version copy.
 - Swiggy views, shopping-list enrichment, and Market Lens price cross-references now label Swiggy data as point-in-time and surface freshness.
 - Verified counts: `uv run pytest tests/ -q` → 348 passed; `uv run pytest tests/ benchmarks/ -q` → 357 passed.
+
+## Addendum (2026-06-06) — Service Boundary Extraction
+
+This file remains a guidance snapshot; code/runtime/tests at the time of work remain source of truth.
+
+- Added `shopstack/services/shopping.py` for shopping-list normalization, decision classification, and Swiggy enrichment.
+- Added `shopstack/services/market_lens.py` for Market Lens barcode/object/OCR/STT analysis and Swiggy enrichment.
+- `shopstack/ui/screens/shopping.py` and `shopstack/ui/screens/market_lens.py` now act more like Gradio adapters: parse/render/trace/wire, while product logic lives in services.
+- Verified counts: `uv run pytest tests/ -q` → 357 passed; `uv run pytest tests/ benchmarks/ -q` → 366 passed.
+
+## Addendum (2026-06-06) — Product Naming & Module Architecture
+
+This file remains a guidance snapshot; code/runtime/tests at the time of work remain source of truth.
+
+- **ShopStack** is the full product/platform. **ShopStock** is the inventory module inside ShopStack.
+- Module architecture introduced in `Docs/SHOPSTACK_PRODUCT_ARCHITECTURE.md`:
+  - ShopStock — inventory/pantry/fridge/expiry/use-soon
+  - ShopBasket — shopping list / cart / market basket
+  - ShopCompare — retailer price comparison
+  - ShopLens — scanning (barcode, photo, receipt)
+  - ShopMemory — price history, preferences, field notes
+  - ShopAgent — reasoning across all modules
+  - Sources — retailer datasets (Swiggy + future)
+- The Python package remains `shopstack` (no import path changes needed).
+- The product subtitle in `app.py` updated to "Your home's shopping intelligence & memory."
+- `shopstack/config.py` app_name remains "ShopStack"; added `app_description` field.
+- `README.md` reframed around shopping intelligence platform language.
+- Verified counts: `uv run pytest tests/ -q` → same as previous (`357`); architecture and copy changes are non-functional.
