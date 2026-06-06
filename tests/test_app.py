@@ -40,15 +40,15 @@ def test_today_dashboard_returns_correct_shape(fresh_app):
 def test_all_view_functions_importable(fresh_app):
     views = [
         "today_dashboard",
-        "shopping_list_view",
-        "shopping_list_create",
+        "shopping_list_view_with_cards",
+        "build_shopping_list_and_refresh",
         "add_purchase_form",
         "inventory_view",
         "consume_item",
         "use_soon_view",
         "household_map_view",
         "agent_trace_view",
-        "agent_trace_detail",
+        "agent_trace_bootstrap",
         "price_memory_view",
         "field_notes_view",
         "field_notes_save",
@@ -62,3 +62,10 @@ def test_build_app_appears_to_have_tabs(fresh_app):
     app = fresh_app.build_app()
     children = list(app.children)
     assert len(children) > 0
+
+
+def test_today_tab_does_not_expose_demo_loader():
+    app_source = Path(__file__).resolve().parents[1] / "app.py"
+    text = app_source.read_text()
+    assert "Load Demo Data" not in text
+    assert "seed_demo_inventory" not in text

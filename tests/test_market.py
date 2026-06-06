@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,7 @@ from shopstack.market.sources.swiggy import (
     load_raw,
     load_snapshot,
     normalize_record,
+    snapshot_freshness,
 )
 
 
@@ -188,6 +190,19 @@ class TestSwiggyLoader:
         assert record.raw_size == "2 Medium"
         assert record.is_size_class is True
         assert record.is_available is True
+
+    def test_snapshot_freshness_current(self):
+        snapshot = load_snapshot()
+        freshness = snapshot_freshness(snapshot, today=date(2026, 6, 6))
+        assert freshness["age_days"] == 0
+        assert freshness["is_stale"] is False
+        assert "Captured today" in freshness["label"]
+
+    def test_snapshot_freshness_stale(self):
+        snapshot = load_snapshot(captured_at="2026-06-01")
+        freshness = snapshot_freshness(snapshot, today=date(2026, 6, 6))
+        assert freshness["age_days"] == 5
+        assert freshness["is_stale"] is True
 
 
 # ---------- Analytics ----------

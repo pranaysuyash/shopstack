@@ -154,21 +154,26 @@ A hook at `.git/hooks/pre-commit` runs `tools/sync-readme-stats` which extracts 
 | File | Tests | Scope |
 |------|-------|-------|
 | `tests/test_config.py` | 6 | Settings defaults, env overrides, aliases |
-| `tests/test_database.py` | 27 | All 10 tables: CRUD, edge cases, seeds, deprecated wrappers |
-| `tests/test_schemas.py` | 17 | Model validation, defaults, edge cases |
-| `tests/test_tools.py` | 20 | All 11 tools, arg validation, list tools, prefix resolution |
-| `tests/test_traces.py` | 14 | PII redaction, trace creation, JSONL export |
+| `tests/test_database.py` | 32 | All 10 tables: CRUD, edge cases, seeds, deprecated wrappers |
+| `tests/test_schemas.py` | 19 | Model validation, defaults, edge cases |
+| `tests/test_tools.py` | 22 | All 11 tools, arg validation, list tools, prefix resolution |
+| `tests/test_traces.py` | 12 | PII redaction, trace creation, JSONL export |
 | `tests/test_provider_registry.py` | 2 | Mock fallback for custom backends, local backend fallback |
 | `tests/test_model_registry.py` | 4 | Parameter limit enforcement, budget validation |
-| `tests/test_ui_support.py` | 16 | PriceMemoryView, FieldNotesView, escaping, sort, unit price, list_to_table |
-| `tests/test_views.py` | 31 | All view functions: dashboard, shopping, add (inc. neg validation), inventory, cards, consume (inc. prefix), use-soon, map, traces, field notes |
+| `tests/test_ui_support.py` | 19 | PriceMemoryView, FieldNotesView, escaping, sort, unit price, list_to_table |
+| `tests/test_views.py` | 47 | All view functions: dashboard, shopping, add (inc. neg validation), inventory, cards, consume (inc. prefix), use-soon, map, traces, field notes |
 | `tests/test_app.py` | 5 | App smoke tests (build_app, imports, dashboard shape, tabs) |
 | `tests/test_portability.py` | 18 | JSON + CSV export/import, dedup, validation, summary HTML |
 | `tests/test_local_provider.py` | 10 | Local provider init, graceful fallback, capability checks |
-| `tests/test_planner.py` | 25 | JSON extraction, tool-call parsing, inventory formatting, planner engine |
+| `tests/test_planner.py` | 26 | JSON extraction, tool-call parsing, inventory formatting, planner engine |
 | `tests/test_market.py` | 52 | Swiggy loader, size parser, unit prices, canonical matching, analytics, basket, produce metadata |
+| `tests/test_decisions.py` | 20 | Decision engine: BUY/SKIP/USE_SOON classification, market basket, Swiggy integration |
+| `tests/test_cadence_waste.py` | 15 | Purchase cadence detection, waste patterns, Swiggy availability checks |
 | `tests/test_safe_render.py` | 4 | Error boundary decorator: pass-through, catch, args, name preservation |
-| **Total** | **304** | (growing) |
+| `tests/test_runtime.py` | 5 | Runtime diagnostics: provider status, model info |
+| `tests/test_swiggy_data_source.py` | 4 | Swiggy data source validation |
+| `tests/test_voice_add.py` | 14 | Voice add commands, price intelligence |
+| **Total** | **339** | (growing) |
 
 ## Next Work
 
@@ -177,3 +182,12 @@ A hook at `.git/hooks/pre-commit` runs `tools/sync-readme-stats` which extracts 
 - CI pipeline (GitHub Actions + test suite)
 - HF Inference API provider for fallback when local models aren't installed
 - Modal provider for cloud GPU inference
+
+## Addendum (2026-06-06) — Current Verified State
+
+This file is a project guidance snapshot; current source of truth remains code/runtime/tests at the time of work.
+
+- Primary app UI no longer exposes `Load Demo Data` on the Today tab; seed utilities remain developer/walkthrough tooling only.
+- Header runtime badge is derived from provider runtime state instead of hardcoded `Mock`/version copy.
+- Swiggy views, shopping-list enrichment, and Market Lens price cross-references now label Swiggy data as point-in-time and surface freshness.
+- Verified counts: `uv run pytest tests/ -q` → 348 passed; `uv run pytest tests/ benchmarks/ -q` → 357 passed.

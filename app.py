@@ -4,13 +4,10 @@ from datetime import date
 
 import gradio as gr
 
-from shopstack.app_context import db, tools, providers
 from shopstack.ui.screens import (
     today_dashboard,
-    shopping_list_view,
-    shopping_list_create,
-    _shopping_list_view_with_cards,
-    _build_shopping_list_and_refresh,
+    shopping_list_view_with_cards,
+    build_shopping_list_and_refresh,
     complete_shopping_list,
     shopping_list_item_choices,
     mark_items_purchased,
@@ -25,22 +22,17 @@ from shopstack.ui.screens import (
     inventory_cards_view,
     consume_item,
     consume_items_batch,
-    seed_demo_inventory,
     add_purchase_batch,
     use_soon_view,
     model_budget_view,
     provider_status_badge,
     price_memory_view,
     price_intelligence_view,
-    swiggy_market_view,
-    swiggy_basket_estimate,
-    seed_swiggy_prices,
     household_map_view,
     agent_trace_view,
-    agent_trace_detail,
     agent_trace_bootstrap,
     agent_trace_export_file,
-    _trace_bundle,
+    trace_bundle,
     field_notes_view,
     field_notes_save,
     export_data_json,
@@ -49,34 +41,52 @@ from shopstack.ui.screens import (
 )
 from shopstack.ui.screens.other import move_inventory_to_location
 from shopstack.ui.screens._utils import WORKFLOW_STEPS, workflow_header, workflow_title_bar
+from shopstack.ui.theme import CSS
+
+# Backward compatibility wrappers for tests
+from shopstack.ui.screens.shopping import (
+    shopping_list_view,
+    shopping_list_create,
+    _shopping_list_view_with_cards,
+    _build_shopping_list_and_refresh,
+)
+from shopstack.ui.screens.traces import _trace_bundle, agent_trace_detail
+from shopstack.app_context import db, providers, tools, planner, model_registry
 
 _workflow_header = workflow_header
 
-from shopstack.ui.theme import CSS
+
+def _runtime_label() -> str:
+    try:
+        runtime = providers.runtime_report()
+        loaded_real = [r for r in runtime if getattr(r, "loaded", False) and getattr(r, "backend", "") != "mock"]
+        return "Local runtime" if loaded_real else "Local mock mode"
+    except Exception:
+        return "Local runtime"
 
 
 def build_app() -> gr.Blocks:
+    runtime_label = _runtime_label()
     with gr.Blocks(title="ShopStack") as app:
         gr.HTML(f"""
-<div style="display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid var(--border);margin-bottom:20px;">
+<div class="app-header">
   <div>
-    <h1 style="font-size:22px;margin:0;">ShopStack</h1>
-    <div style="font-size:12px;color:var(--text-dim);">Your home's shopping memory.</div>
+    <h1 class="brand-title">ShopStack</h1>
+    <div class="brand-subtitle">Your home's shopping memory.</div>
   </div>
-  </div>""", padding=True)
+  <div>
+    <div class="env-badge">{runtime_label}</div>
+  </div>
+</div>""", padding=True)
 
         with gr.Tabs(elem_classes="tabs") as tabs:
             with gr.Tab("Today", id="today"):
                 gr.HTML(workflow_header(WORKFLOW_STEPS))
-                with gr.Row():
-                    seed_btn = gr.Button("Load Demo Data", elem_classes="secondary")
-                seed_result = gr.HTML("")
                 today_stats = gr.HTML("")
                 today_soon = gr.HTML("")
                 today_list = gr.HTML("")
                 today_low = gr.HTML("")
                 today_recent = gr.HTML("")
-                seed_btn.click(seed_demo_inventory, outputs=seed_result)
                 app.load(today_dashboard, outputs=[today_stats, today_soon, today_list, today_low, today_recent])
 
             with gr.Tab("Ask ShopStack", id="ask"):
@@ -108,17 +118,36 @@ def build_app() -> gr.Blocks:
                 sl_share = gr.HTML("")
                 sl_complete_result = gr.HTML("")
                 with gr.Row():
+                    sl_item_dropdown = gr.Dropdown(
+                        label="Select items to mark as purchased",
+                        choices=[],
+                        multiselect=True,
+                        interactive=True,
+                    )
+                    sl_item_refresh = gr.Button("Refresh Items", elem_classes="secondary")
+                    sl_mark_purchased_btn = gr.Button("Mark Selected as Purchased", variant="primary")
+
+                with gr.Row():
                     create_btn = gr.Button("Build Shopping Plan")
                     refresh_btn = gr.Button("Refresh", elem_classes="secondary")
                     complete_btn = gr.Button("Complete List & Add to Inventory", variant="primary")
                 create_output = gr.HTML("")
                 create_btn.click(
-                    _build_shopping_list_and_refresh,
+                    build_shopping_list_and_refresh,
                     [goal_input, items_input],
                     [create_output, sl_cards, sl_display, sl_table, sl_list_id, sl_goal, sl_share],
+                ).then(
+                    shopping_list_item_choices,
+                    outputs=sl_item_dropdown
                 )
-                refresh_btn.click(_shopping_list_view_with_cards, outputs=[sl_cards, sl_display, sl_table, sl_list_id, sl_goal, sl_share])
-                complete_btn.click(complete_shopping_list, sl_list_id, sl_complete_result)
+                refresh_btn.click(shopping_list_view_with_cards, outputs=[sl_cards, sl_display, sl_table, sl_list_id, sl_goal, sl_share])
+                complete_btn.click(complete_shopping_list, sl_list_id, sl_complete_result).then(
+                    shopping_list_view_with_cards,
+                    outputs=[sl_cards, sl_display, sl_table, sl_list_id, sl_goal, sl_share]
+                ).then(
+                    shopping_list_item_choices,
+                    outputs=sl_item_dropdown
+                )
 
                 with gr.Row():
                     sl_item_dropdown = gr.Dropdown(
@@ -131,9 +160,15 @@ def build_app() -> gr.Blocks:
                     sl_mark_purchased_btn = gr.Button("Mark Selected as Purchased", variant="primary")
                 sl_mark_result = gr.HTML("")
                 sl_item_refresh.click(shopping_list_item_choices, outputs=sl_item_dropdown)
-                sl_mark_purchased_btn.click(mark_items_purchased, sl_item_dropdown, sl_mark_result)
+                sl_mark_purchased_btn.click(mark_items_purchased, sl_item_dropdown, sl_mark_result).then(
+                    shopping_list_view_with_cards,
+                    outputs=[sl_cards, sl_display, sl_table, sl_list_id, sl_goal, sl_share]
+                ).then(
+                    shopping_list_item_choices,
+                    outputs=sl_item_dropdown
+                )
                 app.load(shopping_list_item_choices, outputs=sl_item_dropdown)
-                app.load(_shopping_list_view_with_cards, outputs=[sl_cards, sl_display, sl_table, sl_list_id, sl_goal, sl_share])
+                app.load(shopping_list_view_with_cards, outputs=[sl_cards, sl_display, sl_table, sl_list_id, sl_goal, sl_share])
 
             with gr.Tab("Market Lens", id="market"):
                 gr.HTML(workflow_header(WORKFLOW_STEPS, current_step=2))
@@ -257,28 +292,6 @@ def build_app() -> gr.Blocks:
                 pi_refresh = gr.Button("Refresh", elem_classes="secondary")
                 pi_refresh.click(price_intelligence_view, outputs=pi_html)
                 app.load(price_intelligence_view, outputs=pi_html)
-                gr.Markdown("### Live Market — Swiggy Fresh Vegetables")
-                swiggy_html = gr.HTML("")
-                with gr.Row():
-                    swiggy_refresh = gr.Button("Refresh Market Data", elem_classes="secondary")
-                    swiggy_seed_btn = gr.Button("Seed Price Memory", elem_classes="secondary")
-                swiggy_seed_result = gr.HTML("")
-                swiggy_refresh.click(swiggy_market_view, outputs=swiggy_html)
-                swiggy_seed_btn.click(seed_swiggy_prices, outputs=swiggy_seed_result)
-                app.load(swiggy_market_view, outputs=swiggy_html)
-                gr.Markdown("#### Basket Estimator")
-                swiggy_basket_input = gr.Textbox(
-                    label="Items (one per line)",
-                    placeholder="tomato\nonion\npotato\ncarrot",
-                    lines=5,
-                )
-                swiggy_basket_btn = gr.Button("Estimate Basket")
-                swiggy_basket_output = gr.HTML("")
-                swiggy_basket_btn.click(
-                    swiggy_basket_estimate,
-                    inputs=swiggy_basket_input,
-                    outputs=swiggy_basket_output,
-                )
 
             with gr.Tab("Map", id="map"):
                 gr.HTML(workflow_header(WORKFLOW_STEPS))
@@ -329,16 +342,8 @@ def build_app() -> gr.Blocks:
                     trace_file = gr.File(file_count="single", visible=True, label="Download redacted JSONL")
                 trace_bootstrap_state = gr.State("")
 
-                def _trace_search_change(search, type_filter):
-                    from shopstack.ui.screens.traces import agent_trace_view, agent_trace_bootstrap
-                    tbl, _ = agent_trace_view(search, type_filter)
-                    boot = agent_trace_bootstrap(search, type_filter)
-                    if isinstance(boot[0], dict):
-                        return (gr.update(**boot[0]), boot[2], boot[3])
-                    return (gr.update(choices=boot[0]), boot[2], boot[3])
-
                 def _trace_selector_change(trace_id):
-                    timeline, raw = _trace_bundle(trace_id)
+                    timeline, raw = trace_bundle(trace_id)
                     return timeline, raw
 
                 def _trace_refresh_click():
@@ -346,6 +351,14 @@ def build_app() -> gr.Blocks:
                     if isinstance(result[0], dict):
                         return (gr.update(**result[0]), *result[1:])
                     return result
+
+                def _trace_search_change(search, type_filter):
+                    from shopstack.ui.screens.traces import agent_trace_view, agent_trace_bootstrap as atb
+                    tbl, _ = agent_trace_view(search, type_filter)
+                    boot = atb(search, type_filter)
+                    if isinstance(boot[0], dict):
+                        return (gr.update(**boot[0]), boot[2], boot[3])
+                    return (gr.update(choices=boot[0]), boot[2], boot[3])
 
                 trace_search.change(
                     _trace_search_change,
@@ -360,7 +373,7 @@ def build_app() -> gr.Blocks:
                 trace_selector.change(_trace_selector_change, trace_selector, [trace_timeline, trace_raw])
                 trace_refresh.click(
                     _trace_refresh_click,
-                    outputs=[trace_selector, trace_timeline, trace_raw, trace_bootstrap_state],
+                    outputs=[trace_selector, trace_timeline, trace_raw, trace_bootstrap_state, trace_table],
                 )
                 trace_export.click(agent_trace_export_file, trace_selector, trace_file)
                 app.load(lambda: agent_trace_view()[0], outputs=trace_table)
@@ -375,8 +388,22 @@ def build_app() -> gr.Blocks:
                     export_json_btn = gr.Button("Export Inventory as JSON")
                     export_csv_btn = gr.Button("Export Inventory as CSV")
                     export_file = gr.File(label="Download", visible=False)
-                    export_json_btn.click(export_data_json, outputs=export_file)
-                    export_csv_btn.click(export_data_csv, outputs=export_file)
+                    export_json_btn.click(
+                        export_data_json, 
+                        outputs=export_file,
+                    ).then(
+                        lambda f: gr.update(value=f, visible=True) if f else gr.update(visible=False),
+                        export_file,
+                        export_file
+                    )
+                    export_csv_btn.click(
+                        export_data_csv, 
+                        outputs=export_file,
+                    ).then(
+                        lambda f: gr.update(value=f, visible=True) if f else gr.update(visible=False),
+                        export_file,
+                        export_file
+                    )
                 with gr.Tab("Import"):
                     import_file = gr.File(label="Upload JSON or CSV", file_count="single")
                     import_btn = gr.Button("Import Data")
@@ -386,8 +413,8 @@ def build_app() -> gr.Blocks:
             with gr.Tab("Field Notes", id="notes"):
                 gr.HTML(workflow_header(WORKFLOW_STEPS))
                 gr.Markdown("### Field Notes")
-                gr.Markdown("Use this area to capture the story behind the build, the failures, and what changed after real testing.")
-                notes_editor = gr.Textbox(label="Editable Draft", lines=16, placeholder="# Field Notes\n\nWrite what we learned...")
+                gr.Markdown("Use this area to capture household notes, shopping decisions, price changes, and things to remember next time.")
+                notes_editor = gr.Textbox(label="Editable Draft", lines=16, placeholder="# Household Notes\n\nWrite what we learned...")
                 notes_preview = gr.Markdown()
                 notes_status = gr.HTML("")
                 with gr.Row():

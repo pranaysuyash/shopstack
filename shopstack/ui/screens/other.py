@@ -17,6 +17,19 @@ from shopstack.ui.screens._utils import safe_render
 logger = logging.getLogger(__name__)
 
 
+def _market_freshness_html(snapshot) -> str:
+    from shopstack.market.sources.swiggy import snapshot_freshness
+
+    freshness = snapshot_freshness(snapshot)
+    color = "#ef4444" if freshness["is_stale"] else "var(--text-dim)"
+    prefix = "Market data may be stale" if freshness["is_stale"] else "Market snapshot"
+    return (
+        f"<div style='font-size:11px;color:{color};margin-top:4px;'>"
+        f"{escape(prefix)}: {escape(freshness['label'])}. Prices and availability are point-in-time signals."
+        f"</div>"
+    )
+
+
 @safe_render
 def price_memory_view(item_name: str = ""):
     view = build_price_memory_view(db, item_name)
@@ -294,6 +307,7 @@ def swiggy_market_view() -> str:
     parts.append(
         f"<div class='home-card' style='text-align:left;margin-bottom:12px;'>"
         f"<h3>Swiggy Fresh Vegetables — {snapshot.captured_at}</h3>"
+        f"{_market_freshness_html(snapshot)}"
         f"<div style='display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;'>"
         f"<div><strong>{analytics['total']}</strong> items</div>"
         f"<div style='color:#22c55e;'><strong>{analytics['available']}</strong> available</div>"
@@ -385,6 +399,7 @@ def swiggy_basket_estimate(items_text: str) -> str:
         f"<div style='margin-bottom:12px;'>"
         f"<strong>{summary['matched']}</strong> of {summary['total_requested']} matched "
         f"&mdash; estimated total: <strong>&#8377;{summary['total_estimated_price_inr']}</strong>"
+        f"{_market_freshness_html(snapshot)}"
         f"</div>"
     )
 

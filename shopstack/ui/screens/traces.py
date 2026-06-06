@@ -187,3 +187,9 @@ def record_workflow_trace(
         return trace.trace_id
     except Exception:
         return ""
+
+
+# Public handler for Gradio composition layer
+def trace_bundle(trace_id: str) -> tuple[str, str]:
+    """Public handler for getting trace timeline and raw JSON."""
+    return _trace_bundle(trace_id)

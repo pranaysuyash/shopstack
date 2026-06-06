@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import logging
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,7 @@ SOURCE_ID = "swiggy"
 SOURCE_CATEGORY = "fresh_vegetables"
 DEFAULT_SNAPSHOT_ID = f"{SOURCE_ID}_{SOURCE_CATEGORY}_2026-06-06"
 DEFAULT_CAPTURED_AT = "2026-06-06"
+FRESHNESS_WARNING_DAYS = 1
 
 _DEFAULT_DATA_DIR = Path(__file__).resolve().parents[3] / "data"
 
@@ -174,3 +176,31 @@ def load_snapshot(
         raw_records=raw_records,
         normalized_records=normalized,
     )
+
+
+def snapshot_freshness(snapshot: MarketSnapshot, today: date | None = None) -> dict[str, Any]:
+    """Return freshness metadata for a Swiggy point-in-time snapshot."""
+    current = today or date.today()
+    try:
+        captured = date.fromisoformat(snapshot.captured_at[:10])
+    except (ValueError, TypeError):
+        return {
+            "captured_at": snapshot.captured_at,
+            "age_days": None,
+            "is_stale": True,
+            "label": f"Snapshot date unclear: {snapshot.captured_at or 'unknown'}",
+        }
+
+    age_days = (current - captured).days
+    if age_days <= 0:
+        label = f"Captured today ({snapshot.captured_at})"
+    elif age_days == 1:
+        label = f"Captured yesterday ({snapshot.captured_at})"
+    else:
+        label = f"Captured {age_days} days ago ({snapshot.captured_at})"
+    return {
+        "captured_at": snapshot.captured_at,
+        "age_days": age_days,
+        "is_stale": age_days > FRESHNESS_WARNING_DAYS,
+        "label": label,
+    }

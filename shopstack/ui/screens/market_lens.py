@@ -15,6 +15,20 @@ from shopstack.ui.screens.ask import ask_shopstack
 logger = logging.getLogger(__name__)
 
 
+def _swiggy_freshness_note() -> str:
+    try:
+        from shopstack.market.sources.swiggy import load_snapshot, snapshot_freshness
+        freshness = snapshot_freshness(load_snapshot())
+    except Exception:
+        return ""
+    color = "#ef4444" if freshness["is_stale"] else "var(--text-dim)"
+    return (
+        f"<div style='font-size:11px;color:{color};margin-top:6px;'>"
+        f"Swiggy prices are point-in-time: {escape(freshness['label'])}. Verify before checkout."
+        f"</div>"
+    )
+
+
 def market_lens_process(image_path: str | None, audio_path: str | None) -> tuple:
     result_html = "<div style='color:var(--text-dim);'>No input provided.</div>"
     items_found = []
@@ -71,6 +85,46 @@ def market_lens_process(image_path: str | None, audio_path: str | None) -> tuple
             items_found.append(item_name.title())
         trace_decisions.extend(decisions)
 
+        try:
+            from shopstack.decisions import check_swiggy_availability
+            swiggy_prices = check_swiggy_availability([d["canonical_name"].lower() for d in decisions])
+            for d in decisions:
+                info = swiggy_prices.get(d["canonical_name"].lower())
+                if info:
+                    d["swiggy_price"] = info["price"]
+                    d["swiggy_available"] = info["available"]
+                    d["swiggy_price_per_kg"] = info["price_per_kg"]
+        except Exception:
+            pass
+
+        swiggy_section = ""
+        swiggy_items = [d for d in decisions if d.get("swiggy_price") is not None or d.get("swiggy_available") is False]
+        if swiggy_items:
+            swiggy_rows = []
+            for d in swiggy_items[:5]:
+                name = escape(d["canonical_name"])
+                if d.get("swiggy_available") is False:
+                    swiggy_rows.append(
+                        f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'>"
+                        f"<strong>{name}</strong> <span style='color:#ef4444;font-size:11px;'>Sold out on Swiggy</span>"
+                        f"</div>"
+                    )
+                elif d.get("swiggy_price"):
+                    ppk = d.get("swiggy_price_per_kg", 0)
+                    ppk_str = f" ({ppk:.0f}/kg)" if ppk else ""
+                    swiggy_rows.append(
+                        f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'>"
+                        f"<strong>{name}</strong> <span style='color:#22c55e;'>&#8377;{d['swiggy_price']:.0f}{ppk_str}</span>"
+                        f"</div>"
+                    )
+            swiggy_section = (
+                "<div class='stat-card' style='margin-top:10px;'>"
+                "<h4>Swiggy Instamart Prices</h4>"
+                + "".join(swiggy_rows) +
+                _swiggy_freshness_note() +
+                "</div>"
+            )
+
         buys = [d for d in decisions if d["decision"] == "buy"]
         skips = [d for d in decisions if d["decision"] == "skip"]
         maybes = [d for d in decisions if d["decision"] in ("optional", "maybe")]
@@ -86,6 +140,7 @@ def market_lens_process(image_path: str | None, audio_path: str | None) -> tuple
             barcode_section
             + "<div class='home-card'>"
             f"<h3>Market Lens</h3>{analysis}"
+            f"{swiggy_section}"
             "</div>"
         )
         analysis = json.dumps({"items": decisions}, indent=2)

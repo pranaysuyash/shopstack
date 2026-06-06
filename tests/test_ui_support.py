@@ -11,10 +11,15 @@ from shopstack.ui import (
     empty_state,
     list_to_table,
     load_field_notes,
+    render_action_grid,
+    render_action_tile,
     render_decision_card,
+    render_hero_panel,
     render_metric,
+    render_workflow_rail,
     save_field_notes,
 )
+from shopstack.ui.theme import CSS
 
 
 def test_build_price_memory_view_returns_summary_plot_and_table(db: Database):
@@ -244,3 +249,54 @@ def test_empty_state_and_metric_escape_text():
     assert "<b>Name</b>" not in metric
     assert "&lt;b&gt;Name&lt;/b&gt;" in metric
     assert "&lt;img&gt;" in metric
+
+
+def test_metric_uses_canonical_readable_classes():
+    metric = render_metric("Active items", "5", "tap to inspect", tab_id="inventory")
+
+    assert "metric-label" in metric
+    assert "metric-value" in metric
+    assert "metric-hint" in metric
+    assert "font-size:34px" not in metric
+    assert "color:var(--text-dim)" not in metric
+
+
+def test_workflow_rail_uses_accessible_state_classes():
+    html = render_workflow_rail(["Input", "Decision", "Saved Trace"], current_step=1)
+
+    assert "workflow-rail" in html
+    assert "workflow-step is-complete" in html
+    assert "workflow-step is-pending" in html
+    assert "Workflow Steps" in html
+
+
+def test_theme_defines_high_contrast_design_tokens():
+    assert "--text: #1F1812" in CSS
+    assert "--text-muted: #5F5144" in CSS
+    assert "--accent: #176B49" in CSS
+    assert "--font-display" in CSS
+    assert "metric-value" in CSS
+    assert "opacity: 1 !important" in CSS
+
+
+def test_custom_action_components_escape_and_use_canonical_classes():
+    tile = render_action_tile("<b>Market</b>", "<img>", "market", "primary")
+    grid = render_action_grid([
+        {"label": "Add Purchase", "subtitle": "Record what changed", "tab_id": "purchase"}
+    ])
+
+    assert "<b>Market</b>" not in tile
+    assert "<img>" not in tile
+    assert "&lt;b&gt;Market&lt;/b&gt;" in tile
+    assert "action-tile action-tile-primary" in tile
+    assert "data-testid=tab-market" in tile
+    assert "action-grid" in grid
+
+
+def test_hero_panel_escapes_and_uses_design_classes():
+    html = render_hero_panel("<script>x</script>", "Use what you have", "Today")
+
+    assert "<script>" not in html
+    assert "&lt;script&gt;x&lt;/script&gt;" in html
+    assert "hero-panel" in html
+    assert "hero-copy" in html

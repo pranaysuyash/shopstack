@@ -8,12 +8,15 @@ from typing import Any
 from urllib.parse import quote
 
 from shopstack.app_context import db, tools
+from shopstack.services.shopping import (
+    classify_shopping_items,
+    enrich_items_with_swiggy,
+    normalize_item_name,
+)
 from shopstack.ui import list_to_table
-from shopstack.ui.components import render_grouped_cards
 from shopstack.traces.export import create_trace
 from shopstack.ui.screens._utils import (
     WORKFLOW_STEPS,
-    normalize_item_name,
     parse_shopping_text,
 )
 
@@ -125,75 +128,84 @@ def _parse_shopping_items_from_text(goal: str, raw: str) -> tuple[list[dict[str,
 
 
 def _classify_shopping_items(items: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    must_buy: list[dict[str, Any]] = []
-    optional: list[dict[str, Any]] = []
-    skipped: list[dict[str, Any]] = []
-    use_soon: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for item in items:
-        name = item["canonical_name"]
-        normalized = normalize_item_name(name)
-        if normalized in seen:
-            continue
-        seen.add(normalized)
-        try:
-            qty = float(item.get("requested_quantity", 1.0) or 1.0)
-        except (TypeError, ValueError):
-            qty = 1.0
-        unit = item.get("unit", "unit") or "unit"
-        comparison = tools.compare_visible_item_to_inventory(name, qty, unit)
-        decision = comparison.get("decision", "maybe")
-        total_have = comparison.get("total_quantity_at_home", 0)
-        if comparison.get("is_use_soon", False) and decision != "skip":
-            decision = "use_soon"
-        if decision == "skip":
-            conf = min(0.95, 0.82 + (total_have / (qty * 4)) * 0.13) if total_have > 0 else 0.82
-        elif decision == "use_soon":
-            conf = 0.85
-        elif decision == "optional":
-            conf = 0.72
-        elif total_have > 0:
-            conf = 0.62
-        else:
-            conf = 0.52
-        enriched = {
-            "canonical_name": normalized.title(),
-            "decision": decision,
-            "smart_decision": decision,
-            "reason": comparison.get("reason", ""),
-            "confidence": round(conf, 2),
-            "requested_quantity": qty,
-            "unit": unit,
-        }
-        if decision == "skip":
-            enriched["priority"] = "avoid_buying"
-            skipped.append(enriched)
-        elif decision == "use_soon":
-            enriched["priority"] = "must_buy"
-            use_soon.append(enriched)
-        elif decision == "optional":
-            enriched["priority"] = "optional"
-            optional.append(enriched)
-        else:
-            enriched["priority"] = "must_buy"
-            must_buy.append(enriched)
-        item["reason"] = enriched["reason"]
-        item["priority"] = enriched["priority"]
-        item["smart_decision"] = enriched["smart_decision"]
-    return must_buy, optional, skipped, use_soon
+    plan = classify_shopping_items(items, tools)
+    return plan.must_buy, plan.optional, plan.skipped, plan.use_soon
+
+
+def _enrich_items_with_swiggy(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return enrich_items_with_swiggy(items)
+
+
+def _swiggy_freshness_note() -> str:
+    try:
+        from shopstack.market.sources.swiggy import load_snapshot, snapshot_freshness
+        snapshot = load_snapshot()
+        freshness = snapshot_freshness(snapshot)
+    except Exception:
+        return ""
+    color = "#ef4444" if freshness["is_stale"] else "var(--text-dim)"
+    return (
+        f"<div style='font-size:11px;color:{color};margin-top:8px;'>"
+        f"Swiggy prices are point-in-time: {escape(freshness['label'])}. Verify before checkout."
+        f"</div>"
+    )
 
 
 def _render_shopping_plan_html(
     must_buy: list[dict[str, Any]], optional: list[dict[str, Any]], skipped: list[dict[str, Any]], use_soon: list[dict[str, Any]]
 ) -> str:
-    return (
-        "<div style='margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;'>"
-        f"{render_grouped_cards('Must buy', must_buy)}"
-        f"{render_grouped_cards('Optional', optional)}"
-        f"{render_grouped_cards('Use Soon', use_soon)}"
-        f"{render_grouped_cards('Skip', skipped)}"
-        "</div>"
+    def _swiggy_badge(item: dict[str, Any]) -> str:
+        price = item.get("swiggy_price")
+        avail = item.get("swiggy_available")
+        ppk = item.get("swiggy_price_per_kg")
+        if price is None and avail is None:
+            return ""
+        if avail is False:
+            return " <span style='font-size:10px;color:#ef4444;font-weight:600;'>SOLD OUT</span>"
+        parts = []
+        if price:
+            parts.append(f"&#8377;{price:.0f}")
+        if ppk:
+            parts.append(f"({ppk:.0f}/kg)")
+        if parts:
+            return f" <span style='font-size:10px;color:#22c55e;font-weight:600;'>Swiggy: {' '.join(parts)}</span>"
+        return ""
+
+    def _card_with_badge(group_name: str, items: list[dict[str, Any]]) -> str:
+        if not items:
+            return ""
+        rows = []
+        for item in items[:8]:
+            name = escape(str(item.get("canonical_name", "")))
+            qty = item.get("requested_quantity", 1.0)
+            unit = item.get("unit", "unit")
+            reason = item.get("reason", "")
+            badge = _swiggy_badge(item)
+            reason_html = f"<div style='font-size:11px;color:var(--text-dim);'>{escape(str(reason))}{badge}</div>" if reason or badge else ""
+            rows.append(
+                f"<div style='padding:5px 0;border-bottom:1px solid var(--border);'>"
+                f"<div style='font-weight:600;'>{name} <span style='font-size:11px;color:var(--text-dim);'>{qty} {unit}</span></div>"
+                f"{reason_html}"
+                f"</div>"
+            )
+        color_map = {
+            "Must buy": "#22c55e", "Optional": "#3b82f6",
+            "Use Soon": "#f59e0b", "Skip": "#6b7280",
+        }
+        color = color_map.get(group_name, "var(--text-dim)")
+        return (
+            f"<div class='stat-card' style='text-align:left;'>"
+            f"<h4 style='color:{color};'>{group_name} ({len(items)})</h4>"
+            f"{''.join(rows)}"
+            f"</div>"
+        )
+
+    cards = "".join(
+        _card_with_badge(name, items)
+        for name, items in [("Must buy", must_buy), ("Optional", optional), ("Use Soon", use_soon), ("Skip", skipped)]
+        if items
     )
+    return f"<div style='margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;'>{cards}</div>" if cards else ""
 
 
 def _record_shopping_trace(
@@ -310,7 +322,6 @@ def _shopping_list_payload() -> tuple[str, list[list[str]], str, str, str, str]:
 
     rows = [
         {
-            "list_item_id": lot.list_item_id,
             "canonical_name": lot.canonical_name,
             "requested_quantity": lot.requested_quantity or 1.0,
             "unit": lot.unit or "unit",
@@ -327,21 +338,30 @@ def _shopping_list_payload() -> tuple[str, list[list[str]], str, str, str, str]:
     use_soon = [i for i in rows if i.get("smart_decision") == "use_soon"]
 
     cards = _render_shopping_plan_html(must_buy, optional, skipped, use_soon)
+    if cards and any(item.get("swiggy_available") is not None for item in rows):
+        cards += _swiggy_freshness_note()
 
-    table_rows = [
-        {
+    table_rows = []
+    for item in rows:
+        swiggy_col = ""
+        price = item.get("swiggy_price")
+        avail = item.get("swiggy_available")
+        if avail is False:
+            swiggy_col = "SOLD OUT"
+        elif price:
+            ppk = item.get("swiggy_price_per_kg")
+            swiggy_col = f"&#8377;{price:.0f}" + (f" ({ppk:.0f}/kg)" if ppk else "")
+        table_rows.append({
             "item": item.get("canonical_name", ""),
             "qty": item.get("requested_quantity", 1.0),
             "unit": item.get("unit", "unit"),
             "priority": item.get("priority", "optional"),
-            "status": "saved",
+            "swiggy": swiggy_col,
             "reason": item.get("reason", ""),
-        }
-        for item in rows
-    ]
+        })
     tbl = list_to_table(
         table_rows,
-        ["item", "qty", "unit", "priority", "status", "reason"],
+        ["item", "qty", "unit", "priority", "swiggy", "reason"],
     )
     goal_html = f"<div style='margin-bottom:12px;'><strong>Goal:</strong> {escape(str(sl.goal))}</div>" if sl.goal else ""
     share_text = _shopping_list_share_text(rows)
