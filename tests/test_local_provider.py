@@ -4,13 +4,26 @@ from pathlib import Path
 
 import pytest
 
-from shopstack.config import Settings
 from shopstack.providers.local_provider import LocalProvider
 
 _NONEXISTENT_MODEL_DIR = "/tmp/shopstack_test_nonexistent_models"
 
 
 def _provider_without_model() -> LocalProvider:
+    return LocalProvider(
+        model_dir=_NONEXISTENT_MODEL_DIR,
+        model_repo="nonexistent/repo",
+        model_file="nonexistent.gguf",
+        allow_download=False,
+    )
+
+
+# Path guaranteed not to exist — used to test graceful failure when model is missing
+_NONEXISTENT_MODEL_DIR = "/tmp/shopstack_test_nonexistent_models"
+
+
+def _provider_without_model() -> LocalProvider:
+    """Create a LocalProvider pointing at a non-existent model path."""
     return LocalProvider(
         model_dir=_NONEXISTENT_MODEL_DIR,
         model_repo="nonexistent/repo",
@@ -80,10 +93,12 @@ class TestLocalProviderInit:
         provider = _provider_without_model()
         assert provider.backend == ""
 
-    @staticmethod
-    def test_available_when_model_present():
+    def test_available_when_model_present(self):
+        """When model exists at default path, provider should load successfully."""
         default_dir = str(Path(__file__).resolve().parent.parent / "shopstack" / "data" / "models")
-        model_path = Path(default_dir) / "Llama-3.2-3B-Instruct-GGUF" / "Llama-3.2-3B-Instruct-Q4_K_M.gguf"
+        default_repo = "Llama-3.2-3B-Instruct-GGUF"
+        default_file = "Llama-3.2-3B-Instruct-Q4_K_M.gguf"
+        model_path = Path(default_dir) / default_repo / default_file
         if not model_path.is_file():
             pytest.skip("Default model not found, skipping availability test")
         provider = LocalProvider(model_dir=default_dir, allow_download=False)

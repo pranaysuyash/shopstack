@@ -126,9 +126,9 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=3.0,
         license_note="Llama 3.2 Community",
         runtime="gguf",
-        status="candidate",
+        status="active",
         badge_relevance="llama_champion",
-        notes="small GGUF parser candidate",
+        notes="downloaded & tested: 493ms for 49 tokens via llama.cpp",
     ),
     # OCR / extraction
     ModelEntry(

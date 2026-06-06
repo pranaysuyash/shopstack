@@ -63,8 +63,8 @@ Imported observations are tagged with `source_event_id = swiggy_fresh_vegetables
 ## Tests
 
 ```bash
-uv run pytest tests/ -v          # 371 passed in 13.23s
-uv run pytest benchmarks/ -v -m benchmark  # 9 passed in 0.04s
+uv run pytest tests/ -v          # 376 passed in 9.47s
+uv run pytest benchmarks/ -v -m benchmark  # 9 passed in 0.03s
 ```
 
 | Module | Tests | What it covers |
@@ -202,13 +202,15 @@ All settings are pydantic-settings with `SHOPSTACK_` env prefix:
 | `SHOPSTACK_OBJECT_DETECTION_BACKEND` | `mock` | Object detection provider |
 | ... per-provider backends default to `mock` |
 
-## Model Registry
+## Model Catalog
 
-16 model entries across STT, TTS, Vision, OCR, Embeddings, and Planner categories.
+See **[`Docs/MODEL_CATALOG.md`](Docs/MODEL_CATALOG.md)** for the full living model catalog — including downloaded & tested models, parameter budget tracking, runtime backends (MLX, llama.cpp/GGUF, transformers), HF Pro and Modal Labs credit resources, and experiment logs.
+
+The programmatic registry lives in `shopstack/model_registry.py` (16+ entries across STT, TTS, Vision, OCR, Embeddings, and Planner categories).
 
 - **Active / loaded models**: actually selected at runtime.
 - **Candidate models**: documented options available for future activation.
-- **Budget check**: only active/loaded models are counted against the **32B** cap.
+- **Budget check**: only active/loaded models are counted against the **32B** cap (enforced by `validate_active_model_budget()`).
 
 **Active design constraint:** Total parameter count across all simultaneously active models must not exceed 32 billion. Mock mode shows an active-loaded stack of `0B`.
 
