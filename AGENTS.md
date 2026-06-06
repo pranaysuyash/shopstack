@@ -167,7 +167,8 @@ A hook at `.git/hooks/pre-commit` runs `tools/sync-readme-stats` which extracts 
 | `tests/test_local_provider.py` | 10 | Local provider init, graceful fallback, capability checks |
 | `tests/test_planner.py` | 25 | JSON extraction, tool-call parsing, inventory formatting, planner engine |
 | `tests/test_market.py` | 52 | Swiggy loader, size parser, unit prices, canonical matching, analytics, basket, produce metadata |
-| **Total** | **298** | (growing) |
+| `tests/test_safe_render.py` | 4 | Error boundary decorator: pass-through, catch, args, name preservation |
+| **Total** | **304** | (growing) |
 
 ## Next Work
 

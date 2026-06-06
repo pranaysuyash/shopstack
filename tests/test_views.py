@@ -334,6 +334,23 @@ class TestAgentTrace:
         assert out_path.endswith(".jsonl")
         assert os.path.exists(out_path)
 
+    def test_search_filters_by_goal(self, app):
+        app.db.save_trace(Trace(input_type="text", user_goal="shopping list", final_response="ok"))
+        app.db.save_trace(Trace(input_type="voice", user_goal="voice_add_item", final_response="ok"))
+        from shopstack.ui.screens.traces import _filter_traces
+        results = _filter_traces("shopping", "")
+        assert len(results) == 1
+        assert results[0].user_goal == "shopping list"
+
+    def test_filter_by_input_type(self, app):
+        app.db.save_trace(Trace(input_type="text", user_goal="goal1", final_response="ok"))
+        app.db.save_trace(Trace(input_type="voice", user_goal="goal2", final_response="ok"))
+        from shopstack.ui.screens.traces import _filter_traces
+        voice_only = _filter_traces("", "voice")
+        assert all(t.input_type == "voice" for t in voice_only)
+        text_only = _filter_traces("", "text")
+        assert all(t.input_type == "text" for t in text_only)
+
 
 class TestMarketLens:
     def test_market_lens_result_has_real_gradio_actions_only(self, app):

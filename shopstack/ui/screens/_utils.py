@@ -1,12 +1,41 @@
 from __future__ import annotations
 
+import functools
 import json
+import logging
 import re
+import traceback
 from html import escape
-from typing import Any
+from typing import Any, Callable
 
 from shopstack.ui import card as ui_card
 from shopstack.ui.components import render_decision_card, render_workflow_rail
+
+logger = logging.getLogger(__name__)
+
+
+def safe_render(fn: Callable) -> Callable:
+    """Decorator that catches exceptions from UI render functions and returns a friendly error card.
+
+    Works for functions that return a single HTML string or a tuple of values
+    (the first element is assumed to be HTML if it's a string).
+    """
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as exc:
+            logger.exception("UI render error in %s", fn.__name__)
+            tb_line = traceback.format_exc().strip().split("\n")[-1]
+            error_html = (
+                "<div class='home-card' style='border-left:3px solid var(--red);text-align:left;'>"
+                f"<div style='color:var(--red);font-weight:600;'>&#9888; Something went wrong</div>"
+                f"<div style='margin-top:6px;font-size:12px;'>{escape(str(exc))}</div>"
+                f"<div style='margin-top:4px;font-size:11px;color:var(--text-dim);'>{escape(tb_line)}</div>"
+                "</div>"
+            )
+            return error_html
+    return wrapper
 
 ITEM_ALIASES: dict[str, list[str]] = {
     "tomato": ["tamatar", "tomatoes"],

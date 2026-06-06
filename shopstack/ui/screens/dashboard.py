@@ -4,6 +4,7 @@ from shopstack.app_context import db, tools
 from shopstack.ui import card as ui_card, render_metric
 from shopstack.ui.screens._utils import (
     WORKFLOW_NAV,
+    safe_render,
     workflow_header,
     render_home_advice,
     render_list_summary,
@@ -12,6 +13,9 @@ from shopstack.ui.screens._utils import (
 )
 from shopstack.ui.screens.inventory import seed_demo_inventory
 from shopstack.ui.screens.other import inventory_alerts, price_intelligence_view, what_is_in_fridge_now
+
+
+@safe_render
 
 
 def today_dashboard():

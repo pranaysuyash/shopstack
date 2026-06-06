@@ -300,16 +300,37 @@ def build_app() -> gr.Blocks:
                     "Pick a workflow run, inspect the timeline, then download a redacted trace artifact.",
                 ))
                 gr.HTML(workflow_header(WORKFLOW_STEPS, current_step=6))
+                with gr.Row():
+                    trace_search = gr.Textbox(
+                        label="Search",
+                        placeholder="Search by goal, type, or trace ID",
+                        scale=2,
+                    )
+                    trace_type_filter = gr.Dropdown(
+                        label="Input type",
+                        choices=[("All", ""), ("Text", "text"), ("Voice", "voice"), ("Image", "image")],
+                        value="",
+                        allow_custom_value=False,
+                        scale=1,
+                    )
+                    trace_refresh = gr.Button("Refresh", elem_classes="secondary", scale=1)
                 trace_table = gr.DataFrame(label="Recent Traces")
                 with gr.Row():
                     trace_selector = gr.Dropdown(label="Select a trace", choices=[], allow_custom_value=False)
-                    trace_refresh = gr.Button("Refresh Trace Views", elem_classes="secondary")
                 trace_timeline = gr.HTML("")
                 trace_raw = gr.HTML("")
                 with gr.Row():
                     trace_export = gr.Button("Export trace JSONL")
                     trace_file = gr.File(file_count="single", visible=True, label="Download redacted JSONL")
                 trace_bootstrap_state = gr.State("")
+
+                def _trace_search_change(search, type_filter):
+                    from shopstack.ui.screens.traces import agent_trace_view, agent_trace_bootstrap
+                    tbl, _ = agent_trace_view(search, type_filter)
+                    boot = agent_trace_bootstrap(search, type_filter)
+                    if isinstance(boot[0], dict):
+                        return (gr.update(**boot[0]), boot[2], boot[3])
+                    return (gr.update(choices=boot[0]), boot[2], boot[3])
 
                 def _trace_selector_change(trace_id):
                     timeline, raw = _trace_bundle(trace_id)
@@ -321,6 +342,16 @@ def build_app() -> gr.Blocks:
                         return (gr.update(**result[0]), *result[1:])
                     return result
 
+                trace_search.change(
+                    _trace_search_change,
+                    [trace_search, trace_type_filter],
+                    [trace_selector, trace_timeline, trace_raw],
+                )
+                trace_type_filter.change(
+                    _trace_search_change,
+                    [trace_search, trace_type_filter],
+                    [trace_selector, trace_timeline, trace_raw],
+                )
                 trace_selector.change(_trace_selector_change, trace_selector, [trace_timeline, trace_raw])
                 trace_refresh.click(
                     _trace_refresh_click,

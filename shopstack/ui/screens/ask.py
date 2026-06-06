@@ -13,11 +13,13 @@ from shopstack.ui.screens._utils import (
     WORKFLOW_STEPS,
     extract_query_for_action,
     normalize_item_name,
+    safe_render,
 )
 
 logger = logging.getLogger(__name__)
 
 
+@safe_render
 def ask_shopstack(question: str) -> str:
     question = (question or "").strip()
     if not question:

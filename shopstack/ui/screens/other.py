@@ -11,11 +11,13 @@ import pandas as pd
 from shopstack.schemas.models import new_id
 from shopstack.app_context import db, tools
 from shopstack.ui import build_price_memory_view, load_field_notes, save_field_notes
+from shopstack.ui.screens._utils import safe_render
 
 
 logger = logging.getLogger(__name__)
 
 
+@safe_render
 def price_memory_view(item_name: str = ""):
     view = build_price_memory_view(db, item_name)
     has_data = view.observation_count > 0
@@ -28,6 +30,7 @@ def price_memory_view(item_name: str = ""):
     )
 
 
+@safe_render
 def price_intelligence_view() -> str:
     latest_by_item: dict[str, dict] = {}
     for row in db.conn.execute(
@@ -119,6 +122,7 @@ def price_intelligence_view() -> str:
     return "".join(html_parts)
 
 
+@safe_render
 def household_map_view() -> str:
     locations = db.get_locations()
     inventory = db.get_inventory()
@@ -273,6 +277,7 @@ def field_notes_save(note_text: str):
     return view.editor_value, view.preview_value, view.status_html
 
 
+@safe_render
 def swiggy_market_view() -> str:
     from shopstack.market import compute_snapshot_analytics
     from shopstack.market.sources.swiggy import load_snapshot
@@ -356,6 +361,7 @@ def swiggy_market_view() -> str:
     return "".join(parts) if parts else "<div style='color:var(--text-dim);'>No market data available.</div>"
 
 
+@safe_render
 def swiggy_basket_estimate(items_text: str) -> str:
     from shopstack.market import basket_summary, build_basket
     from shopstack.market.metadata import get_produce_metadata
