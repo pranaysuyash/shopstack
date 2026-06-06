@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 import logging
-from html import escape
 
 from shopstack.app_context import APP_DESCRIPTION, APP_NAME, db, tools
+from shopstack.services.dashboard import build_dashboard_state
 from shopstack.ui import render_action_grid, render_hero_panel, render_metric
 from shopstack.ui.screens._utils import (
     safe_render,
-    render_home_advice,
-    render_list_summary,
 )
 from shopstack.ui.screens.other import inventory_alerts, what_is_in_fridge_now
 
@@ -18,7 +16,6 @@ logger = logging.getLogger(__name__)
 @safe_render
 def today_dashboard():
     from shopstack.decisions import (
-        classify_all,
         render_decision_panel,
         render_market_basket,
         render_inventory_overview,
@@ -30,23 +27,8 @@ def today_dashboard():
         render_waste_warnings,
     )
 
-    try:
-        from shopstack.market.sources.swiggy import load_snapshot
-        market_snapshot = load_snapshot()
-    except Exception as exc:
-        logger.info("Swiggy market data unavailable: %s", exc)
-        market_snapshot = None
-
-    ds = classify_all(db, tools, market_snapshot)
-
-    use_soon = tools.get_use_soon_items(days=3)
-    soon_count = use_soon.get("count", len(use_soon.get("items", [])))
-    use_soon_items = use_soon.get("items", [])
-    active_list = db.get_active_shopping_list()
-    all_inv = db.get_inventory()
-    active_inv = [l for l in all_inv if l.status == "active"]
-    low_items = [l for l in active_inv if l.quantity <= 0.5 or l.status == "low"]
-    purchases = db.get_purchase_events(limit=5)
+    state = build_dashboard_state(db, tools)
+    ds = state.decision_set
 
     hero = render_hero_panel(
         f"Good day. {APP_DESCRIPTION}",
@@ -56,10 +38,10 @@ def today_dashboard():
 
     quick_actions = (
         "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:12px 0 16px 0;'>"
-        f"{render_metric('Active items', str(len(active_inv)), tab_id='inventory')}"
-        f"{render_metric('Use soon', str(soon_count), tab_id='usesoon')}"
-        f"{render_metric('Low stock', str(len(low_items)), tab_id='usesoon')}"
-        f"{render_metric('Recent purchases', str(len(purchases)), tab_id='purchase')}"
+        f"{render_metric('Active items', str(len(state.active_inventory)), tab_id='inventory')}"
+        f"{render_metric('Use soon', str(state.use_soon_count), tab_id='usesoon')}"
+        f"{render_metric('Low stock', str(len(state.low_items)), tab_id='usesoon')}"
+        f"{render_metric('Recent purchases', str(len(state.recent_purchases)), tab_id='purchase')}"
         "</div>"
     )
 
@@ -86,8 +68,8 @@ def today_dashboard():
 
     decision_panel = render_decision_panel(ds)
     market_basket = render_market_basket(ds)
-    list_panel = render_my_list_panel(ds, active_list)
-    inventory_overview = render_inventory_overview(all_inv)
+    list_panel = render_my_list_panel(ds, state.active_list)
+    inventory_overview = render_inventory_overview(state.all_inventory)
     compare_panel = render_compare_panel(ds)
 
     alert_html = inventory_alerts(days_since_purchase=3)

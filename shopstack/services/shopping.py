@@ -131,3 +131,126 @@ def enrich_items_with_swiggy(items: list[dict[str, Any]]) -> list[dict[str, Any]
             item["swiggy_available"] = None
             item["swiggy_size"] = ""
     return items
+
+
+# ─── Shopping Completion Services ───
+
+from shopstack.app_context import db, APP_NAME
+from shopstack.traces.export import create_trace
+from shopstack.tools.registry import ToolRegistry
+from html import escape
+import json
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def complete_shopping_list_service(list_id: str, tools: ToolRegistry) -> str:
+    """Complete a shopping list: convert items to inventory and mark list complete.
+
+    Args:
+        list_id: The shopping list ID to complete
+        tools: ToolRegistry instance for database operations
+
+    Returns:
+        HTML string with completion result
+    """
+    if not list_id:
+        return "<div style='color:var(--text-dim);'>No active shopping list to complete.</div>"
+
+    sl = db.get_active_shopping_list()
+    if not sl or sl.list_id != list_id:
+        return "<div style='color:var(--text-dim);'>Active list not found or already completed.</div>"
+
+    items = sl.items or []
+    if not items:
+        db.mark_list_complete(list_id)
+        return "<div style='color:var(--green);'>Empty list marked complete.</div>"
+
+    added = []
+    for item in items:
+        priority = item.priority or "optional"
+        if priority == "avoid_buying":
+            continue
+        qty = item.requested_quantity or 1.0
+        if priority == "optional":
+            qty = max(qty * 0.5, 0.5)
+        result = tools.add_inventory_item(
+            canonical_name=item.canonical_name.lower().strip(),
+            display_name=item.canonical_name.strip(),
+            quantity=qty,
+            unit=item.unit or "unit",
+            storage_location_id="kitchen",
+        )
+        lot_id = result.get("lot_id", "")
+        added.append(f"{item.canonical_name} (lot {lot_id[:8]})")
+
+    db.mark_list_complete(list_id)
+
+    try:
+        create_trace(
+            db,
+            input_type="form",
+            user_goal="complete_shopping_list",
+            redacted_user_request=f"completed list: {sl.goal or ''}",
+            perception={"goal": sl.goal or "", "item_count": len(items), "added_count": len(added)},
+            inventory_context={"added_items": added},
+            decision={"action": "mark_list_complete"},
+            proposed_tool_calls=[],
+            final_response=f"Completed list with {len(added)} items added to inventory",
+            human_confirmation="auto-confirmed",
+        )
+    except Exception as exc:
+        logger.debug("Failed to record complete list trace: %s", exc)
+
+    summary = ", ".join(added)
+    return (
+        f"<div style='color:var(--green);'>List completed! Added {len(added)} items to inventory: {escape(summary)}</div>"
+    )
+
+
+def mark_items_purchased_service(item_ids_json: str, tools: ToolRegistry) -> str:
+    """Mark selected shopping list items as purchased and add to inventory.
+
+    Args:
+        item_ids_json: JSON string of item IDs to mark as purchased
+        tools: ToolRegistry instance for database operations
+
+    Returns:
+        HTML string with result
+    """
+    if not item_ids_json or item_ids_json == "[]":
+        return "<div style='color:var(--text-dim);'>No items selected.</div>"
+
+    try:
+        selected = json.loads(item_ids_json)
+    except (json.JSONDecodeError, TypeError):
+        return "<div style='color:var(--red);'>Could not parse selection.</div>"
+
+    if not selected:
+        return "<div style='color:var(--text-dim);'>No items selected.</div>"
+
+    sl = db.get_active_shopping_list()
+    if not sl or not sl.items:
+        return "<div style='color:var(--text-dim);'>No active shopping list.</div>"
+
+    added = []
+    matched_ids = set(selected)
+    for item in sl.items:
+        if item.list_item_id in matched_ids:
+            qty = item.requested_quantity or 1.0
+            result = tools.add_inventory_item(
+                canonical_name=item.canonical_name.lower().strip(),
+                display_name=item.canonical_name.strip(),
+                quantity=qty,
+                unit=item.unit or "unit",
+                storage_location_id="kitchen",
+            )
+            lot_id = result.get("lot_id", "")
+            db.update_list_item(item.list_item_id, {"status": "bought"})
+            added.append(f"{item.canonical_name} (lot {lot_id[:8]})")
+
+    if not added:
+        return "<div style='color:var(--text-dim);'>No valid items found to mark as purchased.</div>"
+
+    return f"<div style='color:var(--green);'>Marked {len(added)} item(s) as purchased and added to inventory: {', '.join(escape(a) for a in added)}</div>"

@@ -128,6 +128,7 @@ class LocalProvider:
                 n_gpu_layers=self._n_gpu_layers,
                 verbose=self._verbose,
             )
+            self._error = None
             self._backend = "llama.cpp"
             self._available = True
             logger.info(

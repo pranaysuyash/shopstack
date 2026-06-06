@@ -1,7 +1,7 @@
 # ShopStack — Agent Workspace
 
 ## Repo
-`/Users/pranay/Projects/shopstock`
+`/Users/pranay/Projects/shopstack`
 
 ## Ground Rules
 - **Git read-only.** Never commit, push, reset, or checkout without explicit permission.
@@ -198,8 +198,9 @@ This file remains a guidance snapshot; code/runtime/tests at the time of work re
 
 - Added `shopstack/services/shopping.py` for shopping-list normalization, decision classification, and Swiggy enrichment.
 - Added `shopstack/services/market_lens.py` for Market Lens barcode/object/OCR/STT analysis and Swiggy enrichment.
-- `shopstack/ui/screens/shopping.py` and `shopstack/ui/screens/market_lens.py` now act more like Gradio adapters: parse/render/trace/wire, while product logic lives in services.
-- Verified counts: `uv run pytest tests/ -q` → 357 passed; `uv run pytest tests/ benchmarks/ -q` → 366 passed.
+- Added `shopstack/services/dashboard.py` for Today dashboard state assembly.
+- `shopstack/ui/screens/shopping.py`, `shopstack/ui/screens/market_lens.py`, and `shopstack/ui/screens/dashboard.py` now act more like Gradio adapters: parse/render/trace/wire, while product logic lives in services.
+- Verified counts: `uv run pytest tests/ -q` → 375 passed; `uv run pytest tests/ benchmarks/ -q` → 384 passed.
 
 ## Addendum (2026-06-06) — Product Naming & Module Architecture
 

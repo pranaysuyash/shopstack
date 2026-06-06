@@ -164,12 +164,13 @@ def household_map_view() -> str:
         safe_name = escape(str(loc.name))
         safe_type = escape(str(loc.location_type))
         safe_parent = escape(str(parent))
+        arrow = f" \u2192 {safe_parent}" if parent else ""
         cards += f"""
 <div class="stat-card" style="text-align:left;margin-bottom:8px;">
   <div style="display:flex;justify-content:space-between;align-items:center;">
     <div>
       <div style="font-weight:600;color:var(--text);">{safe_name}</div>
-      <div style="font-size:11px;color:var(--text-dim);">{safe_type}{' \u2192 '+safe_parent if parent else ''}</div>
+      <div style="font-size:11px;color:var(--text-dim);">{safe_type}{arrow}</div>
     </div>
     <div class="stat-value" style="font-size:24px;">{count}</div>
   </div>

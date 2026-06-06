@@ -465,6 +465,8 @@ def render_inventory_overview(all_inv: list[Any]) -> str:
         for _date, name, qty, unit in recent
     )
 
+    no_recent = "<div style='color:var(--text-dim);'>No recent additions recorded.</div>"
+
     return (
         "<div class='stat-card' style='text-align:left;margin-bottom:12px;'>"
         "<h3>What I Have</h3>"
@@ -472,7 +474,7 @@ def render_inventory_overview(all_inv: list[Any]) -> str:
         f"<div style='font-size:12px;margin-bottom:8px;'>Locations: {escape(location_html or 'None')}</div>"
         f"<div style='font-size:12px;margin-bottom:8px;'>Duplicates: {duplicate_count}</div>"
         "<div style='font-weight:600;margin-bottom:4px;'>Recently added</div>"
-        f"{recent_html or '<div style=\'color:var(--text-dim);\'>No recent additions recorded.</div>'}"
+        f"{recent_html or no_recent}"
         "</div>"
     )
 

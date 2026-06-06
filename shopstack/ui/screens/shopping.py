@@ -12,6 +12,8 @@ from shopstack.services.shopping import (
     classify_shopping_items,
     enrich_items_with_swiggy,
     normalize_item_name,
+    complete_shopping_list_service,
+    mark_items_purchased_service,
 )
 from shopstack.ui import list_to_table
 from shopstack.traces.export import create_trace

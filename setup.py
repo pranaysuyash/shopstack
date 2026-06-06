@@ -20,7 +20,7 @@ setup(
             "pytest-cov",
             "pytest-benchmark",
         ],
-        "openai": [
+        "cloud": [
             "openai>=1.0",
         ],
         "local": [
