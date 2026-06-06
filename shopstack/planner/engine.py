@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from html import escape
 from typing import Any
 
 from shopstack.persistence.database import Database
@@ -61,7 +62,7 @@ class PlannerEngine:
                 raw_text = str(result.get("text", ""))
         except Exception as e:
             logger.warning("Planner call failed", exc_info=True)
-            return f"<div class='stat-card'><div style='color:var(--red);'>Planner error: {e}</div></div>"
+            return f"<div class='stat-card'><div style='color:var(--red);'>Planner error: {escape(str(e))}</div></div>"
 
         if not raw_text:
             return "<div class='stat-card'>Planner returned an empty response.</div>"
@@ -105,7 +106,7 @@ class PlannerEngine:
                 msg = outcome.get("message", "")
                 if msg:
                     html_parts.append(
-                        f"<div style='padding:8px;margin:4px 0;border-left:3px solid var(--accent);'>{msg}</div>"
+                        f"<div style='padding:8px;margin:4px 0;border-left:3px solid var(--accent);'>{escape(str(msg))}</div>"
                     )
                 continue
             action = TOOL_ACTIONS_HELP.get(tool, f"Ran {tool}.")
@@ -120,7 +121,7 @@ class PlannerEngine:
                 err = outcome.get("error", "Unknown error")
                 html_parts.append(
                     f"<div style='padding:6px;margin:2px 0;color:var(--red);'>"
-                    f"&#10007; {tool}: {err}</div>"
+                    f"&#10007; {escape(str(tool))}: {escape(str(err))}</div>"
                 )
 
         if not html_parts:

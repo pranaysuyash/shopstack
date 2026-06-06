@@ -8,8 +8,11 @@ from shopstack.ui import (
     FieldNotesView,
     PriceMemoryView,
     build_price_memory_view,
+    empty_state,
     list_to_table,
     load_field_notes,
+    render_decision_card,
+    render_metric,
     save_field_notes,
 )
 
@@ -217,3 +220,27 @@ def test_build_price_memory_view_with_unknown_store(db: Database):
     view = build_price_memory_view(db, "spice")
     assert view.table[1][1] == "Unknown"
     assert view.unit_price_latest is not None
+
+
+def test_shared_cards_escape_user_visible_text():
+    html = render_decision_card(
+        "<script>alert('x')</script>",
+        "buy",
+        "<img src=x onerror=alert(1)>",
+        0.9,
+        1,
+        "<unit>",
+    )
+
+    assert "<script>" not in html
+    assert "<img" not in html
+    assert "&lt;script&gt;" in html
+    assert "&lt;unit&gt;" in html
+
+
+def test_empty_state_and_metric_escape_text():
+    assert "<script>" not in empty_state("<script>alert('x')</script>")
+    metric = render_metric("<b>Name</b>", "<img>", "<tag>")
+    assert "<b>Name</b>" not in metric
+    assert "&lt;b&gt;Name&lt;/b&gt;" in metric
+    assert "&lt;img&gt;" in metric

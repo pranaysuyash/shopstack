@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from html import escape
+import re
 from typing import Any
 
 
@@ -22,20 +24,20 @@ def badge_html(label: str, variant: str = "neutral") -> str:
         "gray": "badge-gray",
     }
     cls = classes.get(variant, classes["gray"])
-    return f"<span class='badge {cls}'>{label}</span>"
+    return f"<span class='badge {cls}'>{escape(str(label))}</span>"
 
 
 def card(title: str, body: str, *, compact: bool = True) -> str:
     return (
         f"<div class='home-card' style='text-align:left;{'' if compact else 'min-height:160px;'}'>"
-        f"<h3>{title}</h3><div>{body}</div></div>"
+        f"<h3>{escape(str(title))}</h3><div>{body}</div></div>"
     )
 
 
 def empty_state(message: str) -> str:
     return (
         f"<div class='home-card' style='text-align:left;'>"
-        f"<div style='color:var(--text-dim);'>{message}</div></div>"
+        f"<div style='color:var(--text-dim);'>{escape(str(message))}</div></div>"
     )
 
 
@@ -44,7 +46,7 @@ def render_rows(rows: list[tuple[str, str]]) -> str:
         return "<div style='color:var(--text-dim);'>No entries</div>"
     return "".join(
         "<div class='item-row'>"
-        f"<div>{label}</div><div>{value}</div></div>"
+        f"<div>{escape(str(label))}</div><div>{escape(str(value))}</div></div>"
         for label, value in rows
     )
 
@@ -56,9 +58,9 @@ def render_decision_card(
     confidence: float,
     quantity: float | None = None,
     unit: str = "unit",
-    show_actions: bool = True,
+    show_actions: bool = False,
 ) -> str:
-    decision_upper = decision.upper()
+    decision_upper = str(decision).upper()
     badge_map = {
         "buy": "green",
         "skip": "blue",
@@ -67,30 +69,27 @@ def render_decision_card(
         "optional": "blue",
         "low": "red",
     }
-    badge = badge_html(decision_upper, badge_map.get(decision, "gray"))
-    qty_line = f"{quantity} {unit} suggested" if quantity else ""
+    badge = badge_html(decision_upper, badge_map.get(str(decision), "gray"))
+    safe_unit = escape(str(unit))
+    qty_line = f"{quantity} {safe_unit} suggested" if quantity else ""
     qty_line_markup = ""
     if qty_line:
         qty_line_markup = f"<div style='font-size:12px;margin-top:6px;'>{qty_line}</div>"
     confidence_pct = max(0.0, min(1.0, float(confidence)))
-    clean_name = item_name.replace("'", "\\'")
     action_line = (
         "<div style='margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;'>"
-        f"<button class='chip' style='cursor:pointer;' "
-        f"onclick=\"alert('➕ Added {clean_name} to shopping list')\">Add to list</button>"
-        f"<button class='chip' style='cursor:pointer;' "
-        f"onclick=\"alert('✖ Skipped {clean_name}')\">Skip</button>"
-        f"<button class='chip' style='cursor:pointer;' "
-        f"onclick=\"alert('✏ Correct: changing {clean_name}')\">Correct item</button>"
+        "<span class='chip'>Action requires confirmation</span>"
         "</div>"
         if show_actions
         else ""
     )
+    safe_item_name = escape(str(item_name))
+    safe_reason = escape(str(reason))
     return (
         "<div class='home-card item-card'>"
         f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;'>"
-        f"<strong>{item_name}</strong>{badge}</div>"
-        f"<div style='font-size:13px;color:var(--text-dim);'>{reason}</div>"
+        f"<strong>{safe_item_name}</strong>{badge}</div>"
+        f"<div style='font-size:13px;color:var(--text-dim);'>{safe_reason}</div>"
         f"{qty_line_markup}"
         f"<div style='font-size:11px;margin-top:6px;color:var(--text-dim);'>Confidence: {confidence_pct:.0%}</div>"
         f"{action_line}"
@@ -116,12 +115,20 @@ def render_grouped_cards(title: str, items: list[dict[str, Any]]) -> str:
     return card(title, rows)
 
 
-def render_metric(name: str, value: str, hint: str = "") -> str:
+def render_metric(name: str, value: str, hint: str = "", tab_id: str = "") -> str:
+    click_attr = ""
+    if tab_id:
+        safe_tab = re.sub(r"[^a-z0-9_-]", "-", tab_id.lower())
+        click_attr = (
+            f" style='cursor:pointer;'"
+            f" onclick=\"var el=document.querySelector('[data-testid=tab-{safe_tab}]');"
+            f"if(el)el.click();\""
+        )
     return (
-        "<div class='metric-card'>"
-        f"<div style='font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.4px'>{name}</div>"
-        f"<div style='font-size:34px;font-weight:700;margin-top:6px'>{value}</div>"
-        + (f"<div style='color:var(--text-dim);font-size:11px;margin-top:6px'>{hint}</div>" if hint else "")
+        f"<div class='metric-card'{click_attr}>"
+        f"<div style='font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.4px'>{escape(str(name))}</div>"
+        f"<div style='font-size:34px;font-weight:700;margin-top:6px'>{escape(str(value))}</div>"
+        + (f"<div style='color:var(--text-dim);font-size:11px;margin-top:6px'>{escape(str(hint))}</div>" if hint else "")
         + "</div>"
     )
 
@@ -137,7 +144,7 @@ def render_workflow_rail(steps: list[str], current_step: int | None = None) -> s
         else:
             dot = "○"
             tone = "var(--text-dim)"
-        label = step.upper()
+        label = escape(str(step).upper())
         step_markers.append(
             f"<span style='display:inline-flex;align-items:center;gap:6px;color:{tone};font-size:11px;font-weight:600;'>"
             f"{dot} {label}</span>"

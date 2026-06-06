@@ -204,3 +204,28 @@ class TestPlannerEngine:
         engine = PlannerEngine(db, tools, providers)
         result = engine.process("Do we have milk?")
         assert "Planner not available" in result
+
+    def test_process_escapes_provider_response_text(self):
+        from shopstack.config import Settings
+        from shopstack.persistence.database import Database
+        from shopstack.providers.registry import ProviderRegistry
+        from shopstack.tools.registry import ToolRegistry
+        from shopstack.planner.engine import PlannerEngine
+
+        class FakePlanner:
+            available = True
+            model_id = "fake"
+            capabilities = {"planning"}
+
+            def complete(self, prompt):
+                return {"text": '[{"tool":"respond","args":{"message":"<script>alert(1)</script>"}}]'}
+
+        settings = Settings(off_the_grid=True)
+        db = Database(":memory:")
+        providers = ProviderRegistry(settings)
+        providers.register("planner", FakePlanner())
+        tools = ToolRegistry(db)
+        engine = PlannerEngine(db, tools, providers)
+        result = engine.process("hello")
+        assert "<script>" not in result
+        assert "&lt;script&gt;" in result

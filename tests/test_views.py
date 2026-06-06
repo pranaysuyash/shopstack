@@ -145,6 +145,17 @@ class TestAddPurchase:
         prices = app.db.conn.execute("SELECT * FROM price_observations").fetchall()
         assert len(prices) >= 1
 
+    def test_blank_item_rejected(self, app):
+        result = app.add_purchase_form("   ", 1.0, "kg", 10.0, "Store", "fridge",
+                                       date.today().isoformat(), "Dairy")
+        assert "Item name is required" in result
+
+    def test_add_purchase_escapes_html(self, app):
+        result = app.add_purchase_form("<script>alert('x')</script>", 1.0, "kg", 10.0, "Store", "fridge",
+                                       date.today().isoformat(), "Dairy")
+        assert "<script>" not in result
+        assert "&lt;script&gt;" in result
+
 
 class TestInventoryView:
     def test_empty(self, app):
@@ -207,6 +218,20 @@ class TestInventoryCardsView:
         html = app.inventory_cards_view(search="rice")
         assert "Basmati Rice" in html
         assert "Toor Dal" not in html
+
+    def test_inventory_cards_escape_html(self, app):
+        app.db.add_inventory_lot(
+            InventoryLot(
+                canonical_name="xss",
+                display_name="<script>alert('x')</script>",
+                quantity=1.0,
+                unit="kg",
+                storage_location_id="pantry",
+            )
+        )
+        html = app.inventory_cards_view()
+        assert "<script>" not in html
+        assert "&lt;script&gt;" in html
 
 
 class TestAskShopStack:
@@ -274,6 +299,10 @@ class TestHouseholdMap:
         for loc in app.db.get_locations()[:3]:
             assert loc.name in result
 
+    def test_map_does_not_use_inline_alerts(self, app):
+        result = app.household_map_view()
+        assert "alert(" not in result
+
 
 class TestAgentTrace:
     def test_empty(self, app):
@@ -297,3 +326,38 @@ class TestAgentTrace:
     def test_detail_not_found(self, app):
         detail = app.agent_trace_detail("nonexistent")
         assert "not found" in detail.lower()
+
+    def test_export_file_returns_jsonl_path(self, app):
+        app.db.save_trace(Trace(input_type="voice", user_goal="check inventory", final_response="ok"))
+        trace = app.db.get_traces()[0]
+        out_path = app.agent_trace_export_file(trace.trace_id)
+        assert out_path.endswith(".jsonl")
+        assert os.path.exists(out_path)
+
+
+class TestMarketLens:
+    def test_market_lens_result_has_real_gradio_actions_only(self, app):
+        result_html, detected_items, analysis, trace_id, barcode_json = app.market_lens_process("fake-market-image.jpg", None)
+        assert "Market Lens" in result_html
+        assert "alert(" not in result_html
+        assert detected_items.startswith("{")
+        assert analysis.startswith("{")
+        assert barcode_json.startswith("[")
+
+
+class TestModelStack:
+    def test_provider_status_badge_reports_mock_runtime(self, app):
+        badge = app.provider_status_badge()
+        assert "Mock" in badge
+
+    def test_provider_status_badge_reports_real_loaded_runtime(self, app, monkeypatch):
+        monkeypatch.setattr(
+            app.providers,
+            "list_providers",
+            lambda: [
+                {"name": "planner", "type": "LocalProvider", "available": True, "capabilities": "planning"},
+                {"name": "vision", "type": "MockVisionProvider", "available": True, "capabilities": "vision"},
+            ],
+        )
+        badge = app.provider_status_badge()
+        assert "AI" in badge

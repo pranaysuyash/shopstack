@@ -177,6 +177,18 @@ def find_trace_by_id(db: Database, trace_id: str) -> Trace | None:
     return None
 
 
+def update_trace_confirmation(db: Database, trace_id: str, confirmation: str) -> bool:
+    target = (trace_id or "").strip()
+    if not target:
+        return False
+    for t in db.get_traces(limit=200):
+        if t.trace_id == target:
+            t.human_confirmation = confirmation
+            db.save_trace(t)
+            return True
+    return False
+
+
 def redact_trace_payload(trace_dict: dict[str, Any]) -> dict[str, Any]:
     return _redact_trace(trace_dict)
 
