@@ -458,3 +458,16 @@ def _build_shopping_list_and_refresh(
     create_result = shopping_list_create(goal, items_text)
     cards, goal_html, tbl, list_id, list_goal, share = _shopping_list_view_with_cards()
     return create_result, cards, goal_html, tbl, list_id, list_goal, share
+
+
+# Public handlers for Gradio composition layer
+def shopping_list_view_with_cards() -> tuple[str, str, list[list[str]], str, str, str]:
+    """Public handler for refreshing shopping list view with cards."""
+    return _shopping_list_view_with_cards()
+
+
+def build_shopping_list_and_refresh(
+    goal: str, items_text: str
+) -> tuple[str, str, str, list[list[str]], str, str, str]:
+    """Public handler for building shopping list and refreshing view."""
+    return _build_shopping_list_and_refresh(goal, items_text)

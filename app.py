@@ -34,6 +34,7 @@ from shopstack.ui.screens import (
     price_intelligence_view,
     swiggy_market_view,
     swiggy_basket_estimate,
+    seed_swiggy_prices,
     household_map_view,
     agent_trace_view,
     agent_trace_detail,
@@ -258,8 +259,12 @@ def build_app() -> gr.Blocks:
                 app.load(price_intelligence_view, outputs=pi_html)
                 gr.Markdown("### Live Market — Swiggy Fresh Vegetables")
                 swiggy_html = gr.HTML("")
-                swiggy_refresh = gr.Button("Refresh Market Data", elem_classes="secondary")
+                with gr.Row():
+                    swiggy_refresh = gr.Button("Refresh Market Data", elem_classes="secondary")
+                    swiggy_seed_btn = gr.Button("Seed Price Memory", elem_classes="secondary")
+                swiggy_seed_result = gr.HTML("")
                 swiggy_refresh.click(swiggy_market_view, outputs=swiggy_html)
+                swiggy_seed_btn.click(seed_swiggy_prices, outputs=swiggy_seed_result)
                 app.load(swiggy_market_view, outputs=swiggy_html)
                 gr.Markdown("#### Basket Estimator")
                 swiggy_basket_input = gr.Textbox(

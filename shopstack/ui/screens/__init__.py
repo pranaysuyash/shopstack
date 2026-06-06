@@ -44,6 +44,7 @@ from shopstack.ui.screens.other import (
     field_notes_save,
     swiggy_market_view,
     swiggy_basket_estimate,
+    seed_swiggy_prices,
 )
 from shopstack.ui.screens.portability import export_data_json, export_data_csv, import_data_file
 
@@ -86,6 +87,7 @@ __all__ = [
     "field_notes_save",
     "swiggy_market_view",
     "swiggy_basket_estimate",
+    "seed_swiggy_prices",
     "export_data_json",
     "export_data_csv",
     "import_data_file",

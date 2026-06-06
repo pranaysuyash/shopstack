@@ -448,6 +448,48 @@ def swiggy_basket_estimate(items_text: str) -> str:
     return "".join(parts)
 
 
+@safe_render
+def seed_swiggy_prices() -> str:
+    """Seed price_observations table from Swiggy snapshot data."""
+    from shopstack.market.sources.swiggy import load_snapshot
+
+    try:
+        snapshot = load_snapshot()
+    except FileNotFoundError:
+        return "<div style='color:var(--text-dim);'>Swiggy data not found.</div>"
+
+    existing = db.conn.execute(
+        "SELECT COUNT(*) as cnt FROM price_observations WHERE store_name = 'Swiggy Instamart'"
+    ).fetchone()["cnt"]
+    if existing > 0:
+        return f"<div style='color:var(--text-dim);'>Swiggy prices already seeded ({existing} records).</div>"
+
+    from shopstack.schemas.models import PriceObservation
+    count = 0
+    for r in snapshot.normalized_records:
+        if r.is_combo or not r.is_weight_based:
+            continue
+        if r.normalized_quantity and r.normalized_quantity > 0:
+            obs = PriceObservation(
+                canonical_name=r.canonical_name,
+                quantity=r.normalized_quantity,
+                unit=r.normalized_unit or "g",
+                price=r.price_inr,
+                currency="INR",
+                store_name="Swiggy Instamart",
+                observation_date=r.captured_at,
+                notes=f"From Swiggy snapshot {r.snapshot_id}, raw: {r.raw_name} ({r.raw_size})",
+            )
+            db.record_price(obs)
+            count += 1
+
+    return (
+        f"<div style='color:var(--green);'>Seeded {count} price observations "
+        f"from Swiggy Instamart ({snapshot.captured_at}). "
+        f"Price Memory and Price Intelligence now have real data.</div>"
+    )
+
+
 def get_produce_meta_inline(canonical_name: str):
     from shopstack.market.metadata import get_produce_metadata
     return get_produce_metadata(canonical_name)
