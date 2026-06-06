@@ -4,9 +4,23 @@ Local-first, off-the-grid household inventory management. Know what you have, wh
 
 ## Philosophy
 
-ShopStack runs entirely locally — SQLite database (WAL mode), mockable provider interfaces, and a Gradio UI that works offline. The "Off the Grid" path means zero cloud dependencies for core functionality. Model providers are swappable via a registry pattern; the default mock providers let you develop and test the full app without loading a single ML model.
+ShopStack runs entirely locally — SQLite database (WAL mode), mockable provider interfaces, and a Gradio workflow UI that works offline. The "Off the Grid" path means zero cloud dependencies for core functionality.
+The default mock providers let you build and test the full app without loading any ML models.
 
 **Total parameter limit:** ≤32 billion parameters across all loaded models.
+
+## Gradio Workflows
+
+ShopStack is organized around workflow experiences:
+
+- Plan Today's Shopping
+- Market Lens: Should I Buy This?
+- Add Purchase to Home Memory
+- Find an Item at Home
+- Use Soon / Waste Saver
+- Price Memory Check
+- Agent Trace & Field Notes
+- Model Stack / Budget
 
 ## Quick Start
 
@@ -21,8 +35,8 @@ Open `http://localhost:7860` in your browser.
 ## Tests
 
 ```bash
-uv run pytest tests/ -v          # 129 passed in 2.28s
-uv run pytest benchmarks/ -v -m benchmark  # 9 passed in 0.04s
+uv run pytest tests/ -v          # 157 passed in 2.05s
+uv run pytest benchmarks/ -v -m benchmark  # 9 passed in 0.03s
 ```
 
 | Module | Tests | What it covers |
@@ -32,8 +46,9 @@ uv run pytest benchmarks/ -v -m benchmark  # 9 passed in 0.04s
 | `test_database.py` | 23 | CRUD for all core tables, config storage, location seeding, edge cases |
 | `test_tools.py` | 18 | All 11 tool implementations, error paths |
 | `test_traces.py` | 23 | PII redaction (phone, email, Aadhar, PAN), create/export traces |
-| `test_views.py` | 20 | Gradio view helpers and UI flows |
+| `test_views.py` | 22 | Gradio view helpers and workflow surfaces |
 | `test_ui_support.py` | 4 | Price memory charting and field-note persistence helpers |
+| `tests/test_model_registry.py` | 4 | Model budget math, active/candidate accounting, cap checks |
 
 ## Project Structure
 
@@ -58,8 +73,8 @@ shopstack/
   ui/                       # (reserved)
   configs/                  # (reserved)
 
-app.py                      # Gradio Blocks UI entry point (10 tabs, custom dark CSS)
-tests/                      # pytest test suite (82 tests)
+app.py                      # Gradio Blocks UI entry point (workflow-first tabs, custom warm CSS)
+tests/                      # pytest test suite (155 tests)
 benchmarks/                 # pytest benchmark suite (9 latency markers)
 ```
 
@@ -131,14 +146,15 @@ Explicitly **not** redacted: generic `name` fields, canonical item names, locati
 
 | Tab | Purpose |
 |-----|---------|
-| **Today** | Dashboard — stats, use-soon items, shopping list, low stock alerts |
+| **Plan Today's Shopping** | Dashboard workflow — today view, use-soon signals, and shopping recommendations |
 | **Shopping List** | View / create / manage the active shopping list |
-| **Market Lens** | Camera / voice input → detect → compare against inventory |
+| **Market Lens: Should I Buy This?** | Camera / voice input → detect → compare vs inventory |
 | **Add Purchase** | Manual purchase recording form with store, price, item details |
-| **Inventory** | Full table view, search, consume items |
-| **Use Soon** | Expiring and aging items that need attention |
-| **Price Memory** | Historical price observations per item |
-| **Household Map** | Storage location hierarchy with item counts |
+| **Find an Item at Home** | Search + map lookup for likely storage location |
+| **Use Soon / Waste Saver** | Expiring and aging items with priority list |
+| **Price Memory Check** | Historical price observations per item |
+| **Find Item Location** | Storage hierarchy and item count view |
+| **Model Stack** | Active model stack + budget status and candidate catalog |
 | **Agent Trace** | Agent session trace viewer with redaction preview |
 | **Field Notes** | Agent reasoning and decision log |
 
@@ -159,9 +175,13 @@ All settings are pydantic-settings with `SHOPSTACK_` env prefix:
 
 ## Model Registry
 
-16 candidate model entries across STT, TTS, Vision, OCR, Embeddings, and Planner categories. All entries are candidate-only — no model binaries are bundled. Replace mock providers with real model implementations by subclassing the provider interfaces and registering with the ProviderRegistry.
+16 model entries across STT, TTS, Vision, OCR, Embeddings, and Planner categories.
 
-**Active design constraint:** Total parameter count across all simultaneously active models must not exceed 32 billion.
+- **Active / loaded models**: actually selected at runtime.
+- **Candidate models**: documented options available for future activation.
+- **Budget check**: only active/loaded models are counted against the **32B** cap.
+
+**Active design constraint:** Total parameter count across all simultaneously active models must not exceed 32 billion. Mock mode shows an active-loaded stack of `0B`.
 
 ## Key Design Decisions
 

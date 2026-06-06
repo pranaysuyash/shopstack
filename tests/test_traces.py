@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 
 from shopstack.schemas.models import Trace
-from shopstack.traces.export import _redact_trace, create_trace, export_traces_to_jsonl
+from shopstack.traces.export import _redact_trace, create_trace, export_trace_by_id, export_traces_to_jsonl
 
 
 class TestTraceRedaction:
@@ -130,5 +130,36 @@ class TestExportTraces:
                 data = json.loads(f.readline())
             assert "user_goal" in data
             assert "_private" not in data
+        finally:
+            Path(path).unlink(missing_ok=True)
+
+    def test_export_trace_by_id_redacts_and_reports_count(self, db):
+        trace = create_trace(
+            db,
+            input_type="vision",
+            user_goal="call 9876543210 for price",
+            redacted_user_request="call 9876543210 for price",
+            final_response="phone 9876543210 is noted",
+        )
+        with tempfile.NamedTemporaryFile(suffix=".jsonl", mode="w", delete=False) as f:
+            path = f.name
+        try:
+            count = export_trace_by_id(db, trace.trace_id, path, redact=True)
+            assert count == 1
+            with open(path) as handle:
+                exported = json.loads(handle.readline())
+            assert "[REDACTED_NUMBER]" in exported["user_goal"]
+            assert "[REDACTED_NUMBER]" in exported["final_response"]
+        finally:
+            Path(path).unlink(missing_ok=True)
+
+    def test_export_trace_by_id_empty_when_missing(self, db):
+        with tempfile.NamedTemporaryFile(suffix=".jsonl", mode="w", delete=False) as f:
+            path = f.name
+        try:
+            count = export_trace_by_id(db, "does-not-exist", path, redact=True)
+            assert count == 0
+            with open(path) as handle:
+                assert handle.read() == ""
         finally:
             Path(path).unlink(missing_ok=True)

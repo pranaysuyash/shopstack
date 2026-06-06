@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     db_path: str = str(Path(__file__).resolve().parent.parent / "data" / "shopstack.db")
     data_dir: str = str(Path(__file__).resolve().parent.parent / "data")
 
+    openai_api_key: str = ""
+
     planner_backend: str = "mock"
     stt_backend: str = "mock"
     tts_backend: str = "mock"

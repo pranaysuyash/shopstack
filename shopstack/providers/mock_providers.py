@@ -31,6 +31,7 @@ class MockSTTProvider(STTProvider):
     name = "mock_stt"
     model_id = "mock-stt-v1"
     parameter_count = 0.0
+    capabilities: set[str] = {"stt"}
 
     def load(self) -> None:
         pass
@@ -59,6 +60,7 @@ class MockTTSProvider(TTSProvider):
     name = "mock_tts"
     model_id = "mock-tts-v1"
     parameter_count = 0.0
+    capabilities: set[str] = {"tts"}
 
     def load(self) -> None:
         pass
@@ -74,6 +76,7 @@ class MockVisionProvider(VisionProvider):
     name = "mock_vision"
     model_id = "mock-vision-v1"
     parameter_count = 0.0
+    capabilities: set[str] = {"vision", "object_detection"}
 
     def load(self) -> None:
         pass
@@ -95,6 +98,7 @@ class MockDetectionProvider(ObjectDetectionProvider):
     name = "mock_detection"
     model_id = "mock-detection-v1"
     parameter_count = 0.0
+    capabilities: set[str] = {"object_detection"}
 
     def load(self) -> None:
         pass
@@ -157,6 +161,7 @@ class MockOCRProvider(OCRProvider):
     name = "mock_ocr"
     model_id = "mock-ocr-v1"
     parameter_count = 0.0
+    capabilities: set[str] = {"ocr"}
 
     def load(self) -> None:
         pass
@@ -180,6 +185,7 @@ class MockPlannerProvider(PlannerProvider):
     name = "mock_planner"
     model_id = "mock-planner-v1"
     parameter_count = 0.0
+    capabilities: set[str] = {"text", "planning"}
 
     def load(self) -> None:
         pass
@@ -283,3 +289,33 @@ class MockImageEditProvider(ImageEditProvider):
 
     def annotate_image(self, image_path: str, detections: list[dict]) -> str:
         return "mock_annotated_image.png"
+
+
+class MockUnifiedProvider:
+    name = "mock"
+    capabilities: set[str] = {"text", "vision", "stt", "tts", "ocr", "object_detection", "embeddings"}
+
+    def __init__(self):
+        self._stt = MockSTTProvider()
+        self._vision = MockVisionProvider()
+        self._detection = MockDetectionProvider()
+        self._ocr = MockOCRProvider()
+        self._planner = MockPlannerProvider()
+
+    def complete(self, prompt: str, **kwargs: Any) -> dict[str, Any]:
+        return {"text": f"Mock response to: {prompt[:50]}...", "model": self.name}
+
+    def analyze_image(self, image_path: str, prompt: str = "") -> dict[str, Any]:
+        return self._vision.understand(image_path, prompt)
+
+    def transcribe_audio(self, audio_path: str, language: str = "en") -> dict[str, Any]:
+        return self._stt.transcribe(audio_path, language)
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        return [[random.random() * 2 - 1 for _ in range(128)] for _ in texts]
+
+    def detect_objects(self, image_path: str) -> list[dict[str, Any]]:
+        return self._detection.detect(image_path)
+
+    def extract_text(self, image_path: str) -> dict[str, Any]:
+        return self._ocr.extract(image_path)

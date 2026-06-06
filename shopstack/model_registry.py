@@ -6,6 +6,7 @@ from typing import Literal
 RuntimeType = Literal["transformers", "llama.cpp", "gguf", "onnx", "diffusers", "custom", "mock"]
 BadgeRelevance = Literal["llama_champion", "well_tuned", "off_the_grid", "none"]
 ModelStatus = Literal["candidate", "active", "deprecated", "rejected"]
+MAX_ACTIVE_MODEL_PARAMS_B = 32.0
 
 
 @dataclass
@@ -198,11 +199,42 @@ def get_active(group: str) -> list[ModelEntry]:
     return [m for m in MODEL_REGISTRY if m.provider_group == group and m.status == "active"]
 
 
+def get_active_models() -> list[ModelEntry]:
+    return [m for m in MODEL_REGISTRY if m.status == "active"]
+
+
 def total_active_params() -> float:
     return sum(m.params_b for m in MODEL_REGISTRY if m.status == "active")
+
+
+def total_candidate_only_params() -> float:
+    return total_candidate_params()
+
+
+def total_loaded_params() -> float:
+    return total_active_params()
+
+
+def total_candidate_params() -> float:
+    return sum(m.params_b for m in MODEL_REGISTRY if m.status == "candidate")
 
 
 def total_selected_params(include_candidates: bool = False) -> float:
     if include_candidates:
         return sum(m.params_b for m in MODEL_REGISTRY if m.status in ("active", "candidate"))
     return total_active_params()
+
+
+def validate_active_model_budget(max_params_b: float = MAX_ACTIVE_MODEL_PARAMS_B) -> None:
+    total = total_loaded_params()
+    if total > max_params_b:
+        raise ValueError(
+            f"Active model stack is {total}B, which exceeds the {max_params_b}B cap"
+        )
+
+
+def get_status_summary() -> dict[str, int]:
+    counts: dict[str, int] = {"active": 0, "candidate": 0, "deprecated": 0, "rejected": 0}
+    for model in MODEL_REGISTRY:
+        counts[model.status] += 1
+    return counts

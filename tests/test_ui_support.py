@@ -1,47 +1,212 @@
 from __future__ import annotations
 
+from datetime import date
+
+from shopstack.persistence.database import Database
 from shopstack.schemas.models import InventoryLot, PriceObservation, Trace
-from shopstack.ui_support import build_price_memory_view, load_field_notes, save_field_notes
+from shopstack.ui import (
+    FieldNotesView,
+    PriceMemoryView,
+    build_price_memory_view,
+    list_to_table,
+    load_field_notes,
+    save_field_notes,
+)
 
 
-def test_build_price_memory_view_returns_summary_plot_and_table(db):
-    db.record_price(PriceObservation(canonical_name="milk", price=50.0, quantity=1.0, unit="L", store_name="Store A"))
-    db.record_price(PriceObservation(canonical_name="milk", price=55.0, quantity=1.0, unit="L", store_name="Store B"))
+def test_build_price_memory_view_returns_summary_plot_and_table(db: Database):
+    db.record_price(
+        PriceObservation(canonical_name="milk", price=50.0, quantity=1.0, unit="L", store_name="Store A")
+    )
+    db.record_price(
+        PriceObservation(canonical_name="milk", price=55.0, quantity=1.0, unit="L", store_name="Store B")
+    )
 
-    summary, df, table = build_price_memory_view(db, "milk")
+    view = build_price_memory_view(db, "milk")
 
-    assert "Price Memory for milk" in summary
-    assert list(df["price"]) == [50.0, 55.0]
-    assert table[0] == ["Date", "Store", "Price", "Qty", "Unit", "Notes"]
-    assert len(table) == 3
+    assert view.item_name == "milk"
+    assert view.observation_count == 2
+    assert view.store_count == 2
+    assert view.latest_price == 55.0
+    assert view.first_price == 50.0
+    assert view.min_price == 50.0
+    assert view.max_price == 55.0
+    assert view.direction == "higher"
+    assert "Price Memory for milk" in view.summary_html
+    assert "observations" in view.summary_html
+    assert list(view.df["price"]) == [50.0, 55.0]
+    assert view.table[0] == ["Date", "Store", "Price", "Per Unit", "Qty", "Unit", "Source", "Notes"]
+    assert len(view.table) == 3
 
 
-def test_build_price_memory_view_handles_missing_item(db):
-    summary, df, table = build_price_memory_view(db, "")
+def test_build_price_memory_view_handles_missing_item(db: Database):
+    view = build_price_memory_view(db, "")
+    assert "Enter an item name" in view.summary_html
+    assert view.df.empty
+    assert view.table[0][0] == "Enter an item name to see price history"
 
-    assert "Enter an item name" in summary
-    assert df.empty
-    assert table[0][0] == "Enter an item name to see price history"
+
+def test_build_price_memory_view_handles_no_history(db: Database):
+    view = build_price_memory_view(db, "nonexistent")
+    assert "No price observations found" in view.summary_html
+    assert view.df.empty
+    assert view.item_name == "nonexistent"
 
 
-def test_field_notes_round_trip(db):
-    db.add_inventory_lot(InventoryLot(canonical_name="bread", display_name="Bread", quantity=0.5, unit="loaf"))
+def test_build_price_memory_view_computes_unit_price(db: Database):
+    db.record_price(
+        PriceObservation(
+            canonical_name="rice",
+            price=90.0,
+            quantity=0.5,
+            unit="kg",
+            store_name="Store A",
+            observation_date=date(2026, 1, 1),
+        )
+    )
+    db.record_price(
+        PriceObservation(
+            canonical_name="rice",
+            price=160.0,
+            quantity=1.0,
+            unit="kg",
+            store_name="Store B",
+            observation_date=date(2026, 2, 1),
+        )
+    )
+
+    view = build_price_memory_view(db, "rice")
+
+    assert view.unit_price_latest == 160.0
+    assert view.unit_price_best == 160.0
+    assert "unit_price" in view.df.columns
+    unit_prices = view.df["unit_price"].dropna().tolist()
+    assert unit_prices == [180.0, 160.0]
+
+
+def test_build_price_memory_view_escapes_html_in_item_name(db: Database):
+    db.record_price(
+        PriceObservation(
+            canonical_name="<script>alert('xss')</script>",
+            price=10.0,
+            quantity=1.0,
+            unit="unit",
+        )
+    )
+    view = build_price_memory_view(db, "<script>alert('xss')</script>")
+    assert "<script>" not in view.summary_html
+    assert "&lt;script&gt;" in view.summary_html
+
+
+def test_build_price_memory_view_sorts_by_date(db: Database):
+    db.record_price(
+        PriceObservation(
+            canonical_name="eggs",
+            price=60.0,
+            quantity=12.0,
+            unit="unit",
+            store_name="Later Store",
+            observation_date=date(2026, 3, 1),
+        )
+    )
+    db.record_price(
+        PriceObservation(
+            canonical_name="eggs",
+            price=50.0,
+            quantity=12.0,
+            unit="unit",
+            store_name="Early Store",
+            observation_date=date(2026, 1, 1),
+        )
+    )
+
+    view = build_price_memory_view(db, "eggs")
+
+    assert view.latest_price == 60.0
+    assert view.first_price == 50.0
+    assert view.direction == "higher"
+    assert list(view.df["price"]) == [50.0, 60.0]
+
+
+def test_field_notes_round_trip(db: Database):
+    db.add_inventory_lot(
+        InventoryLot(canonical_name="bread", display_name="Bread", quantity=0.5, unit="loaf")
+    )
     db.save_trace(Trace(input_type="voice", final_response="buy bread"))
 
-    draft, preview, status = load_field_notes(db)
+    view = load_field_notes(db)
 
-    assert "# Field Notes" in draft
-    assert draft == preview
-    assert "generated from recent activity" in status.lower()
+    assert isinstance(view, FieldNotesView)
+    assert "# Field Notes" in view.editor_value or "# Household Snapshot" in view.editor_value
+    assert view.editor_value == view.preview_value
+    assert "No saved notes yet" in view.status_html
 
-    saved_draft, saved_preview, saved_status = save_field_notes(db, "# Saved notes")
+    saved = save_field_notes(db, "# Saved notes")
 
-    assert saved_draft == "# Saved notes"
-    assert saved_preview == "# Saved notes"
-    assert "saved locally" in saved_status.lower()
+    assert saved.editor_value == "# Saved notes"
+    assert saved.preview_value == "# Saved notes"
+    assert "saved locally" in saved.status_html.lower()
 
-    reloaded_draft, reloaded_preview, reloaded_status = load_field_notes(db)
+    reloaded = load_field_notes(db)
 
-    assert reloaded_draft == "# Saved notes"
-    assert reloaded_preview == "# Saved notes"
-    assert "loaded saved field notes" in reloaded_status.lower()
+    assert reloaded.editor_value == "# Saved notes"
+    assert reloaded.preview_value == "# Saved notes"
+    assert "loaded saved field notes" in reloaded.status_html.lower()
+
+
+def test_field_notes_uses_provided_today(db: Database):
+    view = load_field_notes(db, today=date(2026, 6, 1))
+    assert "2026-06-01" in view.editor_value
+
+
+def test_save_blank_field_notes_preserves_blank(db: Database):
+    saved = save_field_notes(db, "  ")
+    assert saved.editor_value == ""
+
+
+def test_load_field_notes_after_blank_save_strands_blank(db: Database):
+    save_field_notes(db, "")
+    reloaded = load_field_notes(db)
+    assert "No saved notes yet" in reloaded.status_html
+
+
+def test_build_price_memory_view_single_observation(db: Database):
+    db.record_price(
+        PriceObservation(canonical_name="salt", price=20.0, quantity=1.0, unit="kg", store_name="Store A")
+    )
+    view = build_price_memory_view(db, "salt")
+    assert view.direction == "unchanged"
+    assert view.latest_price == 20.0
+    assert view.first_price == 20.0
+
+
+class TestListToTable:
+    def test_empty(self):
+        result = list_to_table([])
+        assert result == [["No data"]]
+
+    def test_basic(self):
+        items = [{"name": "milk", "qty": 2}, {"name": "bread", "qty": 1}]
+        result = list_to_table(items)
+        assert result[0] == ["Name", "Qty"]
+        assert len(result) == 3
+
+    def test_custom_columns(self):
+        items = [{"name": "milk", "qty": 2, "extra": "x"}]
+        result = list_to_table(items, cols=["name"])
+        assert result[0] == ["Name"]
+        assert result[1] == ["milk"]
+
+    def test_header_title_case(self):
+        items = [{"canonical_name": "milk"}]
+        result = list_to_table(items)
+        assert result[0] == ["Canonical Name"]
+
+
+def test_build_price_memory_view_with_unknown_store(db: Database):
+    db.record_price(
+        PriceObservation(canonical_name="spice", price=15.0, quantity=100.0, unit="g", store_name=None)
+    )
+    view = build_price_memory_view(db, "spice")
+    assert view.table[1][1] == "Unknown"
+    assert view.unit_price_latest is not None

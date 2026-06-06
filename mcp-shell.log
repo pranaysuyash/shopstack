@@ -33,3 +33,10 @@
 {"level":"info","message":"Hostname: pranay.local","timestamp":"2026-06-05T17:24:43.269Z"}
 {"level":"info","message":"Username: pranay","timestamp":"2026-06-05T17:24:43.271Z"}
 {"level":"info","message":"MCP Shell Server ready","timestamp":"2026-06-05T17:24:43.278Z"}
+{"level":"info","message":"MCP Shell Server started","timestamp":"2026-06-05T18:49:50.525Z"}
+{"level":"info","message":"Shell: /bin/zsh","timestamp":"2026-06-05T18:49:50.526Z"}
+{"level":"info","message":"Working Directory: /Users/pranay","timestamp":"2026-06-05T18:49:50.526Z"}
+{"level":"info","message":"Platform: darwin","timestamp":"2026-06-05T18:49:50.526Z"}
+{"level":"info","message":"Hostname: pranay.local","timestamp":"2026-06-05T18:49:50.526Z"}
+{"level":"info","message":"Username: pranay","timestamp":"2026-06-05T18:49:50.528Z"}
+{"level":"info","message":"MCP Shell Server ready","timestamp":"2026-06-05T18:49:50.531Z"}

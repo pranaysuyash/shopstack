@@ -22,7 +22,7 @@ from shopstack.schemas.models import (
 
 class Database:
     def __init__(self, db_path: str | None = None):
-        self.db_path = db_path or settings.db_path
+        self.db_path = db_path if db_path is not None else settings.db_path
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         self._conn: sqlite3.Connection | None = None
         self._init_db()

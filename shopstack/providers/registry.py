@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from shopstack.config import Settings
@@ -27,14 +28,52 @@ from shopstack.providers.mock_providers import (
     MockSTTProvider,
     MockToolCallParser,
     MockTTSProvider,
+    MockUnifiedProvider,
     MockVisionProvider,
 )
+
+logger = logging.getLogger(__name__)
+
+_REAL_PROVIDER_MAP: dict[str, str] = {}
+
+
+def _load_openai():
+    try:
+        from shopstack.providers.openai_provider import OpenAIProvider
+        return OpenAIProvider
+    except ImportError:
+        return None
+
+
+def _load_whisper():
+    try:
+        from shopstack.providers.whisper_provider import WhisperProvider
+        return WhisperProvider
+    except ImportError:
+        return None
+
+
+def _try_real_provider(backend: str, settings: Settings) -> Any | None:
+    if backend == "openai":
+        cls = _load_openai()
+        if cls:
+            return cls(api_key=settings.openai_api_key)
+        logger.info("OpenAI provider not available (openai package missing), falling back to mock")
+        return None
+    if backend == "whisper":
+        cls = _load_whisper()
+        if cls:
+            return cls(api_key=settings.openai_api_key)
+        logger.info("Whisper provider not available (openai package missing), falling back to mock")
+        return None
+    return None
 
 
 class ProviderRegistry:
     def __init__(self, settings: Settings):
         self._settings = settings
         self._providers: dict[str, Any] = {}
+        self._unified: Any | None = None
         self._init_all()
 
     def _init_all(self) -> None:
@@ -42,51 +81,64 @@ class ProviderRegistry:
             self._init_mock_all()
         else:
             self._init_configured()
+        self._unified = MockUnifiedProvider()
 
     def _init_mock_all(self) -> None:
-        self.register("stt", MockSTTProvider())
-        self.register("tts", MockTTSProvider())
-        self.register("vision", MockVisionProvider())
-        self.register("object_detection", MockDetectionProvider())
-        self.register("grounding", MockGroundingProvider())
-        self.register("segmentation", MockSegmentationProvider())
-        self.register("ocr", MockOCRProvider())
-        self.register("planner", MockPlannerProvider())
-        self.register("tool_call_parser", MockToolCallParser())
-        self.register("embeddings", MockEmbeddingsProvider())
-        self.register("image_edit", MockImageEditProvider())
+        for name, provider in [
+            ("stt", MockSTTProvider()),
+            ("tts", MockTTSProvider()),
+            ("vision", MockVisionProvider()),
+            ("object_detection", MockDetectionProvider()),
+            ("grounding", MockGroundingProvider()),
+            ("segmentation", MockSegmentationProvider()),
+            ("ocr", MockOCRProvider()),
+            ("planner", MockPlannerProvider()),
+            ("tool_call_parser", MockToolCallParser()),
+            ("embeddings", MockEmbeddingsProvider()),
+            ("image_edit", MockImageEditProvider()),
+        ]:
+            self.register(name, provider)
 
     def _init_configured(self) -> None:
-        backend_map = {
-            "stt": (MockSTTProvider, self._get_mock("stt")),
-            "tts": (MockTTSProvider, self._get_mock("tts")),
-            "vision": (MockVisionProvider, self._get_mock("vision")),
-            "object_detection": (MockDetectionProvider, self._get_mock("object_detection")),
-            "grounding": (MockGroundingProvider, self._get_mock("grounding")),
-            "segmentation": (MockSegmentationProvider, self._get_mock("segmentation")),
-            "ocr": (MockOCRProvider, self._get_mock("ocr")),
-            "planner": (MockPlannerProvider, self._get_mock("planner")),
-            "tool_call_parser": (MockToolCallParser, self._get_mock("tool_call_parser")),
-            "embeddings": (MockEmbeddingsProvider, self._get_mock("embeddings")),
-            "image_edit": (MockImageEditProvider, self._get_mock("image_edit")),
-        }
-        for provider_name, (mock_factory, backend) in backend_map.items():
-            if backend == "mock":
-                self.register(provider_name, mock_factory())
-
-    def _get_mock(self, provider_name: str) -> str:
         backends = self._settings.provider_backends
-        backend = (backends.get(provider_name) or "mock").lower().strip()
-        if backend not in {"mock", "mocked"}:
-            # Real provider execution is not yet implemented, so fallback to mock.
-            return "mock"
-        return backend
+
+        for name, mock_factory in [
+            ("stt", MockSTTProvider),
+            ("tts", MockTTSProvider),
+            ("vision", MockVisionProvider),
+            ("object_detection", MockDetectionProvider),
+            ("grounding", MockGroundingProvider),
+            ("segmentation", MockSegmentationProvider),
+            ("ocr", MockOCRProvider),
+            ("planner", MockPlannerProvider),
+            ("tool_call_parser", MockToolCallParser),
+            ("embeddings", MockEmbeddingsProvider),
+            ("image_edit", MockImageEditProvider),
+        ]:
+            backend = (backends.get(name) or "mock").lower().strip()
+            if backend == "mock" or backend == "mocked":
+                self.register(name, mock_factory())
+                continue
+            real = _try_real_provider(backend, self._settings)
+            if real:
+                self.register(name, real)
+            else:
+                self.register(name, mock_factory())
 
     def register(self, name: str, provider: Any) -> None:
         self._providers[name] = provider
 
     def get(self, name: str) -> Any:
         return self._providers.get(name)
+
+    def supports(self, capability: str) -> bool:
+        for provider in self._providers.values():
+            caps = getattr(provider, "capabilities", set())
+            if capability in caps:
+                return True
+        if self._unified and capability in self._unified.capabilities:
+            return True
+        return False
 
     @property
     def stt(self) -> STTProvider:
@@ -132,12 +184,17 @@ class ProviderRegistry:
     def image_edit(self) -> ImageEditProvider:
         return self._providers.get("image_edit")
 
+    @property
+    def unified(self) -> Any:
+        return self._unified
+
     def list_providers(self) -> list[dict[str, str]]:
         return [
             {
                 "name": name,
                 "type": type(provider).__name__,
-                "available": hasattr(provider, "transcribe" if name == "stt" else "generate"),
+                "available": getattr(provider, "available", True),
+                "capabilities": ", ".join(sorted(getattr(provider, "capabilities", set()))),
             }
             for name, provider in self._providers.items()
         ]

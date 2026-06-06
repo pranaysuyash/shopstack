@@ -3,6 +3,16 @@ from __future__ import annotations
 from typing import Any
 
 
+def list_to_table(items: list[dict[str, Any]], cols: list[str] | None = None) -> list[list[str]]:
+    if not items:
+        return [["No data"]]
+    if cols is None:
+        cols = list(items[0].keys())
+    header = [c.replace("_", " ").title() for c in cols]
+    rows = [[str(item.get(c, "")) for c in cols] for item in items]
+    return [header] + rows
+
+
 def badge_html(label: str, variant: str = "neutral") -> str:
     classes = {
         "green": "badge-green",
@@ -59,6 +69,10 @@ def render_decision_card(
     }
     badge = badge_html(decision_upper, badge_map.get(decision, "gray"))
     qty_line = f"{quantity} {unit} suggested" if quantity else ""
+    qty_line_markup = ""
+    if qty_line:
+        qty_line_markup = f"<div style='font-size:12px;margin-top:6px;'>{qty_line}</div>"
+    confidence_pct = max(0.0, min(1.0, float(confidence)))
     action_line = (
         "<div style='margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;'>"
         "<span class='chip'>Add to list</span>"
@@ -73,8 +87,8 @@ def render_decision_card(
         f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;'>"
         f"<strong>{item_name}</strong>{badge}</div>"
         f"<div style='font-size:13px;color:var(--text-dim);'>{reason}</div>"
-        f"{f'<div style=\"font-size:12px;margin-top:6px;\">{qty_line}</div>' if qty_line else ''}"
-        f"<div style='font-size:11px;margin-top:6px;color:var(--text-dim);'>Confidence: {confidence:.0%}</div>"
+        f"{qty_line_markup}"
+        f"<div style='font-size:11px;margin-top:6px;color:var(--text-dim);'>Confidence: {confidence_pct:.0%}</div>"
         f"{action_line}"
         "</div>"
     )
@@ -85,7 +99,7 @@ def render_grouped_cards(title: str, items: list[dict[str, Any]]) -> str:
         return ""
     rows = "".join(
         render_decision_card(
-            item=item.get("canonical_name") or item.get("item_name", ""),
+            item_name=item.get("canonical_name") or item.get("item_name", ""),
             decision=item.get("decision", "maybe"),
             reason=item.get("reason", ""),
             confidence=float(item.get("confidence", 0.0)),
@@ -107,3 +121,31 @@ def render_metric(name: str, value: str, hint: str = "") -> str:
         + "</div>"
     )
 
+
+def render_workflow_rail(steps: list[str], current_step: int | None = None) -> str:
+    step_markers: list[str] = []
+    total = len(steps)
+    active = total - 1 if current_step is None else max(0, min(current_step, total - 1))
+    for index, step in enumerate(steps):
+        if current_step is None or index <= active:
+            dot = "●"
+            tone = "var(--green)"
+        else:
+            dot = "○"
+            tone = "var(--text-dim)"
+        label = step.upper()
+        step_markers.append(
+            f"<span style='display:inline-flex;align-items:center;gap:6px;color:{tone};font-size:11px;font-weight:600;'>"
+            f"{dot} {label}</span>"
+        )
+    rail = "".join(
+        f"{step}{'→' if idx + 1 < len(step_markers) else ''}"
+        for idx, step in enumerate(step_markers)
+    )
+    return (
+        "<div class='home-card' style='text-align:left;padding:12px 14px;'>"
+        f"<div style='font-size:12px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:6px;'>"
+        "Workflow Steps</div>"
+        f"<div style='display:flex;flex-wrap:wrap;gap:8px;align-items:center;'>{rail}</div>"
+        "</div>"
+    )

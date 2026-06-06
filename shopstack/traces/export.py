@@ -49,6 +49,25 @@ def create_trace(
     return trace
 
 
+def trace_payload_for_export(trace: Trace, redact: bool = True) -> dict[str, Any]:
+    payload = trace.model_dump()
+    return _redact_trace(payload) if redact else payload
+
+
+def export_trace_by_id(
+    db: Database, trace_id: str, output_path: str, redact: bool = True
+) -> int:
+    target = (trace_id or "").strip()
+    if not target:
+        return 0
+    for t in db.get_traces(limit=200):
+        if t.trace_id == target:
+            with open(output_path, "w") as f:
+                f.write(json.dumps(trace_payload_for_export(t, redact=redact), default=str) + "\n")
+            return 1
+    return 0
+
+
 def _redact_trace(trace: dict) -> dict:
     text_fields = [
         "redacted_user_request", "user_goal", "final_response",

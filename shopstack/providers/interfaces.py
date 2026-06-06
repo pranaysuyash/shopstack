@@ -13,6 +13,7 @@ class ProviderBase(ABC):
     license_note: str = ""
     runtime_type: RuntimeType = "mock"
     supports_off_grid: bool = True
+    capabilities: set[str] = set()
 
     @abstractmethod
     def load(self) -> None:

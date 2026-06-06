@@ -20,5 +20,8 @@ setup(
             "pytest-cov",
             "pytest-benchmark",
         ],
+        "openai": [
+            "openai>=1.0",
+        ],
     },
 )
