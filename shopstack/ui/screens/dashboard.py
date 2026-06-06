@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from html import escape
+
 from shopstack.app_context import db, tools
 from shopstack.ui import card as ui_card, render_metric
 from shopstack.ui.screens._utils import (
@@ -15,9 +17,38 @@ from shopstack.ui.screens.inventory import seed_demo_inventory
 from shopstack.ui.screens.other import inventory_alerts, price_intelligence_view, what_is_in_fridge_now
 
 
+def _swiggy_top_deals_html() -> str:
+    try:
+        from shopstack.market.sources.swiggy import load_snapshot
+        snapshot = load_snapshot()
+    except Exception:
+        return ""
+
+    available_weighted = [
+        r for r in snapshot.normalized_records
+        if r.is_available and r.is_weight_based and not r.is_combo and r.price_per_kg
+    ]
+    if not available_weighted:
+        return ""
+
+    sorted_deals = sorted(available_weighted, key=lambda r: r.price_per_kg)[:5]
+    rows = "".join(
+        f"<div style='display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);'>"
+        f"<span>{escape(r.canonical_name.replace('_', ' ').title())}</span>"
+        f"<span><strong>&#8377;{r.price_per_kg:.0f}/kg</strong> <span style='color:var(--text-dim);font-size:11px;'>({escape(r.raw_size)})</span></span>"
+        f"</div>"
+        for r in sorted_deals
+    )
+    return (
+        "<div class='stat-card' style='text-align:left;margin-bottom:12px;'>"
+        "<h3>Live Market &#8212; Cheapest Produce Today</h3>"
+        f"{rows}"
+        "<div style='margin-top:6px;font-size:11px;color:var(--text-dim);'>Source: Swiggy Instamart</div>"
+        "</div>"
+    )
+
+
 @safe_render
-
-
 def today_dashboard():
     use_soon = tools.get_use_soon_items(days=3)
     soon_count = use_soon["count"]
@@ -67,6 +98,8 @@ def today_dashboard():
     except Exception:
         price_alerts = ""
 
+    swiggy_deals = _swiggy_top_deals_html()
+
     return [
         f"{hero}{workflow_preview}{action_bar}{quick_actions}",
         render_home_advice(active_inv, low_items, use_soon["items"][:3]),
@@ -74,5 +107,6 @@ def today_dashboard():
         f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;'>{fridge_html}{alert_html}</div>",
         f"<div class='stat-card' style='text-align:left;margin-bottom:12px;'><h3>Low Stock</h3>{render_low_stock(low_items)}</div>",
         f"<div class='stat-card' style='text-align:left;margin-bottom:12px;'><h3>Recent Purchases</h3>{render_recent_purchases(purchases)}</div>"
-        + (f"<div style='margin-top:12px;'>{price_alerts}</div>" if price_alerts and "No price intelligence" not in price_alerts else ""),
+        + (f"<div style='margin-top:12px;'>{price_alerts}</div>" if price_alerts and "No price intelligence" not in price_alerts else "")
+        + (f"<div style='margin-top:12px;'>{swiggy_deals}</div>" if swiggy_deals else ""),
     ]
