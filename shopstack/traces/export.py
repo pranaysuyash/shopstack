@@ -8,6 +8,8 @@ from typing import Any
 from shopstack.persistence.database import Database
 from shopstack.schemas.models import Trace
 
+FIELD_NOTES_CONFIG_KEY = "field_notes_markdown"
+
 
 def export_traces_to_jsonl(
     db: Database, output_path: str, limit: int = 50, redact: bool = True
@@ -51,8 +53,12 @@ def create_trace(
     return trace
 
 
-def trace_payload_for_export(trace: Trace, redact: bool = True) -> dict[str, Any]:
+def trace_payload_for_export(trace: Trace, redact: bool = True, db: Database | None = None) -> dict[str, Any]:
     payload = trace.model_dump()
+    if db:
+        field_notes = db.get_config_value(FIELD_NOTES_CONFIG_KEY, "")
+        if field_notes.strip():
+            payload["field_notes"] = field_notes
     return _redact_trace(payload) if redact else payload
 
 
@@ -65,7 +71,7 @@ def export_trace_by_id(
     for t in db.get_traces(limit=200):
         if t.trace_id == target:
             with open(output_path, "w") as f:
-                f.write(json.dumps(trace_payload_for_export(t, redact=redact), default=str) + "\n")
+                f.write(json.dumps(trace_payload_for_export(t, redact=redact, db=db), default=str) + "\n")
             return True
     return False
 

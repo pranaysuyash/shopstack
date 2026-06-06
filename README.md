@@ -35,8 +35,8 @@ Open `http://localhost:7860` in your browser.
 ## Tests
 
 ```bash
-uv run pytest tests/ -v          # 228 passed in 3.70s
-uv run pytest benchmarks/ -v -m benchmark  # 9 passed in 0.03s
+uv run pytest tests/ -v          # 228 passed in 3.81s
+uv run pytest benchmarks/ -v -m benchmark  # 9 passed in 0.05s
 ```
 
 | Module | Tests | What it covers |
