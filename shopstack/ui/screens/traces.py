@@ -28,6 +28,22 @@ def _find_trace_by_id(trace_id: str):
     return None
 
 
+def _filter_traces(search: str = "", input_type_filter: str = "") -> list:
+    traces = db.get_traces(limit=200)
+    needle = (search or "").strip().lower()
+    selected = (input_type_filter or "").strip().lower()
+    if selected:
+        traces = [t for t in traces if (t.input_type or "").lower() == selected]
+    if needle:
+        traces = [
+            t for t in traces
+            if needle in (t.user_goal or "").lower()
+            or needle in (t.trace_id or "").lower()
+            or needle in (t.input_type or "").lower()
+        ]
+    return traces
+
+
 def _trace_timeline_html(trace) -> str:
     if not trace:
         return "<div style='color:var(--text-dim);'>No workflow trace selected yet.</div>"
@@ -64,8 +80,8 @@ def _format_trace_selector_label(trace) -> str:
     return f"{goal[:40]} \xb7 {trace.input_type} \xb7 {trace.timestamp.strftime('%m-%d %H:%M') if trace.timestamp else 'no time'}"
 
 
-def agent_trace_choices() -> tuple[list[tuple[str, str]], str]:
-    traces = db.get_traces(limit=50)
+def agent_trace_choices(search: str = "", input_type_filter: str = "") -> tuple[list[tuple[str, str]], str]:
+    traces = _filter_traces(search, input_type_filter)
     if not traces:
         return [("No traces yet", "")], ""
     choices = [(f"{_format_trace_selector_label(t)} | {t.trace_id[:12]}", t.trace_id) for t in traces]
@@ -83,8 +99,8 @@ def _trace_bundle(trace_id: str) -> tuple[str, str]:
     return timeline_html, f"<pre style='font-size:12px;overflow:auto;max-height:400px;background:var(--bg-input);padding:12px;border-radius:var(--radius-sm);'>{raw_json}</pre>"
 
 
-def agent_trace_bootstrap() -> tuple:
-    traces = db.get_traces(limit=50)
+def agent_trace_bootstrap(search: str = "", input_type_filter: str = "") -> tuple:
+    traces = _filter_traces(search, input_type_filter)
     if not traces:
         no_data = "<div style='color:var(--text-dim);'>No workflow traces recorded yet.</div>"
         return {"choices": [("No traces yet", "")], "value": ""}, "", no_data, no_data
@@ -94,8 +110,8 @@ def agent_trace_bootstrap() -> tuple:
     return {"choices": choices, "value": first.trace_id}, first.trace_id, timeline, raw
 
 
-def agent_trace_view() -> tuple:
-    traces = db.get_traces(limit=50)
+def agent_trace_view(search: str = "", input_type_filter: str = "") -> tuple:
+    traces = _filter_traces(search, input_type_filter)
     if not traces:
         return [["No traces yet"]], ""
     tbl = _traces_to_table(traces)

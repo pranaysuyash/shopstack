@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     debug: bool = True
 
     off_the_grid: bool = True
+    default_household_user_id: str = "default_household"
     app_port: int = 7860
     db_path: str = str(Path(__file__).resolve().parent.parent / "data" / "shopstack.db")
     data_dir: str = str(Path(__file__).resolve().parent.parent / "data")
@@ -20,6 +21,7 @@ class Settings(BaseSettings):
     local_model_dir: str = ""
     local_model_repo: str = "unsloth/Llama-3.2-3B-Instruct-GGUF"
     local_model_file: str = "Llama-3.2-3B-Instruct-Q4_K_M.gguf"
+    local_auto_download: bool = False
 
     planner_backend: str = "mock"
     stt_backend: str = "mock"

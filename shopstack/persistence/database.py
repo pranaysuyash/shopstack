@@ -505,7 +505,7 @@ class Database:
                 trace.trace_id, trace.input_type, trace.user_goal,
                 trace.redacted_user_request, json.dumps(trace.perception),
                 json.dumps(trace.inventory_context), json.dumps(trace.decision),
-                json.dumps([t.model_dump() for t in trace.proposed_tool_calls]),
+                json.dumps([t.model_dump() for t in trace.proposed_tool_calls], default=str),
                 trace.human_confirmation, trace.final_response,
                 trace.timestamp.isoformat(),
                 user_id,

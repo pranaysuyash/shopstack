@@ -1,0 +1,90 @@
+card_index,category,name,description,size,delivery_time,tag,availability,discount_percent,price_inr,mrp_inr,discount_amount_inr,computed_discount_percent
+1,Fresh Vegetables,Ridge Gourd (Herekaayi),"Light, fibrous & tasty in dals or dry curries",2 Medium,22 MINS,Ad,Available,19,33,41,8,19.51
+2,Fresh Vegetables,Cauliflower (Hoo Kosu),"Snow-white florets, perfect for curries & roasts!",1 Medium,22 MINS,Ad,Available,19,29,36,7,19.44
+3,Fresh Vegetables,Indian Tomato,"Juicy, tangy & ideal for all Indian curries",500 g,22 MINS,,Available,20,28,35,7,20.0
+4,Fresh Vegetables,Onion (Eerulli),"Zero Sprouting, Zero Smut",1 kg,22 MINS,,Available,20,31,39,8,20.51
+5,Fresh Vegetables,Bottle Gourd ( Sorekaayi),"Light, hydrating & perfect for soups or halwa",1 Small,22 MINS,Ad,Available,18,26,32,6,18.75
+6,Fresh Vegetables,Carrot,"Crunchy, vitamin-packed & perfect raw or cooked",500 g,22 MINS,Ad,Available,19,41,51,10,19.61
+7,Fresh Vegetables,Cluster Beans (Gorikayi),"Fiber-packed, fresh, perfect for stir-fries & curries",250 g,22 MINS,,Available,21,18,23,5,21.74
+8,Fresh Vegetables,Lady's Finger (Bendekaayi),"Fiber-rich, fresh & great for bhindi fry or curry",250 g x 2,22 MINS,,Available,26,22,30,8,26.67
+9,Fresh Vegetables,nectr Ooty Carrot,,4 Pieces,22 MINS,Ad,Available,20,51,64,13,20.31
+10,Fresh Vegetables,"Onion, Potato & Desi Tomato",Perfect for Indian home-cooked meals,1 Combo,22 MINS,,Available,20,114,143,29,20.28
+11,Fresh Vegetables,English Cucumber - Protected Cultivation,Crisp and fresh cucumbers from hydroponic farming,500 g,22 MINS,,Available,20,32,40,8,20.0
+12,Fresh Vegetables,Coccinia (Tondekaayi),"Low-cal, crisp, ideal for stir-fry & sambar",250 g,22 MINS,,Available,21,11,14,3,21.43
+13,Fresh Vegetables,French Beans (Bili Hurulikaayi),"Crisp, fiber-rich & great for dry sabzis",250 g,22 MINS,,Available,20,32,40,8,20.0
+14,Fresh Vegetables,Hybrid Tomato,"Fresh, firm & great in gravies or sauces",500 g,22 MINS,,Available,17,32,39,7,17.95
+15,Fresh Vegetables,Kateri Brinjal (Geeru Gundu Badanekaayi),"Firm, low-seed & tasty in stuffed or fried dishes",250 g,22 MINS,,Available,20,16,20,4,20.0
+16,Fresh Vegetables,Sweet Potato (Sihi Genasu),"Iron-rich, sweet & tasty when roasted or boiled",500 g x 2,22 MINS,,Available,22,48,62,14,22.58
+17,Fresh Vegetables,English Cucumber (Sowthekaayi),"Crisp, no seeds & perfect in salads or detox drinks",1 Pack,22 MINS,,Available,20,28,35,7,20.0
+18,Fresh Vegetables,Drumstick (Nuggekaayi),"Nutrient-rich moringa pods, perfect for sambar & Soups!",2 Pieces x 2,22 MINS,,Available,26,28,38,10,26.32
+19,Fresh Vegetables,Haricot Beans (Hurulikayi),"Soft, healthy beans ideal for soups and sautés",250 g,22 MINS,,Available,20,28,35,7,20.0
+20,Fresh Vegetables,Ooty Carrot,Sweet mountain-grown carrot with vibrant color!,250 g,22 MINS,,Available,19,29,36,7,19.44
+21,Fresh Vegetables,Broad Beans (Huralikaayi),"Nutritious, bold flavor-great in gravies or rice",250 g x 2,22 MINS,,Available,24,50,66,16,24.24
+22,Fresh Vegetables,Potato (Aloo Gadde),"Agra’s finest potatoes; great for fries, mash & curries",1 kg,22 MINS,,Available,20,27,34,7,20.59
+23,Fresh Vegetables,Totapuri Raw Mango (Mavinahannu),Carbide Free,1 Piece,22 MINS,,Available,18,13,16,3,18.75
+24,Fresh Vegetables,White Radish (Moolangi),"Crunchy, Aids digestion, for salads & curries!",2 Pieces,22 MINS,,Available,20,24,30,6,20.0
+25,Fresh Vegetables,Bitter Gourd (Haagalakaayi),"Detox veggie, pure & best for fry or juice",1 Pack,22 MINS,,Available,20,34,43,9,20.93
+26,Fresh Vegetables,Beetroot,"Rich in iron, earthy sweetness, ideal for salads/sides",500 g,22 MINS,,Available,20,27,34,7,20.59
+27,Fresh Vegetables,"Onion, Potato & Hybrid Tomato",Basic essentials for daily cooking,1 Combo,22 MINS,,Available,19,122,151,29,19.21
+28,Fresh Vegetables,Coconut (Thenginakayi),"Ideal for festivals, temple offerings, and cooking",1 Medium,22 MINS,,Available,20,44,55,11,20.0
+29,Fresh Vegetables,Cowpea Beans (Karamani),"Protein-packed, perfect for stir-fries & curries",250 g,22 MINS,,Available,19,21,26,5,19.23
+30,Fresh Vegetables,Sambar Onion (Sambar Eerulli),"Tiny, pure & ideal for authentic sambhar",250 g,22 MINS,,Available,19,25,31,6,19.35
+31,Fresh Vegetables,Raw Banana (Baalekaayi),Energy-rich & best for curries or kofta,2 Pieces,22 MINS,,Available,19,33,41,8,19.51
+32,Fresh Vegetables,Pointed Gourd (Parwal),"Soft, nutritious & perfect in curry or fry",250 g,22 MINS,,Available,21,30,38,8,21.05
+33,Fresh Vegetables,Green Capsicum (Dappa Menasinakaayi),"Crunchy, vitamin-rich bell pepper for any dish!",2 Medium,22 MINS,,Available,5,19,20,1,5.0
+34,Fresh Vegetables,Curry Leaves & Coriander Leaves,Aromatic herbs for Indian dishes,1 Combo,22 MINS,,Available,22,21,27,6,22.22
+35,Fresh Vegetables,Mint Leaves & Coriander Leaves,Fresh herbs for garnishing,1 Combo,22 MINS,,Available,22,21,27,6,22.22
+36,Fresh Vegetables,Hybrid Tomato & Onion,Classic combo for all cuisines,1 Combo,22 MINS,,Available,19,63,78,15,19.23
+37,Fresh Vegetables,Curry Leaves & Green Chilli,Perfect base for flavorful dishes,1 Combo,22 MINS,,Available,22,21,27,6,22.22
+38,Fresh Vegetables,Garlic & Ginger,Spice blend for flavor and aroma,1 Combo,22 MINS,,Available,17,81,98,17,17.35
+39,Fresh Vegetables,Beetroot & Carrot,Bright veggies for salads,1 Combo,22 MINS,,Available,20,68,85,17,20.0
+40,Fresh Vegetables,Raw Mango (Mavinakayi),Carbide Free,2 Pieces,22 MINS,,Available,20,19,24,5,20.83
+41,Fresh Vegetables,Herbs Mix,Fresh herbs for seasoning,1 Combo,22 MINS,,Available,22,31,40,9,22.5
+42,Fresh Vegetables,Snake Gourd (Padavalakaayi),"High-fiber, fresh & great for dry curry or stir-fry",2 Pieces x 2,22 MINS,,Available,24,38,50,12,24.0
+43,Fresh Vegetables,Yellow Zucchini,"Bright, juicy & great in salad or stir-fry",1 Piece,22 MINS,,Available,20,38,48,10,20.83
+44,Fresh Vegetables,Forest Bitter Gourd (Kaadu Hagalakaayi),"Wild, medicinal & ideal for bitter stir-fries",250 g,22 MINS,,Available,20,34,43,9,20.93
+45,Fresh Vegetables,Sambar Veg Combo,"Drumstick, Brinjal, Raw Banana and Pumpkin Fresh veggies combo for Vishu festive cooking",1 Combo,22 MINS,,Available,20,106,133,27,20.3
+46,Fresh Vegetables,Snibs Snack Tomatoes(Mixed Colour),"Sweet, vibrant, healthy for kids & snacking",250 g,,,Sold Out,20,92,115,23,20.0
+47,Fresh Vegetables,nectr Baby potato (Chemical Free),Cleaner Fresher Sweeter,500 g,,,Sold Out,20,35,44,9,20.45
+48,Fresh Vegetables,Pluckk Ozone Washed Hybrid Tomato,Pesticide-Free,500 g,,,Sold Out,20,42,53,11,20.75
+49,Fresh Vegetables,Baby Potato (Chikka Aloo Gadde),"Tender, buttery gems for perfect roasting!",500 g x 2,,,Sold Out,23,52,68,16,23.53
+50,Fresh Vegetables,Red Bell Pepper (Kempu Dappa Menasinakaayi),"Vitamin-rich & great for salads, grills & pasta",1 Piece,,,Sold Out,20,31,39,8,20.51
+51,Fresh Vegetables,Long Purple Brinjal (Udda Badanekaayi),"Soft, tasty & ideal for fries, curries",250 g x 2,,,Sold Out,24,44,58,14,24.14
+52,Fresh Vegetables,nectr Coconut (Chemical Free),,1 Piece,,Upgrade,Sold Out,20,59,74,15,20.27
+53,Fresh Vegetables,nectr Small Green Zucchini (Chemical Free),"Fresher Taste, Firmer Bite",2 Pieces,,,Sold Out,19,109,136,27,19.85
+54,Fresh Vegetables,Broccoli,"Rich in fiber, fresh & perfect for stir-fries",1 Piece,,,Sold Out,20,31,39,8,20.51
+55,Fresh Vegetables,nectr Broccoli (Chemical Free),Fresher Crispier Taste,1 Piece,,,Sold Out,19,65,81,16,19.75
+56,Fresh Vegetables,nectr Red & Yellow Bell Peppers (Chemical Free),,2 Pieces,,Upgrade,Sold Out,19,81,101,20,19.8
+57,Fresh Vegetables,nectr Small Yellow Zucchini (Chemical Free),"Fresher Taste, Firmer Bite",2 Pieces,,,Sold Out,19,109,136,27,19.85
+58,Fresh Vegetables,Pluckk Ozone Washed Green Capsicum,Pesticide-Free,250 g,,,Sold Out,19,37,46,9,19.57
+59,Fresh Vegetables,Freshcon Cooked Rajma & Black Chickpeas,"Quick, high in protein, perfect for Indian dishes.",1 Combo,,,Sold Out,20,136,170,34,20.0
+60,Fresh Vegetables,Pluckk Raw Mango Sliced,"Freshly sliced mango with bold tang, Salt & chilli powder mix sachet included for extra flavor",200 g,,,Sold Out,20,95,119,24,20.17
+61,Fresh Vegetables,nectr Bottle Gourd (Chemical Free),,1 Piece,,Upgrade,Sold Out,20,31,39,8,20.51
+62,Fresh Vegetables,nectr Raw Banana (Chemical Free),,3 Pieces,,Upgrade,Sold Out,20,55,69,14,20.29
+63,Fresh Vegetables,nectr English Cucumber (Chemical Free),,4 Pieces,,Upgrade,Sold Out,20,28,35,7,20.0
+64,Fresh Vegetables,nectr Red Cabbage (Chemical Free),,1 Piece,,Upgrade,Sold Out,20,62,78,16,20.51
+65,Fresh Vegetables,nectr Green Cucumber (Chemical Free),"Crisper Bite, Fewer Seeds",3 Pieces,,,Sold Out,20,46,58,12,20.69
+66,Fresh Vegetables,Cucumber,"Fresh, juicy & best in salads or chutneys",2 Pieces x 2,,,Sold Out,20,32,40,8,20.0
+67,Fresh Vegetables,Onion -Value Pack (Eerulli),"Zero Sprouting, Zero Smut",3 kg,,,Sold Out,18,92,113,21,18.58
+68,Fresh Vegetables,Round Gourd (Dundagina Sorekaayi),"Mild, easy-to-digest & ideal for dry sabzi",250 g,,,Sold Out,20,39,49,10,20.41
+69,Fresh Vegetables,nectr Indian Tomato (Chemical Free),,8 Pieces,,Upgrade,Sold Out,19,53,66,13,19.7
+70,Fresh Vegetables,Pluckk Ozone Washed Desi Tomato,Pesticide-Free,500 g,,,Sold Out,20,42,53,11,20.75
+71,Fresh Vegetables,nectr Haricot Beans (Chemical Free),"Stringless, Fresher Taste",250 g,,,Sold Out,20,35,44,9,20.45
+72,Fresh Vegetables,Freshcon Cooked Chickpeas & Sweetcorn,"Convenient, great for salads or hummus.",1 Combo,,,Sold Out,20,136,170,34,20.0
+73,Fresh Vegetables,Yam Portion by Urban Harvest,"Pre-cut, clean & easy for sabzi or roast",250 g,,,Sold Out,20,68,85,17,20.0
+74,Fresh Vegetables,nectr Hybrid Tomato (Chemical Free),"Redder Colour, Firmer, Consistent",8 Pieces,,,Sold Out,20,55,69,14,20.29
+75,Fresh Vegetables,nectr Capsicum Green (Chemical Free),,2 Pieces,,Upgrade,Sold Out,20,38,48,10,20.83
+76,Fresh Vegetables,Potato (Aloo Gadde) Value Pack,"Versatile Vegetable, Cooking Staple.",3 kg,,,Sold Out,20,78,98,20,20.41
+77,Fresh Vegetables,nectr Radish,Cleaner Fresher Crisper,2 Pieces,,,Sold Out,19,25,31,6,19.35
+78,Fresh Vegetables,Freshcon Cooked Rajma & Sweetcorn,"Quick, high in protein, perfect for Indian dishes.",1 Combo,,,Sold Out,20,136,170,34,20.0
+79,Fresh Vegetables,Green Zucchini,"Low-cal, tender & best in grills or pasta",1 Piece,,,Sold Out,20,34,43,9,20.93
+80,Fresh Vegetables,nectr Sweet Potato (Chemical Free),Unblemished skin with uniform flesh colour,500 g,,,Sold Out,20,27,34,7,20.59
+81,Fresh Vegetables,nectr Onion (Chemical Free),,1 kg,,Upgrade,Sold Out,20,31,39,8,20.51
+82,Fresh Vegetables,White Onion (Bili Eerulli),"Sweet, mild onion ideal for salads & salsas!",500 g,,,Sold Out,20,54,68,14,20.59
+83,Fresh Vegetables,Yellow Bell Pepper (Haladi Dappa Menasinakaayi),"Sweet, crisp & adds color to stir-fry or salad",1 Piece,,,Sold Out,20,31,39,8,20.51
+84,Fresh Vegetables,Red & Yellow Bell Pepper - Protected Cultivation,Fresh bell peppers grown in a safe environment,2 Pieces,,,Sold Out,20,62,78,16,20.51
+85,Fresh Vegetables,Colocasia (Arvi),"Iron-rich, soft, tasty in curries",250 g x 2,,,Sold Out,25,36,48,12,25.0
+86,Fresh Vegetables,Freshcon Cooked Chickpeas & Black Chickpeas,"Convenient, great for salads or hummus.",1 Combo,,,Sold Out,20,136,170,34,20.0
+87,Fresh Vegetables,nectr Ridge Gourd (Chemical Free),"More Tender, Perfectly Grown",1 Piece,,Upgrade,Sold Out,19,21,26,5,19.23
+88,Fresh Vegetables,nectr Kateri Brinjal (Chemical Free),,250 g,,Upgrade,Sold Out,20,20,25,5,20.0
+89,Fresh Vegetables,Chandramukhi Potato (Aloo Gadde),Creamy texture ideal for mashing & roasting!,500 g,,,Sold Out,20,56,70,14,20.0

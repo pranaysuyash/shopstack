@@ -1,17 +1,14 @@
 from __future__ import annotations
 
-import logging
 from datetime import date
 
 import gradio as gr
 
-from shopstack.app_context import db, providers, tools, planner, model_registry
+from shopstack.app_context import db
 from shopstack.ui.screens import (
     today_dashboard,
-    shopping_list_view,
-    shopping_list_create,
-    _shopping_list_view_with_cards,
-    _build_shopping_list_and_refresh,
+    shopping_list_view_with_cards,
+    build_shopping_list_and_refresh,
     complete_shopping_list,
     shopping_list_item_choices,
     mark_items_purchased,
@@ -25,35 +22,29 @@ from shopstack.ui.screens import (
     inventory_view,
     inventory_cards_view,
     consume_item,
+    consume_items_batch,
+    seed_demo_inventory,
+    add_purchase_batch,
     use_soon_view,
     model_budget_view,
     provider_status_badge,
     price_memory_view,
+    price_intelligence_view,
     household_map_view,
     agent_trace_view,
-    agent_trace_detail,
     agent_trace_bootstrap,
     agent_trace_export_file,
-    _trace_bundle,
+    trace_bundle,
     field_notes_view,
     field_notes_save,
     export_data_json,
     export_data_csv,
     import_data_file,
-    provider_status_badge,
 )
-from shopstack.ui.screens._utils import (
-    WORKFLOW_STEPS,
-    WORKFLOW_ACTION_STEPS,
-    workflow_header,
-    workflow_title_bar,
-)
+from shopstack.ui.screens.other import move_inventory_to_location
+from shopstack.ui.screens._utils import WORKFLOW_STEPS, workflow_header, workflow_title_bar
 
 from shopstack.ui.theme import CSS
-
-_workflow_header = workflow_header
-
-logger = logging.getLogger(__name__)
 
 
 def build_app() -> gr.Blocks:
@@ -69,11 +60,15 @@ def build_app() -> gr.Blocks:
         with gr.Tabs(elem_classes="tabs") as tabs:
             with gr.Tab("Today", id="today"):
                 gr.HTML(workflow_header(WORKFLOW_STEPS))
+                with gr.Row():
+                    seed_btn = gr.Button("Load Demo Data", elem_classes="secondary")
+                seed_result = gr.HTML("")
                 today_stats = gr.HTML("")
                 today_soon = gr.HTML("")
                 today_list = gr.HTML("")
                 today_low = gr.HTML("")
                 today_recent = gr.HTML("")
+                seed_btn.click(seed_demo_inventory, outputs=seed_result)
                 app.load(today_dashboard, outputs=[today_stats, today_soon, today_list, today_low, today_recent])
 
             with gr.Tab("Ask ShopStack", id="ask"):
@@ -180,6 +175,12 @@ def build_app() -> gr.Blocks:
                 p_submit = gr.Button("Add to Inventory")
                 p_result = gr.HTML("")
                 p_submit.click(add_purchase_form, [p_name, p_qty, p_unit, p_price, p_store, p_location, p_date, p_category], p_result)
+                gr.Markdown("### Batch Add Purchases")
+                gr.Markdown("One item per line: `name, qty, unit, price, store, location, category`  \nOr paste JSON array.")
+                p_batch_input = gr.Textbox(label="Batch Purchases", lines=5, placeholder="milk, 2, L, 64, Sharma Kirana, fridge, dairy\nrice, 5, kg, 680, DMart, pantry_mid, grains")
+                p_batch_btn = gr.Button("Add Batch")
+                p_batch_result = gr.HTML("")
+                p_batch_btn.click(add_purchase_batch, p_batch_input, p_batch_result)
 
             with gr.Tab("Find Item at Home", id="inventory"):
                 gr.HTML(workflow_header(WORKFLOW_STEPS))
@@ -198,6 +199,11 @@ def build_app() -> gr.Blocks:
                 inv_refresh.click(inventory_view, outputs=inv_table)
                 inv_refresh.click(inventory_cards_view, outputs=inv_cards)
                 cons_btn.click(consume_item, [cons_lot, cons_qty], cons_result)
+                gr.Markdown("**Batch Consume** (one per line: `lot_id: qty`, or just `lot_id` for qty 1)")
+                batch_consume_input = gr.Textbox(label="Batch Consume", lines=4, placeholder="abc123: 0.5\ndef456: 1\nghi789")
+                batch_consume_btn = gr.Button("Consume Batch")
+                batch_consume_result = gr.HTML("")
+                batch_consume_btn.click(consume_items_batch, batch_consume_input, batch_consume_result)
                 app.load(inventory_view, outputs=inv_table)
                 app.load(inventory_cards_view, outputs=inv_cards)
 
@@ -238,10 +244,25 @@ def build_app() -> gr.Blocks:
                 price_table = gr.DataFrame(label="Price History")
                 price_search.click(price_memory_view, price_item, [price_summary, price_plot, unit_price_plot, price_table])
                 app.load(price_memory_view, inputs=price_item, outputs=[price_summary, price_plot, unit_price_plot, price_table])
+                gr.Markdown("### Price Intelligence")
+                pi_html = gr.HTML("")
+                pi_refresh = gr.Button("Refresh", elem_classes="secondary")
+                pi_refresh.click(price_intelligence_view, outputs=pi_html)
+                app.load(price_intelligence_view, outputs=pi_html)
 
             with gr.Tab("Map", id="map"):
                 gr.HTML(workflow_header(WORKFLOW_STEPS))
                 map_html = gr.HTML("")
+                gr.Markdown("### Move Item Between Locations")
+                with gr.Row():
+                    move_lot_input = gr.Textbox(label="Lot ID (or prefix)", placeholder="e.g. abc123")
+                    move_dest = gr.Dropdown(
+                        label="Destination",
+                        choices=[(l.name, l.location_id) for l in db.get_locations()],
+                    )
+                    move_btn = gr.Button("Move")
+                move_result = gr.HTML("")
+                move_btn.click(move_inventory_to_location, [move_lot_input, move_dest], move_result)
                 app.load(household_map_view, outputs=map_html)
 
             with gr.Tab("Model Stack", id="modelstack"):

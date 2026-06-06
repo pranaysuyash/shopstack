@@ -10,6 +10,8 @@ from shopstack.ui.screens._utils import (
     render_low_stock,
     render_recent_purchases,
 )
+from shopstack.ui.screens.inventory import seed_demo_inventory
+from shopstack.ui.screens.other import inventory_alerts, price_intelligence_view, what_is_in_fridge_now
 
 
 def today_dashboard():
@@ -46,10 +48,27 @@ def today_dashboard():
         "</div>"
     )
 
+    action_bar = (
+        "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:0 0 10px 0;'>"
+        "<a href='#market' class='gr-button' style='text-align:center;text-decoration:none;padding:8px 12px;'>Market Lens</a>"
+        "<a href='#purchase' class='gr-button' style='text-align:center;text-decoration:none;padding:8px 12px;'>Add Purchase</a>"
+        "<a href='#inventory' class='gr-button' style='text-align:center;text-decoration:none;padding:8px 12px;'>Inventory</a>"
+        "</div>"
+    )
+    alert_html = inventory_alerts(days_since_purchase=3)
+    fridge_html = what_is_in_fridge_now()
+
+    try:
+        price_alerts = price_intelligence_view()
+    except Exception:
+        price_alerts = ""
+
     return [
-        f"{hero}{workflow_preview}{quick_actions}",
+        f"{hero}{workflow_preview}{action_bar}{quick_actions}",
         render_home_advice(active_inv, low_items, use_soon["items"][:3]),
         render_list_summary(active_list),
+        f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;'>{fridge_html}{alert_html}</div>",
         f"<div class='stat-card' style='text-align:left;margin-bottom:12px;'><h3>Low Stock</h3>{render_low_stock(low_items)}</div>",
-        f"<div class='stat-card' style='text-align:left;margin-bottom:12px;'><h3>Recent Purchases</h3>{render_recent_purchases(purchases)}</div>",
+        f"<div class='stat-card' style='text-align:left;margin-bottom:12px;'><h3>Recent Purchases</h3>{render_recent_purchases(purchases)}</div>"
+        + (f"<div style='margin-top:12px;'>{price_alerts}</div>" if price_alerts and "No price intelligence" not in price_alerts else ""),
     ]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from datetime import date
 from html import escape
@@ -11,6 +12,81 @@ from shopstack.ui import empty_state, list_to_table
 from shopstack.ui.screens._utils import workflow_header
 
 logger = logging.getLogger(__name__)
+
+
+DEMO_SEED_INVENTORY = [
+    {
+        "canonical_name": "milk",
+        "display_name": "Milk",
+        "quantity": 2.0,
+        "unit": "liter",
+        "price": 74.0,
+        "store": "local milk booth",
+        "location": "fridge",
+        "category": "dairy",
+        "expiry": 7,
+    },
+    {
+        "canonical_name": "rice",
+        "display_name": "Basmati Rice",
+        "quantity": 5.0,
+        "unit": "kg",
+        "price": 410.0,
+        "store": "Big Bazaar",
+        "location": "pantry",
+        "category": "grains",
+    },
+    {
+        "canonical_name": "eggs",
+        "display_name": "Eggs",
+        "quantity": 12.0,
+        "unit": "pieces",
+        "price": 96.0,
+        "store": "Morning Eggstop",
+        "location": "fridge_top",
+        "category": "protein",
+    },
+    {
+        "canonical_name": "onion",
+        "display_name": "Onion",
+        "quantity": 1.5,
+        "unit": "kg",
+        "price": 32.0,
+        "store": "Local Vendor",
+        "location": "pantry_mid",
+        "category": "vegetable",
+    },
+    {
+        "canonical_name": "toothpaste",
+        "display_name": "Toothpaste",
+        "quantity": 1.0,
+        "unit": "unit",
+        "price": 129.0,
+        "store": "Apna Store",
+        "location": "bathroom_cabinet",
+        "category": "personal care",
+    },
+    {
+        "canonical_name": "olive oil",
+        "display_name": "Olive Oil",
+        "quantity": 1.0,
+        "unit": "L",
+        "price": 690.0,
+        "store": "Supermart",
+        "location": "pantry_mid",
+        "category": "cooking",
+    },
+    {
+        "canonical_name": "curd",
+        "display_name": "Curd",
+        "quantity": 0.5,
+        "unit": "kg",
+        "price": 48.0,
+        "store": "Fresh Dairy",
+        "location": "fridge",
+        "category": "dairy",
+    },
+]
 
 
 def add_purchase_form(
@@ -63,6 +139,122 @@ def add_purchase_form(
     except Exception as exc:
         logger.debug("Failed to record add purchase trace: %s", exc)
     return result
+
+
+def add_purchase_batch(raw_batch: str) -> str:
+    if not raw_batch or not str(raw_batch).strip():
+        return "<div style='color:var(--text-dim);'>Add at least one row: name, quantity, unit, price, store, location, category.</div>"
+
+    rows = str(raw_batch).strip().splitlines()
+    raw_text = "\n".join(r.strip() for r in rows if r.strip())
+    parsed: list[tuple[str, float, str, float, str, str, str]] = []
+
+    try:
+        if raw_text.startswith("[") or raw_text.startswith("{"):
+            loaded = json.loads(raw_text)
+            if isinstance(loaded, dict):
+                loaded = [loaded]
+            if not isinstance(loaded, list):
+                return "<div style='color:var(--red);'>Batch JSON must be an array of purchase objects.</div>"
+            for item in loaded:
+                if not isinstance(item, dict):
+                    continue
+                parsed.append(
+                    (
+                        str(item.get("display_name", item.get("name", item.get("canonical_name", ""))).strip()),
+                        float(item.get("quantity", 1.0) or 1.0),
+                        str(item.get("unit", "unit")),
+                        float(item.get("price", 0.0) or 0.0),
+                        str(item.get("store", "")).strip(),
+                        str(item.get("location", "kitchen")).strip(),
+                        str(item.get("category", "")).strip(),
+                    )
+                )
+        else:
+            for row in rows:
+                if not row.strip():
+                    continue
+                parts = [part.strip() for part in row.split(",")]
+                if len(parts) < 3:
+                    continue
+                parsed.append((
+                    parts[0],
+                    float(parts[1]) if len(parts) > 1 and parts[1] else 1.0,
+                    parts[2] or "unit",
+                    float(parts[3]) if len(parts) > 3 and parts[3] else 0.0,
+                    parts[4] if len(parts) > 4 else "",
+                    parts[5] if len(parts) > 5 else "kitchen",
+                    parts[6] if len(parts) > 6 else "",
+                ))
+    except (json.JSONDecodeError, ValueError):
+        return "<div style='color:var(--red);'>Could not parse batch purchase payload.</div>"
+
+    if not parsed:
+        return "<div style='color:var(--red);'>No valid purchase rows found.</div>"
+
+    added = []
+    for name, qty, unit, price, store, location, category in parsed:
+        if not name:
+            continue
+        result = tools.add_inventory_item(
+            canonical_name=name.lower().strip(),
+            display_name=name.strip(),
+            quantity=qty,
+            unit=unit,
+            storage_location_id=location or "kitchen",
+            category=category,
+            price_paid=price,
+            source_event_id="batch_add",
+        )
+        lot_id = result.get("lot_id", "")
+        if price > 0 and store:
+            tools.record_price_observation(
+                canonical_name=name.lower().strip(),
+                price=price,
+                quantity=qty,
+                unit=unit,
+                store_name=store,
+            )
+        added.append(f"{escape(name)} ({escape(str(lot_id)[:8])})")
+
+    if not added:
+        return "<div style='color:var(--text-dim);'>No items were added.</div>"
+    return f"<div style='color:var(--green);'>Added {len(added)} item(s): {', '.join(added)}</div>"
+
+
+def seed_demo_inventory() -> str:
+    existing = db.get_inventory()
+    if existing:
+        return "<div style='color:var(--text-dim);'>Demo seed already loaded.</div>"
+
+    added = []
+    for item in DEMO_SEED_INVENTORY:
+        name = item.get("display_name", item.get("canonical_name", ""))
+        result = tools.add_inventory_item(
+            canonical_name=str(item.get("canonical_name")).strip(),
+            display_name=str(name).strip(),
+            quantity=float(item.get("quantity", 1.0)),
+            unit=str(item.get("unit", "unit")),
+            storage_location_id=str(item.get("location", "kitchen")),
+            category=str(item.get("category", "")),
+            price_paid=float(item.get("price", 0.0) or 0.0),
+            source_event_id="demo_seed",
+        )
+        lot_id = result.get("lot_id", "")
+        if item.get("price") and item.get("store"):
+            tools.record_price_observation(
+                canonical_name=item.get("canonical_name", ""),
+                price=float(item.get("price", 0.0)),
+                quantity=float(item.get("quantity", 1.0)),
+                unit=str(item.get("unit", "unit")),
+                store_name=str(item.get("store", "")),
+            )
+        added.append(f"{name} ({lot_id[:8]})")
+
+    return (
+        f"<div style='color:var(--green);'>Loaded demo stock ({len(added)} items): "
+        f"{', '.join(escape(a) for a in added)}.</div>"
+    )
 
 
 def inventory_view(search: str = "") -> list[list[str]]:
@@ -134,6 +326,35 @@ def consume_item(lot_id: str, qty: float) -> str:
     if "error" in result:
         return f"<div style='color:var(--red);'>Error: {escape(str(result['error']))}</div>"
     return f"<div style='color:var(--green);'>Consumed {escape(str(qty))}. Remaining: {escape(str(result.get('remaining', 0)))}</div>"
+
+
+def consume_items_batch(lines_text: str) -> str:
+    if not lines_text:
+        return "<div style='color:var(--text-dim);'>Add at least one lot id and quantity.</div>"
+    entries = [line.strip() for line in str(lines_text).splitlines() if line.strip()]
+    if not entries:
+        return "<div style='color:var(--text-dim);'>No valid lines to parse.</div>"
+
+    summary = []
+    for entry in entries:
+        lot_id, _, qty_text = entry.partition(":")
+        if not qty_text:
+            qty_text = "1"
+        try:
+            qty = float(qty_text.strip())
+        except ValueError:
+            qty = 1.0
+        if not lot_id.strip():
+            continue
+        outcome = tools.consume_inventory_item(lot_id.strip(), qty)
+        if "error" in outcome:
+            summary.append(f"{escape(lot_id)}: ❌ {escape(str(outcome['error']))}")
+        else:
+            summary.append(f"{escape(lot_id)}: ✅ remaining {escape(str(outcome.get('remaining', 0))) }")
+
+    if not summary:
+        return "<div style='color:var(--red);'>No consumable lot ids found.</div>"
+    return "<div style='margin-top:8px;line-height:1.5;font-size:12px;'>" + "<br>".join(summary) + "</div>"
 
 
 def use_soon_view(days: int = 3) -> list[list[str]]:

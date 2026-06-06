@@ -18,9 +18,12 @@ from shopstack.ui.screens.market_lens import (
 from shopstack.ui.screens.ask import ask_shopstack
 from shopstack.ui.screens.inventory import (
     add_purchase_form,
+    add_purchase_batch,
     inventory_view,
     inventory_cards_view,
     consume_item,
+    consume_items_batch,
+    seed_demo_inventory,
     use_soon_view,
 )
 from shopstack.ui.screens.traces import (
@@ -35,6 +38,7 @@ from shopstack.ui.screens.traces import (
 from shopstack.ui.screens.model_stack import model_budget_view, provider_status_badge
 from shopstack.ui.screens.other import (
     price_memory_view,
+    price_intelligence_view,
     household_map_view,
     field_notes_view,
     field_notes_save,
@@ -57,9 +61,12 @@ __all__ = [
     "market_lens_barcode_add",
     "ask_shopstack",
     "add_purchase_form",
+    "add_purchase_batch",
     "inventory_view",
     "inventory_cards_view",
     "consume_item",
+    "consume_items_batch",
+    "seed_demo_inventory",
     "use_soon_view",
     "agent_trace_choices",
     "agent_trace_bootstrap",
@@ -71,6 +78,7 @@ __all__ = [
     "model_budget_view",
     "provider_status_badge",
     "price_memory_view",
+    "price_intelligence_view",
     "household_map_view",
     "field_notes_view",
     "field_notes_save",

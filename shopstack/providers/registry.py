@@ -82,6 +82,7 @@ def _try_real_provider(backend: str, settings: Settings) -> Any | None:
                 model_dir=settings.local_model_dir,
                 model_repo=settings.local_model_repo,
                 model_file=settings.local_model_file,
+                allow_download=settings.local_auto_download,
             )
         logger.info("Local provider not available (llama-cpp-python missing), falling back to mock")
         return None
@@ -98,9 +99,18 @@ class ProviderRegistry:
     def _init_all(self) -> None:
         if self._settings.off_the_grid:
             self._init_mock_all()
+            self._upgrade_planner_for_off_grid()
         else:
             self._init_configured()
         self._unified = MockUnifiedProvider()
+
+    def _upgrade_planner_for_off_grid(self) -> None:
+        backend = (self._settings.provider_backends.get("planner", "mock")).lower().strip()
+        if backend in {"mock", "mocked", ""}:
+            return
+        real = _try_real_provider(backend, self._settings)
+        if real:
+            self.register("planner", real)
 
     def _init_mock_all(self) -> None:
         for name, provider in [

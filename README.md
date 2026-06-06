@@ -32,11 +32,21 @@ uv run python app.py
 
 Open `http://localhost:7860` in your browser.
 
+## Market Snapshot Import
+
+ShopStack can ingest the real Swiggy Instamart fresh vegetables snapshot found in `data/swiggy_fresh_vegetables_cards_6jun26.json` (or the matching CSV) into the local price observation database.
+
+```bash
+uv run python scripts/import_swiggy_snapshot.py
+```
+
+Imported observations are tagged with `source_event_id = swiggy_fresh_vegetables_20260606` so they can be filtered or audited later.
+
 ## Tests
 
 ```bash
-uv run pytest tests/ -v          # 228 passed in 3.81s
-uv run pytest benchmarks/ -v -m benchmark  # 9 passed in 0.05s
+uv run pytest tests/ -v          # 182 passed, 64 errors in 4.81s
+uv run pytest benchmarks/ -v -m benchmark  # 9 passed in 0.08s
 ```
 
 | Module | Tests | What it covers |
@@ -70,6 +80,7 @@ shopstack/
     registry.py             # ToolRegistry — 11 tools executing against Database
   traces/
     export.py               # Trace creation, JSONL export, PII redaction
+  data_sources/             # Data source adapters for market snapshots and external feeds
   ui/                       # (reserved)
   configs/                  # (reserved)
 

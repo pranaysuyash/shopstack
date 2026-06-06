@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import logging
+import re
+from datetime import date
 from html import escape
 
 import gradio as gr
 import pandas as pd
 
-from shopstack.app_context import db
+from shopstack.schemas.models import new_id
+from shopstack.app_context import db, tools
 from shopstack.ui import build_price_memory_view, load_field_notes, save_field_notes
+
+
+logger = logging.getLogger(__name__)
 
 
 def price_memory_view(item_name: str = ""):
@@ -19,6 +26,97 @@ def price_memory_view(item_name: str = ""):
         gr.update(value=unit_plot_df, visible=len(unit_plot_df) > 0),
         view.table,
     )
+
+
+def price_intelligence_view() -> str:
+    latest_by_item: dict[str, dict] = {}
+    for row in db.conn.execute(
+        "SELECT canonical_name, store_name, price, quantity, unit, observation_date "
+        "FROM price_observations ORDER BY observation_date DESC"
+    ).fetchall():
+        name = row["canonical_name"]
+        if name not in latest_by_item:
+            latest_by_item[name] = {
+                "best_price": float(row["price"]),
+                "best_store": row["store_name"] or "Unknown",
+                "best_qty": float(row["quantity"]),
+                "best_unit": row["unit"],
+                "best_date": row["observation_date"],
+                "all_prices": [(float(row["price"]), row["store_name"] or "Unknown", float(row["quantity"]), row["unit"])],
+            }
+        else:
+            latest_by_item[name]["all_prices"].append(
+                (float(row["price"]), row["store_name"] or "Unknown", float(row["quantity"]), row["unit"])
+            )
+
+    alerts: list[str] = []
+    comparisons: list[str] = []
+
+    for name, info in sorted(latest_by_item.items()):
+        all_prices = info["all_prices"]
+        if len(all_prices) < 2:
+            continue
+
+        unit_prices = []
+        for price, store, qty, unit in all_prices:
+            if qty > 0:
+                up = price / qty
+                if unit and unit.lower() in ("g", "gram", "grams", "gm"):
+                    up = price / (qty / 1000)
+                elif unit and unit.lower() in ("ml", "milliliter"):
+                    up = price / (qty / 1000)
+                unit_prices.append((round(up, 2), store, price))
+        if len(unit_prices) < 2:
+            continue
+
+        unit_prices.sort()
+        best_up, best_store, best_price = unit_prices[0]
+        worst_up, worst_store, worst_price = unit_prices[-1]
+        if best_up > 0 and worst_up > best_up:
+            savings_pct = round((worst_up - best_up) / worst_up * 100)
+            if savings_pct >= 5:
+                comparisons.append(
+                    f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
+                    f"<strong>{escape(name)}</strong>: Best at {escape(best_store)} "
+                    f"(\u20b9{best_up:.2f}/unit) vs {escape(worst_store)} (\u20b9{worst_up:.2f}) "
+                    f"\u2014 save {savings_pct}%"
+                    f"</div>"
+                )
+
+        history = db.get_price_history(name)
+        if len(history) >= 2:
+            sorted_hist = sorted(history, key=lambda o: o.observation_date)
+            recent = sorted_hist[-1]
+            older = sorted_hist[-2] if len(sorted_hist) >= 2 else None
+            if older and recent.price < older.price:
+                drop_pct = round((older.price - recent.price) / older.price * 100)
+                if drop_pct >= 5:
+                    alerts.append(
+                        f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
+                        f"<strong>{escape(name)}</strong> price dropped {drop_pct}% "
+                        f"(\u20b9{older.price:.0f} \u2192 \u20b9{recent.price:.0f}) "
+                        f"\u2014 good time to buy"
+                        f"</div>"
+                    )
+
+    html_parts: list[str] = []
+    if alerts:
+        html_parts.append(
+            "<div class='home-card' style='text-align:left;margin-bottom:12px;'>"
+            "<h3>Price Drop Alerts</h3>"
+            + "".join(alerts[:8])
+            + "</div>"
+        )
+    if comparisons:
+        html_parts.append(
+            "<div class='home-card' style='text-align:left;margin-bottom:12px;'>"
+            "<h3>Best Price Across Stores</h3>"
+            + "".join(comparisons[:8])
+            + "</div>"
+        )
+    if not html_parts:
+        return "<div style='color:var(--text-dim);'>No price intelligence yet. Add more price observations across stores to see comparisons.</div>"
+    return "".join(html_parts)
 
 
 def household_map_view() -> str:
@@ -61,6 +159,108 @@ def household_map_view() -> str:
   {item_details_html}
 </div>"""
     return f"<h3>Household Storage Map</h3><div style='display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;'>{cards}</div>"
+
+
+def create_household_location(name: str, parent_id: str, location_type: str) -> str:
+    if not (name or "").strip():
+        return "<div style='color:var(--red);'>Location name is required.</div>"
+    normalized = re.sub(r"\s+", "_", name.strip().lower())
+    normalized = re.sub(r"[^a-z0-9_-]", "", normalized)
+    if not normalized:
+        normalized = "loc"
+    loc_id = f"{normalized}_{new_id()[:6]}"
+    try:
+        db.conn.execute(
+            "INSERT INTO household_locations (location_id, name, parent_location_id, location_type, notes) VALUES (?, ?, ?, ?, '')",
+            (loc_id, name.strip(), parent_id.strip() if parent_id else None, location_type or "shelf"),
+        )
+        db.conn.commit()
+    except Exception as exc:
+        return f"<div style='color:var(--red);'>Failed to create location: {escape(str(exc))}</div>"
+    return f"<div style='color:var(--green);'>Created location {escape(name)}.</div>"
+
+
+def move_inventory_to_location(lot_id_prefix: str, to_location_id: str) -> str:
+    if not lot_id_prefix:
+        return "<div style='color:var(--text-dim);'>Select a lot first.</div>"
+    if not to_location_id:
+        return "<div style='color:var(--red);'>Choose destination location.</div>"
+    result = tools.move_inventory_item(lot_id_prefix, to_location_id)
+    if "error" in result:
+        return f"<div style='color:var(--red);'>Move failed: {escape(str(result['error']))}</div>"
+    movement = result.get("movement", {})
+    from_loc = movement.get("from_location_id") or "unknown"
+    to_loc = movement.get("to", to_location_id)
+    return f"<div style='color:var(--green);'>Moved item {escape(str(result.get('movement', {}).get('lot_id', '')))} from {escape(str(from_loc))} to {escape(str(to_loc))}.</div>"
+
+
+def what_is_in_fridge_now() -> str:
+    locations = {l.location_id: l for l in db.get_locations()}
+    fridge_nodes = {
+        lid for lid, loc in locations.items()
+        if loc.location_id == "fridge" or loc.parent_location_id == "fridge" or loc.location_id.startswith("fridge_")
+    }
+    items = [
+        i for i in db.get_inventory()
+        if (i.storage_location_id in fridge_nodes)
+    ]
+    if not items:
+        return "<div style='color:var(--text-dim);'>Fridge is empty right now.</div>"
+    rows = "".join(
+        f"<div style='display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);'>"
+        f"<span>{escape(i.display_name)}</span>"
+        f"<span>{escape(str(i.quantity))} {escape(i.unit)}</span></div>"
+        for i in items
+    )
+    return f"<div class='home-card' style='text-align:left;'><h3>What's in the fridge now?</h3>{rows}</div>"
+
+
+def inventory_alerts(days_since_purchase: int = 3) -> str:
+    if days_since_purchase <= 0:
+        days_since_purchase = 3
+    low = [
+        l for l in db.get_inventory()
+        if l.quantity <= 0.5 or l.status == "low"
+    ]
+    stale = [
+        l for l in db.get_inventory()
+        if l.purchase_date and (date.today() - l.purchase_date).days >= days_since_purchase and l.quantity > 0
+    ]
+
+    today = date.today()
+    expiring_today = []
+    expiring_tomorrow = []
+    for l in db.get_inventory(status="active"):
+        ref = l.label_expiry_date or l.estimated_use_by_date
+        if not ref:
+            continue
+        delta = (ref - today).days
+        if delta == 0:
+            expiring_today.append(l)
+        elif delta == 1:
+            expiring_tomorrow.append(l)
+
+    if not low and not stale and not expiring_today and not expiring_tomorrow:
+        return "<div style='color:var(--text-dim);'>No proactive alerts at this time.</div>"
+
+    alerts = ""
+    if expiring_today:
+        alerts += "<div style='margin-bottom:8px;border-left:4px solid var(--red);padding-left:10px;'><strong style='color:var(--red);'>Expiring today!</strong><ul>"
+        alerts += "".join(f"<li>{escape(l.display_name)} ({escape(str(l.quantity))} {escape(l.unit)})</li>" for l in expiring_today)
+        alerts += "</ul></div>"
+    if expiring_tomorrow:
+        alerts += "<div style='margin-bottom:8px;border-left:4px solid var(--amber);padding-left:10px;'><strong style='color:var(--amber);'>Expiring tomorrow</strong><ul>"
+        alerts += "".join(f"<li>{escape(l.display_name)} ({escape(str(l.quantity))} {escape(l.unit)})</li>" for l in expiring_tomorrow)
+        alerts += "</ul></div>"
+    if low:
+        alerts += "<div style='margin-bottom:8px;'><strong>Reorder Candidates</strong><ul>"
+        alerts += "".join(f"<li>{escape(i.display_name)}: only {escape(str(i.quantity))} {escape(i.unit)} left</li>" for i in low)
+        alerts += "</ul></div>"
+    if stale:
+        alerts += "<div style='margin-bottom:8px;'><strong>Use soon reminders</strong><ul>"
+        alerts += "".join(f"<li>{escape(l.display_name)}: last purchased {(date.today() - l.purchase_date).days if l.purchase_date else '?'} days ago</li>" for l in stale)
+        alerts += "</ul></div>"
+    return f"<div class='home-card' style='text-align:left'>{alerts}</div>"
 
 
 def field_notes_view():

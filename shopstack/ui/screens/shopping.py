@@ -5,6 +5,7 @@ import logging
 from html import escape
 from datetime import date
 from typing import Any
+from urllib.parse import quote
 
 from shopstack.app_context import db, tools
 from shopstack.ui import list_to_table
@@ -272,6 +273,9 @@ def _shopping_list_share_text(items: list[dict[str, Any]]) -> str:
 
 def _shopping_list_share_html(share_text: str) -> str:
     safe_text = escape(share_text)
+    encoded = quote(share_text)
+    whatsapp_url = f"https://wa.me/?text={encoded}"
+    share_link = f"https://shopstack.local/share/list?text={encoded}"
     return (
         "<div style='margin-top:8px;'>"
         "<strong>Copy for WhatsApp</strong>"
@@ -286,6 +290,8 @@ def _shopping_list_share_html(share_text: str) -> str:
         "t.select();navigator.clipboard.writeText(t.value);"
         "this.textContent='Copied!';setTimeout(function(){this.textContent='Copy'}.bind(this),1500);"
         "\" class='gr-button' style='margin-top:6px;font-size:12px;'>Copy</button>"
+        f"<a class='gr-button' style='margin-top:6px;display:inline-block;text-decoration:none;' href='{whatsapp_url}' target='_blank'>Open WhatsApp</a>"
+        f"<a class='gr-button' style='margin-top:6px;display:inline-block;text-decoration:none;' href='{share_link}' target='_blank'>Shareable Link</a>"
         "</div>"
     )
 
