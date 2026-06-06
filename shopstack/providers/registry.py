@@ -53,6 +53,14 @@ def _load_whisper():
         return None
 
 
+def _load_local():
+    try:
+        from shopstack.providers.local_provider import LocalProvider
+        return LocalProvider
+    except ImportError:
+        return None
+
+
 def _try_real_provider(backend: str, settings: Settings) -> Any | None:
     if backend == "openai":
         cls = _load_openai()
@@ -65,6 +73,16 @@ def _try_real_provider(backend: str, settings: Settings) -> Any | None:
         if cls:
             return cls(api_key=settings.openai_api_key)
         logger.info("Whisper provider not available (openai package missing), falling back to mock")
+        return None
+    if backend == "local":
+        cls = _load_local()
+        if cls:
+            return cls(
+                model_dir=settings.local_model_dir,
+                model_repo=settings.local_model_repo,
+                model_file=settings.local_model_file,
+            )
+        logger.info("Local provider not available (llama-cpp-python missing), falling back to mock")
         return None
     return None
 

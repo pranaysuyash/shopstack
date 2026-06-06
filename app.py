@@ -1,15 +1,23 @@
 from __future__ import annotations
 
 import json
-import tempfile
+import logging
+import os
 import re
-from html import escape
+import tempfile
 from datetime import date
+from html import escape
 from typing import Any
 
 import gradio as gr
 
+logger = logging.getLogger(__name__)
+import pandas as pd
+
 from shopstack.config import settings
+from shopstack.scanner import decode_barcode, infer_product_from_code
+from shopstack.planner.engine import PlannerEngine
+from shopstack.portability import export_json, export_csv_inventory, import_json, import_csv
 from shopstack.model_registry import (
     MAX_ACTIVE_MODEL_PARAMS_B,
     get_active,
@@ -43,6 +51,7 @@ from shopstack.traces.export import (
 db = Database(settings.db_path)
 providers = ProviderRegistry(settings)
 tools = ToolRegistry(db)
+planner = PlannerEngine(db, tools, providers)
 model_registry = get_registry()
 
 CSS = """
@@ -96,6 +105,25 @@ label, .gr-form-label { color: var(--text) !important; font-size: 13px !importan
 .item-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); align-items: center; }
 .item-card { margin-bottom: 10px; }
 .chip { display: inline-block; border: 1px solid var(--border); border-radius: 999px; padding: 5px 10px; font-size: 11px; background: #fff; color: var(--text); }
+@media (max-width: 768px) {
+  .gradio-container { max-width: 100% !important; padding: 0 8px !important; }
+  .tab-nav button { font-size: 11px !important; padding: 6px 8px !important; white-space: nowrap; }
+  .gr-box, .home-card, .stat-card { border-radius: 12px !important; padding: 12px !important; }
+  .gr-text-input, .gr-number-input, input, textarea, select { font-size: 16px !important; }
+  .gr-button { padding: 10px 16px !important; font-size: 14px !important; min-height: 44px; }
+  .gr-dataframe { font-size: 11px !important; overflow-x: auto !important; display: block !important; }
+  .gr-dataframe table { min-width: 600px; }
+  .gr-dataframe th, .gr-dataframe td { padding: 6px 8px !important; white-space: nowrap; }
+  .stat-value { font-size: 24px !important; }
+  div[style*="display:grid"] { grid-template-columns: 1fr !important; }
+  .action-row { flex-direction: column !important; }
+  .item-row { flex-direction: column !important; align-items: flex-start !important; gap: 4px !important; }
+}
+@media (max-width: 480px) {
+  .tab-nav { display: flex !important; flex-wrap: wrap !important; gap: 2px !important; }
+  .tab-nav button { flex: 1 0 auto !important; min-width: 0 !important; padding: 6px 6px !important; font-size: 10px !important; }
+  .gr-button { width: 100% !important; }
+}
 """
 
 
@@ -823,6 +851,25 @@ def ask_shopstack(question: str) -> str:
     if not question:
         return "<div style='color:var(--text-dim);'>Ask ShopStack anything — e.g. “Do we have milk?” or “What should I buy today?”</div>"
 
+    # Use AI planner when a real provider is available
+    if planner.available:
+        try:
+            response = planner.process(question)
+            _record_workflow_trace(
+                input_type="text",
+                user_goal="ask_shopstack",
+                redacted_user_request=question,
+                perception={"query": question, "mode": "ai_planner"},
+                inventory_context={},
+                decision={"response_type": "planner"},
+                proposed_tool_calls=[{"tool_name": "planner", "args": {"question": question}}],
+                final_response=response,
+                human_confirmation="responded",
+            )
+            return response
+        except Exception as e:
+            logger.warning("AI planner failed, falling back to heuristic: %s", e)
+
     lowered = question.lower()
     response: str
 
@@ -889,7 +936,7 @@ def ask_shopstack(question: str) -> str:
                 }
                 for s in suggestions[:8]
             ]
-            response = ui_card("Today’s shopping suggestions", "".join(
+            response = ui_card("Today's shopping suggestions", "".join(
                 render_decision_card(i["canonical_name"], i["decision"], i["reason"], i["confidence"], None, show_actions=False)
                 for i in items
             ))
@@ -913,6 +960,32 @@ def ask_shopstack(question: str) -> str:
         human_confirmation="responded",
     )
     return response
+
+
+def market_lens_barcode(image_path: str | None) -> str:
+    if not image_path:
+        return "<div style='color:var(--text-dim);'>Upload or capture an image with a barcode first.</div>"
+    codes = decode_barcode(image_path)
+    if not codes:
+        return (
+            "<div class='stat-card'>"
+            "<div style='font-weight:600;'>No barcode detected</div>"
+            "<div style='font-size:12px;color:var(--text-dim);'>Try a clearer image or enter the product name manually.</div>"
+            "</div>"
+        )
+    parts = []
+    for code in codes:
+        info = infer_product_from_code(code["data"])
+        parts.append(
+            f"<div class='stat-card' style='margin-bottom:8px;'>"
+            f"<div style='font-weight:600;'>{escape(info['label'])}</div>"
+            f"<div style='font-size:11px;color:var(--text-dim);'>Type: {code['type']} | Code: {escape(code['data'])}</div>"
+            f"<div style='margin-top:6px;display:flex;gap:6px;'>"
+            f"<button class='gr-button lg primary' onclick=\"alert('Barcode: {escape(code['data'])}')\">Add to Inventory</button>"
+            f"</div>"
+            f"</div>"
+        )
+    return "".join(parts)
 
 
 def market_lens_process(image_path: str | None, audio_path: str | None) -> tuple:
@@ -1155,7 +1228,13 @@ def use_soon_view(days: int = 3) -> list[list[str]]:
 def price_memory_view(item_name: str = ""):
     view = build_price_memory_view(db, item_name)
     has_data = view.observation_count > 0
-    return view.summary_html, gr.update(value=view.df, visible=has_data), view.table
+    unit_plot_df = view.df[["date", "unit_price"]].dropna() if has_data else pd.DataFrame(columns=["date", "unit_price"])
+    return (
+        view.summary_html,
+        gr.update(value=view.df, visible=has_data),
+        gr.update(value=unit_plot_df, visible=len(unit_plot_df) > 0),
+        view.table,
+    )
 
 
 def household_map_view() -> str:
@@ -1226,6 +1305,39 @@ def field_notes_view():
 def field_notes_save(note_text: str):
     view = save_field_notes(db, note_text)
     return view.editor_value, view.preview_value, view.status_html
+
+
+def export_data_json() -> str:
+    data = export_json(db)
+    tmp = os.path.join(tempfile.mkdtemp(), "shopstack_export.json")
+    with open(tmp, "w") as f:
+        json.dump(data, f, indent=2, default=str)
+    return tmp
+
+
+def export_data_csv() -> str:
+    tmp = os.path.join(tempfile.mkdtemp(), "shopstack_inventory.csv")
+    csv_text = export_csv_inventory(db)
+    with open(tmp, "w") as f:
+        f.write(csv_text)
+    return tmp
+
+
+def import_data_file(file_path: str | None) -> str:
+    if not file_path:
+        return "<div style='color:var(--text-dim);'>Upload a JSON or CSV file first.</div>"
+    try:
+        path = str(file_path)
+        if path.endswith(".csv"):
+            with open(path) as f:
+                result = import_csv(db, f.read())
+        else:
+            with open(path) as f:
+                data = json.load(f)
+            result = import_json(db, data)
+        return result.summary_html
+    except Exception as e:
+        return f"<div style='color:var(--red);'>Import failed: {escape(str(e))}</div>"
 
 
 def provider_status_badge() -> str:
@@ -1315,11 +1427,16 @@ def build_app() -> gr.Blocks:
                 with gr.Row():
                     image_input = gr.Image(type="filepath", label="Camera / Photo")
                     audio_input = gr.Audio(type="filepath", label="Voice Note")
-                scan_btn = gr.Button("Scan & Compare to Inventory")
+                with gr.Row():
+                    scan_btn = gr.Button("Scan & Compare to Inventory", variant="primary")
+                    barcode_btn = gr.Button("Detect Barcode")
                 ml_results = gr.HTML("")
+                ml_barcode = gr.HTML("")
                 ml_items = gr.Textbox(label="Detected Items", visible=False)
                 ml_analysis = gr.Textbox(visible=False)
                 scan_btn.click(market_lens_process, [image_input, audio_input], [ml_results, ml_items, ml_analysis])
+                barcode_btn.click(market_lens_barcode, image_input, ml_barcode)
+                app.load(lambda: "", outputs=ml_barcode)
 
             with gr.Tab("Add Purchase", id="purchase"):
                 gr.HTML(_workflow_header(WORKFLOW_STEPS))
@@ -1431,6 +1548,20 @@ def build_app() -> gr.Blocks:
                 trace_export.click(agent_trace_export_file, trace_selector, trace_file)
                 app.load(lambda: agent_trace_view()[0], outputs=trace_table)
                 app.load(agent_trace_bootstrap, outputs=[trace_selector, trace_timeline, trace_raw, trace_bootstrap_state])
+
+            with gr.Tab("Export / Import", id="portability"):
+                gr.HTML(_workflow_header(WORKFLOW_STEPS))
+                with gr.Tab("Export"):
+                    export_json_btn = gr.Button("Export Inventory as JSON")
+                    export_csv_btn = gr.Button("Export Inventory as CSV")
+                    export_file = gr.File(label="Download", visible=False)
+                    export_json_btn.click(export_data_json, outputs=export_file)
+                    export_csv_btn.click(export_data_csv, outputs=export_file)
+                with gr.Tab("Import"):
+                    import_file = gr.File(label="Upload JSON or CSV", file_count="single")
+                    import_btn = gr.Button("Import Data")
+                    import_result = gr.HTML("")
+                    import_btn.click(import_data_file, import_file, import_result)
 
             with gr.Tab("Field Notes", id="notes"):
                 gr.HTML(_workflow_header(WORKFLOW_STEPS))

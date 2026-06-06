@@ -17,6 +17,10 @@ class Settings(BaseSettings):
 
     openai_api_key: str = ""
 
+    local_model_dir: str = ""
+    local_model_repo: str = "unsloth/Llama-3.2-3B-Instruct-GGUF"
+    local_model_file: str = "Llama-3.2-3B-Instruct-Q4_K_M.gguf"
+
     planner_backend: str = "mock"
     stt_backend: str = "mock"
     tts_backend: str = "mock"

@@ -58,7 +58,8 @@ class Database:
                 image_crop_path TEXT,
                 status TEXT DEFAULT 'active',
                 created_at TEXT,
-                updated_at TEXT
+                updated_at TEXT,
+                user_id TEXT DEFAULT ''
             );
 
             CREATE TABLE IF NOT EXISTS purchase_events (
@@ -73,7 +74,8 @@ class Database:
                 store_name TEXT,
                 raw_text TEXT,
                 source_file_path TEXT,
-                confirmed INTEGER DEFAULT 0
+                confirmed INTEGER DEFAULT 0,
+                user_id TEXT DEFAULT ''
             );
 
             CREATE TABLE IF NOT EXISTS shopping_lists (
@@ -82,7 +84,8 @@ class Database:
                 created_at TEXT,
                 updated_at TEXT,
                 goal TEXT DEFAULT '',
-                is_active INTEGER DEFAULT 1
+                is_active INTEGER DEFAULT 1,
+                user_id TEXT DEFAULT ''
             );
 
             CREATE TABLE IF NOT EXISTS shopping_list_items (
@@ -129,7 +132,8 @@ class Database:
                 store_id TEXT,
                 observation_date TEXT,
                 source_event_id TEXT DEFAULT '',
-                notes TEXT
+                notes TEXT,
+                user_id TEXT DEFAULT ''
             );
 
             CREATE TABLE IF NOT EXISTS stores (
@@ -151,7 +155,8 @@ class Database:
                 proposed_tool_calls TEXT DEFAULT '[]',
                 human_confirmation TEXT,
                 final_response TEXT DEFAULT '',
-                timestamp TEXT
+                timestamp TEXT,
+                user_id TEXT DEFAULT ''
             );
 
             CREATE TABLE IF NOT EXISTS app_config (
@@ -177,8 +182,17 @@ class Database:
                 DELETE FROM traces WHERE trace_id = OLD.trace_id;
             END;
         """)
+        self._migrate_add_user_scoping()
         self._seed_locations()
         self.conn.commit()
+
+    def _migrate_add_user_scoping(self) -> None:
+        tables = ["inventory_lots", "purchase_events", "shopping_lists", "traces", "price_observations"]
+        for table in tables:
+            try:
+                self.conn.execute(f"ALTER TABLE {table} ADD COLUMN user_id TEXT DEFAULT ''")
+            except Exception:
+                pass
 
     def _seed_locations(self) -> None:
         existing = self.conn.execute("SELECT COUNT(*) FROM household_locations").fetchone()[0]
@@ -212,14 +226,14 @@ class Database:
 
     # --- Inventory CRUD ---
 
-    def add_inventory_lot(self, lot: InventoryLot) -> InventoryLot:
+    def add_inventory_lot(self, lot: InventoryLot, user_id: str = "") -> InventoryLot:
         self.conn.execute(
             """INSERT INTO inventory_lots
                (lot_id, canonical_name, display_name, category, quantity, unit,
                 storage_location_id, purchase_date, estimated_use_by_date,
                 label_expiry_date, opened_date, price_paid, currency,
-                source_event_id, confidence, image_crop_path, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                source_event_id, confidence, image_crop_path, status, created_at, updated_at, user_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 lot.lot_id, lot.canonical_name, lot.display_name, lot.category,
                 lot.quantity, lot.unit, lot.storage_location_id,
@@ -228,19 +242,20 @@ class Database:
                 lot.price_paid, lot.currency, lot.source_event_id,
                 lot.confidence, lot.image_crop_path, lot.status,
                 lot.created_at.isoformat(), lot.updated_at.isoformat(),
+                user_id,
             ),
         )
         self.conn.commit()
         return lot
 
-    def update_inventory_lot(self, lot_id: str, updates: dict) -> InventoryLot | None:
+    def update_inventory_lot(self, lot_id: str, updates: dict, user_id: str = "") -> InventoryLot | None:
         existing = self.get_inventory_lot(lot_id)
         if not existing:
             return None
         fields = ["canonical_name", "display_name", "category", "quantity", "unit",
                   "storage_location_id", "purchase_date", "estimated_use_by_date",
                   "label_expiry_date", "opened_date", "price_paid", "currency",
-                  "confidence", "image_crop_path", "status"]
+                  "confidence", "image_crop_path", "status", "user_id"]
         set_clauses = []
         vals = []
         for f in fields:
@@ -283,10 +298,14 @@ class Database:
 
     def get_inventory(
         self, status: str | None = None, location_id: str | None = None,
-        category: str | None = None,
+        category: str | None = None, user_id: str = "",
+        canonical_name: str | None = None,
     ) -> list[InventoryLot]:
         parts = ["SELECT * FROM inventory_lots WHERE 1=1"]
         params: list[Any] = []
+        if user_id:
+            parts.append("AND user_id = ?")
+            params.append(user_id)
         if status:
             parts.append("AND status = ?")
             params.append(status)
@@ -296,6 +315,9 @@ class Database:
         if category:
             parts.append("AND category = ?")
             params.append(category)
+        if canonical_name:
+            parts.append("AND canonical_name = ?")
+            params.append(canonical_name)
         parts.append("ORDER BY created_at DESC")
         rows = self.conn.execute(" ".join(parts), params).fetchall()
         return [_row_to_lot(r) for r in rows if r]
@@ -324,19 +346,23 @@ class Database:
 
     # --- Shopping List CRUD ---
 
-    def create_shopping_list(self, name: str = "Shopping List", goal: str = "") -> ShoppingList:
+    def create_shopping_list(self, name: str = "Shopping List", goal: str = "", user_id: str = "") -> ShoppingList:
         sl = ShoppingList(name=name, goal=goal)
         self.conn.execute(
-            "INSERT INTO shopping_lists (list_id, name, created_at, updated_at, goal, is_active) VALUES (?, ?, ?, ?, ?, 1)",
-            (sl.list_id, sl.name, sl.created_at.isoformat(), sl.updated_at.isoformat(), sl.goal),
+            "INSERT INTO shopping_lists (list_id, name, created_at, updated_at, goal, is_active, user_id) VALUES (?, ?, ?, ?, ?, 1, ?)",
+            (sl.list_id, sl.name, sl.created_at.isoformat(), sl.updated_at.isoformat(), sl.goal, user_id),
         )
         self.conn.commit()
         return sl
 
-    def get_active_shopping_list(self) -> ShoppingList | None:
-        row = self.conn.execute(
-            "SELECT * FROM shopping_lists WHERE is_active = 1 ORDER BY created_at DESC LIMIT 1"
-        ).fetchone()
+    def get_active_shopping_list(self, user_id: str = "") -> ShoppingList | None:
+        query = "SELECT * FROM shopping_lists WHERE is_active = 1"
+        params: list[str] = []
+        if user_id:
+            query += " AND user_id = ?"
+            params.append(user_id)
+        query += " ORDER BY created_at DESC LIMIT 1"
+        row = self.conn.execute(query, params).fetchone()
         if not row:
             return None
         return _row_to_list(row, self.conn)
@@ -419,21 +445,25 @@ class Database:
 
     # --- Price Observations ---
 
-    def record_price(self, price: PriceObservation) -> PriceObservation:
+    def record_price(self, price: PriceObservation, user_id: str = "") -> PriceObservation:
         self.conn.execute(
-            "INSERT INTO price_observations (price_id, canonical_name, quantity, unit, price, currency, store_name, store_id, observation_date, source_event_id, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO price_observations (price_id, canonical_name, quantity, unit, price, currency, store_name, store_id, observation_date, source_event_id, notes, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (price.price_id, price.canonical_name, price.quantity, price.unit,
              price.price, price.currency, price.store_name, price.store_id,
-             _d(price.observation_date), price.source_event_id, price.notes),
+             _d(price.observation_date), price.source_event_id, price.notes,
+             user_id),
         )
         self.conn.commit()
         return price
 
-    def get_price_history(self, canonical_name: str) -> list[PriceObservation]:
-        rows = self.conn.execute(
-            "SELECT * FROM price_observations WHERE canonical_name = ? ORDER BY observation_date DESC, rowid DESC",
-            (canonical_name,),
-        ).fetchall()
+    def get_price_history(self, canonical_name: str, user_id: str = "") -> list[PriceObservation]:
+        query = "SELECT * FROM price_observations WHERE canonical_name = ?"
+        params: list[str | None] = [canonical_name]
+        if user_id:
+            query += " AND user_id = ?"
+            params.append(user_id)
+        query += " ORDER BY observation_date DESC, rowid DESC"
+        rows = self.conn.execute(query, params).fetchall()
         return [_row_to_price(r) for r in rows]
 
     # --- Stores ---
@@ -468,9 +498,9 @@ class Database:
 
     # --- Traces ---
 
-    def save_trace(self, trace: Trace) -> Trace:
+    def save_trace(self, trace: Trace, user_id: str = "") -> Trace:
         self.conn.execute(
-            "INSERT OR REPLACE INTO traces (trace_id, input_type, user_goal, redacted_user_request, perception, inventory_context, decision, proposed_tool_calls, human_confirmation, final_response, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO traces (trace_id, input_type, user_goal, redacted_user_request, perception, inventory_context, decision, proposed_tool_calls, human_confirmation, final_response, timestamp, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 trace.trace_id, trace.input_type, trace.user_goal,
                 trace.redacted_user_request, json.dumps(trace.perception),
@@ -478,35 +508,47 @@ class Database:
                 json.dumps([t.model_dump() for t in trace.proposed_tool_calls]),
                 trace.human_confirmation, trace.final_response,
                 trace.timestamp.isoformat(),
+                user_id,
             ),
         )
         self.conn.commit()
         return trace
 
-    def get_traces(self, limit: int = 50) -> list[Trace]:
-        rows = self.conn.execute(
-            "SELECT * FROM traces ORDER BY timestamp DESC LIMIT ?", (limit,)
-        ).fetchall()
+    def get_traces(self, limit: int = 50, user_id: str = "") -> list[Trace]:
+        query = "SELECT * FROM traces"
+        params: list[str | int] = []
+        if user_id:
+            query += " WHERE user_id = ?"
+            params.append(user_id)
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+        rows = self.conn.execute(query, params).fetchall()
         return [_row_to_trace(r) for r in rows]
 
     # --- Purchase Events ---
 
-    def add_purchase_event(self, event: PurchaseEvent) -> PurchaseEvent:
+    def add_purchase_event(self, event: PurchaseEvent, user_id: str = "") -> PurchaseEvent:
         self.conn.execute(
-            "INSERT INTO purchase_events (event_id, timestamp, canonical_name, quantity, unit, total_price, currency, source_type, store_name, raw_text, source_file_path, confirmed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO purchase_events (event_id, timestamp, canonical_name, quantity, unit, total_price, currency, source_type, store_name, raw_text, source_file_path, confirmed, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (event.event_id, event.timestamp.isoformat(),
              event.canonical_name, event.quantity, event.unit,
              event.total_price, event.currency, event.source_type,
              event.store_name, event.raw_text, event.source_file_path,
-             1 if event.confirmed else 0),
+             1 if event.confirmed else 0,
+             user_id),
         )
         self.conn.commit()
         return event
 
-    def get_purchase_events(self, limit: int = 20) -> list[PurchaseEvent]:
-        rows = self.conn.execute(
-            "SELECT * FROM purchase_events ORDER BY timestamp DESC LIMIT ?", (limit,)
-        ).fetchall()
+    def get_purchase_events(self, limit: int = 20, user_id: str = "") -> list[PurchaseEvent]:
+        query = "SELECT * FROM purchase_events"
+        params: list[str | int] = []
+        if user_id:
+            query += " WHERE user_id = ?"
+            params.append(user_id)
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+        rows = self.conn.execute(query, params).fetchall()
         return [_row_to_purchase(r) for r in rows]
 
     def get_purchases(self, limit: int = 20) -> list[PurchaseEvent]:

@@ -23,5 +23,8 @@ setup(
         "openai": [
             "openai>=1.0",
         ],
+        "local": [
+            "llama-cpp-python>=0.3",
+        ],
     },
 )

@@ -12,7 +12,7 @@
 - **Bold, long-term, first-principles engineering** — governed by `motto_v2.md` as the active operating rules.
 
 ## Architecture
-
+   
 ```
 app.py (Gradio Blocks)
   → shopstack.ui (views, components/cards — HTML rendering)
@@ -20,8 +20,11 @@ app.py (Gradio Blocks)
     → Database (SQLite, WAL mode, 10 tables)
   → ProviderRegistry (wired from config)
     → MockProviders (default, 11 interfaces)
+    → LocalProvider (MLX + llama.cpp fallback, capability-optional)
   → settings (pydantic-settings, env overridable)
   → model_registry (16 candidates, not loaded by default)
+  → Planners (engine → parser → prompt builder)
+     ↓ calls ProviderRegistry.get_completion()
 ```
 
 ## Key Files
@@ -34,10 +37,14 @@ app.py (Gradio Blocks)
 | `shopstack/persistence/database.py` | SQLite Database, CRUD, 18 seeded locations |
 | `shopstack/providers/interfaces.py` | 11 abstract provider ABCs |
 | `shopstack/providers/mock_providers.py` | Mock implementations for all providers |
+| `shopstack/providers/local_provider.py` | Local provider (MLX + llama.cpp, capability-optional) |
 | `shopstack/providers/registry.py` | Provider factory |
 | `shopstack/tools/registry.py` | 11 tool implementations |
 | `shopstack/traces/export.py` | Trace redaction, JSONL export |
 | `shopstack/model_registry.py` | 16 candidate model entries |
+| `shopstack/planner/prompts.py` | Prompt builder for LLM tool-calling |
+| `shopstack/planner/parser.py` | Robust JSON + tool-call extraction for local model output |
+| `shopstack/planner/engine.py` | PlannerEngine — orchestrates completion → parse → execute |
 | `shopstack/ui/__init__.py` | UI package — re-exports views + components |
 | `shopstack/ui/views.py` | Price memory, field notes view builders (dataclass returns) |
 | `shopstack/ui/components/cards.py` | HTML rendering helpers (badge, card, decision card, metric) |
@@ -52,9 +59,14 @@ shopstack/
   model_registry.py
   persistence/
     database.py         (SQLite, check_same_thread=False)
+  planner/
+    prompts.py          (system prompt builder for tool-calling)
+    parser.py           (robust JSON + tool_call extraction)
+    engine.py           (PlannerEngine — complete → parse → execute)
   providers/
     interfaces.py       (11 ABCs)
     mock_providers.py   (all mock)
+    local_provider.py   (MLX + llama.cpp, capability-optional)
     registry.py
   schemas/
     models.py           (all Pydantic domain models)
@@ -124,19 +136,21 @@ A hook at `.git/hooks/pre-commit` runs `tools/sync-readme-stats` which extracts 
 | `tests/test_database.py` | 27 | All 10 tables: CRUD, edge cases, seeds, deprecated wrappers |
 | `tests/test_schemas.py` | 17 | Model validation, defaults, edge cases |
 | `tests/test_tools.py` | 20 | All 11 tools, arg validation, list tools, prefix resolution |
-| `tests/test_traces.py` | 10 | PII redaction, trace creation, JSONL export |
-| `tests/test_provider_registry.py` | 1 | Mock fallback for custom backends |
-| `tests/test_model_registry.py` | 1 | Parameter limit enforcement |
+| `tests/test_traces.py` | 14 | PII redaction, trace creation, JSONL export |
+| `tests/test_provider_registry.py` | 2 | Mock fallback for custom backends, local backend fallback |
+| `tests/test_model_registry.py` | 4 | Parameter limit enforcement, budget validation |
 | `tests/test_ui_support.py` | 16 | PriceMemoryView, FieldNotesView, escaping, sort, unit price, list_to_table |
 | `tests/test_views.py` | 31 | All view functions: dashboard, shopping, add (inc. neg validation), inventory, cards, consume (inc. prefix), use-soon, map, traces, field notes |
-| `tests/test_app.py` | 4 | App smoke tests (build_app, imports, dashboard shape) |
-| **Total** | **146** | (growing) |
+| `tests/test_app.py` | 5 | App smoke tests (build_app, imports, dashboard shape, tabs) |
+| `tests/test_portability.py` | 18 | JSON + CSV export/import, dedup, validation, summary HTML |
+| `tests/test_local_provider.py` | 10 | Local provider init, graceful fallback, capability checks |
+| `tests/test_planner.py` | 25 | JSON extraction, tool-call parsing, inventory formatting, planner engine |
+| **Total** | **211** | (growing) |
 
 ## Next Work
 
-- Real provider implementations (GGUF/llama.cpp wrappers, Whisper.cpp STT, etc.)
-- Export/import inventory data
-- Multi-user support
-- Mobile-friendly UI refinements
-- Time-series price trend visualization (foundations exist in price memory view)
-- Barcode/QR scanning via Market Lens
+- Live deployment test, load testing, performance benchmarking
+- Seed demo data for walkthroughs
+- CI pipeline (GitHub Actions + test suite)
+- HF Inference API provider for fallback when local models aren't installed
+- Modal provider for cloud GPU inference
