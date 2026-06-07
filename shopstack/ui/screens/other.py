@@ -307,7 +307,7 @@ def swiggy_market_view() -> str:
 
     parts.append(
         f"<div class='home-card' style='text-align:left;margin-bottom:12px;'>"
-        f"<h3>Swiggy Fresh Vegetables — {snapshot.captured_at}</h3>"
+        f"<h3>Swiggy Fresh Vegetables \u2014 {snapshot.captured_at}</h3>"
         f"{_market_freshness_html(snapshot)}"
         f"<div style='display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;'>"
         f"<div><strong>{analytics['total']}</strong> items</div>"

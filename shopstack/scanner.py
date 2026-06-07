@@ -35,21 +35,21 @@ def decode_barcode(image_path: str) -> list[dict[str, Any]]:
 
     from PIL import Image
     try:
-        img = Image.open(image_path)
-        results = _pyzbar_decode(img)
-        return [
-            {
-                "data": r.data.decode("utf-8", errors="replace"),
-                "type": str(r.type),
-                "rect": {
-                    "x": r.rect.left,
-                    "y": r.rect.top,
-                    "w": r.rect.width,
-                    "h": r.rect.height,
-                },
-            }
-            for r in results
-        ]
+        with Image.open(image_path) as img:
+            results = _pyzbar_decode(img)
+            return [
+                {
+                    "data": r.data.decode("utf-8", errors="replace"),
+                    "type": str(r.type),
+                    "rect": {
+                        "x": r.rect.left,
+                        "y": r.rect.top,
+                        "w": r.rect.width,
+                        "h": r.rect.height,
+                    },
+                }
+                for r in results
+            ]
     except Exception as e:
         logger.warning("pyzbar decode failed, falling back to subprocess", exc_info=True)
         return _try_zbar_subprocess(image_path)

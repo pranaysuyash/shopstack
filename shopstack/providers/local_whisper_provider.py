@@ -23,6 +23,7 @@ class LocalWhisperProvider:
         mlx_model: str = DEFAULT_MLX_MODEL,
         device: str = "auto",
         compute_type: str = "default",
+        auto_unload: bool = True,
     ):
         self._model_dir = model_dir or str(
             Path(__file__).resolve().parent.parent.parent / "data" / "models" / "whisper"
@@ -35,6 +36,7 @@ class LocalWhisperProvider:
         self._error: str | None = None
         self._backend: str = ""
         self._model: Any = None
+        self._auto_unload = auto_unload
         self._last_latency_ms: float | None = None
         self._init()
 
@@ -50,7 +52,6 @@ class LocalWhisperProvider:
         except ImportError:
             self._error = "mlx-whisper not installed. Run: uv pip install mlx-whisper"
             return
-        # mlx-whisper loads models on demand during transcribe()
         self._backend = "mlx"
         self._available = True
         self._error = None
@@ -80,13 +81,10 @@ class LocalWhisperProvider:
                 compute = "int8" if device == "cpu" else "float16"
 
             local_dir = os.path.join(self._model_dir, self._model_size)
-            self._model = WhisperModel(
-                self._model_size,
-                device=device,
-                compute_type=compute,
-                download_root=local_dir,
-            )
             self._backend = "faster-whisper"
+            self._model_path = local_dir
+            self._compute_type = compute
+            self._device = device
             self._available = True
             self._error = None
             logger.info(
@@ -98,6 +96,30 @@ class LocalWhisperProvider:
             self._available = False
             logger.warning("faster-whisper provider init failed", exc_info=True)
 
+    def _init_faster_model(self) -> bool:
+        if self._model is not None:
+            return True
+        if self._backend != "faster-whisper":
+            return False
+        try:
+            from faster_whisper import WhisperModel
+            self._model = WhisperModel(
+                self._model_size,
+                device=self._device,
+                compute_type=self._compute_type,
+                download_root=self._model_path,
+            )
+            return True
+        except Exception as e:
+            self._error = f"Failed to initialize faster-whisper runtime: {e}"
+            logger.warning("faster-whisper runtime init failed", exc_info=True)
+            return False
+
+    def _maybe_unload_model(self) -> None:
+        if not self._auto_unload:
+            return
+        self._model = None
+
     def transcribe(self, audio_path: str, language: str = "en") -> dict[str, Any]:
         if not self._available:
             return {"text": "", "error": self._error or "Local Whisper not available"}
@@ -106,6 +128,9 @@ class LocalWhisperProvider:
             return {"text": "", "error": f"Audio file not found: {audio_path}"}
 
         try:
+            if self._backend == "faster-whisper" and self._model is None:
+                if not self._init_faster_model():
+                    return {"text": "", "error": self._error or "Local Whisper runtime not available"}
             t0 = time.monotonic()
 
             if self._backend == "mlx":
@@ -169,6 +194,8 @@ class LocalWhisperProvider:
         except Exception as e:
             logger.warning("Local Whisper transcription failed", exc_info=True)
             return {"text": "", "error": str(e), "model": self.name}
+        finally:
+            self._maybe_unload_model()
 
     @property
     def available(self) -> bool:

@@ -57,6 +57,10 @@ class PlannerEngine:
         try:
             if hasattr(provider, "plan"):
                 result = provider.plan({"prompt": prompt, "question": question})
+                # Interface contract: plan() may return a list of tool calls directly
+                if isinstance(result, list):
+                    outcomes = self._execute_tool_calls(result)
+                    return self._format_outcomes(outcomes, question)
                 raw_text = str(result.get("text", ""))
             else:
                 result = provider.complete(prompt)

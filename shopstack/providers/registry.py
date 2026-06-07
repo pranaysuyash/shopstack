@@ -70,6 +70,14 @@ def _load_local():
         return None
 
 
+def _load_huggingface():
+    try:
+        from shopstack.providers.huggingface_provider import HuggingFaceProvider
+        return HuggingFaceProvider
+    except ImportError:
+        return None
+
+
 def _try_real_provider(backend: str, settings: Settings) -> Any | None:
     if backend == "local_whisper":
         cls = _load_local_whisper()
@@ -77,6 +85,7 @@ def _try_real_provider(backend: str, settings: Settings) -> Any | None:
             return cls(
                 model_dir=settings.local_model_dir,
                 model_size=settings.local_whisper_size,
+                auto_unload=settings.local_whisper_auto_unload,
             )
         logger.info("Local Whisper provider not available (mlx-whisper / faster-whisper missing), falling back to mock")
         return None
@@ -100,8 +109,15 @@ def _try_real_provider(backend: str, settings: Settings) -> Any | None:
                 model_repo=settings.local_model_repo,
                 model_file=settings.local_model_file,
                 allow_download=settings.local_auto_download,
+                auto_unload=settings.local_auto_unload,
             )
         logger.info("Local provider not available (llama-cpp-python missing), falling back to mock")
+        return None
+    if backend == "huggingface":
+        cls = _load_huggingface()
+        if cls:
+            return cls(api_key=settings.hf_api_key)
+        logger.info("HuggingFace provider not available (huggingface_hub package missing), falling back to mock")
         return None
     return None
 

@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     data_dir: str = str(Path(__file__).resolve().parent.parent / "data")
 
     openai_api_key: str = ""
+    hf_api_key: str = ""
 
     local_model_dir: str = ""
     local_model_repo: str = "unsloth/Llama-3.2-3B-Instruct-GGUF"
@@ -25,6 +26,11 @@ class Settings(BaseSettings):
     local_auto_download: bool = False
 
     local_whisper_size: str = "tiny"
+    local_auto_unload: bool = True
+    local_whisper_auto_unload: bool = True
+
+    trace_max_rows: int = 2000
+    trace_ttl_days: int = 30
 
     planner_backend: str = "mock"
     stt_backend: str = "mock"

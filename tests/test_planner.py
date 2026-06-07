@@ -176,34 +176,40 @@ class TestFormatInventoryContext:
 # ─── Planner engine tests ────────────────────────────────────────
 
 class TestPlannerEngine:
-    def test_not_available_with_mock_backend(self):
+    def test_mock_backend_is_available(self):
+        """Mock planner provider is available by design (returns canned tool calls)."""
         from shopstack.config import Settings
         from shopstack.persistence.database import Database
         from shopstack.providers.registry import ProviderRegistry
         from shopstack.tools.registry import ToolRegistry
         from shopstack.planner.engine import PlannerEngine
 
-        settings = Settings(_env_file=None, off_the_grid=True)
+        settings = Settings(_env_file=None, off_the_grid=True, planner_backend="mock")
         db = Database(":memory:")
         providers = ProviderRegistry(settings)
         tools = ToolRegistry(db)
         engine = PlannerEngine(db, tools, providers)
-        assert not engine.available
+        assert engine.available
 
-    def test_process_returns_setup_message_when_not_available(self):
+    def test_process_returns_formatted_response_with_mock_backend(self):
+        """Mock planner processes queries and returns formatted HTML tool outcomes."""
         from shopstack.config import Settings
         from shopstack.persistence.database import Database
         from shopstack.providers.registry import ProviderRegistry
         from shopstack.tools.registry import ToolRegistry
         from shopstack.planner.engine import PlannerEngine
 
-        settings = Settings(_env_file=None, off_the_grid=True)
+        settings = Settings(_env_file=None, off_the_grid=True, planner_backend="mock")
         db = Database(":memory:")
         providers = ProviderRegistry(settings)
         tools = ToolRegistry(db)
         engine = PlannerEngine(db, tools, providers)
         result = engine.process("Do we have milk?")
-        assert "Planner not available" in result
+        # Mock planner executes its canned tool call (add_inventory_item)
+        # and returns a formatted HTML response with outcomes.
+        assert isinstance(result, str)
+        assert len(result) > 0
+        assert "Planner" in result or "inventory" in result or "tomato" in result
 
     def test_process_escapes_provider_response_text(self):
         from shopstack.config import Settings

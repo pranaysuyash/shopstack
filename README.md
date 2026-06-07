@@ -63,8 +63,8 @@ Imported observations are tagged with `source_event_id = swiggy_fresh_vegetables
 ## Tests
 
 ```bash
-uv run pytest tests/ -v          # 483 passed in 23.79s
-uv run pytest benchmarks/ -v -m benchmark  # 9 passed in 0.09s
+uv run pytest tests/ -v          # 532 passed in 70.01s
+uv run pytest benchmarks/ -v -m benchmark  # 9 passed in 2.45s
 ```
 
 | Module | Tests | What it covers |
@@ -103,7 +103,7 @@ shopstack/
   configs/                  # (reserved)
 
 app.py                      # Gradio Blocks UI entry point (workflow-first tabs, custom warm CSS)
-tests/                      # pytest test suite (155 tests)
+tests/                      # pytest test suite (532+ tests)
 benchmarks/                 # pytest benchmark suite (9 latency markers)
 ```
 
@@ -191,11 +191,17 @@ Explicitly **not** redacted: generic `name` fields, canonical item names, locati
 
 All settings are pydantic-settings with `SHOPSTACK_` env prefix:
 
+Operational resource guards are documented in **[`Docs/RESOURCE_OPTIMIZATION_POLICY.md`](Docs/RESOURCE_OPTIMIZATION_POLICY.md)**.
+
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SHOPSTACK_DB_PATH` | `data/shopstack.db` | SQLite database file path |
 | `SHOPSTACK_APP_PORT` | `7860` | Gradio server port |
 | `SHOPSTACK_OFF_THE_GRID` | `true` | Use mock providers (no cloud) |
+| `SHOPSTACK_LOCAL_AUTO_UNLOAD` | `true` | Unload local model runtime after each local provider call |
+| `SHOPSTACK_LOCAL_WHISPER_AUTO_UNLOAD` | `true` | Unload local STT model after each transcription |
+| `SHOPSTACK_TRACE_MAX_ROWS` | `2000` | Maximum number of trace rows to retain |
+| `SHOPSTACK_TRACE_TTL_DAYS` | `30` | Delete traces older than this many days |
 | `SHOPSTACK_STT_BACKEND` | `mock` | STT provider selection |
 | `SHOPSTACK_TTS_BACKEND` | `mock` | TTS provider selection |
 | `SHOPSTACK_VISION_BACKEND` | `mock` | Vision provider selection |

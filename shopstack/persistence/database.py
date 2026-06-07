@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -184,6 +184,7 @@ class Database:
         """)
         self._migrate_add_user_scoping()
         self._seed_locations()
+        self._apply_trace_retention_policy()
         self.conn.commit()
 
     def _migrate_add_user_scoping(self) -> None:
@@ -223,6 +224,54 @@ class Database:
                 "INSERT INTO household_locations (location_id, name, parent_location_id, location_type) VALUES (?, ?, ?, ?)",
                 (loc_id, name, parent, loc_type),
             )
+
+    # --- Trace retention policy ---
+
+    def _apply_trace_retention_policy(self) -> None:
+        max_rows = max(0, settings.trace_max_rows)
+        ttl_days = settings.trace_ttl_days
+        if max_rows:
+            self.prune_traces(max_rows=max_rows)
+        if ttl_days:
+            self.prune_traces(ttl_days=ttl_days)
+
+    def prune_traces(self, max_rows: int | None = None, ttl_days: int | None = None) -> int:
+        removed = 0
+        if max_rows is not None and max_rows > 0:
+            cursor = self.conn.execute(
+                """
+                DELETE FROM traces
+                WHERE rowid NOT IN (
+                    SELECT rowid FROM traces
+                    ORDER BY datetime(timestamp) DESC, rowid DESC LIMIT ?
+                )
+                """,
+                (max_rows,),
+            )
+            removed += cursor.rowcount
+
+        if ttl_days is not None and ttl_days > 0:
+            cutoff = (datetime.now() - timedelta(days=ttl_days)).isoformat()
+            cursor = self.conn.execute(
+                "DELETE FROM traces WHERE datetime(timestamp) < datetime(?)",
+                (cutoff,),
+            )
+            removed += cursor.rowcount
+
+        self.conn.commit()
+        return removed
+
+    def get_trace_by_id(self, trace_id: str, user_id: str = "") -> Trace | None:
+        target = (trace_id or "").strip()
+        if not target:
+            return None
+        query = "SELECT * FROM traces WHERE trace_id = ?"
+        params: list[str] = [target]
+        if user_id:
+            query += " AND user_id = ?"
+            params.append(user_id)
+        row = self.conn.execute(query, params).fetchone()
+        return _row_to_trace(row) if row else None
 
     # --- Inventory CRUD ---
 
@@ -512,6 +561,10 @@ class Database:
             ),
         )
         self.conn.commit()
+        self.prune_traces(
+            max_rows=max(0, settings.trace_max_rows),
+            ttl_days=settings.trace_ttl_days,
+        )
         return trace
 
     def get_traces(self, limit: int = 50, user_id: str = "") -> list[Trace]:

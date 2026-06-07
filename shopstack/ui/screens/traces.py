@@ -9,6 +9,7 @@ from typing import Any
 
 from shopstack.app_context import db
 from shopstack.traces.export import export_trace_by_id, trace_payload_for_export, create_trace
+from shopstack.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -22,14 +23,11 @@ def _find_trace_by_id(trace_id: str):
         traces = db.get_traces(limit=1)
         return traces[0] if traces else None
     target = _safe_trace_id(trace_id)
-    for trace in db.get_traces(limit=100):
-        if trace.trace_id == target:
-            return trace
-    return None
+    return db.get_trace_by_id(target)
 
 
 def _filter_traces(search: str = "", input_type_filter: str = "") -> list:
-    traces = db.get_traces(limit=200)
+    traces = db.get_traces(limit=max(1, min(settings.trace_max_rows, 500)))
     needle = (search or "").strip().lower()
     selected = (input_type_filter or "").strip().lower()
     if selected:

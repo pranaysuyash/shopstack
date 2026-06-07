@@ -1,0 +1,142 @@
+from __future__ import annotations
+
+import logging
+import time
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_MODEL = "microsoft/Phi-3-mini-4k-instruct"
+
+
+def _huggingface_available() -> tuple[bool, str]:
+    try:
+        import huggingface_hub  # noqa: F401
+        return True, ""
+    except ImportError:
+        return False, "huggingface_hub package not installed. Run: uv pip install huggingface_hub"
+
+
+class HuggingFaceProvider:
+    """Planner provider using Hugging Face Inference API (serverless).
+
+    Uses the ``huggingface_hub.InferenceClient`` to call chat-completion
+    models via HF's serverless API.  Requires a Hugging Face API token
+    set via ``SHOPSTACK_HF_API_KEY`` or ``HF_API_KEY`` env vars.
+
+    Falls back gracefully when the dependency or token is missing.
+    """
+
+    name = "huggingface"
+    model_id: str = DEFAULT_MODEL
+    parameter_count: float = 3.8  # Phi-3-mini ~3.8B
+    capabilities: set[str] = {"text", "planning"}
+
+    def __init__(
+        self,
+        api_key: str = "",
+        model: str = DEFAULT_MODEL,
+        max_retries: int = 2,
+    ):
+        self._model = model
+        self._max_retries = max_retries
+        self._client: Any = None
+        self._available = False
+        self._error: str | None = None
+        self.last_latency_ms: float | None = None
+        self.last_token_count: int | None = None
+        self._init_client(api_key)
+
+    def _init_client(self, api_key: str) -> None:
+        deps_ok, deps_error = _huggingface_available()
+        if not deps_ok:
+            self._error = deps_error
+            self._available = False
+            return
+
+        key = api_key or self._env_key()
+        if not key:
+            self._error = (
+                "Hugging Face API key not found. "
+                "Set SHOPSTACK_HF_API_KEY or HF_API_KEY env var."
+            )
+            self._available = False
+            return
+
+        try:
+            from huggingface_hub import InferenceClient
+            self._client = InferenceClient(token=key)
+            self._available = True
+        except Exception as e:
+            self._error = f"Failed to init HF InferenceClient: {e}"
+            self._available = False
+
+    @staticmethod
+    def _env_key() -> str:
+        import os
+        return os.getenv("SHOPSTACK_HF_API_KEY") or os.getenv("HF_API_KEY", "")
+
+    def complete(self, prompt: str, **kwargs: Any) -> dict[str, Any]:
+        if not self._available:
+            return {"error": self._error or "HF not available", "model": self.name}
+
+        max_tokens = kwargs.get("max_tokens", 512)
+        temperature = kwargs.get("temperature", 0.3)
+
+        start = time.monotonic()
+
+        for attempt in range(self._max_retries + 1):
+            try:
+                response = self._client.chat.completions.create(
+                    model=self._model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                )
+                self.last_latency_ms = int((time.monotonic() - start) * 1000)
+                self.last_token_count = response.usage.total_tokens if response.usage else 0
+                choice = response.choices[0]
+                return {
+                    "text": choice.message.content,
+                    "model": self._model,
+                    "usage": {
+                        "total_tokens": self.last_token_count,
+                    },
+                }
+            except Exception as e:
+                logger.warning(
+                    "HF completion attempt %d/%d failed: %s",
+                    attempt + 1, self._max_retries + 1, e,
+                )
+                if attempt == self._max_retries:
+                    return {"error": str(e), "model": self.name}
+
+    def plan(self, context: dict[str, Any] | str) -> dict[str, Any]:
+        if not self._available:
+            return {"error": self._error or "HF not available", "model": self.name}
+
+        if isinstance(context, str):
+            return {"text": "", "model": self.name}
+
+        prompt = context.get("prompt") or context.get("question") or ""
+        max_tokens = context.get("max_tokens", 64)
+        temperature = context.get("temperature", 0.0)
+
+        if not prompt:
+            return {"text": "", "model": self.name}
+
+        return self.complete(prompt, max_tokens=max_tokens, temperature=temperature)
+
+    @property
+    def available(self) -> bool:
+        return self._available
+
+    @property
+    def error(self) -> str | None:
+        return self._error
+
+    def load(self) -> None:
+        pass
+
+    def healthcheck(self) -> bool:
+        return self._available

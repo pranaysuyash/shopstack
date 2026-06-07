@@ -68,12 +68,12 @@ def export_trace_by_id(
     target = (trace_id or "").strip()
     if not target:
         return False
-    for t in db.get_traces(limit=200):
-        if t.trace_id == target:
-            with open(output_path, "w") as f:
-                f.write(json.dumps(trace_payload_for_export(t, redact=redact, db=db), default=str) + "\n")
-            return True
-    return False
+    target_trace = db.get_trace_by_id(target)
+    if not target_trace:
+        return False
+    with open(output_path, "w") as f:
+        f.write(json.dumps(trace_payload_for_export(target_trace, redact=redact, db=db), default=str) + "\n")
+    return True
 
 
 def create_market_lens_trace(
@@ -177,22 +177,19 @@ def find_trace_by_id(db: Database, trace_id: str) -> Trace | None:
     target = (trace_id or "").strip()
     if not target:
         return None
-    for t in db.get_traces(limit=200):
-        if t.trace_id == target:
-            return t
-    return None
+    return db.get_trace_by_id(target)
 
 
 def update_trace_confirmation(db: Database, trace_id: str, confirmation: str) -> bool:
     target = (trace_id or "").strip()
     if not target:
         return False
-    for t in db.get_traces(limit=200):
-        if t.trace_id == target:
-            t.human_confirmation = confirmation
-            db.save_trace(t)
-            return True
-    return False
+    trace = db.get_trace_by_id(target)
+    if not trace:
+        return False
+    trace.human_confirmation = confirmation
+    db.save_trace(trace)
+    return True
 
 
 def redact_trace_payload(trace_dict: dict[str, Any]) -> dict[str, Any]:

@@ -49,6 +49,7 @@ class LocalProvider:
         n_gpu_layers: int = -1,
         verbose: bool = False,
         allow_download: bool = False,
+        auto_unload: bool = True,
     ):
         self._model_dir = model_dir or os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "models"
@@ -60,10 +61,12 @@ class LocalProvider:
         self._n_gpu_layers = n_gpu_layers
         self._verbose = verbose
         self._allow_download = allow_download
+        self._auto_unload = auto_unload
         self._available = False
         self._error: str | None = None
         self._llm: Any = None
         self._tokenizer: Any = None
+        self._model_path: str | None = None
         self._last_latency_ms: float | None = None
         self._last_token_count: int | None = None
         self._init()
@@ -81,18 +84,17 @@ class LocalProvider:
             self._error = "mlx-lm not installed. Run: uv pip install mlx-lm"
             return
         try:
-            from mlx_lm import load
-
             model_path = self._mlx_model
             # Try local path first, then HF model ID
             local_path = Path(self._model_dir) / self._mlx_model.split("/")[-1]
             if local_path.is_dir():
                 model_path = str(local_path)
 
-            self._llm, self._tokenizer = load(model_path)
+            self._model_path = model_path
             self._backend = "mlx"
             self._available = True
-            logger.info("Local provider loaded via MLX: %s", model_path)
+            self._error = None
+            logger.info("Local provider prepared for MLX: %s", self._model_path)
         except Exception as e:
             logger.info("MLX init failed (%s), trying llama.cpp fallback", e)
 
@@ -121,18 +123,12 @@ class LocalProvider:
                 logger.warning("Local model unavailable: %s", self._error)
                 return
 
-            model_path = _ensure_gguf_model(self._model_dir, self._model_repo, self._model_file)
-            self._llm = llama_cpp.Llama(
-                model_path=model_path,
-                n_ctx=self._n_ctx,
-                n_gpu_layers=self._n_gpu_layers,
-                verbose=self._verbose,
-            )
+            self._model_path = str(local_path)
             self._error = None
             self._backend = "llama.cpp"
             self._available = True
             logger.info(
-                "Local provider loaded via llama.cpp: %s/%s (ctx=%d, gpu_layers=%s)",
+                "Local provider prepared for llama.cpp: %s/%s (ctx=%d, gpu_layers=%s)",
                 self._model_repo, self._model_file, self._n_ctx,
                 "all" if self._n_gpu_layers < 0 else self._n_gpu_layers,
             )
@@ -141,6 +137,72 @@ class LocalProvider:
             self._available = False
             logger.warning("llama.cpp provider init failed", exc_info=True)
 
+    def _ensure_model(self) -> bool:
+        if not self._available:
+            return False
+        if self._llm is not None:
+            return True
+        if self._backend == "mlx":
+            if self._init_mlx_model():
+                return True
+            return self._init_llamacpp_model()
+        if self._backend == "llama.cpp":
+            return self._init_llamacpp_model()
+        return False
+
+    def _init_mlx_model(self) -> bool:
+        try:
+            from mlx_lm import load
+            model_path = self._model_path or self._mlx_model
+            self._llm, self._tokenizer = load(model_path)
+            logger.info("Local provider loaded via MLX: %s", model_path)
+            return True
+        except Exception as e:
+            self._error = f"Failed to initialize MLX runtime: {e}"
+            self._available = False
+            logger.warning("MLX model load failed", exc_info=True)
+            return False
+
+    def _init_llamacpp_model(self) -> bool:
+        try:
+            import llama_cpp
+            if not self._model_path:
+                return False
+            if not Path(self._model_path).is_file():
+                model_path = _ensure_gguf_model(self._model_dir, self._model_repo, self._model_file)
+            else:
+                model_path = self._model_path
+            self._llm = llama_cpp.Llama(
+                model_path=model_path,
+                n_ctx=self._n_ctx,
+                n_gpu_layers=self._n_gpu_layers,
+                verbose=self._verbose,
+            )
+            self._model_path = model_path
+            logger.info(
+                "Local provider loaded via llama.cpp: %s/%s (ctx=%d, gpu_layers=%s)",
+                self._model_repo, self._model_file, self._n_ctx,
+                "all" if self._n_gpu_layers < 0 else self._n_gpu_layers,
+            )
+            return True
+        except Exception as e:
+            self._error = f"Failed to initialize llama.cpp runtime: {e}"
+            self._available = False
+            logger.warning("llama.cpp model load failed", exc_info=True)
+            return False
+
+    def _maybe_unload_model(self) -> None:
+        if not self._auto_unload or self._llm is None:
+            return
+        try:
+            close = getattr(self._llm, "close", None)
+            if callable(close):
+                close()
+        except Exception:
+            logger.debug("Failed to close local LLM instance cleanly", exc_info=True)
+        self._llm = None
+        self._tokenizer = None
+
     def complete(self, prompt: str, **kwargs: Any) -> dict[str, Any]:
         if not self._available:
             return {"error": self._error or "Local provider not available", "model": self.name}
@@ -148,6 +210,8 @@ class LocalProvider:
             max_tokens = kwargs.get("max_tokens", 512)
             temperature = kwargs.get("temperature", 0.3)
             stop = kwargs.get("stop", [])
+            if not self._ensure_model():
+                return {"error": self._error or "Local provider not available", "model": self.name}
 
             t0 = time.monotonic()
 
@@ -187,9 +251,13 @@ class LocalProvider:
         except Exception as e:
             logger.warning("Local completion failed", exc_info=True)
             return {"error": str(e), "model": self.name}
+        finally:
+            self._maybe_unload_model()
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         if not self._available:
+            return [[0.0] * 128 for _ in texts]
+        if not self._ensure_model():
             return [[0.0] * 128 for _ in texts]
         if self._backend == "mlx":
             return [[0.0] * 128 for _ in texts]
@@ -202,6 +270,8 @@ class LocalProvider:
         except Exception as e:
             logger.warning("Local embedding failed", exc_info=True)
             return [[0.0] * 128 for _ in texts]
+        finally:
+            self._maybe_unload_model()
 
     def analyze_image(self, image_path: str, prompt: str = "") -> dict[str, Any]:
         if not self._available:

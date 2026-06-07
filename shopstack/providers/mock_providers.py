@@ -195,6 +195,7 @@ class MockPlannerProvider(PlannerProvider):
     name = "mock_planner"
     model_id = "mock-planner-v1"
     parameter_count = 0.0
+    available = True
     capabilities: set[str] = {"text", "planning"}
 
     def load(self) -> None:
