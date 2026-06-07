@@ -14,7 +14,8 @@ from shopstack.tools.registry import ToolRegistry
 
 @pytest.fixture(scope="session")
 def settings() -> Settings:
-    return Settings(database_path=":memory:", off_the_grid=True)
+    # Ignore the repo .env file during benchmark tests so provider selection is deterministic.
+    return Settings(_env_file=None, database_path=":memory:", off_the_grid=True)
 
 
 @pytest.fixture(scope="session")

@@ -183,7 +183,7 @@ class TestPlannerEngine:
         from shopstack.tools.registry import ToolRegistry
         from shopstack.planner.engine import PlannerEngine
 
-        settings = Settings(off_the_grid=True)
+        settings = Settings(_env_file=None, off_the_grid=True)
         db = Database(":memory:")
         providers = ProviderRegistry(settings)
         tools = ToolRegistry(db)
@@ -197,7 +197,7 @@ class TestPlannerEngine:
         from shopstack.tools.registry import ToolRegistry
         from shopstack.planner.engine import PlannerEngine
 
-        settings = Settings(off_the_grid=True)
+        settings = Settings(_env_file=None, off_the_grid=True)
         db = Database(":memory:")
         providers = ProviderRegistry(settings)
         tools = ToolRegistry(db)
@@ -220,7 +220,7 @@ class TestPlannerEngine:
             def complete(self, prompt):
                 return {"text": '[{"tool":"respond","args":{"message":"<script>alert(1)</script>"}}]'}
 
-        settings = Settings(off_the_grid=True)
+        settings = Settings(_env_file=None, off_the_grid=True)
         db = Database(":memory:")
         providers = ProviderRegistry(settings)
         providers.register("planner", FakePlanner())

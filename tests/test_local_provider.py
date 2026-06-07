@@ -9,18 +9,22 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from shopstack.providers.local_provider import (
-    LocalProvider,
-    _download_file,
-    _ensure_gguf_model,
-)
+# Avoid module-level imports from shopstack.providers.local_provider here because
+# other tests in the suite may reload or clear shopstack modules. Local imports
+# inside each test maintain the current import state.
 
 # ── Helpers ────────────────────────────────────────────────────────────
 
 _NONEXISTENT_MODEL_DIR = "/tmp/shopstack_test_nonexistent_models"
 
 
-def _provider_without_model(**kwargs) -> LocalProvider:
+def _get_local_provider(**kwargs):
+    from shopstack.providers.local_provider import LocalProvider
+
+    return LocalProvider(**kwargs)
+
+
+def _provider_without_model(**kwargs):
     """Create a LocalProvider pointing at a non-existent model path."""
     base = dict(
         model_dir=_NONEXISTENT_MODEL_DIR,
@@ -29,7 +33,8 @@ def _provider_without_model(**kwargs) -> LocalProvider:
         allow_download=False,
     )
     base.update(kwargs)
-    return LocalProvider(**base)
+    with patch.dict("sys.modules", {"mlx_lm": None, "llama_cpp": None}, clear=False):
+        return _get_local_provider(**base)
 
 
 def _has_downloaded_model() -> bool:
@@ -49,6 +54,8 @@ def _has_downloaded_model() -> bool:
 class TestDownloadFile:
     def test_download_file_creates_parent_dir(self):
         """_download_file should create parent directories."""
+        from shopstack.providers.local_provider import _download_file
+
         with tempfile.TemporaryDirectory() as tmp:
             dest = Path(tmp) / "sub" / "model.gguf"
             url = "file:///dev/null"
@@ -60,6 +67,8 @@ class TestDownloadFile:
 
     def test_download_file_urlretrieve_called(self):
         """_download_file calls urlretrieve with correct args."""
+        from shopstack.providers.local_provider import _download_file
+
         with tempfile.TemporaryDirectory() as tmp:
             dest = Path(tmp) / "model.gguf"
             with patch("urllib.request.urlretrieve") as mock_retrieve:
@@ -70,6 +79,8 @@ class TestDownloadFile:
 class TestEnsureGgufModel:
     def test_ensure_gguf_returns_local_path_if_exists(self):
         """_ensure_gguf_model returns local path when file already exists."""
+        from shopstack.providers.local_provider import _ensure_gguf_model
+
         with tempfile.TemporaryDirectory() as tmp:
             repo_dir = Path(tmp) / "MyRepo"
             repo_dir.mkdir(parents=True)
@@ -80,6 +91,8 @@ class TestEnsureGgufModel:
 
     def test_ensure_gguf_downloads_if_missing(self):
         """_ensure_gguf_model downloads when file doesn't exist."""
+        from shopstack.providers.local_provider import _ensure_gguf_model
+
         with tempfile.TemporaryDirectory() as tmp:
             with patch("shopstack.providers.local_provider._download_file") as mock_dl:
                 result = _ensure_gguf_model(tmp, "org/MyRepo", "missing.gguf")
@@ -114,14 +127,14 @@ class TestLocalProviderInit:
             {"mlx_lm": None, "llama_cpp": None},
             clear=False,
         ):
-            provider = LocalProvider(model_dir=_NONEXISTENT_MODEL_DIR)
+            provider = _get_local_provider(model_dir=_NONEXISTENT_MODEL_DIR)
             assert not provider.available
             err = (provider.error or "").lower()
             assert "inference engine" in err
 
     def test_init_custom_parameters(self):
         """Custom __init__ parameters propagate correctly."""
-        provider = LocalProvider(
+        provider = _get_local_provider(
             model_dir="/custom/path",
             model_repo="custom/repo",
             model_file="custom.gguf",
@@ -142,7 +155,7 @@ class TestLocalProviderInit:
 
     def test_default_model_dir(self):
         """Default model_dir resolves to shopstack/data/models/."""
-        provider = LocalProvider(model_dir="", allow_download=False)
+        provider = _get_local_provider(model_dir="", allow_download=False)
         assert "data" in provider._model_dir
         assert "models" in provider._model_dir
 
@@ -169,7 +182,7 @@ class TestLocalProviderInit:
 
             with patch("shopstack.providers.local_provider._ensure_gguf_model") as mock_ensure:
                 mock_ensure.return_value = "/tmp/fake/model.gguf"
-                _ = LocalProvider(
+                _ = _get_local_provider(
                     model_dir=_NONEXISTENT_MODEL_DIR,
                     model_repo="org/MyRepo",
                     model_file="test.gguf",
@@ -189,9 +202,9 @@ class TestLocalProviderInit:
         if not _has_downloaded_model():
             pytest.skip("Default model not found, skipping availability test")
         default_dir = str(Path(__file__).resolve().parent.parent / "shopstack" / "data" / "models")
-        provider = LocalProvider(model_dir=default_dir, allow_download=False)
+        provider = _get_local_provider(model_dir=default_dir, allow_download=False)
         assert provider.available
-        assert provider.backend == "llama.cpp"
+        assert provider.backend in ("mlx", "llama.cpp")
         assert provider.error is None
 
 
@@ -224,7 +237,7 @@ class TestLocalProviderProperties:
         if not _has_downloaded_model():
             pytest.skip("Model needed for this test")
         default_dir = str(Path(__file__).resolve().parent.parent / "shopstack" / "data" / "models")
-        provider = LocalProvider(model_dir=default_dir, allow_download=False)
+        provider = _get_local_provider(model_dir=default_dir, allow_download=False)
         assert provider.available
         result = provider.complete("Say hi", max_tokens=5, temperature=0.1)
         assert provider.last_latency_ms is not None
@@ -235,7 +248,7 @@ class TestLocalProviderProperties:
         if not _has_downloaded_model():
             pytest.skip("Model needed for this test")
         default_dir = str(Path(__file__).resolve().parent.parent / "shopstack" / "data" / "models")
-        provider = LocalProvider(model_dir=default_dir, allow_download=False)
+        provider = _get_local_provider(model_dir=default_dir, allow_download=False)
         assert provider.available
         result = provider.complete("Say hi", max_tokens=5, temperature=0.1)
         assert provider.last_token_count is not None
@@ -257,7 +270,7 @@ class TestLocalProviderComplete:
         if not _has_downloaded_model():
             pytest.skip("Model needed for this test")
         default_dir = str(Path(__file__).resolve().parent.parent / "shopstack" / "data" / "models")
-        provider = LocalProvider(model_dir=default_dir, allow_download=False)
+        provider = _get_local_provider(model_dir=default_dir, allow_download=False)
         assert provider.available
         result = provider.complete("What is 2+2? Answer in one word.", max_tokens=10, temperature=0.1)
         assert "error" not in result
@@ -362,7 +375,7 @@ class TestLocalProviderLlamaCppFailure:
                     "shopstack.providers.local_provider.llama_cpp",
                     create=True,
                 ):
-                    provider = LocalProvider(
+                    provider = _get_local_provider(
                         model_dir="/nonexistent",
                         model_repo="org/repo",
                         model_file="model.gguf",
@@ -371,6 +384,194 @@ class TestLocalProviderLlamaCppFailure:
                     assert not provider.available
                     assert provider.error is not None
                     assert "download failed" in provider.error
+
+
+# ── MLX completion path ───────────────────────────────────────────────
+
+
+class TestLocalProviderMlxComplete:
+    def _make_mlx_env(self):
+        """Build mock mlx_lm module with load/generate/sample_utils."""
+        import sys as _sys
+        from unittest.mock import MagicMock
+
+        mock_mlx_lm = MagicMock()
+        mock_llm = MagicMock()
+        mock_tokenizer = MagicMock()
+        mock_mlx_lm.load.return_value = (mock_llm, mock_tokenizer)
+        mock_mlx_lm.generate.return_value = "Yes."
+
+        mock_sample_utils = MagicMock()
+        mock_sampler = MagicMock()
+        mock_sample_utils.make_sampler.return_value = mock_sampler
+
+        _sys.modules["mlx_lm"] = mock_mlx_lm
+        _sys.modules["mlx_lm.sample_utils"] = mock_sample_utils
+        return mock_mlx_lm, mock_llm
+
+    def _restore_modules(self, orig_modules):
+        import sys as _sys
+        for k in list(_sys.modules):
+            if k.startswith("mlx_lm") and k not in orig_modules:
+                _sys.modules.pop(k, None)
+            elif k in orig_modules:
+                _sys.modules[k] = orig_modules[k]
+
+    def test_mlx_local_path_check(self):
+        """Line 90: MLX checks local cached directory before HF."""
+        import sys as _sys
+        import tempfile
+        from pathlib import Path
+
+        orig_modules = dict(_sys.modules)
+        try:
+            self._make_mlx_env()
+            with tempfile.TemporaryDirectory() as tmp:
+                # Fake local MLX model directory
+                mlx_dir = Path(tmp) / "Llama-3.2-3B-Instruct-4bit"
+                mlx_dir.mkdir(parents=True)
+                (mlx_dir / "config.json").write_text("{}")
+
+                provider = _get_local_provider(
+                    model_dir=tmp,
+                    mlx_model="mlx-community/Llama-3.2-3B-Instruct-4bit",
+                )
+                assert provider.available
+                assert provider.backend == "mlx"
+        finally:
+            self._restore_modules(orig_modules)
+
+    def test_mlx_completion_path(self):
+        """Lines 169-177: MLX completion path produces correct result."""
+        import sys as _sys
+
+        orig_modules = dict(_sys.modules)
+        try:
+            self._make_mlx_env()
+            provider = _get_local_provider(model_dir=_NONEXISTENT_MODEL_DIR)
+            assert provider.available
+            assert provider.backend == "mlx"
+
+            result = provider.complete("What is 2+2?", max_tokens=10, temperature=0.1)
+            assert "error" not in result
+            assert result["text"] == "Yes."
+            assert "model" in result
+            assert result["usage"]["total_tokens"] == 10
+            assert provider.last_latency_ms is not None
+            assert provider.last_token_count == 10
+        finally:
+            self._restore_modules(orig_modules)
+
+
+# ── llama.cpp init paths ──────────────────────────────────────────────
+
+
+class TestLocalProviderLlamaCpp:
+    def test_llamacpp_successful_init(self):
+        """Lines 115-122: llama.cpp successful initialization sets backend, clears error."""
+        import sys as _sys
+        from unittest.mock import MagicMock, patch
+
+        orig_modules = dict(_sys.modules)
+        mock_llamacpp = MagicMock()
+        mock_llm = MagicMock()
+        mock_llamacpp.Llama.return_value = mock_llm
+        modules = {"mlx_lm": None, "llama_cpp": mock_llamacpp}
+        try:
+            for k, v in modules.items():
+                _sys.modules.pop(k, None)
+                _sys.modules[k] = v
+
+            with patch("shopstack.providers.local_provider._ensure_gguf_model") as mock_ensure:
+                mock_ensure.return_value = "/tmp/fake/model.gguf"
+                provider = _get_local_provider(
+                    model_dir=_NONEXISTENT_MODEL_DIR,
+                    model_repo="org/MyRepo",
+                    model_file="test.gguf",
+                    allow_download=True,
+                )
+                assert provider.available
+                assert provider.backend == "llama.cpp"
+                assert provider.error is None
+        finally:
+            for k in modules:
+                if k in orig_modules:
+                    _sys.modules[k] = orig_modules[k]
+                else:
+                    _sys.modules.pop(k, None)
+
+    def test_llamacpp_completion_path(self):
+        """llama.cpp complete() sets latency/token counts (lines 187-189)."""
+        import sys as _sys
+        from unittest.mock import MagicMock, patch
+
+        orig_modules = dict(_sys.modules)
+        mock_llamacpp = MagicMock()
+        mock_llm = MagicMock()
+        mock_llm.create_chat_completion.return_value = {
+            "choices": [{"message": {"content": "Four."}}],
+            "usage": {"total_tokens": 5},
+        }
+        mock_llamacpp.Llama.return_value = mock_llm
+        modules = {"mlx_lm": None, "llama_cpp": mock_llamacpp}
+        try:
+            for k, v in modules.items():
+                _sys.modules.pop(k, None)
+                _sys.modules[k] = v
+
+            with patch("shopstack.providers.local_provider._ensure_gguf_model") as mock_ensure:
+                mock_ensure.return_value = "/tmp/fake/model.gguf"
+                provider = _get_local_provider(
+                    model_dir=_NONEXISTENT_MODEL_DIR,
+                    model_repo="org/MyRepo",
+                    model_file="test.gguf",
+                    allow_download=True,
+                )
+                result = provider.complete("What is 2+2?")
+                assert "error" not in result
+                assert result["text"] == "Four."
+                assert provider.last_latency_ms is not None
+                assert provider.last_token_count == 5
+        finally:
+            for k in modules:
+                if k in orig_modules:
+                    _sys.modules[k] = orig_modules[k]
+                else:
+                    _sys.modules.pop(k, None)
+
+    def test_complete_exception_handler(self):
+        """Lines 200-201: complete() except handler catches errors gracefully."""
+        import sys as _sys
+        from unittest.mock import MagicMock, patch
+
+        orig_modules = dict(_sys.modules)
+        mock_llamacpp = MagicMock()
+        mock_llm = MagicMock()
+        mock_llm.create_chat_completion.side_effect = RuntimeError("GPU OOM")
+        mock_llamacpp.Llama.return_value = mock_llm
+        modules = {"mlx_lm": None, "llama_cpp": mock_llamacpp}
+        try:
+            for k, v in modules.items():
+                _sys.modules.pop(k, None)
+                _sys.modules[k] = v
+
+            with patch("shopstack.providers.local_provider._ensure_gguf_model") as mock_ensure:
+                mock_ensure.return_value = "/tmp/fake/model.gguf"
+                provider = _get_local_provider(
+                    model_dir=_NONEXISTENT_MODEL_DIR,
+                    model_repo="org/MyRepo",
+                    model_file="test.gguf",
+                    allow_download=True,
+                )
+                result = provider.complete("What is 2+2?")
+                assert "error" in result
+                assert "GPU OOM" in result["error"]
+        finally:
+            for k in modules:
+                if k in orig_modules:
+                    _sys.modules[k] = orig_modules[k]
+                else:
+                    _sys.modules.pop(k, None)
 
 
 # ── End-to-end test with model ─────────────────────────────────────────
@@ -383,6 +584,6 @@ class TestLocalProviderEndToEnd:
         if not _has_downloaded_model():
             pytest.skip("Model needed")
         default_dir = str(Path(__file__).resolve().parent.parent / "shopstack" / "data" / "models")
-        provider = LocalProvider(model_dir=default_dir, allow_download=False)
+        provider = _get_local_provider(model_dir=default_dir, allow_download=False)
         result = provider.complete("", max_tokens=5)
         assert "text" in result

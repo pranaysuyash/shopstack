@@ -28,7 +28,8 @@ def db_path() -> Generator[str, None, None]:
 @pytest.fixture()
 def settings(db_path: str) -> Settings:
     # The project Settings API uses `db_path`, not the older `database_path` name.
-    return Settings(db_path=db_path, off_the_grid=True)
+    # Ignore the repo .env file during tests so defaults are deterministic.
+    return Settings(_env_file=None, db_path=db_path, off_the_grid=True)
 
 
 @pytest.fixture()
