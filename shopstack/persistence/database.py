@@ -612,6 +612,23 @@ class Database:
             self._conn.close()
             self._conn = None
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.close()
+
+    def __del__(self):
+        # Defensive cleanup: ensure sqlite connections are closed even if callers
+        # forget an explicit ``close()`` (important during module reloads and
+        # test teardown paths that recreate app_context).
+        try:
+            self.close()
+        except Exception:
+            # Never raise during finalization; mirror sqlite's permissive close
+            # semantics when objects are already partially torn down.
+            pass
+
 
 def _d(dt: date | str | None) -> str | None:
     if dt is None:

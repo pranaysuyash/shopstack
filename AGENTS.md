@@ -174,7 +174,10 @@ A hook at `.git/hooks/pre-commit` runs `tools/sync-readme-stats` which extracts 
 | `tests/test_swiggy_data_source.py` | 4 | Swiggy data source validation |
 | `tests/test_voice_add.py` | 14 | Voice add commands, price intelligence |
 | `tests/test_huggingface_provider.py` | 26 | HuggingFace Inference API provider: init, complete, plan, retry, registry wiring, env key, latency |
-| **Total** | **559** | (growing) |
+| `tests/test_adapter_blinkit.py` | 21 | Blinkit market source adapter: loader, normalization, freshness, adapter class |
+| `tests/test_adapter_zepto.py` | 20 | Zepto market source adapter: loader, normalization, freshness, adapter class |
+| `tests/test_adapter_dmart.py` | 20 | DMart market source adapter: loader, normalization, freshness, adapter class |
+| **Total** | **620** | (growing) |
 
 ## Next Work
 
@@ -182,8 +185,8 @@ A hook at `.git/hooks/pre-commit` runs `tools/sync-readme-stats` which extracts 
 - Seed demo data for walkthroughs
 - CI pipeline (GitHub Actions + test suite)
 - Modal provider for cloud GPU inference
-- Wire HF Inference API provider into planner routing (currently backend-selected only)
-- Add Blinkit, Zepto, DMart data source adapters
+- ~~Wire HF Inference API provider into planner routing (currently backend-selected only)~~ (done)
+- ~~Add Blinkit, Zepto, DMart data source adapters~~ (done)
 
 ## Addendum (2026-06-06) — Current Verified State
 

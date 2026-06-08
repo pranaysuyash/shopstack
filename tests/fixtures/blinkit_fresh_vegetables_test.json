@@ -1,0 +1,80 @@
+[
+  {
+    "product_name": "Hybrid Tomato",
+    "size": "500 g",
+    "mrp": 34,
+    "offer_price": 28,
+    "availability": "Available",
+    "description": "Fresh hybrid tomatoes",
+    "tag": "",
+    "card_index": 1,
+    "delivery_time": "10 mins",
+    "discount_percent": 17.6,
+    "brand": "Freshly"
+  },
+  {
+    "product_name": "Onion",
+    "size": "1 kg",
+    "mrp": 32,
+    "offer_price": 27,
+    "availability": "Available",
+    "description": "Red onions",
+    "tag": "",
+    "card_index": 2,
+    "delivery_time": "10 mins",
+    "discount_percent": 15.6,
+    "brand": "Farm Fresh"
+  },
+  {
+    "product_name": "Potato",
+    "size": "1 kg",
+    "mrp": 28,
+    "offer_price": 24,
+    "availability": "Available",
+    "description": "Fresh potatoes",
+    "tag": "",
+    "card_index": 3,
+    "delivery_time": "10 mins",
+    "discount_percent": 14.3,
+    "brand": ""
+  },
+  {
+    "product_name": "Carrot",
+    "size": "500 g",
+    "mrp": 42,
+    "offer_price": 35,
+    "availability": "Sold Out",
+    "description": "Ooty carrots",
+    "tag": "",
+    "card_index": 5,
+    "delivery_time": "",
+    "discount_percent": 16.7,
+    "brand": ""
+  },
+  {
+    "product_name": "Cucumber",
+    "size": "250 g",
+    "mrp": 24,
+    "offer_price": 20,
+    "availability": "Available",
+    "description": "English cucumber",
+    "tag": "ad",
+    "card_index": 6,
+    "delivery_time": "10 mins",
+    "discount_percent": 16.7,
+    "brand": ""
+  },
+  {
+    "product_name": "Capsicum, Onion & Tomato Combo",
+    "size": "1 Combo",
+    "mrp": 99,
+    "offer_price": 79,
+    "availability": "Available",
+    "description": "Mixed veg combo",
+    "tag": "",
+    "card_index": 8,
+    "delivery_time": "15 mins",
+    "discount_percent": 20.2,
+    "brand": ""
+  }
+]

@@ -77,8 +77,8 @@ def normalize_record(
 
     mrp = _coerce_float(raw.get("mrp"))
     offer_price = _coerce_float(raw.get("offer_price"))
-    price = mrp if mrp > 0 else offer_price
-    original_price = offer_price if offer_price > 0 and offer_price != mrp else mrp
+    price = offer_price if offer_price > 0 else mrp
+    original_price = mrp if mrp > 0 else offer_price
 
     unit_prices = compute_unit_prices(
         price=price,

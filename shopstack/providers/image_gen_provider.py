@@ -76,8 +76,6 @@ class FluxImageProvider:
 
         if self._svg_to_png == "svglib":
             try:
-                from io import BytesIO
-
                 from reportlab.graphics import renderPM
                 from svglib.svglib import svg2rlg
 

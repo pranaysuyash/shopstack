@@ -1,0 +1,80 @@
+[
+  {
+    "item_name": "Hybrid Tomato",
+    "size": "500 g",
+    "sale_price": 29,
+    "original_price": 36,
+    "availability": "Available",
+    "description": "Fresh hybrid tomatoes",
+    "tag": "",
+    "card_index": 1,
+    "delivery_time": "8 mins",
+    "discount_percent": 19.4,
+    "brand": "Zepto Fresh"
+  },
+  {
+    "item_name": "Red Onion",
+    "size": "1 kg",
+    "sale_price": 26,
+    "original_price": 32,
+    "availability": "Available",
+    "description": "Fresh red onions",
+    "tag": "",
+    "card_index": 2,
+    "delivery_time": "8 mins",
+    "discount_percent": 18.8,
+    "brand": ""
+  },
+  {
+    "item_name": "Potato",
+    "size": "1 kg",
+    "sale_price": 23,
+    "original_price": 28,
+    "availability": "Available",
+    "description": "Fresh potatoes",
+    "tag": "",
+    "card_index": 3,
+    "delivery_time": "8 mins",
+    "discount_percent": 17.9,
+    "brand": "Farmers Pick"
+  },
+  {
+    "item_name": "Ooty Carrot",
+    "size": "500 g",
+    "sale_price": 38,
+    "original_price": 45,
+    "availability": "Sold Out",
+    "description": "Premium Ooty carrots",
+    "tag": "",
+    "card_index": 5,
+    "delivery_time": "",
+    "discount_percent": 15.6,
+    "brand": ""
+  },
+  {
+    "item_name": "English Cucumber",
+    "size": "250 g",
+    "sale_price": 20,
+    "original_price": 25,
+    "availability": "Available",
+    "description": "Fresh English cucumber",
+    "tag": "upgrade",
+    "card_index": 6,
+    "delivery_time": "8 mins",
+    "discount_percent": 20.0,
+    "brand": ""
+  },
+  {
+    "item_name": "Mixed Vegetable Combo",
+    "size": "1 Combo",
+    "sale_price": 79,
+    "original_price": 99,
+    "availability": "Available",
+    "description": "Assorted vegetables combo pack",
+    "tag": "",
+    "card_index": 7,
+    "delivery_time": "10 mins",
+    "discount_percent": 20.2,
+    "brand": ""
+  }
+]

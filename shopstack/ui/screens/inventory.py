@@ -9,6 +9,7 @@ from typing import Any
 from shopstack.app_context import db, tools
 from shopstack.traces.export import create_trace
 from shopstack.ui import empty_state, list_to_table
+from shopstack.ui.components.primitives import item_row
 
 logger = logging.getLogger(__name__)
 
@@ -306,13 +307,15 @@ def inventory_cards_view(search: str = "") -> str:
 
     cards = ""
     for loc_name, lots in grouped.items():
-        body = "<div style='margin-bottom:8px;'>"
+        body = ""
         for lot in lots:
-            body += "<div class='item-row'>"
-            body += f"<div><strong>{escape(str(lot['name']))}</strong><div style='font-size:11px;color:var(--text-dim)'>{escape(str(lot['reason']))}</div></div>"
-            body += f"<div style='text-align:right'>{escape(str(lot['qty']))} {escape(str(lot['unit']))}</div>"
-            body += "</div>"
-        body += "</div>"
+            body += item_row(
+                name=lot["name"],
+                quantity=lot["qty"],
+                unit=lot["unit"],
+                status=lot["status"],
+                extra=lot["reason"],
+            )
         cards += (
             "<div class='home-card' style='margin-bottom:10px;'>"
             f"<h4>{escape(str(loc_name))}</h4>{body}</div>"

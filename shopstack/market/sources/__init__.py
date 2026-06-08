@@ -6,14 +6,16 @@ MarketSnapshotRepository for caching and storing snapshots.
 
 New sources register via SourceRegistry::
 
-    from shopstack.market.sources import SourceRegistry, SwiggyAdapter
+    from shopstack.market.sources import SourceRegistry, build_registry
 
-    registry = SourceRegistry()
-    registry.register("swiggy", SwiggyAdapter())
+    registry = build_registry()  # registers all available sources
     snapshot = registry.load("swiggy")
 """
 
 from __future__ import annotations
+
+import logging
+from pathlib import Path
 
 from shopstack.market.sources._adapter import MarketSourceAdapter, MarketSourceError
 from shopstack.market.sources._registry import SourceRegistry
@@ -28,11 +30,44 @@ from shopstack.market.sources._comparison import (
     format_cross_source_html,
 )
 
+logger = logging.getLogger(__name__)
+
+
+def build_registry(repository: MarketSnapshotRepository | None = None, data_dir: Path | None = None) -> SourceRegistry:
+    """Construct a fully-populated SourceRegistry with all available market sources.
+
+    Each adapter is constructed inside a try/except so that any adapter init failure
+    doesn't prevent the registry from being built — failures simply log a warning.
+    Missing data files are handled gracefully at load_snapshot() time.
+    """
+    registry = SourceRegistry(repository=repository)
+
+    sources: list[tuple[str, MarketSourceAdapter]] = []
+
+    for adapter_cls, source_id in [
+        (SwiggyAdapter, "swiggy"),
+        (BlinkitAdapter, "blinkit"),
+        (ZeptoAdapter, "zepto"),
+        (DmartAdapter, "dmart"),
+    ]:
+        try:
+            adapter = adapter_cls(data_dir=data_dir)
+            sources.append((source_id, adapter))
+        except Exception as exc:
+            logger.warning("Failed to create adapter %s: %s", source_id, exc)
+
+    for source_id, adapter in sources:
+        registry.register(source_id, adapter)
+
+    return registry
+
+
 __all__ = [
     "MarketSourceAdapter",
     "MarketSourceError",
     "MarketSnapshotRepository",
     "SourceRegistry",
+    "build_registry",
     "SwiggyAdapter",
     "BlinkitAdapter",
     "ZeptoAdapter",

@@ -1,0 +1,80 @@
+[
+  {
+    "product": "Hybrid Tomato",
+    "size": "500 g",
+    "current_price": 26,
+    "listed_price": 32,
+    "availability": "Available",
+    "description": "Fresh hybrid tomatoes",
+    "tag": "",
+    "card_index": 1,
+    "delivery_time": "",
+    "discount_percent": 18.8,
+    "brand": ""
+  },
+  {
+    "product": "Onion",
+    "size": "1 kg",
+    "current_price": 25,
+    "listed_price": 30,
+    "availability": "Available",
+    "description": "Red onions",
+    "tag": "",
+    "card_index": 2,
+    "delivery_time": "",
+    "discount_percent": 16.7,
+    "brand": "DMart Fresh"
+  },
+  {
+    "product": "Potato",
+    "size": "1 kg",
+    "current_price": 22,
+    "listed_price": 26,
+    "availability": "Available",
+    "description": "Fresh potatoes",
+    "tag": "",
+    "card_index": 3,
+    "delivery_time": "",
+    "discount_percent": 15.4,
+    "brand": ""
+  },
+  {
+    "product": "Carrot",
+    "size": "500 g",
+    "current_price": 32,
+    "listed_price": 40,
+    "availability": "Sold Out",
+    "description": "Ooty carrots",
+    "tag": "",
+    "card_index": 5,
+    "delivery_time": "",
+    "discount_percent": 20.0,
+    "brand": ""
+  },
+  {
+    "product": "Cucumber",
+    "size": "250 g",
+    "current_price": 18,
+    "listed_price": 22,
+    "availability": "Available",
+    "description": "Fresh cucumber",
+    "tag": "ad",
+    "card_index": 6,
+    "delivery_time": "",
+    "discount_percent": 18.2,
+    "brand": ""
+  },
+  {
+    "product": "Mixed Vegetable Combo",
+    "size": "1 Combo",
+    "current_price": 69,
+    "listed_price": 85,
+    "availability": "Available",
+    "description": "Assorted vegetables pack",
+    "tag": "",
+    "card_index": 8,
+    "delivery_time": "",
+    "discount_percent": 18.8,
+    "brand": ""
+  }
+]

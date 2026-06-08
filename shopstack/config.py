@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     cost_budget_limit: float = 1.00
 
     planner_backend: str = "mock"
-    stt_backend: str = "local_whisper"
+    stt_backend: str = "sensevoice"
     tts_backend: str = "kokoro"
     vision_backend: str = "mock"
     ocr_backend: str = "mock"

@@ -32,8 +32,8 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=1.7,
         license_note="Apache-2.0",
         runtime="transformers",
-        status="candidate",
-        notes="top candidate for household commands",
+        status="active",
+        notes="top candidate for household commands — provider wired as qwen3_asr backend",
     ),
     ModelEntry(
         provider_group="stt",
@@ -41,9 +41,9 @@ MODEL_REGISTRY: list[ModelEntry] = [
         hf_model="nvidia/parakeet-ctc-0.6b",
         params_b=0.6,
         license_note="CC-BY-4.0",
-        runtime="custom",
-        status="candidate",
-        notes="lightweight streaming ASR",
+        runtime="transformers",
+        status="active",
+        notes="lightweight streaming ASR — provider wired as parakeet backend",
     ),
     ModelEntry(
         provider_group="stt",
@@ -52,8 +52,8 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=0.2,
         license_note="MIT",
         runtime="transformers",
-        status="candidate",
-        notes="very fast, multilingual",
+        status="active",
+        notes="very fast, multilingual — wired as sensevoice backend (default)",
     ),
     ModelEntry(
         provider_group="stt",
@@ -73,8 +73,8 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=0.6,
         license_note="Apache-2.0",
         runtime="transformers",
-        status="candidate",
-        notes="lightweight TTS candidate",
+        status="active",
+        notes="lightweight TTS candidate — provider wired as qwen3_tts backend",
     ),
     ModelEntry(
         provider_group="tts",
@@ -83,9 +83,9 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=0.082,
         license_note="Apache-2.0",
         runtime="custom",
-        status="candidate",
+        status="active",
         badge_relevance="off_the_grid",
-        notes="extremely lightweight",
+        notes="extremely lightweight — KokoroTTSProvider wired as kokoro backend",
     ),
     # Vision
     ModelEntry(
@@ -95,8 +95,9 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=8.0,
         license_note="Apache-2.0",
         runtime="transformers",
-        status="candidate",
-        notes="strong VLM for household items",
+        status="active",
+        badge_relevance="llama_champion",
+        notes="strong VLM for household items — provider wired as minicpmv backend",
     ),
     # Planner
     ModelEntry(
@@ -106,8 +107,9 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=1.0,
         license_note="Apache-2.0",
         runtime="transformers",
-        status="candidate",
-        notes="lightweight planner / parser",
+        status="active",
+        badge_relevance="well_tuned",
+        notes="lightweight planner / parser — provider wired as minicpm5 backend",
     ),
     ModelEntry(
         provider_group="planner",
@@ -139,8 +141,8 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=4.0,
         license_note="CC-BY-NC-4.0",
         runtime="transformers",
-        status="candidate",
-        notes="strong receipt extraction, non-commercial",
+        status="active",
+        notes="strong receipt extraction, non-commercial — provider wired as nuextract3 backend",
     ),
     # Segmentation
     ModelEntry(
@@ -150,8 +152,8 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=0.3,
         license_note="Apache-2.0",
         runtime="transformers",
-        status="candidate",
-        notes="background removal for item cards",
+        status="active",
+        notes="background removal for item cards — provider wired as rmbg backend",
     ),
     # Embeddings
     ModelEntry(
@@ -161,8 +163,8 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=0.6,
         license_note="MIT",
         runtime="transformers",
-        status="candidate",
-        notes="multilingual embeddings",
+        status="active",
+        notes="multilingual embeddings — provider wired as bge_m3 backend",
     ),
     # Fine-tuned
     ModelEntry(
@@ -184,8 +186,9 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=4.0,
         license_note="FLUX.2-dev Non-Commercial",
         runtime="diffusers",
-        status="candidate",
-        notes="visual card generation",
+        status="active",
+        badge_relevance="llama_champion",
+        notes="visual card generation — FluxImageProvider wired as image_gen backend",
     ),
 ]
 

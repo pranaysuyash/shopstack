@@ -75,16 +75,48 @@ def _runtime_label() -> str:
 def build_app() -> gr.Blocks:
     runtime_label = _runtime_label()
     with gr.Blocks(title=APP_NAME) as app:
-        gr.HTML(f"""
-<div class="app-header">
+        header_html = f"""
+<div class=\"app-header\">
   <div>
-    <h1 class="brand-title">{APP_NAME}</h1>
-    <div class="brand-subtitle">{APP_DESCRIPTION}</div>
+    <h1 class=\"brand-title\">{APP_NAME}</h1>
+    <div class=\"brand-subtitle\">{APP_DESCRIPTION}</div>
   </div>
   <div>
-    <div class="env-badge">{runtime_label}</div>
+    <div class=\"env-badge\">{runtime_label}</div>
+    <button onclick=\"toggleTheme()\" style=\"margin-top:4px;background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 10px;cursor:pointer;font-size:11px;color:var(--text-muted);\">🌓</button>
   </div>
-</div>""", padding=True)
+</div>"""
+        header_script = """
+<script>
+(function() {
+  var t = localStorage.getItem('shopstack-theme');
+  if (t) {
+    document.documentElement.setAttribute('data-theme', t);
+  }
+})();
+function toggleTheme() {
+  var e = document.documentElement;
+  var t = e.getAttribute('data-theme');
+  var n = (t === 'dark' ? 'light' : 'dark');
+  e.setAttribute('data-theme', n);
+  localStorage.setItem('shopstack-theme', n);
+}
+document.addEventListener('keydown', function(e) {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  var tabs = Array.from(document.querySelectorAll('[data-testid^=tab-], .tabs > button[role=tab]'));
+  var idx = tabs.findIndex(t => t.getAttribute('aria-selected') === 'true');
+  if (e.key === 'j' || e.key === 'ArrowRight') {
+    e.preventDefault();
+    var next = (idx + 1) % tabs.length;
+    tabs[next] && tabs[next].click();
+  } else if (e.key === 'k' || e.key === 'ArrowLeft') {
+    e.preventDefault();
+    var prev = (idx - 1 + tabs.length) % tabs.length;
+    tabs[prev] && tabs[prev].click();
+  }
+});
+</script>"""
+        gr.HTML(header_html + header_script, padding=True)
 
         # ── 5-tab daily loop: Today → Basket → ShopLens → Reconcile → Memory ──
         with gr.Tabs(elem_classes="tabs") as tabs:

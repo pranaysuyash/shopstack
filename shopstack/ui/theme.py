@@ -104,6 +104,69 @@ CSS = """\
   --transition-slow: 250ms;
   --transition-glacial: 400ms;
 }
+
+/* ── Dark mode (system preference or explicit toggle) ─────────────── */
+
+[data-theme="dark"] {
+  --bg: #1A1614;
+  --bg-card: #231F1C;
+  --bg-card-strong: #2A2521;
+  --bg-warm: #2D2823;
+  --bg-input: #231F1C;
+  --border: #3C3630;
+  --border-strong: #4E4740;
+  --text: #EDE6DB;
+  --text-muted: #B5AB9E;
+  --text-dim: #9B9183;
+  --text-faint: #7D7467;
+  --accent: #2ECC71;
+  --accent-hover: #27AE60;
+  --accent-soft: rgba(46, 204, 113, 0.12);
+  --green: #2ECC71;
+  --red: #E74C3C;
+  --amber: #F39C12;
+  --blue: #5DADE2;
+  --focus: #5B9EF4;
+  --decision-buy: #2ECC71;
+  --decision-skip: #7F8C8D;
+  --decision-use-soon: #F39C12;
+  --decision-optional: #5DADE2;
+  --decision-compare: #9B59B6;
+  --decision-confirm: #E74C3C;
+  --decision-watch: #95A5A6;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1A1614;
+    --bg-card: #231F1C;
+    --bg-card-strong: #2A2521;
+    --bg-warm: #2D2823;
+    --bg-input: #231F1C;
+    --border: #3C3630;
+    --border-strong: #4E4740;
+    --text: #EDE6DB;
+    --text-muted: #B5AB9E;
+    --text-dim: #9B9183;
+    --text-faint: #7D7467;
+    --accent: #2ECC71;
+    --accent-hover: #27AE60;
+    --accent-soft: rgba(46, 204, 113, 0.12);
+    --green: #2ECC71;
+    --red: #E74C3C;
+    --amber: #F39C12;
+    --blue: #5DADE2;
+    --focus: #5B9EF4;
+    --decision-buy: #2ECC71;
+    --decision-skip: #7F8C8D;
+    --decision-use-soon: #F39C12;
+    --decision-optional: #5DADE2;
+    --decision-compare: #9B59B6;
+    --decision-confirm: #E74C3C;
+    --decision-watch: #95A5A6;
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    BASE STYLES
    ═══════════════════════════════════════════════════════════════════════════ */

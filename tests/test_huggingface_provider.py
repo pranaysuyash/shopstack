@@ -280,6 +280,158 @@ class TestHuggingFaceProviderPlan:
                 assert "error" not in result
                 assert result["text"] == "You have milk and bread."
 
+    def test_plan_uses_structured_chat_when_system_provided(self):
+        """plan() sends system + user as structured messages when ``system`` key is present."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Check inventory."
+        mock_response.usage.total_tokens = 12
+        mock_client.chat.completions.create.return_value = mock_response
+
+        with patch(
+            "shopstack.providers.huggingface_provider._huggingface_available",
+            return_value=(True, ""),
+        ):
+            with patch("huggingface_hub.InferenceClient", return_value=mock_client):
+                provider = _get_hf_provider(api_key="key")
+                result = provider.plan({
+                    "system": "You are a helpful assistant.",
+                    "question": "Do we have milk?",
+                    "prompt": "You are a helpful assistant.\n\nUSER REQUEST: Do we have milk?\n\nJSON tool calls:",
+                })
+                assert "error" not in result
+                assert result["text"] == "Check inventory."
+                # Verify the API received structured messages
+                call_kwargs = mock_client.chat.completions.create.call_args[1]
+                messages = call_kwargs["messages"]
+                assert len(messages) == 2
+                assert messages[0]["role"] == "system"
+                assert messages[0]["content"] == "You are a helpful assistant."
+                assert messages[1]["role"] == "user"
+                assert "Do we have milk?" in messages[1]["content"]
+
+    def test_plan_uses_system_for_custom_model(self):
+        """plan() routes through structured chat for any model when system is provided."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Response"
+        mock_response.usage.total_tokens = 5
+        mock_client.chat.completions.create.return_value = mock_response
+
+        with patch(
+            "shopstack.providers.huggingface_provider._huggingface_available",
+            return_value=(True, ""),
+        ):
+            with patch("huggingface_hub.InferenceClient", return_value=mock_client):
+                provider = _get_hf_provider(api_key="key", model="microsoft/Phi-3-mini-4k-instruct")
+                provider.plan({
+                    "system": "System instruction.",
+                    "question": "User question.",
+                    "prompt": "combined",
+                })
+                call_kwargs = mock_client.chat.completions.create.call_args[1]
+                assert call_kwargs["model"] == "microsoft/Phi-3-mini-4k-instruct"
+                assert len(call_kwargs["messages"]) == 2
+
+    def test_plan_falls_back_to_flat_prompt_when_no_system(self):
+        """plan() falls back to flat prompt when ``system`` key is absent."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Fallback."
+        mock_response.usage.total_tokens = 3
+        mock_client.chat.completions.create.return_value = mock_response
+
+        with patch(
+            "shopstack.providers.huggingface_provider._huggingface_available",
+            return_value=(True, ""),
+        ):
+            with patch("huggingface_hub.InferenceClient", return_value=mock_client):
+                provider = _get_hf_provider(api_key="key")
+                result = provider.plan({"prompt": "flat prompt"})
+                assert result["text"] == "Fallback."
+                call_kwargs = mock_client.chat.completions.create.call_args[1]
+                assert len(call_kwargs["messages"]) == 1
+                assert call_kwargs["messages"][0]["role"] == "user"
+
+
+# ── chat() ────────────────────────────────────────────────────────────
+
+
+class TestHuggingFaceProviderChat:
+    def test_chat_returns_error_when_not_available(self):
+        """chat() returns error dict when not available."""
+        with _mock_missing_huggingface_hub():
+            provider = _get_hf_provider()
+            result = provider.chat([{"role": "user", "content": "Hi"}])
+            assert "error" in result
+
+    def test_chat_sends_messages(self):
+        """chat() sends the given messages to the HF API."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Hello!"
+        mock_response.usage.total_tokens = 5
+        mock_client.chat.completions.create.return_value = mock_response
+
+        messages = [
+            {"role": "system", "content": "You are helpful."},
+            {"role": "user", "content": "Say hi"},
+        ]
+
+        with patch(
+            "shopstack.providers.huggingface_provider._huggingface_available",
+            return_value=(True, ""),
+        ):
+            with patch("huggingface_hub.InferenceClient", return_value=mock_client):
+                provider = _get_hf_provider(api_key="key")
+                result = provider.chat(messages, max_tokens=100, temperature=0.5)
+                assert "error" not in result
+                assert result["text"] == "Hello!"
+                assert result["usage"]["total_tokens"] == 5
+
+                call_kwargs = mock_client.chat.completions.create.call_args[1]
+                assert call_kwargs["messages"] == messages
+                assert call_kwargs["max_tokens"] == 100
+                assert call_kwargs["temperature"] == 0.5
+
+    def test_chat_retries_on_failure(self):
+        """chat() retries on transient errors."""
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.side_effect = RuntimeError("Down")
+
+        with patch(
+            "shopstack.providers.huggingface_provider._huggingface_available",
+            return_value=(True, ""),
+        ):
+            with patch("huggingface_hub.InferenceClient", return_value=mock_client):
+                provider = _get_hf_provider(api_key="key", max_retries=1)
+                result = provider.chat([{"role": "user", "content": "Hi"}])
+                assert "error" in result
+                assert mock_client.chat.completions.create.call_count == 2
+
+    def test_chat_tracks_latency(self):
+        """chat() sets last_latency_ms after a successful call."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Hi"
+        mock_response.usage.total_tokens = 3
+        mock_client.chat.completions.create.return_value = mock_response
+
+        with patch(
+            "shopstack.providers.huggingface_provider._huggingface_available",
+            return_value=(True, ""),
+        ):
+            with patch("huggingface_hub.InferenceClient", return_value=mock_client):
+                provider = _get_hf_provider(api_key="key")
+                provider.chat([{"role": "user", "content": "Hi"}])
+                assert provider.last_latency_ms is not None
+                assert provider.last_latency_ms >= 0
+
 
 # ── Registry wiring ────────────────────────────────────────────────────
 

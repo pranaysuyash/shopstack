@@ -48,17 +48,22 @@ class PlannerEngine:
         return getattr(provider, "available", False)
 
     def process(self, question: str) -> str:
-        from shopstack.planner.prompts import build_planner_prompt
+        from shopstack.planner.prompts import build_planner_prompt, build_system_prompt
 
         provider = self._providers.planner
         if provider is None or not getattr(provider, "available", False):
             return "<div class='stat-card'>Planner not available. Set SHOPSTACK_PLANNER_BACKEND=local to use a local model, or SHOPSTACK_PLANNER_BACKEND=openai for OpenAI.</div>"
 
         prompt = build_planner_prompt(question, self._db)
+        system_prompt = build_system_prompt(self._db)
 
         try:
             if hasattr(provider, "plan"):
-                result = provider.plan({"prompt": prompt, "question": question})
+                result = provider.plan({
+                    "prompt": prompt,
+                    "system": system_prompt,
+                    "question": question,
+                })
                 # Interface contract: plan() may return a list of tool calls directly
                 if isinstance(result, list):
                     outcomes = self._execute_tool_calls(result)

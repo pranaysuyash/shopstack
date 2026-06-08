@@ -180,3 +180,171 @@ class KokoroTTSProvider(TTSProvider):
     @property
     def error(self) -> str | None:
         return self._error
+
+
+class Qwen3TTSProvider(TTSProvider):
+    """TTS provider using Qwen3-TTS-0.6B via transformers.
+
+    Provides text-to-speech synthesis. Falls back gracefully when deps are missing.
+    """
+
+    name = "qwen3_tts"
+    model_id = "qwen3-tts-0.6b"
+    parameter_count = 0.6
+    license_note = "Apache-2.0"
+    runtime_type = "transformers"
+    supports_off_grid = True
+    capabilities: set[str] = {"tts"}
+
+    SAMPLE_RATE = 24000
+
+    def __init__(
+        self,
+        model_name: str = "Qwen/Qwen3-TTS-0.6B",
+        device: str = "auto",
+        cache_dir: str | None = None,
+    ):
+        self._model_name = model_name
+        self._device = device
+        self._cache_dir = cache_dir or os.path.join(
+            tempfile.gettempdir(), "shopstack_qwen3tts_cache"
+        )
+        self._model = None
+        self._processor = None
+        self._available = False
+        self._error: str | None = None
+        self._init()
+
+    def _init(self) -> None:
+        try:
+            import torch  # noqa: F401
+            from transformers import (  # noqa: F401
+                AutoModel,
+                AutoTokenizer,
+            )
+            self._available = True
+            self._error = None
+            logger.info("Qwen3-TTS provider initialised (model=%s)", self._model_name)
+        except ImportError:
+            self._error = (
+                "transformers/torch not installed. "
+                "Run: uv pip install transformers torch"
+            )
+            self._available = False
+
+    def load(self) -> None:
+        if self._model is not None:
+            return
+        self._load_model()
+
+    def _load_model(self) -> bool:
+        if self._model is not None:
+            return True
+        try:
+            import torch
+            from transformers import AutoModel, AutoTokenizer
+
+            logger.info("Loading Qwen3-TTS model %s ...", self._model_name)
+            self._tokenizer = AutoTokenizer.from_pretrained(
+                self._model_name, trust_remote_code=True
+            )
+            self._model = AutoModel.from_pretrained(
+                self._model_name,
+                trust_remote_code=True,
+                torch_dtype=torch.bfloat16,
+            )
+            if self._device == "auto":
+                if torch.cuda.is_available():
+                    self._model = self._model.to("cuda")
+                elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                    self._model = self._model.to("mps")
+            else:
+                self._model = self._model.to(self._device)
+            self._model.eval()
+            logger.info("Qwen3-TTS model loaded")
+            return True
+        except ImportError:
+            self._error = (
+                "transformers/torch not installed. "
+                "Run: uv pip install transformers torch"
+            )
+            return False
+        except Exception as e:
+            self._error = f"Failed to load Qwen3-TTS model: {e}"
+            logger.warning("Qwen3-TTS model load failed", exc_info=True)
+            return False
+
+    def _cache_path(self, text: str, language: str) -> str:
+        key = hashlib.md5(
+            f"{text}:{language}:{self._model_name}".encode()
+        ).hexdigest()
+        os.makedirs(self._cache_dir, exist_ok=True)
+        return os.path.join(self._cache_dir, f"{key}.wav")
+
+    def synthesize(self, text: str, language: str = "en") -> bytes | str:
+        if not text:
+            return b""
+
+        if not self._available:
+            return b""
+
+        cache_path = self._cache_path(text, language)
+        if os.path.isfile(cache_path):
+            try:
+                with open(cache_path, "rb") as f:
+                    return f.read()
+            except OSError:
+                pass
+
+        if self._model is None and not self._load_model():
+            return b""
+
+        if self._tokenizer is None:
+            return b""
+
+        try:
+            import torch
+
+            inputs = self._tokenizer(
+                text, return_tensors="pt", padding=True, truncation=True
+            )
+            if torch.cuda.is_available():
+                inputs = {k: v.to("cuda") for k, v in inputs.items()}
+            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                inputs = {k: v.to("mps") for k, v in inputs.items()}
+
+            with torch.no_grad():
+                audio_values = self._model.generate(**inputs, max_length=4096)
+
+            audio_np = audio_values.cpu().numpy().flatten()
+
+            import numpy as np
+            max_val = float(np.max(np.abs(audio_np)))
+            if max_val > 1.0:
+                audio_np = audio_np / max_val
+
+            audio_int16 = (audio_np * 32767).astype(np.int16)
+
+            with wave.open(cache_path, "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(self.SAMPLE_RATE)
+                wf.writeframes(audio_int16.tobytes())
+
+            with open(cache_path, "rb") as f:
+                return f.read()
+
+        except Exception:
+            logger.warning("Qwen3-TTS synthesis failed", exc_info=True)
+            return b""
+
+    def healthcheck(self) -> bool:
+        return self._available
+
+    @property
+    def available(self) -> bool:
+        return self._available
+
+    @property
+    def error(self) -> str | None:
+        return self._error

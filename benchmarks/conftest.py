@@ -103,7 +103,13 @@ Change: 63.00
 
 @pytest.fixture(scope="session")
 def settings() -> Settings:
-    return Settings(_env_file=None, db_path=":memory:", off_the_grid=True)
+    return Settings(
+        _env_file=None,
+        db_path=":memory:",
+        off_the_grid=True,
+        stt_backend="mock",
+        tts_backend="mock",
+    )
 
 
 @pytest.fixture(scope="session")

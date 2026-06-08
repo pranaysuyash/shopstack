@@ -187,14 +187,23 @@ def format_inventory_context(db: Any) -> str:
     return "\n".join(lines)
 
 
-def build_planner_prompt(question: str, db: Any) -> str:
-    """Build the full planner prompt by populating the SYSTEM_PROMPT template."""
+def build_system_prompt(db: Any) -> str:
+    """Build just the system prompt (tool descriptions + inventory context).
+
+    Separated from build_planner_prompt so chat-oriented providers
+    (like HuggingFaceProvider) can send it as a structured ``role=system``
+    message instead of concatenating it with the user request.
+    """
     inventory_context = format_inventory_context(db)
     tool_descriptions = _format_tool_descriptions()
-    # Use the canonical SYSTEM_PROMPT template — no duplicated role definition
-    system = SYSTEM_PROMPT.replace("{{tool_descriptions}}", tool_descriptions).replace(
+    return SYSTEM_PROMPT.replace("{{tool_descriptions}}", tool_descriptions).replace(
         "{{inventory_context}}", inventory_context
     )
+
+
+def build_planner_prompt(question: str, db: Any) -> str:
+    """Build the full planner prompt by populating the SYSTEM_PROMPT template."""
+    system = build_system_prompt(db)
     prompt = (
         f"{system}\n\n"
         f"USER REQUEST: {question}\n\n"

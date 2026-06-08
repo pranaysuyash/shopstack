@@ -88,10 +88,73 @@ def _load_sensevoice():
         return None
 
 
+def _load_qwen3_asr():
+    try:
+        from shopstack.providers.stt_provider import Qwen3ASRProvider
+        return Qwen3ASRProvider
+    except ImportError:
+        return None
+
+
 def _load_kokoro_tts():
     try:
         from shopstack.providers.tts_provider import KokoroTTSProvider
         return KokoroTTSProvider
+    except ImportError:
+        return None
+
+
+def _load_bge_m3():
+    try:
+        from shopstack.providers.embeddings_provider import BGEM3EmbeddingProvider
+        return BGEM3EmbeddingProvider
+    except ImportError:
+        return None
+
+
+def _load_minicpmv():
+    try:
+        from shopstack.providers.vision_provider import MiniCPMVProvider
+        return MiniCPMVProvider
+    except ImportError:
+        return None
+
+
+def _load_minicpm5():
+    try:
+        from shopstack.providers.planner_provider import MiniCPM5Provider
+        return MiniCPM5Provider
+    except ImportError:
+        return None
+
+
+def _load_qwen3_tts():
+    try:
+        from shopstack.providers.tts_provider import Qwen3TTSProvider
+        return Qwen3TTSProvider
+    except ImportError:
+        return None
+
+
+def _load_nuextract3():
+    try:
+        from shopstack.providers.ocr_provider import NuExtract3OCRProvider
+        return NuExtract3OCRProvider
+    except ImportError:
+        return None
+
+
+def _load_rmbg():
+    try:
+        from shopstack.providers.segmentation_provider import RMBGSegmentationProvider
+        return RMBGSegmentationProvider
+    except ImportError:
+        return None
+
+def _load_parakeet():
+    try:
+        from shopstack.providers.stt_provider import ParakeetSTTProvider
+        return ParakeetSTTProvider
     except ImportError:
         return None
 
@@ -148,6 +211,54 @@ def _try_real_provider(backend: str, settings: Settings) -> Any | None:
         if cls:
             return cls()
         logger.info("Kokoro TTS provider not available (kokoro package missing), falling back to mock")
+        return None
+    if backend == "qwen3_asr":
+        cls = _load_qwen3_asr()
+        if cls:
+            return cls()
+        logger.info("Qwen3-ASR provider not available (transformers/torch missing), falling back to mock")
+        return None
+    if backend == "bge_m3" or backend == "bge-m3":
+        cls = _load_bge_m3()
+        if cls:
+            return cls()
+        logger.info("BGE-M3 provider not available (sentence-transformers missing), falling back to mock")
+        return None
+    if backend == "minicpmv":
+        cls = _load_minicpmv()
+        if cls:
+            return cls()
+        logger.info("MiniCPM-V provider not available (transformers/torch missing), falling back to mock")
+        return None
+    if backend == "minicpm5":
+        cls = _load_minicpm5()
+        if cls:
+            return cls()
+        logger.info("MiniCPM5 provider not available (transformers/torch missing), falling back to mock")
+        return None
+    if backend == "qwen3_tts":
+        cls = _load_qwen3_tts()
+        if cls:
+            return cls()
+        logger.info("Qwen3-TTS provider not available (transformers/torch missing), falling back to mock")
+        return None
+    if backend == "nuextract3" or backend == "nuextract":
+        cls = _load_nuextract3()
+        if cls:
+            return cls()
+        logger.info("NuExtract3 provider not available (transformers/torch missing), falling back to mock")
+        return None
+    if backend == "rmbg":
+        cls = _load_rmbg()
+        if cls:
+            return cls()
+        logger.info("RMBG provider not available (transformers/torch missing), falling back to mock")
+        return None
+    if backend == "parakeet":
+        cls = _load_parakeet()
+        if cls:
+            return cls()
+        logger.info("Parakeet provider not available (transformers/torch missing), falling back to mock")
         return None
     return None
 

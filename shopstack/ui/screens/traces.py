@@ -7,12 +7,36 @@ import os
 import tempfile
 from html import escape
 from typing import Any
+import sys
 
-from shopstack.app_context import db
 from shopstack.traces.export import export_trace_by_id, trace_payload_for_export, create_trace
 from shopstack.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _current_db():
+    # Prefer the process-level `app` module singleton first.
+    # Test suites occasionally reload `shopstack.app_context`, and we must not
+    # drift to a different `db` object when existing tests keep using the same app
+    # instance.
+    app_module = sys.modules.get("app")
+    if app_module is not None and hasattr(app_module, "db"):
+        return app_module.db
+
+    # Compatibility fallback for direct package imports that only touch
+    # `shopstack.app_context`.
+    try:
+        from shopstack import app as _app
+    except Exception:
+        _app = None
+    if _app is not None and hasattr(_app, "db"):
+        return _app.db
+
+    # Fallback to app_context for call-sites that import traces without the app
+    # module loaded (for example, lower-level unit tests).
+    from shopstack import app_context
+    return app_context.db
 
 
 def _safe_trace_id(trace_id: str) -> str:
@@ -20,6 +44,7 @@ def _safe_trace_id(trace_id: str) -> str:
 
 
 def _find_trace_by_id(trace_id: str):
+    db = _current_db()
     if not trace_id:
         traces = db.get_traces(limit=1)
         return traces[0] if traces else None
@@ -28,6 +53,7 @@ def _find_trace_by_id(trace_id: str):
 
 
 def _filter_traces(search: str = "", input_type_filter: str = "") -> list:
+    db = _current_db()
     traces = db.get_traces(limit=max(1, min(settings.trace_max_rows, 500)))
     needle = (search or "").strip().lower()
     selected = (input_type_filter or "").strip().lower()
@@ -151,7 +177,7 @@ def agent_trace_export_file(trace_id: str) -> str:
         return ""
     fd, out_path = tempfile.mkstemp(suffix=".jsonl")
     try:
-        wrote = export_trace_by_id(db, trace.trace_id, out_path, redact=True)
+        wrote = export_trace_by_id(_current_db(), trace.trace_id, out_path, redact=True)
     finally:
         os.close(fd)
     if not wrote:
@@ -172,7 +198,7 @@ def record_workflow_trace(
 ) -> str:
     try:
         trace = create_trace(
-            db,
+            _current_db(),
             input_type=input_type,
             user_goal=user_goal,
             redacted_user_request=redacted_user_request,
