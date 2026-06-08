@@ -26,6 +26,7 @@ __all__ = [
     "card",
     "empty_state",
     "FieldNotesView",
+    "list_to_table",
     "load_field_notes",
     "PriceMemoryView",
     "render_action_grid",

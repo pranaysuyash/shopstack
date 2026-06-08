@@ -10,6 +10,16 @@ from shopstack.ui.renderers.decision_cards import (
     render_swiggy_soldout_warning,
     render_needs_confirmation,
 )
+from shopstack.ui.renderers.image_cards import (
+    CardTheme,
+    DEFAULT_THEME,
+    cards_to_grid,
+    render_item_card,
+    render_use_soon_card,
+    render_decision_card as render_svg_decision_card,
+    render_shopping_summary_card,
+    render_price_comparison_card,
+)
 
 __all__ = [
     "render_market_basket",
@@ -22,4 +32,12 @@ __all__ = [
     "render_waste_warnings",
     "render_swiggy_soldout_warning",
     "render_needs_confirmation",
+    "CardTheme",
+    "DEFAULT_THEME",
+    "cards_to_grid",
+    "render_item_card",
+    "render_use_soon_card",
+    "render_svg_decision_card",
+    "render_shopping_summary_card",
+    "render_price_comparison_card",
 ]

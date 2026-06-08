@@ -4,7 +4,6 @@ import logging
 import os
 import re
 import subprocess
-from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -50,7 +49,7 @@ def decode_barcode(image_path: str) -> list[dict[str, Any]]:
                 }
                 for r in results
             ]
-    except Exception as e:
+    except Exception:
         logger.warning("pyzbar decode failed, falling back to subprocess", exc_info=True)
         return _try_zbar_subprocess(image_path)
 
@@ -69,7 +68,7 @@ def _try_zbar_subprocess(image_path: str) -> list[dict[str, Any]]:
             return [{"data": data, "type": code_type, "source": "zbarimg"}]
     except FileNotFoundError:
         logger.info("zbarimg not available for barcode decoding")
-    except Exception as e:
+    except Exception:
         logger.warning("zbarimg subprocess failed", exc_info=True)
     return []
 

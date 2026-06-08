@@ -5,6 +5,7 @@ from html import escape
 from typing import Any
 
 from shopstack.config import settings
+from shopstack.cost_tracker import CostTracker, CostRecord, estimate_cost_usd, estimate_model_tier
 from shopstack.persistence.database import Database
 from shopstack.planner.parser import parse_tool_calls
 from shopstack.providers.registry import ProviderRegistry
@@ -37,6 +38,7 @@ class PlannerEngine:
         self._db = db
         self._tools = tool_registry
         self._providers = provider_registry
+        self._cost_tracker = CostTracker(budget_limit=settings.cost_budget_limit)
 
     @property
     def available(self) -> bool:
@@ -63,8 +65,12 @@ class PlannerEngine:
                     return self._format_outcomes(outcomes, question)
                 raw_text = str(result.get("text", ""))
             else:
-                result = provider.complete(prompt)
-                raw_text = str(result.get("text", ""))
+                complete_fn = getattr(provider, "complete", None)
+                plan_result = complete_fn(prompt) if callable(complete_fn) else {"text": ""}
+                if isinstance(plan_result, dict):
+                    raw_text = str(plan_result.get("text", ""))
+                else:
+                    raw_text = str(plan_result) if plan_result else ""
         except Exception as e:
             logger.warning("Planner call failed", exc_info=True)
             return f"<div class='stat-card'><div style='color:var(--red);'>Planner error: {escape(str(e))}</div></div>"
@@ -75,6 +81,25 @@ class PlannerEngine:
         tool_calls = parse_tool_calls(raw_text)
         outcomes = self._execute_tool_calls(tool_calls)
         return self._format_outcomes(outcomes, question)
+
+    @property
+    def session_cost(self) -> dict[str, Any]:
+        """Return the current session cost summary."""
+        return self._cost_tracker.summary()
+
+    def _record_cost(self, model_key: str, input_tokens: int, output_tokens: int, latency_ms: float | None = None) -> None:
+        """Record a cost entry from a provider call."""
+        cost = estimate_cost_usd(model_key, input_tokens, output_tokens)
+        tier = estimate_model_tier(input_tokens, item_count=0)
+        record = CostRecord(
+            model=model_key,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_usd=cost,
+            tier=tier,
+            latency_ms=latency_ms,
+        )
+        self._cost_tracker = self._cost_tracker.add(record)
 
     def _execute_tool_calls(
         self, tool_calls: list[dict[str, Any]]
@@ -115,7 +140,7 @@ class PlannerEngine:
                     )
                 continue
             action = TOOL_ACTIONS_HELP.get(tool, f"Ran {tool}.")
-            result_data = outcome.get("result") or outcome.get("error", "")
+            _result_data = outcome.get("result") or outcome.get("error", "")
             if success:
                 if action:
                     html_parts.append(

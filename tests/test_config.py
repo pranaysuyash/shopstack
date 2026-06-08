@@ -23,8 +23,8 @@ class TestSettings:
     def test_provider_backends_default(self, monkeypatch):
         monkeypatch.delenv("SHOPSTACK_OFF_THE_GRID", raising=False)
         s = Settings(_env_file=None)
-        assert s.stt_backend == "mock"
-        assert s.tts_backend == "mock"
+        assert s.stt_backend == "local_whisper"
+        assert s.tts_backend == "kokoro"
         assert s.vision_backend == "mock"
 
     def test_provider_backends_compat_alias(self):

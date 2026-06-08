@@ -1,23 +1,19 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
+from datetime import date
 
-from pydantic import ValidationError
 import pytest
 
 from shopstack.schemas.models import (
     DetectionEvent,
     InventoryLot,
-    MovementEvent,
-    OcrExtraction,
     PriceObservation,
     PurchaseEvent,
     ShoppingList,
     ShoppingListItem,
     Store,
     Trace,
-    VoiceCommand,
 )
 
 

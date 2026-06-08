@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import logging
 from html import escape
-from datetime import date
 from typing import Any
 from urllib.parse import quote
 
@@ -15,11 +14,9 @@ from shopstack.services.shopping import (
     complete_shopping_list_service,
     mark_items_purchased_service,
 )
-from shopstack.services.results import MarkPurchasedResult, ShoppingCompletionResult
 from shopstack.ui import list_to_table
 from shopstack.traces.export import create_trace
 from shopstack.ui.screens._utils import (
-    WORKFLOW_STEPS,
     parse_shopping_text,
 )
 
@@ -379,18 +376,28 @@ def _shopping_list_view_with_cards() -> tuple[str, str, list[list[str]], str, st
     return card_wrap, goal_html, tbl, list_id, list_goal, share
 
 
-def shopping_list_item_choices() -> list[list[str]]:
+def shopping_list_item_choices() -> list[tuple[str, str]]:
     sl = db.get_active_shopping_list()
     if not sl or not sl.items:
-        return [["No items"]]
+        return []
     items = [i for i in sl.items if i.status != "bought" and i.status != "skipped"]
     if not items:
-        return [["All items purchased"]]
-    return [[i.canonical_name, str(i.requested_quantity or 1.0), i.unit or "unit", i.list_item_id] for i in items]
+        return []
+    return [
+        (
+            f"{i.canonical_name} ({i.requested_quantity or 1.0} {i.unit or 'unit'})",
+            i.list_item_id,
+        )
+        for i in items
+    ]
 
 
-def mark_items_purchased(item_ids_json: str) -> str:
-    result = mark_items_purchased_service(item_ids_json, tools, db)
+def mark_items_purchased(item_ids_json: str | list[str]) -> str:
+    if isinstance(item_ids_json, list):
+        item_ids = item_ids_json
+    else:
+        item_ids = item_ids_json
+    result = mark_items_purchased_service(item_ids, tools, db)
     return result.to_html()
 
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 from shopstack.providers.runtime import (
     RuntimeDiagnostics,
     AggregateDiagnostics,
-    collect_runtime_diagnostics,
     diagnostics_to_rows,
 )
 

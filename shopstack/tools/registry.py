@@ -1,16 +1,15 @@
 from __future__ import annotations
+from datetime import date
 
-from datetime import date, datetime, timedelta
-from typing import Any, Callable
+from typing import Any, cast, Callable
 
 from shopstack.persistence.database import Database
 from shopstack.schemas.models import (
     InventoryLot,
     MovementEvent,
+    MovementSource,
     PriceObservation,
-    PurchaseEvent,
     ShoppingListItem,
-    Trace,
 )
 from shopstack.tools.spec import ArgSpec, ToolSpec, build_tool_specs
 
@@ -18,8 +17,9 @@ ToolFunc = Callable[..., dict[str, Any]]
 
 
 class ToolRegistry:
-    def __init__(self, db: Database):
+    def __init__(self, db: Database, embedding_provider: Any = None):
         self.db = db
+        self._embedding_provider = embedding_provider
         self._tools: dict[str, tuple[ToolFunc, str, list[str]]] = {}
         self._register_all()
 
@@ -94,6 +94,12 @@ class ToolRegistry:
             self.export_anonymized_trace,
             "Export an anonymized agent trace",
             ["trace_id"],
+        )
+        self._register(
+            "semantic_find_item",
+            self.semantic_find_item,
+            "Search for an item using exact, prefix, and semantic embedding search with match quality scores",
+            ["query"],
         )
 
     def list_tools(self) -> list[dict[str, Any]]:
@@ -186,6 +192,7 @@ class ToolRegistry:
         resolved_id, resolve_error = self._resolve_lot_id(lot_id)
         if resolve_error:
             return {"error": resolve_error}
+        assert resolved_id is not None
         lot = self.db.update_inventory_lot(resolved_id, updates)
         if not lot:
             return {"error": f"Lot {lot_id} not found"}
@@ -197,7 +204,8 @@ class ToolRegistry:
         resolved_id, resolve_error = self._resolve_lot_id(lot_id)
         if resolve_error:
             return {"error": resolve_error}
-        lot = self.db.get_inventory_lot(resolved_id) if resolved_id else None
+        assert resolved_id is not None
+        lot = self.db.get_inventory_lot(resolved_id)
         if not lot:
             return {"error": f"Lot {lot_id} not found"}
         if quantity <= 0:
@@ -220,6 +228,7 @@ class ToolRegistry:
         resolved_id, resolve_error = self._resolve_lot_id(lot_id)
         if resolve_error:
             return {"error": resolve_error}
+        assert resolved_id is not None
         lot = self.db.get_inventory_lot(resolved_id)
         if not lot:
             return {"error": f"Lot {lot_id} not found"}
@@ -230,7 +239,7 @@ class ToolRegistry:
             lot_id=resolved_id,
             from_location_id=lot.storage_location_id or None,
             to_location_id=to_location_id,
-            source=source,
+            source=cast(MovementSource, source),
         )
         self.db.record_movement(movement)
         return {
@@ -252,6 +261,36 @@ class ToolRegistry:
                     "location_id": lot.storage_location_id,
                 })
         return {"results": results, "count": len(results)}
+
+    def semantic_find_item(self, query: str) -> dict[str, Any]:
+        q = query.strip()
+        if not q:
+            return {"results": [], "count": 0, "match_type": "none"}
+        from shopstack.services.search import semantic_search
+        search_results = semantic_search(
+            self.db,
+            query,
+            threshold=0.6,
+            embedding_provider=getattr(self, "_embedding_provider", None),
+        )
+        all_inventory = self.db.get_inventory()
+        lot_results = []
+        for sr in search_results:
+            matching_lots = [
+                lot for lot in all_inventory
+                if lot.canonical_name == sr.canonical_name
+            ]
+            for lot in matching_lots:
+                loc = self.db.get_location(lot.storage_location_id)
+                lot_results.append({
+                    "lot": lot.model_dump(),
+                    "location_name": loc.name if loc else "Unknown",
+                    "location_id": lot.storage_location_id,
+                    "match_type": sr.match_type,
+                    "match_score": sr.score,
+                })
+        match_type = lot_results[0]["match_type"] if lot_results else "none"
+        return {"results": lot_results, "count": len(lot_results), "match_type": match_type}
 
     def create_or_update_shopping_list(
         self,

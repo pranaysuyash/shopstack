@@ -26,7 +26,6 @@ def _set_test_env():
 @pytest.fixture
 def app():
     """Import app module fresh for each test, giving a clean :memory: DB."""
-    import importlib
     import sys
 
     _preserved = {"shopstack.schemas", "shopstack.schemas.models"}
@@ -249,7 +248,6 @@ class TestClassifyShoppingItems:
         from datetime import date
         from shopstack.services.shopping import classify_shopping_items
         # Seed a lot expiring today with qty < requested*2 so it's NOT skipped
-        from shopstack.schemas.models import InventoryLot
         db.add_inventory_lot(InventoryLot(
             canonical_name="milk", display_name="Milk",
             quantity=1.5, unit="L",

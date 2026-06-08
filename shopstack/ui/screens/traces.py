@@ -192,3 +192,23 @@ def record_workflow_trace(
 def trace_bundle(trace_id: str) -> tuple[str, str]:
     """Public handler for getting trace timeline and raw JSON."""
     return _trace_bundle(trace_id)
+
+
+def agent_trace_refresh() -> tuple:
+    """Refresh trace selector, timeline, raw, state, and table.
+
+    Returns 5 values matching Gradio's [trace_selector, trace_bootstrap_state,
+    trace_timeline, trace_raw, trace_table] outputs.
+    """
+    selector, trace_id, timeline_html, raw_html = agent_trace_bootstrap()
+    tbl, _ = agent_trace_view()
+    return selector, trace_id, timeline_html, raw_html, tbl
+
+
+def agent_trace_search_filter(search: str, type_filter: str) -> tuple:
+    """Filter traces by search and type, return updated selector, timeline, raw.
+
+    Returns 3 values matching Gradio's [trace_selector, trace_timeline, trace_raw] outputs.
+    """
+    boot = agent_trace_bootstrap(search, type_filter)
+    return boot[0], boot[2], boot[3]

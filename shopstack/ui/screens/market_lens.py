@@ -65,7 +65,7 @@ def market_lens_process(image_path: str | None, audio_path: str | None) -> tuple
             analysis = service_result.analysis_json
             service_result.decisions.append({"canonical_name": "", "decision": "text_query", "reason": transcript_text})
         else:
-            result_html += f"<div style='margin-top:8px;color:var(--text-dim);'>Spoken note processed for context.</div>"
+            result_html += "<div style='margin-top:8px;color:var(--text-dim);'>Spoken note processed for context.</div>"
 
     ml_trace_id = ""
     if image_path or audio_path:

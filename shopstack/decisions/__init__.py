@@ -34,10 +34,7 @@ from shopstack._legacy_decisions import (
     render_waste_warnings,
     render_swiggy_soldout_warning,
     render_needs_confirmation,
-    _badge_html,
 )
-
-ItemDecision.badge_html = _badge_html
 
 __all__ = [
     "Decision",

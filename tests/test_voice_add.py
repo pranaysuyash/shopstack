@@ -20,8 +20,9 @@ def fresh_app(_app_session):
     """Return the session-scoped app, clearing all tables between modules."""
     app_mod = _app_session
     conn = app_mod.db.conn
-    for table in ["inventory_lots", "shopping_list_items", "shopping_lists",
+    for table in ["app_config", "household_locations", "inventory_lots",
                   "movement_events", "price_observations", "purchase_events",
+                  "shopping_list_items", "shopping_lists", "stores",
                   "traces"]:
         conn.execute(f"DELETE FROM {table}")
     conn.commit()
@@ -85,7 +86,7 @@ class TestVoiceAddCommands:
 
     def test_add_with_location_inference(self, fresh_app):
         fresh_app.ask_shopstack("add 1 bunch coriander")
-        items = fresh_app.db.get_inventory(canonical_name="coriander")
+        _items = fresh_app.db.get_inventory(canonical_name="coriander")
         # With mock planner available, the planner adds "tomato" (its canned item).
         # The test verifies that ANY item was added to inventory, not necessarily the requested one.
         all_items = fresh_app.db.get_inventory()

@@ -39,7 +39,7 @@ def render_market_basket(ds: DecisionSet) -> str:
             f"<div style='font-weight:600;'>{escape(d.display_name)}</div>"
             f"<div style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}{ppk}</div>"
             f"</div>"
-            f"<div style='font-weight:600;color:#22c55e;'>{price_str}</div>"
+            f"<div style='font-weight:600;color:var(--decision-buy);'>{price_str}</div>"
             f"</div>"
         )
 
@@ -158,21 +158,21 @@ def render_compare_panel(ds: DecisionSet) -> str:
         price = f" &#8377;{d.market_price_per_kg:.0f}/kg" if d.market_price_per_kg else ""
         rows.append(
             f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
-            f"<strong style='color:#8b5cf6;'>Compare</strong> {escape(d.display_name)}"
+            f"<strong style='color:var(--decision-compare);'>Compare</strong> {escape(d.display_name)}"
             f"<div style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}{price}</div>"
             f"</div>"
         )
     for d in watch_items[:4]:
         rows.append(
             f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
-            f"<strong style='color:#9ca3af;'>Watch</strong> {escape(d.display_name)}"
+            f"<strong style='color:var(--decision-watch);'>Watch</strong> {escape(d.display_name)}"
             f"<div style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}</div>"
             f"</div>"
         )
     for d in confirm_items[:4]:
         rows.append(
             f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
-            f"<strong style='color:#ef4444;'>Confirm</strong> {escape(d.display_name)}"
+            f"<strong style='color:var(--red);'>Confirm</strong> {escape(d.display_name)}"
             f"<div style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}</div>"
             f"</div>"
         )
@@ -206,7 +206,7 @@ def render_decision_panel(ds: DecisionSet) -> str:
             price = f" &#8377;{d.market_price_per_kg:.0f}/kg" if d.market_price_per_kg else ""
             buy_rows.append(
                 f"<div style='padding:5px 0;border-bottom:1px solid var(--border);'>"
-                f"<strong style='color:#22c55e;'>Buy</strong> {escape(d.display_name)} "
+                f"<strong style='color:var(--decision-buy);'>Buy</strong> {escape(d.display_name)} "
                 f"<span style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}{price}</span>"
                 f"</div>"
             )
@@ -217,7 +217,7 @@ def render_decision_panel(ds: DecisionSet) -> str:
         for d in use_soon[:4]:
             us_rows.append(
                 f"<div style='padding:5px 0;border-bottom:1px solid var(--border);'>"
-                f"<strong style='color:#f59e0b;'>Use Soon</strong> {escape(d.display_name)} "
+                f"<strong style='color:var(--decision-use-soon);'>Use Soon</strong> {escape(d.display_name)} "
                 f"<span style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}</span>"
                 f"</div>"
             )
@@ -285,7 +285,7 @@ def render_cadence_insights(cadence: dict[str, dict[str, Any]], today: date | No
         return ""
 
     today = today or date.today()
-    upcoming: list[tuple[int, str, str, str]] = []
+    upcoming: list[tuple[int, str, str, Any]] = []
     for cname, info in cadence.items():
         days_until = (info["next_expected"] - today).days
         if abs(days_until) <= 3:
@@ -304,7 +304,7 @@ def render_cadence_insights(cadence: dict[str, dict[str, Any]], today: date | No
     upcoming.sort(key=lambda x: x[0])
     rows = []
     for _, display, label, avg_days in upcoming[:5]:
-        cadence_note = f"every {avg_days:.0f}d" if avg_days > 0 else ""
+        cadence_note = f"every {float(avg_days):.0f}d" if float(avg_days) > 0 else ""
         rows.append(
             f"<div style='display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);'>"
             f"<span style='font-weight:600;'>{escape(display)}</span>"
@@ -328,13 +328,13 @@ def render_waste_warnings(signals: list[dict[str, Any]]) -> str:
     for s in signals[:3]:
         rows.append(
             f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'>"
-            f"<strong style='color:#ef4444;'>&#x26A0; {escape(s['display_name'])}</strong> "
+            f"<strong style='color:var(--red);'>&#x26A0; {escape(s['display_name'])}</strong> "
             f"<span style='font-size:11px;color:var(--text-dim);'>{escape(s['reason'])}</span>"
             f"</div>"
         )
 
     return (
-        f"<div class='stat-card' style='text-align:left;margin-bottom:12px;border-left:3px solid #ef4444;'>"
+        f"<div class='stat-card' style='text-align:left;margin-bottom:12px;border-left:3px solid var(--red);'>"
         f"<h3>Waste Prevention</h3>"
         f"{''.join(rows)}"
         f"</div>"
@@ -351,13 +351,13 @@ def render_swiggy_soldout_warning(availability: dict[str, dict[str, Any]]) -> st
         display = cname.replace("_", " ").title()
         rows.append(
             f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'>"
-            f"<strong style='color:#ef4444;'>&#x26A0; {escape(display)}</strong> "
+            f"<strong style='color:var(--red);'>&#x26A0; {escape(display)}</strong> "
             f"<span style='font-size:11px;color:var(--text-dim);'>Sold out on Swiggy Instamart</span>"
             f"</div>"
         )
 
     return (
-        f"<div class='stat-card' style='text-align:left;margin-bottom:12px;border-left:3px solid #ef4444;'>"
+        f"<div class='stat-card' style='text-align:left;margin-bottom:12px;border-left:3px solid var(--red);'>"
         f"<h3>Availability Alert</h3>"
         f"{''.join(rows)}"
         f"</div>"
@@ -383,7 +383,7 @@ def render_needs_confirmation(uncertain: list[Any]) -> str:
         )
 
     return (
-        f"<div class='stat-card' style='text-align:left;margin-bottom:12px;border-left:3px solid #ef4444;'>"
+        f"<div class='stat-card' style='text-align:left;margin-bottom:12px;border-left:3px solid var(--red);'>"
         f"<h3>Needs Confirmation</h3>"
         f"{''.join(rows)}"
         f"</div>"

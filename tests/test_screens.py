@@ -33,7 +33,6 @@ def _set_test_env():
 @pytest.fixture
 def app():
     """Import app module fresh for each test, giving a clean :memory: DB."""
-    import importlib
     import sys
 
     _preserved = {"shopstack.schemas", "shopstack.schemas.models"}
@@ -294,7 +293,7 @@ class TestCreateHouseholdLocation:
         result = create_household_location("Pantry Shelf", "", "shelf")
         assert "Created location" in result
         locs = app.db.get_locations()
-        names = [l.name for l in locs]
+        names = [loc.name for loc in locs]
         assert "Pantry Shelf" in names
 
     def test_empty_name_rejected(self, app):
@@ -314,7 +313,7 @@ class TestCreateHouseholdLocation:
         parent_id = locs[0].location_id
         result = create_household_location("New Drawer", parent_id, "drawer")
         assert "Created location" in result
-        created = [l for l in app.db.get_locations() if l.name == "New Drawer"]
+        created = [loc for loc in app.db.get_locations() if loc.name == "New Drawer"]
         assert len(created) == 1
         assert created[0].parent_location_id == parent_id
 
@@ -356,7 +355,7 @@ class TestMoveInventoryToLocation:
         lot = app.db.get_inventory()[0]
         # Find a different location to move to
         locs = app.db.get_locations()
-        target = [l for l in locs if l.location_id != "pantry"][0]
+        target = [loc for loc in locs if loc.location_id != "pantry"][0]
         result = move_inventory_to_location(lot.lot_id, target.location_id)
         assert "Moved item" in result
 
@@ -370,7 +369,7 @@ class TestMoveInventoryToLocation:
         )
         lot = app.db.get_inventory()[0]
         locs = app.db.get_locations()
-        target = [l for l in locs if l.location_id != "pantry"][0]
+        target = [loc for loc in locs if loc.location_id != "pantry"][0]
         result = move_inventory_to_location(lot.lot_id, target.location_id)
         assert "alert(" not in result
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from datetime import date, datetime
+from datetime import date
 
 import pytest
 
@@ -196,7 +196,7 @@ class TestNeedsConfirmationRender:
 
     def test_old_item_shows(self, ctx):
         from shopstack.decisions import render_needs_confirmation
-        from datetime import date, timedelta
+        from datetime import timedelta
         old_date = date.today() - timedelta(days=20)
         ctx.tools.add_inventory_item(
             canonical_name="spice",
@@ -206,7 +206,7 @@ class TestNeedsConfirmationRender:
             storage_location_id="pantry",
         )
         inv = ctx.db.get_inventory()
-        lot = [l for l in inv if l.canonical_name == "spice"][0]
+        lot = [lot for lot in inv if lot.canonical_name == "spice"][0]
         ctx.db.conn.execute(
             "UPDATE inventory_lots SET purchase_date = ? WHERE lot_id = ?",
             (old_date.isoformat(), lot.lot_id),

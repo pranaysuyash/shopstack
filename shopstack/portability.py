@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import csv
 import io
-import json
 import logging
 from collections import defaultdict
 from datetime import date, datetime, timezone
-from typing import Any
+from typing import Any, cast
 
 from shopstack.persistence.database import Database
-from shopstack.schemas.models import InventoryLot, PriceObservation
+from shopstack.schemas.models import InventoryLot, ItemStatus, PriceObservation
 
 logger = logging.getLogger(__name__)
 
@@ -364,7 +363,7 @@ def import_csv(database: Database, csv_text: str) -> ImportResult:
                     quantity=float(row.get("quantity", 1.0)),
                     unit=row.get("unit", "unit"),
                     storage_location_id=row.get("storage_location_id", "pantry"),
-                    status=row.get("status", "active"),
+                    status=cast(ItemStatus, row.get("status", "active")),
                     category=row.get("category", ""),
                     purchase_date=_parse_date(row.get("purchase_date")),
                     price_paid=_parse_float(row.get("price_paid")),

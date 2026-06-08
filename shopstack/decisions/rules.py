@@ -34,7 +34,7 @@ def classify_all(
     tools: ToolRegistry,
     market_snapshot=None,
 ) -> DecisionSet:
-    active_inv = [l for l in db.get_inventory() if l.status == "active"]
+    active_inv = [lot for lot in db.get_inventory() if lot.status == "active"]
     use_soon_items = tools.get_use_soon_items(days=_USE_SOON_DAYS).get("items", [])
     active_list = db.get_active_shopping_list()
     purchases = db.get_purchase_events(limit=50)
@@ -141,7 +141,7 @@ def classify_all(
                 continue
             seen.add(item.canonical_name)
 
-            inv_match = next((l for l in active_inv if l.canonical_name == item.canonical_name), None)
+            inv_match = next((lot for lot in active_inv if lot.canonical_name == item.canonical_name), None)
             meta = _get_produce_meta(item.canonical_name)
             market = market_by_canonical.get(item.canonical_name)
             qty = inv_match.quantity if inv_match else 0
@@ -351,7 +351,7 @@ def detect_waste_patterns(db: Database) -> list[dict[str, Any]]:
         if waste_risk != "high":
             continue
 
-        lot = next((l for l in inv if l.canonical_name == cname and l.status == "active"), None)
+        lot = next((lot for lot in inv if lot.canonical_name == cname and lot.status == "active"), None)
         overstocked = lot and lot.quantity > 1.0
         if overstocked or info["avg_interval_days"] < 2:
             waste_signals.append({

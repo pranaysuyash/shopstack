@@ -9,7 +9,6 @@ from typing import Any
 from shopstack.app_context import db, tools
 from shopstack.traces.export import create_trace
 from shopstack.ui import empty_state, list_to_table
-from shopstack.ui.screens._utils import workflow_header
 
 logger = logging.getLogger(__name__)
 
@@ -261,21 +260,21 @@ def inventory_view(search: str = "") -> list[list[str]]:
     items = db.get_inventory()
     if search:
         q = search.lower()
-        items = [l for l in items if q in l.canonical_name.lower() or q in l.display_name.lower()]
+        items = [lot for lot in items if q in lot.canonical_name.lower() or q in lot.display_name.lower()]
     locations = {loc.location_id: loc.name for loc in db.get_locations()}
     tbl = list_to_table(
         [
             {
-                "name": l.display_name,
-                "qty": l.quantity,
-                "unit": l.unit,
-                "location": locations.get(l.storage_location_id, l.storage_location_id or ""),
-                "status": l.status,
-                "purchased": l.purchase_date.isoformat() if l.purchase_date else "",
-                "expires": (l.label_expiry_date or l.estimated_use_by_date or "").isoformat() if (l.label_expiry_date or l.estimated_use_by_date) else "",
-                "lot_id": l.lot_id,
+                "name": lot.display_name,
+                "qty": lot.quantity,
+                "unit": lot.unit,
+                "location": locations.get(lot.storage_location_id, lot.storage_location_id or ""),
+                "status": lot.status,
+                "purchased": lot.purchase_date.isoformat() if lot.purchase_date else "",
+                "expires": lot.label_expiry_date.isoformat() if lot.label_expiry_date else lot.estimated_use_by_date.isoformat() if lot.estimated_use_by_date else "",
+                "lot_id": lot.lot_id,
             }
-            for l in items
+            for lot in items
         ],
         ["name", "qty", "unit", "location", "status", "purchased", "expires", "lot_id"],
     )
@@ -286,7 +285,7 @@ def inventory_cards_view(search: str = "") -> str:
     items = db.get_inventory()
     if search:
         q = search.lower()
-        items = [l for l in items if q in l.canonical_name.lower() or q in l.display_name.lower()]
+        items = [lot for lot in items if q in lot.canonical_name.lower() or q in lot.display_name.lower()]
     locations = {loc.location_id: loc.name for loc in db.get_locations()}
     if not items:
         return empty_state("Your inventory is empty. Add one item in Add Purchase to start.")

@@ -137,5 +137,5 @@ def parse_tool_calls_strict(text: str) -> list[dict[str, Any]]:
         return result
     for tc in result:
         if tc["tool"] == "respond" and "_original" in tc:
-            return [_error_result("Parsing failed: invalid tool call structure")]
+            return _error_result("Parsing failed: invalid tool call structure")
     return result

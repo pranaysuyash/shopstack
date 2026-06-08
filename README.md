@@ -1,3 +1,15 @@
+---
+title: ShopStack
+emoji: 🛒
+colorFrom: green
+colorTo: blue
+sdk: gradio
+sdk_version: ">=5.0"
+app_file: app.py
+pinned: false
+tags: [shopstack, gradio, inventory, shopping, offline-first, household]
+---
+
 # ShopStack
 
 Local-first, off-the-grid **shopping intelligence platform**. Know what you have, what to use soon, what to buy, what to skip, and where to buy from — without sending your data to the cloud.

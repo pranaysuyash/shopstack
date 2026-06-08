@@ -32,12 +32,15 @@ class Settings(BaseSettings):
     trace_max_rows: int = 2000
     trace_ttl_days: int = 30
 
+    cost_budget_limit: float = 1.00
+
     planner_backend: str = "mock"
-    stt_backend: str = "mock"
-    tts_backend: str = "mock"
+    stt_backend: str = "local_whisper"
+    tts_backend: str = "kokoro"
     vision_backend: str = "mock"
     ocr_backend: str = "mock"
     segmentation_backend: str = "mock"
+    image_gen_backend: str = "svg"
 
     model_config = {"env_file": ".env", "env_prefix": "SHOPSTACK_", "extra": "ignore"}
 
@@ -68,6 +71,7 @@ class Settings(BaseSettings):
             "tool_call_parser": self.planner_backend,
             "embeddings": self.planner_backend,
             "image_edit": self.planner_backend,
+            "image_gen": self.image_gen_backend,
         }
 
     @property

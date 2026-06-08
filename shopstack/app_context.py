@@ -5,8 +5,6 @@ from shopstack.model_registry import get_registry
 from shopstack.module_registry import (
     ModuleMetadata,
     get_all as get_all_modules,
-    get_by_slug,
-    get_by_tab_id,
     navigation as _build_navigation,
     summary_table as _build_summary,
 )
@@ -33,3 +31,20 @@ providers = ProviderRegistry(settings)
 tools = ToolRegistry(db)
 planner = PlannerEngine(db, tools, providers)
 model_registry = get_registry()
+
+
+def runtime_label() -> str:
+    """Return a human-readable label describing the current provider runtime.
+
+    Uses the provider registry to determine whether real AI backends are loaded
+    or the app is running in mock mode. Safe to call at import time.
+    """
+    try:
+        runtime = providers.get_runtime_diagnostics()
+        loaded_real = [
+            r for r in runtime.providers
+            if getattr(r, "loaded", False) and getattr(r, "backend", "") != "mock"
+        ]
+        return "Local runtime" if loaded_real else "Local mock mode"
+    except Exception:
+        return "Local runtime"

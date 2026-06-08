@@ -319,7 +319,8 @@ def build_optimized_basket(
         all_opts = find_all_options(snapshot, canonical, available_only)
 
         if cheapest is not None:
-            price = cheapest.price_inr * (net_needed / cheapest.normalized_quantity) if cheapest.normalized_quantity > 0 else cheapest.price_inr
+            nq = cheapest.normalized_quantity
+            _price = cheapest.price_inr * (net_needed / nq) if nq is not None and nq > 0 else cheapest.price_inr
             results.append(OptimizedBasketItem(
                 requested_name=name,
                 canonical_name=canonical,

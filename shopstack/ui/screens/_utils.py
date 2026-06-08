@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import functools
-import json
 import logging
 import re
 import traceback
@@ -9,7 +8,7 @@ from html import escape
 from typing import Any, Callable
 
 from shopstack.ui import card as ui_card
-from shopstack.ui.components import render_decision_card, render_workflow_rail
+from shopstack.ui.components import render_workflow_rail
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +65,7 @@ WORKFLOW_ACTION_STEPS = (
     "Human Confirmation",
     "Saved Trace",
 )
-from shopstack.module_registry import tab_order as _tab_order
+from shopstack.module_registry import tab_order as _tab_order  # noqa: E402 — deferred to avoid circular import
 
 # Derive workflow navigation labels from the module registry.
 # These map to tab IDs in the UI and stay in sync automatically.
@@ -194,10 +193,10 @@ def render_low_stock(items) -> str:
         return ""
     return "".join(
         f'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);">'
-        f'<span>{escape(str(l.display_name))}</span>'
-        f'<span style="color:var(--red);">{escape(str(l.quantity))} {escape(str(l.unit))}</span>'
+        f'<span>{escape(str(lot.display_name))}</span>'
+        f'<span style="color:var(--red);">{escape(str(lot.quantity))} {escape(str(lot.unit))}</span>'
         f'</div>'
-        for l in items[:5]
+        for lot in items[:5]
     )
 
 

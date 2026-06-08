@@ -56,7 +56,8 @@ def compute_snapshot_analytics(snapshot: MarketSnapshot) -> dict[str, Any]:
     ]
     by_canonical: dict[str, list[float]] = {}
     for r in weight_records:
-        by_canonical.setdefault(r.canonical_name, []).append(r.price_per_kg)
+        if r.price_per_kg is not None:
+            by_canonical.setdefault(r.canonical_name, []).append(r.price_per_kg)
     weight_price_by_canonical = {
         k: {
             "min": round(min(vals), 2),
@@ -73,8 +74,10 @@ def compute_snapshot_analytics(snapshot: MarketSnapshot) -> dict[str, Any]:
 
     best_value: dict[str, NormalizedMarketRecord] = {}
     for r in weight_records:
+        if r.price_per_kg is None:
+            continue
         existing = best_value.get(r.canonical_name)
-        if existing is None or r.price_per_kg < existing.price_per_kg:
+        if existing is None or (existing.price_per_kg is not None and r.price_per_kg < existing.price_per_kg):
             best_value[r.canonical_name] = r
 
     best_value_summary = {
@@ -155,7 +158,11 @@ def find_cheapest_weight_option(
     ]
     if not candidates:
         return None
-    return min(candidates, key=lambda r: r.price_per_kg)
+    def _ppa_key(r: NormalizedMarketRecord) -> float:
+        v = r.price_per_kg
+        assert v is not None, "price_per_kg should be non-None by filter above"
+        return v
+    return min(candidates, key=_ppa_key)
 
 
 def find_all_options(

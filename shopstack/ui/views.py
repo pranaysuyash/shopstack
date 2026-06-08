@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
 from html import escape
 from typing import Any
@@ -260,7 +260,7 @@ def build_price_memory_view(database: Database, item_name: str | None) -> PriceM
         table=table,
         item_name=cleaned_name,
         observation_count=len(rows),
-        store_count=df["store"].nunique(),
+        store_count=len(df["store"].unique()),
         latest_price=latest_price,
         first_price=first_price,
         min_price=min_price,

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from shopstack.config import Settings
 from shopstack.providers.registry import ProviderRegistry

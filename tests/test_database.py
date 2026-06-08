@@ -1,16 +1,12 @@
 from __future__ import annotations
 
-from datetime import date
 
-import pytest
 
 from shopstack.schemas.models import (
-    HouseholdLocation,
     InventoryLot,
     MovementEvent,
     PriceObservation,
     PurchaseEvent,
-    ShoppingList,
     ShoppingListItem,
     Trace,
 )
@@ -32,7 +28,7 @@ class TestDatabaseInit:
         assert len(locs) >= 18
 
     def test_seeds_specific_locations(self, db):
-        names = [l.name for l in db.get_locations()]
+        names = [loc.name for loc in db.get_locations()]
         assert "Kitchen" in names
         assert "Fridge" in names
         assert "Pantry" in names
@@ -107,7 +103,7 @@ class TestLocationCRUD:
         assert loc is None
 
     def test_get_locations_by_type(self, db):
-        fridge_locs = [l for l in db.get_locations() if l.location_type == "fridge"]
+        fridge_locs = [loc for loc in db.get_locations() if loc.location_type == "fridge"]
         assert len(fridge_locs) >= 1
 
 

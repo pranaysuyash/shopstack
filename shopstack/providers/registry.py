@@ -33,6 +33,8 @@ from shopstack.providers.mock_providers import (
     MockVisionProvider,
 )
 
+from shopstack.providers.image_gen_provider import FluxImageProvider
+
 logger = logging.getLogger(__name__)
 
 _REAL_PROVIDER_MAP: dict[str, str] = {}
@@ -78,6 +80,22 @@ def _load_huggingface():
         return None
 
 
+def _load_sensevoice():
+    try:
+        from shopstack.providers.stt_provider import SenseVoiceSTTProvider
+        return SenseVoiceSTTProvider
+    except ImportError:
+        return None
+
+
+def _load_kokoro_tts():
+    try:
+        from shopstack.providers.tts_provider import KokoroTTSProvider
+        return KokoroTTSProvider
+    except ImportError:
+        return None
+
+
 def _try_real_provider(backend: str, settings: Settings) -> Any | None:
     if backend == "local_whisper":
         cls = _load_local_whisper()
@@ -119,6 +137,18 @@ def _try_real_provider(backend: str, settings: Settings) -> Any | None:
             return cls(api_key=settings.hf_api_key)
         logger.info("HuggingFace provider not available (huggingface_hub package missing), falling back to mock")
         return None
+    if backend == "sensevoice":
+        cls = _load_sensevoice()
+        if cls:
+            return cls()
+        logger.info("SenseVoice STT provider not available (funasr package missing), falling back to mock")
+        return None
+    if backend == "kokoro":
+        cls = _load_kokoro_tts()
+        if cls:
+            return cls()
+        logger.info("Kokoro TTS provider not available (kokoro package missing), falling back to mock")
+        return None
     return None
 
 
@@ -126,71 +156,52 @@ class ProviderRegistry:
     def __init__(self, settings: Settings):
         self._settings = settings
         self._providers: dict[str, Any] = {}
+        self._pending: dict[str, str] = {}
         self._unified: Any | None = None
-        self._init_all()
+        self._init_lazy()
 
-    def _init_all(self) -> None:
-        if self._settings.off_the_grid:
-            self._init_mock_all()
-            self._upgrade_planner_for_off_grid()
-        else:
-            self._init_configured()
+    def _init_lazy(self) -> None:
+        backends = self._settings.provider_backends
+        offline_mock = {"vision", "object_detection", "grounding", "segmentation", "ocr", "tool_call_parser", "image_edit"}
+        for name in ["stt", "tts", "vision", "object_detection", "grounding",
+                     "segmentation", "ocr", "planner", "tool_call_parser",
+                     "embeddings", "image_edit", "image_gen"]:
+            if self._settings.off_the_grid and name in offline_mock:
+                self._pending[name] = "mock"
+            else:
+                self._pending[name] = backends.get(name, "mock")
         self._unified = MockUnifiedProvider()
 
-    def _upgrade_planner_for_off_grid(self) -> None:
-        backend = (self._settings.provider_backends.get("planner", "mock")).lower().strip()
+    def _resolve(self, name: str) -> Any:
+        backend = self._pending.pop(name, "mock")
         if backend in {"mock", "mocked", ""}:
-            return
+            return self._mock_for(name)
         real = _try_real_provider(backend, self._settings)
         if real:
-            self.register("planner", real)
+            return real
+        return self._mock_for(name)
 
-    def _init_mock_all(self) -> None:
-        for name, provider in [
-            ("stt", MockSTTProvider()),
-            ("tts", MockTTSProvider()),
-            ("vision", MockVisionProvider()),
-            ("object_detection", MockDetectionProvider()),
-            ("grounding", MockGroundingProvider()),
-            ("segmentation", MockSegmentationProvider()),
-            ("ocr", MockOCRProvider()),
-            ("planner", MockPlannerProvider()),
-            ("tool_call_parser", MockToolCallParser()),
-            ("embeddings", MockEmbeddingsProvider()),
-            ("image_edit", MockImageEditProvider()),
-        ]:
-            self.register(name, provider)
-
-    def _init_configured(self) -> None:
-        backends = self._settings.provider_backends
-
-        for name, mock_factory in [
-            ("stt", MockSTTProvider),
-            ("tts", MockTTSProvider),
-            ("vision", MockVisionProvider),
-            ("object_detection", MockDetectionProvider),
-            ("grounding", MockGroundingProvider),
-            ("segmentation", MockSegmentationProvider),
-            ("ocr", MockOCRProvider),
-            ("planner", MockPlannerProvider),
-            ("tool_call_parser", MockToolCallParser),
-            ("embeddings", MockEmbeddingsProvider),
-            ("image_edit", MockImageEditProvider),
-        ]:
-            backend = (backends.get(name) or "mock").lower().strip()
-            if backend == "mock" or backend == "mocked":
-                self.register(name, mock_factory())
-                continue
-            real = _try_real_provider(backend, self._settings)
-            if real:
-                self.register(name, real)
-            else:
-                self.register(name, mock_factory())
+    def _mock_for(self, name: str) -> Any:
+        mocks = {
+            "stt": MockSTTProvider, "tts": MockTTSProvider,
+            "vision": MockVisionProvider, "object_detection": MockDetectionProvider,
+            "grounding": MockGroundingProvider, "segmentation": MockSegmentationProvider,
+            "ocr": MockOCRProvider, "planner": MockPlannerProvider,
+            "tool_call_parser": MockToolCallParser, "embeddings": MockEmbeddingsProvider,
+            "image_edit": MockImageEditProvider, "image_gen": FluxImageProvider,
+        }
+        cls = mocks.get(name)
+        if cls:
+            return cls() if callable(cls) else cls
+        return None
 
     def register(self, name: str, provider: Any) -> None:
         self._providers[name] = provider
+        self._pending.pop(name, None)
 
     def get(self, name: str) -> Any:
+        if name not in self._providers and name in self._pending:
+            self._providers[name] = self._resolve(name)
         return self._providers.get(name)
 
     def supports(self, capability: str) -> bool:
@@ -204,53 +215,57 @@ class ProviderRegistry:
 
     @property
     def stt(self) -> STTProvider:
-        return self._providers.get("stt")
+        return self.get("stt")
 
     @property
     def tts(self) -> TTSProvider:
-        return self._providers.get("tts")
+        return self.get("tts")
 
     @property
     def vision(self) -> VisionProvider:
-        return self._providers.get("vision")
+        return self.get("vision")
 
     @property
     def object_detection(self) -> ObjectDetectionProvider:
-        return self._providers.get("object_detection")
+        return self.get("object_detection")
 
     @property
     def grounding(self) -> GroundingProvider:
-        return self._providers.get("grounding")
+        return self.get("grounding")
 
     @property
     def segmentation(self) -> SegmentationProvider:
-        return self._providers.get("segmentation")
+        return self.get("segmentation")
 
     @property
     def ocr(self) -> OCRProvider:
-        return self._providers.get("ocr")
+        return self.get("ocr")
 
     @property
     def planner(self) -> PlannerProvider:
-        return self._providers.get("planner")
+        return self.get("planner")
 
     @property
     def tool_call_parser(self) -> ToolCallParserProvider:
-        return self._providers.get("tool_call_parser")
+        return self.get("tool_call_parser")
 
     @property
     def embeddings(self) -> EmbeddingsProvider:
-        return self._providers.get("embeddings")
+        return self.get("embeddings")
 
     @property
     def image_edit(self) -> ImageEditProvider:
-        return self._providers.get("image_edit")
+        return self.get("image_edit")
+
+    @property
+    def image_gen(self) -> Any:
+        return self.get("image_gen")
 
     @property
     def unified(self) -> Any:
         return self._unified
 
-    def list_providers(self) -> list[dict[str, str]]:
+    def list_providers(self) -> list[dict[str, Any]]:
         return [
             {
                 "name": name,

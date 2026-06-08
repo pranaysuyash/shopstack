@@ -1,0 +1,40 @@
+[project]
+name = "shopstack"
+version = "0.1.0"
+description = "ShopStack — household shopping intelligence platform"
+requires-python = ">=3.10"
+dependencies = [
+    "gradio>=5",
+    "pydantic>=2",
+    "pydantic-settings>=2",
+    "pydub",
+    "pillow",
+    "pandas",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9",
+    "pytest-cov",
+    "pytest-benchmark",
+]
+cloud = [
+    "openai>=1.0",
+]
+local = [
+    "llama-cpp-python>=0.3",
+]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.pyright]
+include = ["shopstack", "scripts"]
+venvPath = "."
+venv = ".venv"
+typeCheckingMode = "basic"
+reportMissingImports = "warning"
+
+[tool.ruff]
+target-version = "py314"

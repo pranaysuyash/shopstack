@@ -10,7 +10,6 @@ import pytest
 @pytest.fixture(scope="module")
 def fresh_app():
     os.environ["SHOPSTACK_DB_PATH"] = ":memory:"
-    import importlib
     import sys
     _preserved = {"shopstack.schemas", "shopstack.schemas.models"}
     for mod in list(sys.modules.keys()):
@@ -32,7 +31,7 @@ def test_build_app_title(fresh_app):
 
 def test_today_dashboard_returns_correct_shape(fresh_app):
     results = fresh_app.today_dashboard()
-    assert len(results) == 6
+    assert len(results) == 7
     for r in results:
         assert isinstance(r, str)
 

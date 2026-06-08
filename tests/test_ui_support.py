@@ -6,7 +6,6 @@ from shopstack.persistence.database import Database
 from shopstack.schemas.models import InventoryLot, PriceObservation, Trace
 from shopstack.ui import (
     FieldNotesView,
-    PriceMemoryView,
     build_price_memory_view,
     empty_state,
     list_to_table,

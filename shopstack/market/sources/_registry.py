@@ -66,11 +66,12 @@ class SourceRegistry:
         return [a for a in self._adapters.values() if a.source_category == category]
 
     def all_snapshots(self) -> dict[str, MarketSnapshot]:
-        return {
-            sid: self._repository.latest(sid)
-            for sid in self._adapters
-            if self._repository.latest(sid) is not None
-        }
+        result: dict[str, MarketSnapshot] = {}
+        for sid in self._adapters:
+            snap = self._repository.latest(sid)
+            if snap is not None:
+                result[sid] = snap
+        return result
 
     def freshness_of(self, source_id: str) -> dict[str, Any]:
         snap = self._repository.latest(source_id)

@@ -123,6 +123,15 @@ class ItemDecision:
     evidence: list[Evidence] = field(default_factory=list)
     market_evidence: MarketEvidence | None = None
 
+    def badge_html(self) -> str:
+        color = DECISION_COLORS.get(self.decision, "var(--text-dim)")
+        icon = DECISION_ICONS.get(self.decision, "")
+        return (
+            f"<span style='background:{color}20;color:{color};"
+            f"padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;'>"
+            f"{icon} {self.decision.upper()}</span>"
+        )
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "canonical_name": self.canonical_name,

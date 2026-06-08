@@ -62,6 +62,7 @@ __all__ = [
     "SHOPAGENT",
     "SOURCES",
     "RUNTIME",
+    "SHOPNUTRITION",
     "get_all",
     "get_by_slug",
     "get_by_tab_id",
@@ -98,38 +99,22 @@ def _register(m: ModuleMetadata) -> ModuleMetadata:
 # lowest-order tab, but this dict is the single source of truth for the
 # actual tab bar sequence.
 TAB_ORDER: dict[str, int] = {
-    "today":       10,
-    "ask":         20,
-    "shopping":    30,
-    "market":      40,
-    "purchase":    50,
-    "inventory":   60,
-    "usesoon":     70,
-    "prices":      80,
-    "map":         90,
-    "modelstack":  100,
-    "trace":       110,
-    "portability": 120,
-    "notes":       130,
+    "today":      10,
+    "basket":     20,
+    "market":     30,
+    "reconcile":  40,
+    "memory":     50,
 }
 
 # ── Tab display labels ────────────────────────────────────────────
 # Canonical display names for every UI tab.
 # A module's `tab_labels` dict overrides these for module-specific labels.
 TAB_LABELS: dict[str, str] = {
-    "today":       "Today",
-    "ask":         "Ask ShopStack",
-    "shopping":    "Shopping List",
-    "market":      "Market Lens",
-    "purchase":    "Add Purchase",
-    "inventory":   "Find Item at Home",
-    "usesoon":     "Use Soon",
-    "prices":      "Price Memory Check",
-    "map":         "Map",
-    "modelstack":  "Model Stack",
-    "trace":       "Traces",
-    "portability": "Data",
-    "notes":       "Field Notes",
+    "today":      "Today",
+    "basket":     "Basket",
+    "market":     "ShopLens",
+    "reconcile":  "Reconcile",
+    "memory":     "Memory",
 }
 
 
@@ -150,15 +135,9 @@ SHOPSTOCK = _register(ModuleMetadata(
     name="ShopStock",
     label="My Stock",
     description="Inventory, pantry, fridge, expiry, low-stock, use-soon, and household storage.",
-    tab_ids=("purchase", "inventory", "usesoon", "map", "portability"),
-    tab_labels={
-        "purchase": "Add Purchase",
-        "inventory": "Find Item at Home",
-        "usesoon": "Use Soon",
-        "map": "Map",
-        "portability": "Data",
-    },
-    order=TAB_ORDER.get("inventory", 999),
+    tab_ids=("reconcile",),
+    tab_labels={"reconcile": "Reconcile"},
+    order=TAB_ORDER.get("reconcile", 999),
     service_modules=(
         "shopstack.ui.screens.inventory",
         "shopstack.ui.screens.portability",
@@ -171,9 +150,9 @@ SHOPBASKET = _register(ModuleMetadata(
     name="ShopBasket",
     label="Buy List",
     description="Shopping list creation, decision classification (buy/skip/use-soon), cart planning, and market basket optimization.",
-    tab_ids=("shopping",),
-    tab_labels={"shopping": "Shopping List"},
-    order=TAB_ORDER.get("shopping", 999),
+    tab_ids=("basket",),
+    tab_labels={"basket": "Basket"},
+    order=TAB_ORDER.get("basket", 999),
     service_modules=(
         "shopstack.services.shopping",
         "shopstack.ui.screens.shopping",
@@ -186,9 +165,9 @@ SHOPCOMPARE = _register(ModuleMetadata(
     name="ShopCompare",
     label="Compare",
     description="Retailer price comparison, unit price normalization, price-drop alerts, and best-store recommendations.",
-    tab_ids=("prices",),
-    tab_labels={"prices": "Price Memory Check"},
-    order=TAB_ORDER.get("prices", 999),
+    tab_ids=("basket",),
+    tab_labels={"basket": "Basket"},
+    order=TAB_ORDER.get("basket", 999),
     service_modules=(
         "shopstack.market",
         "shopstack.market.analytics",
@@ -218,12 +197,12 @@ SHOPMEMORY = _register(ModuleMetadata(
     name="ShopMemory",
     label="Price Memory",
     description="Price history, household preferences, field notes, purchase cadence, and waste pattern tracking.",
-    tab_ids=("prices", "notes"),
+    tab_ids=("basket", "memory"),
     tab_labels={
-        "prices": "Price Memory Check",
-        "notes": "Field Notes",
+        "basket": "Basket",
+        "memory": "Memory",
     },
-    order=TAB_ORDER.get("prices", 999),
+    order=TAB_ORDER.get("memory", 999),
     service_modules=(
         "shopstack.ui.views",
         "shopstack.ui.screens.other",
@@ -235,11 +214,10 @@ SHOPAGENT = _register(ModuleMetadata(
     name="ShopAgent",
     label="Ask ShopStack",
     description="Reasoning layer: AI planner with tool-calling, decision classification, and trace audit trail.",
-    tab_ids=("today", "ask", "trace"),
+    tab_ids=("today", "memory"),
     tab_labels={
         "today": "Today",
-        "ask": "Ask ShopStack",
-        "trace": "Traces",
+        "memory": "Memory",
     },
     order=TAB_ORDER.get("today", 999),
     service_modules=(
@@ -271,14 +249,29 @@ RUNTIME = _register(ModuleMetadata(
     name="Runtime",
     label="Model Stack",
     description="Provider/model runtime diagnostics, budget status, and candidate model catalog.",
-    tab_ids=("modelstack",),
-    tab_labels={"modelstack": "Model Stack"},
-    order=TAB_ORDER.get("modelstack", 999),
+    tab_ids=("memory",),
+    tab_labels={"memory": "Memory"},
+    order=TAB_ORDER.get("memory", 999),
     service_modules=(
         "shopstack.ui.screens.model_stack",
         "shopstack.model_registry",
         "shopstack.providers.runtime",
     ),
+))
+
+SHOPNUTRITION = _register(ModuleMetadata(
+    slug="nutrition",
+    name="ShopNutrition",
+    label="Nutrition",
+    description="Nutrition lookup for common Indian household items and kitchen macro breakdown from inventory.",
+    tab_ids=("memory",),
+    tab_labels={"memory": "Memory"},
+    order=TAB_ORDER.get("memory", 999),
+    service_modules=(
+        "shopstack.services.nutrition",
+        "shopstack.ui.screens.nutrition",
+    ),
+    depends_on=("stock",),
 ))
 
 

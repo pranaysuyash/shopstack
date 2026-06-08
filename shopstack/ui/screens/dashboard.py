@@ -5,6 +5,11 @@ import logging
 from shopstack.app_context import APP_DESCRIPTION, APP_NAME, db, tools
 from shopstack.services.dashboard import build_dashboard_state
 from shopstack.ui import render_action_grid, render_hero_panel, render_metric
+from shopstack.ui.renderers.image_cards import (
+    cards_to_grid,
+    render_decision_card as render_svg_decision_card,
+    render_shopping_summary_card as render_svg_summary,
+)
 from shopstack.ui.screens._utils import (
     safe_render,
 )
@@ -23,8 +28,6 @@ def today_dashboard():
         render_compare_panel,
         render_what_changed,
         render_needs_confirmation,
-        render_cadence_insights,
-        render_waste_warnings,
     )
 
     state = build_dashboard_state(db, tools)
@@ -76,8 +79,35 @@ def today_dashboard():
     fridge_html = what_is_in_fridge_now()
     what_changed = render_what_changed(db)
     needs_confirm = render_needs_confirmation(db)
-    cadence_html = render_cadence_insights(db)
-    waste_html = render_waste_warnings(db)
+    cadence_html = state.cadence_html
+    waste_html = state.waste_html
+
+    svg_cards: list[str] = []
+    for d in ds.buy[:6]:
+        svg_cards.append(render_svg_decision_card(d.display_name, "buy", d.reason, d.confidence))
+    for d in ds.use_soon[:3]:
+        svg_cards.append(render_svg_decision_card(d.display_name, "use_soon", d.reason, d.confidence))
+    for d in ds.skip[:3]:
+        svg_cards.append(render_svg_decision_card(d.display_name, "skip", d.reason, d.confidence))
+
+    svg_section = ""
+    if svg_cards:
+        svg_grid = cards_to_grid(svg_cards, columns=3)
+        svg_section = (
+            f"<div class='stat-card' style='text-align:left;margin-bottom:12px;'>"
+            f"<h3>Decision Cards</h3>{svg_grid}</div>"
+        )
+
+    if ds.buy or ds.skip:
+        svg_summary = render_svg_summary(
+            items_bought=len(ds.buy),
+            items_skipped=len(ds.skip),
+            total_saved=sum(d.market_price or 0 for d in ds.skip),
+        )
+        svg_section += (
+            f"<div class='stat-card' style='margin-bottom:12px;'>"
+            f"{svg_summary}</div>"
+        )
 
     long_grid = (
         f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px;margin-bottom:10px;'>{inventory_overview}{compare_panel}</div>"
@@ -87,6 +117,7 @@ def today_dashboard():
     return [
         f"{hero}{action_bar}{quick_actions}",
         decision_panel,
+        svg_section,
         market_basket,
         list_panel,
         long_grid,

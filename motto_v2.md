@@ -2,6 +2,8 @@
 
 Version 3 keeps all v2 rules and adds stronger completion contracts, evidence tiers, risk-based verification, AI-output boundaries, data/config discipline, model-routing discipline, observability, customer-facing claim checks, decision records, scope-expansion control, product/operator workflow checks, and the model-pipeline-data third-layer rule.
 
+For this workspace, v3 is the current doctrine source while `motto_v2.md` remains the compatibility filename in projects.
+
 
 Before making changes, perform a complete status, architecture, and context review.
 
@@ -80,6 +82,44 @@ A completion claim without an acceptance contract is not complete.
 If evidence is incomplete, say so directly.
 
 Do not hide uncertainty behind confident language.
+
+### 0.4.1 Completion Confidence Gate (Required)
+
+- Never claim work is complete unless all of the following are true:
+  - Recovery and scope validation are complete against current code/runtime state.
+  - Every missing-or-better item is implemented or explicitly deferred with owner, rationale, and closure criteria.
+  - Required verification checks are completed for the risk class of the change.
+  - Final report includes commands, outcomes, evidence tier, and what was verified vs inferred.
+  - Documentation and artifact updates are completed in the same pass.
+- Only use `1.00` confidence when all above are met and no critical gap remains unverified.
+- If any critical requirement is still open, explicitly report confidence below `1.00` and continue as not complete.
+- If required validation cannot be run in-session, list the exact missing check and next execution step.
+- "Done" is allowed only when both the acceptance contract and this confidence gate are satisfied.
+- Avoid git commands unless explicitly requested by the user. (Read-only checks are allowed only with explicit approval.)
+
+### 0.4.2 Multi-Pass Review (Required)
+
+For each work chunk, run at least three explicit passes before finalizing:
+
+1) **Pass 1 – Immediate correctness and completeness**
+   - Check betterness, completeness, and comprehensiveness against the request and canonical instruction stack.
+   - Confirm scope boundaries, edge cases, and explicit in-scope exclusions.
+   - Remove or document every avoidable gap before moving to next pass.
+
+2) **Pass 2 – Architecture and long-term viability**
+   - Compare against first-principles direction and canonical architecture.
+   - Prefer durable/long-term solutions over patchwork unless scope requires a temporary fix with explicit expiry.
+   - Verify no duplicate routes/parallel pipelines were introduced; verify docs/tests/observability remain coherent.
+   - Verify behavior is tested (or schedule precise follow-up tests when runtime constraints prevent full verification).
+   - Record outcomes in durable notes and ensure exploration/research areas are updated in the appropriate exploration map when meaningful.
+
+3) **Pass 3 – Rule compliance and supervision readiness**
+   - Re-validate against motto_v3 clauses, especially confidence tiering, evidence requirements, and decision/logging continuity.
+   - Verify no critical requirement suppression: no skipped risks, skipped checks, or hidden assumptions.
+   - Confirm who approves open items and what trigger closes each.
+   - Validate final report is reviewable as a handoff artifact (clear, complete, and auditable).
+
+Each pass must leave an explicit, short outcome note (what was checked and what changed) before the next pass.
 
 ### 0.5 Evidence Tiers
 
@@ -461,6 +501,28 @@ A model upgrade does not fix a broken data layer.
 A better prompt does not fix missing validation.
 
 A passing extraction does not prove production readiness.
+
+---
+
+### 0.16 Instruction Surface Freshness Rule
+
+When the instruction stack changes (for example: `/Users/pranay/AGENTS.md`, `/Users/pranay/Projects/AGENTS.md`, `agent-start`, or this `motto` document), rerun startup context generation before starting implementation.
+
+Do this at repo level after those edits:
+
+```bash
+/Users/pranay/Projects/agent-start --project <repo>
+```
+
+Treat regenerated files as the authoritative in-session instruction surfaces:
+
+- `$PROJECT/Docs/context/agent-start/STEP1_ENV.sh`
+- `$PROJECT/Docs/context/agent-start/SESSION_CONTEXT.md`
+- `$PROJECT/Docs/context/agent-start/AGENT_KICKOFF_PROMPT.txt`
+
+If these files conflict with the live instruction stack or actual file state, prioritize live stack + current files and re-run startup generation.
+
+Never continue implementation from stale generated instruction surfaces in parallel-agent workflows.
 
 ---
 

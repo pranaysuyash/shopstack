@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-import os
 
 import pytest
 
@@ -113,7 +111,7 @@ class TestImportJSON:
             "schema_version": "1.0",
             "field_notes": "# My notes\nTest content",
         }
-        result = import_json(db, data)
+        _result = import_json(db, data)
         assert db.get_config_value("field_notes_markdown") == "# My notes\nTest content"
 
     def test_summary_html(self, db):

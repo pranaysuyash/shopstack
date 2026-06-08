@@ -4,7 +4,6 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from html import escape
 from typing import Any
 
 from shopstack.services.results import (
@@ -145,8 +144,8 @@ def enrich_items_with_swiggy(items: list[dict[str, Any]]) -> list[dict[str, Any]
 
 # ─── Shopping Completion Services ───
 
-from shopstack.persistence.database import Database
-from shopstack.traces.export import create_trace
+from shopstack.persistence.database import Database  # noqa: E402 — circular import
+from shopstack.traces.export import create_trace  # noqa: E402 — circular import
 
 
 def complete_shopping_list_service(
@@ -236,7 +235,7 @@ def complete_shopping_list_service(
 
 
 def mark_items_purchased_service(
-    item_ids_json: str,
+    item_ids_json: str | list[str],
     tools: ToolRegistry,
     database: Database | None = None,
 ) -> MarkPurchasedResult:
@@ -249,13 +248,16 @@ def mark_items_purchased_service(
     if database is None:
         from shopstack.app_context import db as database
 
-    if not item_ids_json or item_ids_json == "[]":
+    if item_ids_json == "[]" or item_ids_json == [] or not item_ids_json:
         return MarkPurchasedResult(success=False, message="No items selected.")
 
-    try:
-        selected = json.loads(item_ids_json)
-    except (json.JSONDecodeError, TypeError):
-        return MarkPurchasedResult(success=False, message="Could not parse selection.")
+    if isinstance(item_ids_json, list):
+        selected = item_ids_json
+    else:
+        try:
+            selected = json.loads(item_ids_json)
+        except (json.JSONDecodeError, TypeError):
+            return MarkPurchasedResult(success=False, message="Could not parse selection.")
 
     if not selected:
         return MarkPurchasedResult(success=False, message="No items selected.")

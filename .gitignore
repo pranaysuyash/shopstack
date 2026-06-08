@@ -4,6 +4,12 @@ __pycache__/
 dist/
 build/
 .venv/
+.env
+.claude/
+*.bak
+benchmarks/.bench_results.json
+benchmarks/RESULTS.md
+
 data/*.db
 data/*.db-shm
 data/*.db-wal

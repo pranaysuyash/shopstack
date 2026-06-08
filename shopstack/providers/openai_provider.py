@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import base64
 import logging
+import time
 from typing import Any
+
+from shopstack.cost_tracker import estimate_cost_usd, estimate_model_tier
 
 logger = logging.getLogger(__name__)
 
@@ -52,26 +55,50 @@ class OpenAIProvider:
         return os.getenv("SHOPSTACK_OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY", "")
 
     def complete(self, prompt: str, **kwargs: Any) -> dict[str, Any]:
+        from shopstack.tracing import trace_call
+
         if not self._available:
             return {"error": self._error or "OpenAI not available", "model": self.name}
-        try:
-            model = kwargs.get("model", self._model)
-            resp = self._client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=kwargs.get("temperature", 0.7),
-                max_tokens=kwargs.get("max_tokens", 512),
-            )
-            return {"text": resp.choices[0].message.content, "model": model, "usage": dict(resp.usage) if resp.usage else {}}
-        except Exception as e:
-            logger.warning("OpenAI completion failed", exc_info=True)
-            return {"error": str(e), "model": self.name}
+        model = kwargs.get("model", self._model)
+        tier = estimate_model_tier(len(prompt))
+        with trace_call("llm.complete", attributes={
+            "model": model,
+            "tier": tier,
+            "provider": self.name,
+            "prompt_length": len(prompt),
+        }) as span:
+            try:
+                t0 = time.monotonic()
+                resp = self._client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=kwargs.get("temperature", 0.7),
+                    max_tokens=kwargs.get("max_tokens", 512),
+                )
+                elapsed_ms = round((time.monotonic() - t0) * 1000, 1)
+                usage = dict(resp.usage) if resp.usage else {}
+                in_tok = usage.get("prompt_tokens", 0)
+                out_tok = usage.get("completion_tokens", 0)
+                cost = estimate_cost_usd(model, in_tok, out_tok)
+                span.set_attribute("input_tokens", in_tok)
+                span.set_attribute("output_tokens", out_tok)
+                span.set_attribute("cost_usd", cost)
+                span.set_attribute("latency_ms", elapsed_ms)
+                return {
+                    "text": resp.choices[0].message.content,
+                    "model": model,
+                    "usage": usage,
+                    "cost": {"usd": cost, "tier": tier, "latency_ms": elapsed_ms},
+                }
+            except Exception as e:
+                logger.warning("OpenAI completion failed", exc_info=True)
+                span.record_exception(e)
+                return {"error": str(e), "model": self.name}
 
     def analyze_image(self, image_path: str, prompt: str = "") -> dict[str, Any]:
         if not self._available:
             return {"error": self._error or "OpenAI not available"}
         try:
-            from openai import OpenAI
             with open(image_path, "rb") as f:
                 b64 = base64.b64encode(f.read()).decode("utf-8")
             data_url = f"data:image/jpeg;base64,{b64}"
@@ -102,7 +129,7 @@ class OpenAIProvider:
         try:
             resp = self._client.embeddings.create(model=self._embedding_model, input=texts)
             return [d.embedding for d in resp.data]
-        except Exception as e:
+        except Exception:
             logger.warning("OpenAI embedding failed", exc_info=True)
             return [[0.0] * 128 for _ in texts]
 

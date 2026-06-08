@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -239,7 +238,7 @@ class TestLocalProviderProperties:
         default_dir = str(Path(__file__).resolve().parent.parent / "shopstack" / "data" / "models")
         provider = _get_local_provider(model_dir=default_dir, allow_download=False)
         assert provider.available
-        result = provider.complete("Say hi", max_tokens=5, temperature=0.1)
+        _result = provider.complete("Say hi", max_tokens=5, temperature=0.1)
         assert provider.last_latency_ms is not None
         assert isinstance(provider.last_latency_ms, (int, float))
 
@@ -250,7 +249,7 @@ class TestLocalProviderProperties:
         default_dir = str(Path(__file__).resolve().parent.parent / "shopstack" / "data" / "models")
         provider = _get_local_provider(model_dir=default_dir, allow_download=False)
         assert provider.available
-        result = provider.complete("Say hi", max_tokens=5, temperature=0.1)
+        _result = provider.complete("Say hi", max_tokens=5, temperature=0.1)
         assert provider.last_token_count is not None
         assert isinstance(provider.last_token_count, int)
 

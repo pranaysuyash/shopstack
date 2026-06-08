@@ -8,10 +8,10 @@ from shopstack.module_registry import (
     SHOPCOMPARE,
     SHOPLENS,
     SHOPMEMORY,
+    SHOPNUTRITION,
     SHOPSTOCK,
     RUNTIME,
     SOURCES,
-    ModuleMetadata,
     get_all,
     get_by_slug,
     get_by_tab_id,
@@ -38,13 +38,13 @@ def test_slugs_are_unique():
 
 
 def test_eight_modules_registered():
-    """There should be exactly 8 modules registered."""
+    """There should be exactly 9 modules registered."""
     modules = get_all()
-    assert len(modules) == 8
+    assert len(modules) == 9
 
 
 def test_specific_modules_present():
-    """All 8 expected modules are registered with correct names."""
+    """All expected modules are registered with correct names."""
     expected = {
         "stock": "ShopStock",
         "basket": "ShopBasket",
@@ -54,6 +54,7 @@ def test_specific_modules_present():
         "agent": "ShopAgent",
         "sources": "Sources",
         "runtime": "Runtime",
+        "nutrition": "ShopNutrition",
     }
     for slug, name in expected.items():
         m = get_by_slug(slug)
@@ -63,11 +64,15 @@ def test_specific_modules_present():
 
 def test_get_by_tab_id():
     """Lookup by tab ID returns correct module(s)."""
-    assert any(m.slug == "basket" for m in get_by_tab_id("shopping"))
+    assert any(m.slug == "basket" for m in get_by_tab_id("basket"))
+    assert any(m.slug == "compare" for m in get_by_tab_id("basket"))
     assert any(m.slug == "lens" for m in get_by_tab_id("market"))
     assert any(m.slug == "agent" for m in get_by_tab_id("today"))
-    assert any(m.slug == "agent" for m in get_by_tab_id("ask"))
-    assert any(m.slug == "agent" for m in get_by_tab_id("trace"))
+    assert any(m.slug == "stock" for m in get_by_tab_id("reconcile"))
+    assert any(m.slug == "agent" for m in get_by_tab_id("memory"))
+    assert any(m.slug == "memory" for m in get_by_tab_id("memory"))
+    assert any(m.slug == "nutrition" for m in get_by_tab_id("memory"))
+    assert any(m.slug == "runtime" for m in get_by_tab_id("memory"))
 
 
 def test_get_by_tab_id_returns_empty_for_unknown():
@@ -77,11 +82,12 @@ def test_get_by_tab_id_returns_empty_for_unknown():
 
 def test_get_tab_ids():
     """Tab IDs are returned correctly for each module."""
-    assert "shopping" in get_tab_ids("basket")
+    assert "basket" in get_tab_ids("basket")
     assert "market" in get_tab_ids("lens")
-    assert "ask" in get_tab_ids("agent")
-    assert "inventory" in get_tab_ids("stock")
-    assert "prices" in get_tab_ids("compare")
+    assert "today" in get_tab_ids("agent")
+    assert "memory" in get_tab_ids("agent")
+    assert "reconcile" in get_tab_ids("stock")
+    assert "basket" in get_tab_ids("compare")
 
 
 def test_get_tab_ids_unknown():
@@ -95,9 +101,9 @@ def test_sources_has_no_tabs():
     assert SOURCES.tab_ids == ()
 
 
-def test_runtime_has_modelstack_tab():
-    """Runtime module has the modelstack tab."""
-    assert "modelstack" in RUNTIME.tab_ids
+def test_runtime_has_memory_tab():
+    """Runtime module is under the Memory tab."""
+    assert "memory" in RUNTIME.tab_ids
 
 
 def test_dependencies():
@@ -107,6 +113,13 @@ def test_dependencies():
     assert "stock" in dep_slugs
     assert "basket" in dep_slugs
     assert "memory" in dep_slugs
+
+
+def test_five_primary_tabs_in_order():
+    """TAB_ORDER has exactly 5 primary tabs."""
+    from shopstack.module_registry import TAB_ORDER
+    assert len(TAB_ORDER) == 5
+    assert TAB_ORDER["today"] < TAB_ORDER["basket"] < TAB_ORDER["market"] < TAB_ORDER["reconcile"] < TAB_ORDER["memory"]
 
 
 def test_navigation_returns_tab_entries():
@@ -122,7 +135,7 @@ def test_navigation_returns_tab_entries():
 def test_summary_table_has_all_modules():
     """summary_table() returns a dict for each module with expected keys."""
     rows = summary_table()
-    assert len(rows) == 8
+    assert len(rows) == 9
     for row in rows:
         assert "Module" in row
         assert "Label" in row
@@ -140,6 +153,7 @@ def test_module_level_variables_referenced():
     assert SHOPAGENT is get_by_slug("agent")
     assert SOURCES is get_by_slug("sources")
     assert RUNTIME is get_by_slug("runtime")
+    assert SHOPNUTRITION is get_by_slug("nutrition")
 
 
 def test_descriptions_are_unique():

@@ -69,7 +69,7 @@ class LocalWhisperProvider:
             self._available = False
             return
         try:
-            from faster_whisper import WhisperModel
+            from faster_whisper import WhisperModel  # noqa: F401
 
             device = self._device
             if device == "auto":
@@ -136,7 +136,7 @@ class LocalWhisperProvider:
             if self._backend == "mlx":
                 import mlx_whisper
 
-                result = mlx_whisper.transcribe(
+                result: dict[str, Any] = mlx_whisper.transcribe(
                     audio_path,
                     path_or_hf_repo=self._mlx_model,
                     language=language,
@@ -152,7 +152,7 @@ class LocalWhisperProvider:
                 self._last_latency_ms = round(elapsed * 1000, 1)
 
                 return {
-                    "text": text.strip(),
+                    "text": text.strip() if isinstance(text, str) else str(text).strip(),
                     "language": language,
                     "confidence": round(avg_logprob, 4) if avg_logprob is not None else None,
                     "model": self._mlx_model,
@@ -161,6 +161,7 @@ class LocalWhisperProvider:
                     "latency_ms": self._last_latency_ms,
                 }
             else:
+                assert self._model is not None
                 segments, info = self._model.transcribe(
                     audio_path,
                     language=language,

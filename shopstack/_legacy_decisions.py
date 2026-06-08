@@ -14,34 +14,15 @@ from datetime import date
 from typing import Any
 
 from shopstack.decisions import (
-    Decision,
-    DECISION_COLORS,
-    DECISION_ICONS,
-    ItemDecision,
     DecisionSet,
-    classify_all,
+    check_swiggy_availability,
     detect_purchase_cadence,
     detect_waste_patterns,
-    check_swiggy_availability,
 )
 from shopstack.ui.renderers import decision_cards as _cards
 from shopstack.persistence.database import Database
-from shopstack.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
-
-
-def _badge_html(self) -> str:
-    color = DECISION_COLORS.get(self.decision, "var(--text-dim)")
-    icon = DECISION_ICONS.get(self.decision, "")
-    return (
-        f"<span style='background:{color}20;color:{color};"
-        f"padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;'>"
-        f"{icon} {self.decision.upper()}</span>"
-    )
-
-
-ItemDecision.badge_html = _badge_html
 
 
 # --- Render wrappers (backward-compatible with old db-based signatures) ---
@@ -91,10 +72,10 @@ def render_swiggy_soldout_warning(shopping_list_names: list[str]) -> str:
 def render_needs_confirmation(db: Database) -> str:
     all_inv = db.get_inventory()
     uncertain = [
-        l for l in all_inv
-        if l.status == "active" and l.quantity > 0 and (
-            not l.purchase_date
-            or (date.today() - l.purchase_date).days > 14
+        lot for lot in all_inv
+        if lot.status == "active" and lot.quantity > 0 and (
+            not lot.purchase_date
+            or (date.today() - lot.purchase_date).days > 14
         )
     ]
     return _cards.render_needs_confirmation(uncertain)

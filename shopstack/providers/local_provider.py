@@ -6,6 +6,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from shopstack.cost_tracker import estimate_cost_usd, estimate_model_tier
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL_REPO = "unsloth/Llama-3.2-3B-Instruct-GGUF"
@@ -110,7 +112,7 @@ class LocalProvider:
             self._available = False
             return
         try:
-            import llama_cpp
+            import llama_cpp  # noqa: F401 — availability check for optional dep
 
             local_path = Path(self._model_dir) / self._model_repo.split("/")[-1] / self._model_file
             if not local_path.is_file():
@@ -163,7 +165,9 @@ class LocalProvider:
         try:
             from mlx_lm import load
             model_path = self._model_path or self._mlx_model
-            self._llm, self._tokenizer = load(model_path)
+            loaded = load(model_path)
+            self._llm = loaded[0]
+            self._tokenizer = loaded[1]
             logger.info("Local provider loaded via MLX: %s", model_path)
             return True
         except Exception as e:
@@ -213,55 +217,75 @@ class LocalProvider:
         self._tokenizer = None
 
     def complete(self, prompt: str, **kwargs: Any) -> dict[str, Any]:
+        from shopstack.tracing import trace_call
+
         if not self._available:
             return {"error": self._error or "Local provider not available", "model": self.name}
-        try:
-            max_tokens = kwargs.get("max_tokens", 512)
-            temperature = kwargs.get("temperature", 0.3)
-            stop = kwargs.get("stop", [])
-            if not self._ensure_model():
-                return {"error": self._error or "Local provider not available", "model": self.name}
+        model_name = self._mlx_model if self._backend == "mlx" else f"{self._model_repo}/{self._model_file}"
+        tier = estimate_model_tier(len(prompt))
+        with trace_call("llm.complete", attributes={
+            "model": model_name,
+            "tier": tier,
+            "provider": self.name,
+            "backend": self._backend,
+            "prompt_length": len(prompt),
+        }) as span:
+            try:
+                max_tokens = kwargs.get("max_tokens", 512)
+                temperature = kwargs.get("temperature", 0.3)
+                stop = kwargs.get("stop", [])
+                if not self._ensure_model():
+                    return {"error": self._error or "Local provider not available", "model": self.name}
 
-            t0 = time.monotonic()
+                t0 = time.monotonic()
 
-            if self._backend == "mlx":
-                from mlx_lm import generate
-                from mlx_lm.sample_utils import make_sampler
+                if self._backend == "mlx":
+                    from mlx_lm import generate
+                    from mlx_lm.sample_utils import make_sampler
 
-                sampler = make_sampler(temp=temperature)
-                text = generate(
-                    self._llm,
-                    self._tokenizer,
-                    prompt=prompt,
-                    max_tokens=max_tokens,
-                    sampler=sampler,
-                )
-                token_count = max_tokens
-                result = {"text": text, "model": self._mlx_model, "usage": {"total_tokens": token_count}}
-            else:
-                response = self._llm.create_chat_completion(
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    stop=stop or None,
-                )
-                text = response["choices"][0]["message"]["content"]
-                token_count = response.get("usage", {}).get("total_tokens", 0)
-                result = {
-                    "text": text,
-                    "model": f"{self._model_repo}/{self._model_file}",
-                    "usage": {"total_tokens": token_count},
-                }
+                    sampler = make_sampler(temp=temperature)
+                    text = generate(
+                        self._llm,
+                        self._tokenizer,
+                        prompt=prompt,
+                        max_tokens=max_tokens,
+                        sampler=sampler,
+                    )
+                    token_count = max_tokens
+                    result = {"text": text, "model": self._mlx_model, "usage": {"total_tokens": token_count}}
+                else:
+                    response = self._llm.create_chat_completion(
+                        messages=[{"role": "user", "content": prompt}],
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        stop=stop or None,
+                    )
+                    text = response["choices"][0]["message"]["content"]
+                    token_count = response.get("usage", {}).get("total_tokens", 0)
+                    result = {
+                        "text": text,
+                        "model": f"{self._model_repo}/{self._model_file}",
+                        "usage": {"total_tokens": token_count},
+                    }
 
-            elapsed = time.monotonic() - t0
-            self._last_latency_ms = round(elapsed * 1000, 1)
-            self._last_token_count = token_count
-            return result
-        except Exception as e:
-            logger.warning("Local completion failed", exc_info=True)
-            return {"error": str(e), "model": self.name}
-        finally:
-            self._maybe_unload_model()
+                elapsed = time.monotonic() - t0
+                elapsed_ms = round(elapsed * 1000, 1)
+                self._last_latency_ms = elapsed_ms
+                self._last_token_count = token_count
+
+                cost = estimate_cost_usd(model_name, 0, token_count)
+                span.set_attribute("input_tokens", 0)
+                span.set_attribute("output_tokens", token_count)
+                span.set_attribute("cost_usd", cost)
+                span.set_attribute("latency_ms", elapsed_ms)
+                result["cost"] = {"usd": cost, "tier": tier, "latency_ms": elapsed_ms}
+                return result
+            except Exception as e:
+                logger.warning("Local completion failed", exc_info=True)
+                span.record_exception(e)
+                return {"error": str(e), "model": self.name}
+            finally:
+                self._maybe_unload_model()
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         if not self._available:
@@ -276,7 +300,7 @@ class LocalProvider:
                 embedding = self._llm.create_embedding(input=text)
                 results.append(embedding["data"][0]["embedding"])
             return results
-        except Exception as e:
+        except Exception:
             logger.warning("Local embedding failed", exc_info=True)
             return [[0.0] * 128 for _ in texts]
         finally:

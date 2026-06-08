@@ -688,12 +688,13 @@ def _row_to_movement(row: sqlite3.Row) -> MovementEvent:
 
 
 def _row_to_price(row: sqlite3.Row) -> PriceObservation:
+    parsed = _parse_d(row["observation_date"])
     return PriceObservation(
         price_id=row["price_id"], canonical_name=row["canonical_name"],
         quantity=row["quantity"], unit=row["unit"], price=row["price"],
         currency=row["currency"], store_name=row["store_name"],
         store_id=row["store_id"],
-        observation_date=_parse_d(row["observation_date"]),
+        observation_date=parsed if parsed is not None else date.today(),
         source_event_id=row["source_event_id"], notes=row["notes"],
     )
 
@@ -736,7 +737,7 @@ def _row_to_purchase(row: sqlite3.Row) -> PurchaseEvent:
     )
 
 
-from shopstack.schemas.models import ToolCall as _ToolCall
+from shopstack.schemas.models import ToolCall as _ToolCall  # noqa: E402 — circular import
 
 
 def _dict_to_tc(d: dict) -> _ToolCall:

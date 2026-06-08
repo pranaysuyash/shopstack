@@ -25,7 +25,7 @@ class MarketSnapshotRepository:
 
     def __init__(self, db=None):
         self._cache: dict[str, MarketSnapshot] = {}
-        self._db = db
+        self._db: Any | None = db
 
     def store(self, snapshot: MarketSnapshot) -> None:
         self._cache[snapshot.snapshot_id] = snapshot
@@ -61,6 +61,8 @@ class MarketSnapshotRepository:
         return len(keys)
 
     def _persist(self, snapshot: MarketSnapshot) -> None:
+        if self._db is None:
+            return
         try:
             table = """
                 CREATE TABLE IF NOT EXISTS market_snapshots (

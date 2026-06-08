@@ -4,7 +4,6 @@ import json
 import tempfile
 from pathlib import Path
 
-from shopstack.schemas.models import Trace
 from shopstack.traces.export import _redact_trace, create_trace, export_trace_by_id, export_traces_to_jsonl
 
 

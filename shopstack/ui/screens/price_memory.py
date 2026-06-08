@@ -1,36 +1,24 @@
 from __future__ import annotations
 
 import logging
+from datetime import date
 from html import escape
-import pandas as pd
 
 import gradio as gr
+import pandas as pd
 
 from shopstack.app_context import db
+from shopstack.schemas.models import PriceObservation
 from shopstack.ui import build_price_memory_view
 from shopstack.ui.screens._utils import safe_render
+
 
 logger = logging.getLogger(__name__)
 
 
-def _market_freshness_html(snapshot) -> str:
-    """Generate freshness badge HTML for Swiggy market snapshot."""
-    from shopstack.market.sources.swiggy import snapshot_freshness
-
-    freshness = snapshot_freshness(snapshot)
-    color = "#ef4444" if freshness["is_stale"] else "var(--text-dim)"
-    prefix = "Market data may be stale" if freshness["is_stale"] else "Market snapshot"
-    return (
-        f"<div style='font-size:11px;color:{color};margin-top:4px;'>"
-        f"{escape(prefix)}: {escape(freshness['label'])}. Prices and availability are point-in-time signals."
-        f"</div>"
-    )
-
-
 @safe_render
 def price_memory_view(item_name: str = ""):
-    """Price memory view - delegates to view builder and returns Gradio-compatible updates."""
-    from html import escape
+    """Price memory view — shows price history, unit prices, and chart data for a given item."""
     view = build_price_memory_view(db, item_name)
     has_data = view.observation_count > 0
     unit_plot_df = view.df[["date", "unit_price"]].dropna() if has_data else pd.DataFrame(columns=["date", "unit_price"])
@@ -44,8 +32,7 @@ def price_memory_view(item_name: str = ""):
 
 @safe_render
 def price_intelligence_view() -> str:
-    """Price intelligence view - compares stores, detects price drops, finds best value."""
-    from html import escape
+    """Price intelligence view — compares stores, detects price drops, finds best value."""
     latest_by_item: dict[str, dict] = {}
     for row in db.conn.execute(
         "SELECT canonical_name, store_name, price, quantity, unit, observation_date "
@@ -95,8 +82,8 @@ def price_intelligence_view() -> str:
                 comparisons.append(
                     f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
                     f"<strong>{escape(name)}</strong>: Best at {escape(best_store)} "
-                    f"(&#8377;{best_up:.2f}/unit) vs {escape(worst_store)} (&#8377;{worst_up:.2f}) "
-                    f"&#8212; save {savings_pct}%"
+                    f"(\u20b9{best_up:.2f}/unit) vs {escape(worst_store)} (\u20b9{worst_up:.2f}) "
+                    f"\u2014 save {savings_pct}%"
                     f"</div>"
                 )
 
@@ -111,8 +98,8 @@ def price_intelligence_view() -> str:
                     alerts.append(
                         f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
                         f"<strong>{escape(name)}</strong> price dropped {drop_pct}% "
-                        f"(&#8377;{older.price:.0f} &#8594; &#8377;{recent.price:.0f}) "
-                        f"&#8212; good time to buy"
+                        f"(\u20b9{older.price:.0f} \u2192 \u20b9{recent.price:.0f}) "
+                        f"\u2014 good time to buy"
                         f"</div>"
                     )
 
@@ -131,6 +118,73 @@ def price_intelligence_view() -> str:
             + "".join(comparisons[:8])
             + "</div>"
         )
+    try:
+        from shopstack.market.sources._comparison import CrossSourcePrice, compare_across_sources, format_cross_source_html
+        from shopstack.market.sources._repository import MarketSnapshotRepository
+        from shopstack.market.sources._registry import SourceRegistry
+
+        _reg = SourceRegistry(repository=MarketSnapshotRepository())
+        snapshots = _reg.all_snapshots()
+        if len(snapshots) >= 2:
+            all_names: set[str] = set()
+            for snap in snapshots.values():
+                for r in snap.normalized_records:
+                    if r.is_available and not r.is_combo:
+                        all_names.add(r.canonical_name)
+            cross_source: list[CrossSourcePrice] = []
+            for name in sorted(all_names):
+                c = compare_across_sources(_reg, name)
+                if c is not None:
+                    cross_source.append(c)
+            if cross_source:
+                cross_source.sort(key=lambda c: c.savings_pct, reverse=True)
+                html_parts.append(format_cross_source_html(cross_source[:10]))
+    except Exception:
+        logger.warning("Multi-source comparison not available", exc_info=True)
+
     if not html_parts:
         return "<div style='color:var(--text-dim);'>No price intelligence yet. Add more price observations across stores to see comparisons.</div>"
     return "".join(html_parts)
+
+
+@safe_render
+def seed_swiggy_prices() -> str:
+    """Seed price_observations table from Swiggy snapshot data."""
+    from shopstack.market.sources.swiggy import load_snapshot
+
+    try:
+        snapshot = load_snapshot()
+    except FileNotFoundError:
+        return "<div style='color:var(--text-dim);'>Swiggy data not found.</div>"
+
+    existing = db.conn.execute(
+        "SELECT COUNT(*) as cnt FROM price_observations WHERE store_name = 'Swiggy Instamart'"
+    ).fetchone()["cnt"]
+    if existing > 0:
+        return f"<div style='color:var(--text-dim);'>Swiggy prices already seeded ({existing} records).</div>"
+
+    count = 0
+    for r in snapshot.normalized_records:
+        if r.is_combo or not r.is_weight_based:
+            continue
+        if r.normalized_quantity and r.normalized_quantity > 0:
+            obs = PriceObservation(
+                canonical_name=r.canonical_name,
+                quantity=r.normalized_quantity,
+                unit=r.normalized_unit or "g",
+                price=r.price_inr,
+                currency="INR",
+                store_name="Swiggy Instamart",
+                observation_date=date.fromisoformat(r.captured_at[:10]),
+                notes=f"From Swiggy snapshot {r.snapshot_id}, raw: {r.raw_name} ({r.raw_size})",
+            )
+            db.record_price(obs)
+            count += 1
+
+    return (
+        f"<div style='color:var(--green);'>Seeded {count} price observations "
+        f"from Swiggy Instamart ({snapshot.captured_at}). "
+        f"Price Memory and Price Intelligence now have real data.</div>"
+    )
+
+

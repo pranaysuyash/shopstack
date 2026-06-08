@@ -5,12 +5,12 @@ import re
 from datetime import date
 from html import escape
 
-from shopstack.app_context import db, tools
 from shopstack.schemas.models import new_id
+from shopstack.app_context import db, tools
 from shopstack.ui.screens._utils import safe_render
 
-logger = logging.getLogger(__name__)
 
+logger = logging.getLogger(__name__)
 
 @safe_render
 def household_map_view() -> str:
@@ -18,10 +18,10 @@ def household_map_view() -> str:
     inventory = db.get_inventory()
     loc_counts: dict[str, int] = {}
     loc_items: dict[str, list[str]] = {}
-    for l in inventory:
-        lid = l.storage_location_id or "unknown"
+    for lot in inventory:
+        lid = lot.storage_location_id or "unknown"
         loc_counts[lid] = loc_counts.get(lid, 0) + 1
-        loc_items.setdefault(lid, []).append(f"{l.display_name} ({l.quantity} {l.unit})")
+        loc_items.setdefault(lid, []).append(f"{lot.display_name} ({lot.quantity} {lot.unit})")
 
     cards = ""
     for loc in locations:
@@ -90,7 +90,7 @@ def move_inventory_to_location(lot_id_prefix: str, to_location_id: str) -> str:
 
 
 def what_is_in_fridge_now() -> str:
-    locations = {l.location_id: l for l in db.get_locations()}
+    locations = {loc.location_id: loc for loc in db.get_locations()}
     fridge_nodes = {
         lid for lid, loc in locations.items()
         if loc.location_id == "fridge" or loc.parent_location_id == "fridge" or loc.location_id.startswith("fridge_")
@@ -114,26 +114,26 @@ def inventory_alerts(days_since_purchase: int = 3) -> str:
     if days_since_purchase <= 0:
         days_since_purchase = 3
     low = [
-        l for l in db.get_inventory()
-        if l.quantity <= 0.5 or l.status == "low"
+        lot for lot in db.get_inventory()
+        if lot.quantity <= 0.5 or lot.status == "low"
     ]
     stale = [
-        l for l in db.get_inventory()
-        if l.purchase_date and (date.today() - l.purchase_date).days >= days_since_purchase and l.quantity > 0
+        lot for lot in db.get_inventory()
+        if lot.purchase_date and (date.today() - lot.purchase_date).days >= days_since_purchase and lot.quantity > 0
     ]
 
     today = date.today()
     expiring_today = []
     expiring_tomorrow = []
-    for l in db.get_inventory(status="active"):
-        ref = l.label_expiry_date or l.estimated_use_by_date
+    for lot in db.get_inventory(status="active"):
+        ref = lot.label_expiry_date or lot.estimated_use_by_date
         if not ref:
             continue
         delta = (ref - today).days
         if delta == 0:
-            expiring_today.append(l)
+            expiring_today.append(lot)
         elif delta == 1:
-            expiring_tomorrow.append(l)
+            expiring_tomorrow.append(lot)
 
     if not low and not stale and not expiring_today and not expiring_tomorrow:
         return "<div style='color:var(--text-dim);'>No proactive alerts at this time.</div>"
@@ -141,11 +141,11 @@ def inventory_alerts(days_since_purchase: int = 3) -> str:
     alerts = ""
     if expiring_today:
         alerts += "<div style='margin-bottom:8px;border-left:4px solid var(--red);padding-left:10px;'><strong style='color:var(--red);'>Expiring today!</strong><ul>"
-        alerts += "".join(f"<li>{escape(l.display_name)} ({escape(str(l.quantity))} {escape(l.unit)})</li>" for l in expiring_today)
+        alerts += "".join(f"<li>{escape(lot.display_name)} ({escape(str(lot.quantity))} {escape(lot.unit)})</li>" for lot in expiring_today)
         alerts += "</ul></div>"
     if expiring_tomorrow:
         alerts += "<div style='margin-bottom:8px;border-left:4px solid var(--amber);padding-left:10px;'><strong style='color:var(--amber);'>Expiring tomorrow</strong><ul>"
-        alerts += "".join(f"<li>{escape(l.display_name)} ({escape(str(l.quantity))} {escape(l.unit)})</li>" for l in expiring_tomorrow)
+        alerts += "".join(f"<li>{escape(lot.display_name)} ({escape(str(lot.quantity))} {escape(lot.unit)})</li>" for lot in expiring_tomorrow)
         alerts += "</ul></div>"
     if low:
         alerts += "<div style='margin-bottom:8px;'><strong>Reorder Candidates</strong><ul>"
@@ -153,6 +153,8 @@ def inventory_alerts(days_since_purchase: int = 3) -> str:
         alerts += "</ul></div>"
     if stale:
         alerts += "<div style='margin-bottom:8px;'><strong>Use soon reminders</strong><ul>"
-        alerts += "".join(f"<li>{escape(l.display_name)}: last purchased {(date.today() - l.purchase_date).days if l.purchase_date else '?'} days ago</li>" for l in stale)
+        alerts += "".join(f"<li>{escape(lot.display_name)}: last purchased {(date.today() - lot.purchase_date).days if lot.purchase_date else '?'} days ago</li>" for lot in stale)
         alerts += "</ul></div>"
     return f"<div class='home-card' style='text-align:left'>{alerts}</div>"
+
+

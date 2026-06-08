@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-import json
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Any
 
 from shopstack.providers.interfaces import (

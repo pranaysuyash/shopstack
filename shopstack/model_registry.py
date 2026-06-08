@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Literal
 
 RuntimeType = Literal["transformers", "llama.cpp", "gguf", "onnx", "diffusers", "custom", "mock"]
@@ -19,6 +19,7 @@ class ModelEntry:
     runtime: RuntimeType
     status: ModelStatus
     badge_relevance: BadgeRelevance = "none"
+    python_requires: str = ">=3.10"
     notes: str = ""
 
 
@@ -47,7 +48,7 @@ MODEL_REGISTRY: list[ModelEntry] = [
     ModelEntry(
         provider_group="stt",
         model_id="sense-voice-small",
-        hf_model="funasr/SenseVoiceSmall",
+        hf_model="iic/SenseVoiceSmall",
         params_b=0.2,
         license_note="MIT",
         runtime="transformers",

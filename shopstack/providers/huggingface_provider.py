@@ -111,6 +111,8 @@ class HuggingFaceProvider:
                 if attempt == self._max_retries:
                     return {"error": str(e), "model": self.name}
 
+        return {"error": "HF completion failed after all retries", "model": self.name}
+
     def plan(self, context: dict[str, Any] | str) -> dict[str, Any]:
         if not self._available:
             return {"error": self._error or "HF not available", "model": self.name}

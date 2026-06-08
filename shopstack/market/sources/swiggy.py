@@ -111,7 +111,7 @@ def normalize_record(
         is_piece_based=size_result.is_piece_based,
     )
 
-    warnings: list[str] = list(size_result.warnings)
+    warnings: list[str] = list(size_result.warnings or [])
 
     return NormalizedMarketRecord(
         source=SOURCE_ID,
@@ -152,7 +152,7 @@ def normalize_record(
         price_per_100g=unit_prices["price_per_100g"],
         price_per_piece=unit_prices["price_per_piece"],
         normalization_warnings=warnings,
-        component_names=components,
+        component_names=components or [],
         variety=variety,
     )
 

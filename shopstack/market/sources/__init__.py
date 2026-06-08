@@ -19,6 +19,14 @@ from shopstack.market.sources._adapter import MarketSourceAdapter, MarketSourceE
 from shopstack.market.sources._registry import SourceRegistry
 from shopstack.market.sources._repository import MarketSnapshotRepository, snapshot_freshness
 from shopstack.market.sources._swiggy_adapter import SwiggyAdapter
+from shopstack.market.sources._blinkit_adapter import BlinkitAdapter
+from shopstack.market.sources._zepto_adapter import ZeptoAdapter
+from shopstack.market.sources._dmart_adapter import DmartAdapter
+from shopstack.market.sources._comparison import (
+    CrossSourcePrice,
+    compare_across_sources,
+    format_cross_source_html,
+)
 
 __all__ = [
     "MarketSourceAdapter",
@@ -26,5 +34,11 @@ __all__ = [
     "MarketSnapshotRepository",
     "SourceRegistry",
     "SwiggyAdapter",
+    "BlinkitAdapter",
+    "ZeptoAdapter",
+    "DmartAdapter",
+    "CrossSourcePrice",
+    "compare_across_sources",
+    "format_cross_source_html",
     "snapshot_freshness",
 ]

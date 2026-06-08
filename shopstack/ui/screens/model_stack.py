@@ -3,7 +3,7 @@ from __future__ import annotations
 from html import escape
 from typing import Any
 
-from shopstack.app_context import model_registry, providers
+from shopstack.app_context import providers
 from shopstack.model_registry import (
     MAX_ACTIVE_MODEL_PARAMS_B,
     get_registry,

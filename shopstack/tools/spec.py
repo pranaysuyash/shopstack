@@ -80,6 +80,15 @@ def build_tool_specs() -> list[ToolSpec]:
             category="inventory",
         ),
         ToolSpec(
+            name="semantic_find_item",
+            description="Search for an item using exact, prefix, and semantic embedding search with match quality scores. Falls back to prefix search when the embedding model is unavailable.",
+            args=[
+                ArgSpec("query", "Search term (item name). Required."),
+            ],
+            mutability="read",
+            category="inventory",
+        ),
+        ToolSpec(
             name="add_inventory_item",
             description="Add a new item to household inventory. Use when the user wants to record something they bought or received.",
             args=[

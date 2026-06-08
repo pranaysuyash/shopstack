@@ -18,12 +18,7 @@ from __future__ import annotations
 
 import argparse
 import os
-import sys
 from datetime import date, datetime, timedelta
-from pathlib import Path
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
 
 from shopstack.config import settings
 from shopstack.persistence.database import Database
@@ -443,7 +438,7 @@ def main():
 
     db.close()
     print(f"\nDone! Database: {db_path}")
-    print(f"Run: uv run python app.py")
+    print("Run: uv run python app.py")
 
 
 if __name__ == "__main__":

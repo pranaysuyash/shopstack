@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any
 
 
 _WEIGHT_PATTERN = re.compile(
@@ -31,7 +30,7 @@ class SizeParseResult:
     is_pack: bool = False
     is_size_class: bool = False
     size_class: str = ""
-    warnings: list[str] = None
+    warnings: list[str] | None = None
 
     def __post_init__(self):
         if self.warnings is None:

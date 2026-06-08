@@ -3,14 +3,12 @@ from __future__ import annotations
 import logging
 import re
 from html import escape
-from typing import Any
 
 from shopstack.app_context import APP_NAME, db, planner, providers, tools
 from shopstack.ui import card as ui_card, empty_state
 from shopstack.ui.components import render_decision_card
 from shopstack.traces.export import create_trace
 from shopstack.ui.screens._utils import (
-    WORKFLOW_STEPS,
     extract_query_for_action,
     normalize_item_name,
     safe_render,
@@ -25,6 +23,13 @@ def ask_shopstack(question: str) -> str:
     if not question:
         return "<div style='color:var(--text-dim);'>Ask ShopStack anything \u2014 e.g. \u201cDo we have milk?\u201d or \u201cWhat should I buy today?\u201d</div>"
 
+    lowered = question.lower()
+
+    if _is_add_command(lowered):
+        response = _handle_add_command(question)
+        _record_ask_trace(question, response, "ask_shopstack")
+        return response
+
     if planner.available:
         try:
             response = planner.process(question)
@@ -33,7 +38,6 @@ def ask_shopstack(question: str) -> str:
         except Exception as e:
             logger.warning("AI planner failed, falling back to heuristic: %s", e)
 
-    lowered = question.lower()
     response: str
 
     if any(k in lowered for k in ["do we have", "kya", "hai kya", "where is", "where's", "where"]):
