@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import date
 from typing import Any
 
 from .analytics import (
@@ -8,6 +9,7 @@ from .analytics import (
     find_all_options,
     find_cheapest_weight_option,
 )
+from .metadata import get_produce_metadata
 from .schema import MarketSnapshot, NormalizedMarketRecord
 
 
@@ -119,6 +121,278 @@ def basket_summary(basket: list[BasketItem]) -> dict[str, Any]:
         "total_estimated_price_inr": round(total_estimated, 2),
         "unmatched_items": [b.requested_name for b in unmatched],
     }
+
+
+# ─── Decision-Aware Basket Optimizer ───────────────────────────────────────
+
+
+@dataclass
+class OptimizedBasketItem:
+    requested_name: str
+    canonical_name: str
+    decision: str  # "buy" | "skip" | "use_soon" | "compare" | "unavailable"
+    reason_type: str  # "enough_stock" | "waste_risk" | "stale_data" | "no_availability" | "price_low" | "price_high" | "inventory_subtracted"
+    reason: str
+    matched: bool
+    requested_quantity: float = 1.0
+    unit: str = "unit"
+    already_owned_quantity: float = 0.0
+    net_quantity_to_buy: float = 0.0
+    recommended_record: NormalizedMarketRecord | None = None
+    alternatives: list[NormalizedMarketRecord] = field(default_factory=list)
+    estimated_price_inr: float | None = None
+    estimated_price_per_kg: float | None = None
+    waste_risk: str = "unknown"
+    freshness_note: str = ""
+
+
+@dataclass
+class OptimizedBasket:
+    items: list[OptimizedBasketItem] = field(default_factory=list)
+
+    @property
+    def buy(self) -> list[OptimizedBasketItem]:
+        return [i for i in self.items if i.decision == "buy"]
+
+    @property
+    def skip(self) -> list[OptimizedBasketItem]:
+        return [i for i in self.items if i.decision == "skip"]
+
+    @property
+    def use_soon(self) -> list[OptimizedBasketItem]:
+        return [i for i in self.items if i.decision == "use_soon"]
+
+    @property
+    def total_estimated(self) -> float:
+        return round(sum(
+            i.estimated_price_inr or 0 for i in self.buy
+        ), 2)
+
+    @property
+    def summary(self) -> dict[str, Any]:
+        return {
+            "total_requested": len(self.items),
+            "buy": len(self.buy),
+            "skip": len(self.skip),
+            "use_soon": len(self.use_soon),
+            "total_estimated_price_inr": self.total_estimated,
+        }
+
+
+def build_optimized_basket(
+    requested_items: list[dict[str, Any]],
+    snapshot: MarketSnapshot,
+    inventory_map: dict[str, float] | None = None,
+    available_only: bool = True,
+) -> OptimizedBasket:
+    """Build a decision-aware basket from requested items and market snapshot.
+
+    Each item is classified into buy / skip / use_soon / compare / unavailable
+    with an explicit ``reason_type`` explaining the classification logic.
+
+    Args:
+        requested_items: List of dicts with ``canonical_name``, ``requested_quantity``, ``unit``.
+        snapshot: Market snapshot with normalized records.
+        inventory_map: Map of canonical_name → total quantity owned (inventory subtraction).
+        available_only: If True, only consider available items when recommending.
+
+    Returns:
+        An ``OptimizedBasket`` with per-item classifications.
+    """
+    inventory_map = inventory_map or {}
+    available = available_canonical_names(snapshot)
+    snapshot_date = _parse_date(snapshot.captured_at) if snapshot.captured_at else date.today()
+    age_days = (date.today() - snapshot_date).days if snapshot_date else 0
+    is_stale = age_days > 1
+    freshness_note = f"Snapshot {age_days}d old" if is_stale else "Today's data"
+
+    results: list[OptimizedBasketItem] = []
+
+    for raw in requested_items:
+        name = raw.get("canonical_name", "").strip()
+        if not name:
+            continue
+        qty = float(raw.get("requested_quantity", 1.0) or 1.0)
+        unit = raw.get("unit", "unit") or "unit"
+
+        # Inventory subtraction
+        owned = inventory_map.get(name.lower(), 0.0)
+        net_needed = max(qty - owned, 0.0)
+
+        # Match to snapshot
+        canonical = _match_canonical(name, available)
+        if canonical is None:
+            results.append(OptimizedBasketItem(
+                requested_name=name,
+                canonical_name=name,
+                decision="unavailable",
+                reason_type="no_availability",
+                reason=f"No market data found for {name}",
+                matched=False,
+                requested_quantity=qty,
+                unit=unit,
+                already_owned_quantity=owned,
+                net_quantity_to_buy=qty,
+                freshness_note=freshness_note,
+            ))
+            continue
+
+        # Produce metadata for waste risk
+        meta = _get_produce_meta(canonical)
+        waste_risk = meta.waste_risk if meta else "unknown"
+        shelf_life = meta.shelf_life_days if meta else 0
+
+        # Check for "use soon" signal from produce metadata
+        if owned > 0 and shelf_life > 0 and shelf_life <= 3:
+            results.append(OptimizedBasketItem(
+                requested_name=name,
+                canonical_name=canonical,
+                decision="use_soon",
+                reason_type="waste_risk",
+                reason=f"Use existing {owned} {unit} before buying more",
+                matched=True,
+                requested_quantity=qty,
+                unit=unit,
+                already_owned_quantity=owned,
+                net_quantity_to_buy=0,
+                waste_risk=waste_risk,
+                freshness_note=freshness_note,
+            ))
+            continue
+
+        # Skip if enough already owned
+        if net_needed <= 0:
+            results.append(OptimizedBasketItem(
+                requested_name=name,
+                canonical_name=canonical,
+                decision="skip",
+                reason_type="enough_stock",
+                reason=f"Already have {owned} {unit} at home",
+                matched=True,
+                requested_quantity=qty,
+                unit=unit,
+                already_owned_quantity=owned,
+                net_quantity_to_buy=0,
+                waste_risk=waste_risk,
+                freshness_note=freshness_note,
+            ))
+            continue
+
+        # Waste risk for high-waste items
+        if waste_risk == "high" and owned > 0:
+            results.append(OptimizedBasketItem(
+                requested_name=name,
+                canonical_name=canonical,
+                decision="skip",
+                reason_type="waste_risk",
+                reason=f"High waste risk — you have {owned} {unit} already",
+                matched=True,
+                requested_quantity=qty,
+                unit=unit,
+                already_owned_quantity=owned,
+                net_quantity_to_buy=0,
+                waste_risk=waste_risk,
+                freshness_note=freshness_note,
+            ))
+            continue
+
+        # Stale data warning
+        if is_stale and not available_only:
+            results.append(OptimizedBasketItem(
+                requested_name=name,
+                canonical_name=canonical,
+                decision="compare",
+                reason_type="stale_data",
+                reason=f"Market data {age_days} days old — verify prices before checkout",
+                matched=True,
+                requested_quantity=qty,
+                unit=unit,
+                already_owned_quantity=owned,
+                net_quantity_to_buy=net_needed,
+                waste_risk=waste_risk,
+                freshness_note=freshness_note,
+            ))
+            continue
+
+        # Find cheapest market option
+        cheapest = find_cheapest_weight_option(snapshot, canonical, available_only)
+        all_opts = find_all_options(snapshot, canonical, available_only)
+
+        if cheapest is not None:
+            price = cheapest.price_inr * (net_needed / cheapest.normalized_quantity) if cheapest.normalized_quantity > 0 else cheapest.price_inr
+            results.append(OptimizedBasketItem(
+                requested_name=name,
+                canonical_name=canonical,
+                decision="buy",
+                reason_type="price_low",
+                reason=f"Buy {net_needed:.1f} {unit} at ₹{cheapest.price_inr:.0f} (₹{cheapest.price_per_kg:.0f}/kg)",
+                matched=True,
+                requested_quantity=qty,
+                unit=unit,
+                already_owned_quantity=owned,
+                net_quantity_to_buy=net_needed,
+                recommended_record=cheapest,
+                alternatives=[r for r in all_opts if r is not cheapest][:3],
+                estimated_price_inr=cheapest.price_inr,
+                estimated_price_per_kg=cheapest.price_per_kg,
+                waste_risk=waste_risk,
+                freshness_note=freshness_note,
+            ))
+        else:
+            # No weight-based option found — try piece-based
+            non_weight = [
+                r for r in all_opts
+                if not r.is_weight_based and not r.is_combo
+            ]
+            if non_weight:
+                rec = min(non_weight, key=lambda r: r.price_inr)
+                results.append(OptimizedBasketItem(
+                    requested_name=name,
+                    canonical_name=canonical,
+                    decision="buy",
+                    reason_type="price_low",
+                    reason=f"Buy {net_needed:.1f} {unit} — piece-based at ₹{rec.price_inr:.0f}",
+                    matched=True,
+                    requested_quantity=qty,
+                    unit=unit,
+                    already_owned_quantity=owned,
+                    net_quantity_to_buy=net_needed,
+                    recommended_record=rec,
+                    alternatives=non_weight[:3],
+                    estimated_price_inr=rec.price_inr,
+                    waste_risk=waste_risk,
+                    freshness_note=freshness_note,
+                ))
+            else:
+                results.append(OptimizedBasketItem(
+                    requested_name=name,
+                    canonical_name=canonical,
+                    decision="unavailable",
+                    reason_type="no_availability",
+                    reason="No available weight or piece options",
+                    matched=True,
+                    requested_quantity=qty,
+                    unit=unit,
+                    already_owned_quantity=owned,
+                    net_quantity_to_buy=net_needed,
+                    freshness_note=freshness_note,
+                ))
+
+    return OptimizedBasket(items=results)
+
+
+def _parse_date(value: str) -> date | None:
+    try:
+        return date.fromisoformat(value[:10])
+    except (ValueError, TypeError):
+        return None
+
+
+def _get_produce_meta(canonical_name: str):
+    try:
+        return get_produce_metadata(canonical_name)
+    except Exception:
+        return None
 
 
 _DISPLAY_TO_CANONICAL: dict[str, str] = {

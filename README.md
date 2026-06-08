@@ -63,20 +63,13 @@ Imported observations are tagged with `source_event_id = swiggy_fresh_vegetables
 ## Tests
 
 ```bash
-uv run pytest tests/ -v          # 532 passed in 70.01s
-uv run pytest benchmarks/ -v -m benchmark  # 9 passed in 2.45s
+uv run pytest tests/ -v          # run to see current count
+uv run pytest benchmarks/ -v -m benchmark  # 9 passed
 ```
 
-| Module | Tests | What it covers |
-|--------|-------|----------------|
-| `test_config.py` | 3 | Settings defaults, env overrides, provider backend defaults |
-| `test_schemas.py` | 17 | All 14+ Pydantic models: validation, defaults, serialization |
-| `test_database.py` | 23 | CRUD for all core tables, config storage, location seeding, edge cases |
-| `test_tools.py` | 18 | All 11 tool implementations, error paths |
-| `test_traces.py` | 23 | PII redaction (phone, email, Aadhar, PAN), create/export traces |
-| `test_views.py` | 22 | Gradio view helpers and workflow surfaces |
-| `test_ui_support.py` | 4 | Price memory charting and field-note persistence helpers |
-| `tests/test_model_registry.py` | 4 | Model budget math, active/candidate accounting, cap checks |
+Test counts are generated at runtime. Run `pytest tests/ --collect-only | grep collected` for the current total.
+
+> **Note:** Previous documentation claimed specific test counts (483, 559, etc.) but they were not regenerated on every change, causing conflicting numbers. Run the tests to see the actual current status.
 
 ## Project Structure
 
@@ -103,7 +96,7 @@ shopstack/
   configs/                  # (reserved)
 
 app.py                      # Gradio Blocks UI entry point (workflow-first tabs, custom warm CSS)
-tests/                      # pytest test suite (532+ tests)
+tests/                      # pytest test suite (559+ tests)
 benchmarks/                 # pytest benchmark suite (9 latency markers)
 ```
 
@@ -237,6 +230,53 @@ uv run pytest tests/ -v
 uv run pytest benchmarks/ -v -m benchmark
 uv run python app.py
 ```
+
+## Deployment
+
+ShopStack can run via Docker or on any of the supported platforms.
+
+### Docker (local)
+
+```bash
+docker compose up --build
+# Open http://localhost:7860
+```
+
+Data persists in a Docker volume (`shopstack_data`).
+
+### Docker (standalone)
+
+```bash
+docker build -t shopstack .
+docker run -p 7860:7860 -v shopstack_data:/app/data shopstack
+```
+
+### Railway
+
+1. Push your repo to GitHub.
+2. Create a new project on [Railway](https://railway.app) → **Deploy from GitHub repo**.
+3. Railway auto-detects `Dockerfile` and `railway.json`.
+4. Add a **Volume** with mount path `/app/data` (1 GB) for SQLite persistence.
+5. (Optional) Set `SHOPSTACK_HF_API_KEY` and `SHOPSTACK_PLANNER_BACKEND=huggingface` for cloud-backed planning.
+
+### Render
+
+1. Push your repo to GitHub.
+2. Create a new **Web Service** on [Render](https://render.com) → **Deploy from Dockerfile**.
+3. Select the **Starter** plan ($7/mo) — required for persistent disk.
+4. Add a **Disk** mount at `/app/data` with 1 GB.
+5. `render.yaml` is auto-detected if you connect via Blueprint.
+
+### Fly.io
+
+```bash
+# Install flyctl first: https://fly.io/docs/hands-on/install-flyctl/
+flyctl launch --dockerfile ./Dockerfile
+flyctl volumes create shopstack_data --region <your-region> --size 1
+flyctl deploy
+```
+
+See `fly.toml` for configuration reference.
 
 ## License
 

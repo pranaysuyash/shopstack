@@ -1,0 +1,32 @@
+# Fly.io configuration — https://fly.io/docs/reference/configuration/
+# 
+# First-time setup:
+#   flyctl launch --dockerfile ./Dockerfile
+#   flyctl volumes create shopstack_data --region <your-region> --size 1
+#   flyctl deploy
+
+app = "shopstack"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  SHOPSTACK_OFF_THE_GRID = "true"
+  # Optional: uncomment for cloud-backed planning
+  # SHOPSTACK_PLANNER_BACKEND = "huggingface"
+
+[http_service]
+  internal_port = 7860
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[mounts]]
+  source = "shopstack_data"
+  destination = "/app/data"
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

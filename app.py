@@ -53,7 +53,6 @@ from shopstack.app_context import APP_DESCRIPTION, APP_NAME, db, providers, tool
 from shopstack.module_registry import tab_label as _tab_label
 
 _workflow_header = workflow_header
-_workflow_header = workflow_header
 
 
 def _runtime_label() -> str:
@@ -87,7 +86,8 @@ def build_app() -> gr.Blocks:
                 today_list = gr.HTML("")
                 today_low = gr.HTML("")
                 today_recent = gr.HTML("")
-                app.load(today_dashboard, outputs=[today_stats, today_soon, today_list, today_low, today_recent])
+                today_changed = gr.HTML("")
+                app.load(today_dashboard, outputs=[today_stats, today_soon, today_list, today_low, today_recent, today_changed])
 
             with gr.Tab(_tab_label("ask"), id="ask"):
                 gr.HTML(workflow_header(WORKFLOW_STEPS))
@@ -349,7 +349,7 @@ def build_app() -> gr.Blocks:
                     boot = atb(search, type_filter)
                     if isinstance(boot[0], dict):
                         return (gr.update(**boot[0]), boot[2], boot[3])
-                    return (gr.update(choices=boot[0]), boot[2], boot[3])
+                    return (boot[0], boot[2], boot[3])
 
                 trace_search.change(
                     _trace_search_change,

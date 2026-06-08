@@ -106,7 +106,7 @@ class ShoppingListItem(BaseModel):
     priority: Priority = "optional"
     reason: str = ""
     status: ListItemStatus = "pending"
-    linked_inventory_lots: list[str] = []
+    linked_inventory_lots: list[str] = Field(default_factory=list)
 
 
 class ShoppingList(BaseModel):
@@ -114,7 +114,7 @@ class ShoppingList(BaseModel):
     name: str = "Shopping List"
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
-    items: list[ShoppingListItem] = []
+    items: list[ShoppingListItem] = Field(default_factory=list)
     goal: str = ""
     is_active: bool = True
 
@@ -133,7 +133,7 @@ class VoiceCommand(BaseModel):
 class ToolCall(BaseModel):
     call_id: str = Field(default_factory=new_id)
     tool_name: str
-    args: dict = {}
+    args: dict = Field(default_factory=dict)
     result: dict | None = None
     success: bool = False
     error: str | None = None
@@ -147,10 +147,10 @@ class Trace(BaseModel):
     input_type: str = ""
     user_goal: str = ""
     redacted_user_request: str = ""
-    perception: dict = {}
-    inventory_context: dict = {}
-    decision: dict = {}
-    proposed_tool_calls: list[ToolCall] = []
+    perception: dict = Field(default_factory=dict)
+    inventory_context: dict = Field(default_factory=dict)
+    decision: dict = Field(default_factory=dict)
+    proposed_tool_calls: list[ToolCall] = Field(default_factory=list)
     human_confirmation: str | None = None
     final_response: str = ""
     timestamp: datetime = Field(default_factory=datetime.now)
@@ -197,11 +197,4 @@ class MovementEvent(BaseModel):
     confidence: float = 1.0
 
 
-class TripWeatherContext(BaseModel):
-    context_id: str = Field(default_factory=new_id)
-    trip_date: date | None = None
-    weather_condition: str | None = None
-    temperature_c: float | None = None
-    is_rainy: bool | None = None
-    travel_mode: str | None = None
-    notes: str | None = None
+# TripWeatherContext removed — unrelated schema remnant (see audit 2026-06-08)

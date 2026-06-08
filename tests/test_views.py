@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from datetime import date
 
+import gradio as gr
 import pytest
 
 from shopstack.schemas.models import InventoryLot, Trace
@@ -357,6 +358,13 @@ class TestAgentTrace:
         assert all(t.input_type == "voice" for t in voice_only)
         text_only = _filter_traces("", "text")
         assert all(t.input_type == "text" for t in text_only)
+
+    def test_trace_bootstrap_returns_update(self, app):
+        result = app.agent_trace_bootstrap()
+        assert len(result) == 4
+        assert isinstance(result[0], dict)
+        assert "choices" in result[0]
+        assert "value" in result[0]
 
 
 class TestMarketLens:

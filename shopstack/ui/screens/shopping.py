@@ -15,6 +15,7 @@ from shopstack.services.shopping import (
     complete_shopping_list_service,
     mark_items_purchased_service,
 )
+from shopstack.services.results import MarkPurchasedResult, ShoppingCompletionResult
 from shopstack.ui import list_to_table
 from shopstack.traces.export import create_trace
 from shopstack.ui.screens._utils import (
@@ -389,89 +390,13 @@ def shopping_list_item_choices() -> list[list[str]]:
 
 
 def mark_items_purchased(item_ids_json: str) -> str:
-    if not item_ids_json or item_ids_json == "[]":
-        return "<div style='color:var(--text-dim);'>No items selected.</div>"
-    try:
-        selected = json.loads(item_ids_json)
-    except (json.JSONDecodeError, TypeError):
-        return "<div style='color:var(--red);'>Could not parse selection.</div>"
-    if not selected:
-        return "<div style='color:var(--text-dim);'>No items selected.</div>"
-
-    sl = db.get_active_shopping_list()
-    if not sl or not sl.items:
-        return "<div style='color:var(--text-dim);'>No active shopping list.</div>"
-
-    added = []
-    matched_ids = set(selected)
-    for item in sl.items:
-        if item.list_item_id in matched_ids:
-            qty = item.requested_quantity or 1.0
-            result = tools.add_inventory_item(
-                canonical_name=item.canonical_name.lower().strip(),
-                display_name=item.canonical_name.strip(),
-                quantity=qty,
-                unit=item.unit or "unit",
-                storage_location_id="kitchen",
-            )
-            lot_id = result.get("lot_id", "")
-            db.update_list_item(item.list_item_id, {"status": "bought"})
-            added.append(f"{item.canonical_name} (lot {lot_id[:8]})")
-
-    if not added:
-        return "<div style='color:var(--text-dim);'>No valid items found to mark as purchased.</div>"
-    return f"<div style='color:var(--green);'>Marked {len(added)} item(s) as purchased and added to inventory: {', '.join(escape(a) for a in added)}</div>"
+    result = mark_items_purchased_service(item_ids_json, tools, db)
+    return result.to_html()
 
 
 def complete_shopping_list(list_id: str) -> str:
-    if not list_id:
-        return "<div style='color:var(--text-dim);'>No active shopping list to complete.</div>"
-    sl = db.get_active_shopping_list()
-    if not sl or sl.list_id != list_id:
-        return "<div style='color:var(--text-dim);'>Active list not found or already completed.</div>"
-    items = sl.items or []
-    if not items:
-        db.mark_list_complete(list_id)
-        return "<div style='color:var(--green);'>Empty list marked complete.</div>"
-
-    added = []
-    for item in items:
-        priority = item.priority or "optional"
-        if priority == "avoid_buying":
-            continue
-        qty = item.requested_quantity or 1.0
-        if priority == "optional":
-            qty = max(qty * 0.5, 0.5)
-        result = tools.add_inventory_item(
-            canonical_name=item.canonical_name.lower().strip(),
-            display_name=item.canonical_name.strip(),
-            quantity=qty,
-            unit=item.unit or "unit",
-            storage_location_id="kitchen",
-        )
-        lot_id = result.get("lot_id", "")
-        added.append(f"{item.canonical_name} (lot {lot_id[:8]})")
-
-    db.mark_list_complete(list_id)
-    try:
-        create_trace(
-            db,
-            input_type="form",
-            user_goal="complete_shopping_list",
-            redacted_user_request=f"completed list: {sl.goal or ''}",
-            perception={"goal": sl.goal or "", "item_count": len(items), "added_count": len(added)},
-            inventory_context={"added_items": added},
-            decision={"action": "mark_list_complete"},
-            proposed_tool_calls=[],
-            final_response=f"Completed list with {len(added)} items added to inventory",
-            human_confirmation="auto-confirmed",
-        )
-    except Exception as exc:
-        logger.debug("Failed to record complete list trace: %s", exc)
-    summary = ", ".join(added)
-    return (
-        f"<div style='color:var(--green);'>List completed! Added {len(added)} items to inventory: {escape(summary)}</div>"
-    )
+    result = complete_shopping_list_service(list_id, tools, db)
+    return result.to_html()
 
 
 def _build_shopping_list_and_refresh(

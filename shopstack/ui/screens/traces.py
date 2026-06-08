@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gradio as gr
 import json
 import logging
 import os
@@ -101,11 +102,11 @@ def agent_trace_bootstrap(search: str = "", input_type_filter: str = "") -> tupl
     traces = _filter_traces(search, input_type_filter)
     if not traces:
         no_data = "<div style='color:var(--text-dim);'>No workflow traces recorded yet.</div>"
-        return {"choices": [("No traces yet", "")], "value": ""}, "", no_data, no_data
+        return gr.update(choices=[("No traces yet", "")], value=""), "", no_data, no_data
     first = traces[0]
     timeline, raw = _trace_bundle(first.trace_id)
     choices = [(f"{_format_trace_selector_label(t)} | {t.trace_id[:12]}", t.trace_id) for t in traces]
-    return {"choices": choices, "value": first.trace_id}, first.trace_id, timeline, raw
+    return gr.update(choices=choices, value=first.trace_id), first.trace_id, timeline, raw
 
 
 def agent_trace_view(search: str = "", input_type_filter: str = "") -> tuple:

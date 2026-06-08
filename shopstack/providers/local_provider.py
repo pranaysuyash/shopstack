@@ -113,17 +113,26 @@ class LocalProvider:
             import llama_cpp
 
             local_path = Path(self._model_dir) / self._model_repo.split("/")[-1] / self._model_file
-            if not local_path.is_file() and not self._allow_download:
-                self._error = (
-                    f"Local GGUF model not found at {local_path}. "
-                    "Set SHOPSTACK_LOCAL_AUTO_DOWNLOAD=true and provide model assets,"
-                    " or place the file at this location first."
-                )
-                self._available = False
-                logger.warning("Local model unavailable: %s", self._error)
-                return
+            if not local_path.is_file():
+                if not self._allow_download:
+                    self._error = (
+                        f"Local GGUF model not found at {local_path}. "
+                        "Set SHOPSTACK_LOCAL_AUTO_DOWNLOAD=true and provide model assets,"
+                        " or place the file at this location first."
+                    )
+                    self._available = False
+                    logger.warning("Local model unavailable: %s", self._error)
+                    return
+                try:
+                    self._model_path = _ensure_gguf_model(self._model_dir, self._model_repo, self._model_file)
+                except Exception as e:
+                    self._error = f"Failed to download llama.cpp model: {e}"
+                    self._available = False
+                    logger.warning("Local model download failed: %s", exc_info=True)
+                    return
+            else:
+                self._model_path = str(local_path)
 
-            self._model_path = str(local_path)
             self._error = None
             self._backend = "llama.cpp"
             self._available = True

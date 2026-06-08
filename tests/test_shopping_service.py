@@ -312,20 +312,23 @@ class TestEnrichItemsWithSwiggy:
 class TestCompleteShoppingListService:
     def test_empty_list_id(self, app):
         from shopstack.services.shopping import complete_shopping_list_service
-        result = complete_shopping_list_service("", app.tools)
-        assert "No active shopping list" in result
+        result = complete_shopping_list_service("", app.tools, app.db)
+        assert not result.success
+        assert "No active shopping list" in result.message
 
     def test_list_not_found(self, app):
         from shopstack.services.shopping import complete_shopping_list_service
-        result = complete_shopping_list_service("nonexistent_id", app.tools)
-        assert "not found" in result or "not found" in result.lower()
+        result = complete_shopping_list_service("nonexistent_id", app.tools, app.db)
+        assert not result.success
+        assert "not found" in result.message.lower()
 
     def test_empty_items_list(self, app):
         from shopstack.services.shopping import complete_shopping_list_service
         app.tools.create_or_update_shopping_list(items=[], goal="Empty trip")
         sl = app.db.get_active_shopping_list()
-        result = complete_shopping_list_service(sl.list_id, app.tools)
-        assert "Empty list marked complete" in result
+        result = complete_shopping_list_service(sl.list_id, app.tools, app.db)
+        assert result.success
+        assert result.count == 0
 
     def test_must_buy_items_added_to_inventory(self, app):
         from shopstack.services.shopping import complete_shopping_list_service
@@ -334,9 +337,10 @@ class TestCompleteShoppingListService:
             goal="Weekly shop",
         )
         sl = app.db.get_active_shopping_list()
-        result = complete_shopping_list_service(sl.list_id, app.tools)
-        assert "Added" in result
-        assert "milk" in result.lower()
+        result = complete_shopping_list_service(sl.list_id, app.tools, app.db)
+        assert result.success
+        assert result.count == 1
+        assert result.items_added[0].canonical_name == "milk"
         items = app.db.get_inventory()
         assert any(i.canonical_name == "milk" for i in items)
 
@@ -347,7 +351,7 @@ class TestCompleteShoppingListService:
             goal="Snacks",
         )
         sl = app.db.get_active_shopping_list()
-        complete_shopping_list_service(sl.list_id, app.tools)
+        complete_shopping_list_service(sl.list_id, app.tools, app.db)
         items = app.db.get_inventory()
         chips = [i for i in items if i.canonical_name == "chips"]
         assert len(chips) == 1
@@ -360,7 +364,7 @@ class TestCompleteShoppingListService:
             goal="Treats",
         )
         sl = app.db.get_active_shopping_list()
-        complete_shopping_list_service(sl.list_id, app.tools)
+        complete_shopping_list_service(sl.list_id, app.tools, app.db)
         items = app.db.get_inventory()
         gum = [i for i in items if i.canonical_name == "gum"]
         assert len(gum) == 1
@@ -376,8 +380,9 @@ class TestCompleteShoppingListService:
             goal="Weekly shop",
         )
         sl = app.db.get_active_shopping_list()
-        result = complete_shopping_list_service(sl.list_id, app.tools)
-        assert "1 items" in result or "1 item" in result
+        result = complete_shopping_list_service(sl.list_id, app.tools, app.db)
+        assert result.count == 1
+        assert result.items_skipped == 1
 
     def test_list_marked_complete(self, app):
         from shopstack.services.shopping import complete_shopping_list_service
@@ -387,7 +392,7 @@ class TestCompleteShoppingListService:
         )
         sl = app.db.get_active_shopping_list()
         assert sl is not None
-        complete_shopping_list_service(sl.list_id, app.tools)
+        complete_shopping_list_service(sl.list_id, app.tools, app.db)
         assert app.db.get_active_shopping_list() is None
 
     def test_trace_created(self, app):
@@ -397,7 +402,7 @@ class TestCompleteShoppingListService:
             goal="Test trace",
         )
         sl = app.db.get_active_shopping_list()
-        complete_shopping_list_service(sl.list_id, app.tools)
+        complete_shopping_list_service(sl.list_id, app.tools, app.db)
         traces = app.db.get_traces()
         assert any(t.user_goal == "complete_shopping_list" for t in traces)
 
@@ -408,9 +413,10 @@ class TestCompleteShoppingListService:
             goal="XSS test",
         )
         sl = app.db.get_active_shopping_list()
-        result = complete_shopping_list_service(sl.list_id, app.tools)
-        assert "&lt;script&gt;" in result
-        assert "<script>" not in result
+        result = complete_shopping_list_service(sl.list_id, app.tools, app.db)
+        html = result.to_html()
+        assert "&lt;script&gt;" in html
+        assert "<script>" not in html
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -420,23 +426,27 @@ class TestCompleteShoppingListService:
 class TestMarkItemsPurchasedService:
     def test_empty_input(self, app):
         from shopstack.services.shopping import mark_items_purchased_service
-        result = mark_items_purchased_service("", app.tools)
-        assert "No items selected" in result
+        result = mark_items_purchased_service("", app.tools, app.db)
+        assert not result.success
+        assert "No items selected" in result.message
 
     def test_empty_json_array(self, app):
         from shopstack.services.shopping import mark_items_purchased_service
-        result = mark_items_purchased_service("[]", app.tools)
-        assert "No items selected" in result
+        result = mark_items_purchased_service("[]", app.tools, app.db)
+        assert not result.success
+        assert "No items selected" in result.message
 
     def test_invalid_json(self, app):
         from shopstack.services.shopping import mark_items_purchased_service
-        result = mark_items_purchased_service("{bad json}", app.tools)
-        assert "Could not parse" in result
+        result = mark_items_purchased_service("{bad json}", app.tools, app.db)
+        assert not result.success
+        assert "Could not parse" in result.message
 
     def test_no_active_list(self, app):
         from shopstack.services.shopping import mark_items_purchased_service
-        result = mark_items_purchased_service('["item1"]', app.tools)
-        assert "No active shopping list" in result
+        result = mark_items_purchased_service('["item1"]', app.tools, app.db)
+        assert not result.success
+        assert "No active shopping list" in result.message
 
     def test_marks_items_as_purchased(self, app):
         from shopstack.services.shopping import mark_items_purchased_service
@@ -446,9 +456,10 @@ class TestMarkItemsPurchasedService:
         )
         sl = app.db.get_active_shopping_list()
         item_id = sl.items[0].list_item_id
-        result = mark_items_purchased_service(json.dumps([item_id]), app.tools)
-        assert "Marked" in result
-        assert "milk" in result.lower()
+        result = mark_items_purchased_service(json.dumps([item_id]), app.tools, app.db)
+        assert result.success
+        assert result.count == 1
+        assert result.items_added[0].canonical_name == "milk"
         items = app.db.get_inventory()
         assert any(i.canonical_name == "milk" for i in items)
 
@@ -463,8 +474,8 @@ class TestMarkItemsPurchasedService:
         )
         sl = app.db.get_active_shopping_list()
         milk_id = sl.items[0].list_item_id
-        result = mark_items_purchased_service(json.dumps([milk_id]), app.tools)
-        assert "Marked 1 item" in result
+        result = mark_items_purchased_service(json.dumps([milk_id]), app.tools, app.db)
+        assert result.count == 1
         items = app.db.get_inventory()
         names = [i.canonical_name for i in items]
         assert "milk" in names
@@ -478,8 +489,9 @@ class TestMarkItemsPurchasedService:
             items=[{"canonical_name": "milk", "requested_quantity": 1, "unit": "L"}],
             goal="Test",
         )
-        result = mark_items_purchased_service('["nonexistent_id"]', app.tools)
-        assert "No valid items found" in result
+        result = mark_items_purchased_service('["nonexistent_id"]', app.tools, app.db)
+        assert not result.success
+        assert "No valid items found" in result.message
 
     def test_escapes_html(self, app):
         from shopstack.services.shopping import mark_items_purchased_service
@@ -489,5 +501,6 @@ class TestMarkItemsPurchasedService:
         )
         sl = app.db.get_active_shopping_list()
         item_id = sl.items[0].list_item_id
-        result = mark_items_purchased_service(json.dumps([item_id]), app.tools)
-        assert "&lt;script&gt;" in result
+        result = mark_items_purchased_service(json.dumps([item_id]), app.tools, app.db)
+        html = result.to_html()
+        assert "&lt;script&gt;" in html

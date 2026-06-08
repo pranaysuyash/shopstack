@@ -1,11 +1,21 @@
 from __future__ import annotations
 
+import json
+import logging
 import re
 from dataclasses import dataclass, field
+from html import escape
 from typing import Any
 
+from shopstack.services.results import (
+    CompletionItem,
+    MarkPurchasedResult,
+    PurchaseResultItem,
+    ShoppingCompletionResult,
+)
 from shopstack.tools.registry import ToolRegistry
 
+logger = logging.getLogger(__name__)
 
 ITEM_ALIASES: dict[str, list[str]] = {
     "tomato": ["tamatar", "tomatoes"],
@@ -135,39 +145,44 @@ def enrich_items_with_swiggy(items: list[dict[str, Any]]) -> list[dict[str, Any]
 
 # ─── Shopping Completion Services ───
 
-from shopstack.app_context import db, APP_NAME
+from shopstack.persistence.database import Database
 from shopstack.traces.export import create_trace
-from shopstack.tools.registry import ToolRegistry
-from html import escape
-import json
-import logging
-
-logger = logging.getLogger(__name__)
 
 
-def complete_shopping_list_service(list_id: str, tools: ToolRegistry) -> str:
+def complete_shopping_list_service(
+    list_id: str,
+    tools: ToolRegistry,
+    database: Database | None = None,
+) -> ShoppingCompletionResult:
     """Complete a shopping list: convert items to inventory and mark list complete.
 
-    Args:
-        list_id: The shopping list ID to complete
-        tools: ToolRegistry instance for database operations
-
-    Returns:
-        HTML string with completion result
+    Returns a typed ShoppingCompletionResult. Call ``.to_html()`` for display.
+    Accepts an optional ``database`` parameter for dependency injection;
+    falls back to ``shopstack.app_context.db`` when not provided (legacy path).
     """
-    if not list_id:
-        return "<div style='color:var(--text-dim);'>No active shopping list to complete.</div>"
+    if database is None:
+        from shopstack.app_context import db as database
 
-    sl = db.get_active_shopping_list()
+    if not list_id:
+        return ShoppingCompletionResult(
+            success=False, list_id="", message="No active shopping list to complete."
+        )
+
+    sl = database.get_active_shopping_list()
     if not sl or sl.list_id != list_id:
-        return "<div style='color:var(--text-dim);'>Active list not found or already completed.</div>"
+        return ShoppingCompletionResult(
+            success=False, list_id=list_id,
+            message="Active list not found or already completed."
+        )
 
     items = sl.items or []
     if not items:
-        db.mark_list_complete(list_id)
-        return "<div style='color:var(--green);'>Empty list marked complete.</div>"
+        database.mark_list_complete(list_id)
+        return ShoppingCompletionResult(
+            success=True, list_id=list_id, message="Empty list marked complete."
+        )
 
-    added = []
+    added: list[CompletionItem] = []
     for item in items:
         priority = item.priority or "optional"
         if priority == "avoid_buying":
@@ -183,18 +198,25 @@ def complete_shopping_list_service(list_id: str, tools: ToolRegistry) -> str:
             storage_location_id="kitchen",
         )
         lot_id = result.get("lot_id", "")
-        added.append(f"{item.canonical_name} (lot {lot_id[:8]})")
+        added.append(CompletionItem(
+            canonical_name=item.canonical_name,
+            lot_id=lot_id,
+            quantity=qty,
+            unit=item.unit or "unit",
+        ))
 
-    db.mark_list_complete(list_id)
+    database.mark_list_complete(list_id)
+
+    skipped = sum(1 for item in items if (item.priority or "") == "avoid_buying")
 
     try:
         create_trace(
-            db,
+            database,
             input_type="form",
             user_goal="complete_shopping_list",
             redacted_user_request=f"completed list: {sl.goal or ''}",
             perception={"goal": sl.goal or "", "item_count": len(items), "added_count": len(added)},
-            inventory_context={"added_items": added},
+            inventory_context={"added_items": [i.canonical_name for i in added]},
             decision={"action": "mark_list_complete"},
             proposed_tool_calls=[],
             final_response=f"Completed list with {len(added)} items added to inventory",
@@ -203,38 +225,46 @@ def complete_shopping_list_service(list_id: str, tools: ToolRegistry) -> str:
     except Exception as exc:
         logger.debug("Failed to record complete list trace: %s", exc)
 
-    summary = ", ".join(added)
-    return (
-        f"<div style='color:var(--green);'>List completed! Added {len(added)} items to inventory: {escape(summary)}</div>"
+    return ShoppingCompletionResult(
+        success=True,
+        list_id=list_id,
+        items_added=added,
+        items_skipped=skipped,
+        goal=sl.goal or "",
+        message=f"List completed! Added {len(added)} items to inventory.",
     )
 
 
-def mark_items_purchased_service(item_ids_json: str, tools: ToolRegistry) -> str:
+def mark_items_purchased_service(
+    item_ids_json: str,
+    tools: ToolRegistry,
+    database: Database | None = None,
+) -> MarkPurchasedResult:
     """Mark selected shopping list items as purchased and add to inventory.
 
-    Args:
-        item_ids_json: JSON string of item IDs to mark as purchased
-        tools: ToolRegistry instance for database operations
-
-    Returns:
-        HTML string with result
+    Returns a typed MarkPurchasedResult. Call ``.to_html()`` for display.
+    Accepts an optional ``database`` parameter for dependency injection;
+    falls back to ``shopstack.app_context.db`` when not provided (legacy path).
     """
+    if database is None:
+        from shopstack.app_context import db as database
+
     if not item_ids_json or item_ids_json == "[]":
-        return "<div style='color:var(--text-dim);'>No items selected.</div>"
+        return MarkPurchasedResult(success=False, message="No items selected.")
 
     try:
         selected = json.loads(item_ids_json)
     except (json.JSONDecodeError, TypeError):
-        return "<div style='color:var(--red);'>Could not parse selection.</div>"
+        return MarkPurchasedResult(success=False, message="Could not parse selection.")
 
     if not selected:
-        return "<div style='color:var(--text-dim);'>No items selected.</div>"
+        return MarkPurchasedResult(success=False, message="No items selected.")
 
-    sl = db.get_active_shopping_list()
+    sl = database.get_active_shopping_list()
     if not sl or not sl.items:
-        return "<div style='color:var(--text-dim);'>No active shopping list.</div>"
+        return MarkPurchasedResult(success=False, message="No active shopping list.")
 
-    added = []
+    added: list[PurchaseResultItem] = []
     matched_ids = set(selected)
     for item in sl.items:
         if item.list_item_id in matched_ids:
@@ -247,10 +277,19 @@ def mark_items_purchased_service(item_ids_json: str, tools: ToolRegistry) -> str
                 storage_location_id="kitchen",
             )
             lot_id = result.get("lot_id", "")
-            db.update_list_item(item.list_item_id, {"status": "bought"})
-            added.append(f"{item.canonical_name} (lot {lot_id[:8]})")
+            database.update_list_item(item.list_item_id, {"status": "bought"})
+            added.append(PurchaseResultItem(
+                canonical_name=item.canonical_name,
+                lot_id=lot_id,
+                quantity=qty,
+                unit=item.unit or "unit",
+            ))
 
     if not added:
-        return "<div style='color:var(--text-dim);'>No valid items found to mark as purchased.</div>"
+        return MarkPurchasedResult(success=False, message="No valid items found to mark as purchased.")
 
-    return f"<div style='color:var(--green);'>Marked {len(added)} item(s) as purchased and added to inventory: {', '.join(escape(a) for a in added)}</div>"
+    return MarkPurchasedResult(
+        success=True,
+        items_added=added,
+        message=f"Marked {len(added)} item(s) as purchased and added to inventory.",
+    )

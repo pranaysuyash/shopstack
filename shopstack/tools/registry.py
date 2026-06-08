@@ -12,6 +12,7 @@ from shopstack.schemas.models import (
     ShoppingListItem,
     Trace,
 )
+from shopstack.tools.spec import ArgSpec, ToolSpec, build_tool_specs
 
 ToolFunc = Callable[..., dict[str, Any]]
 
@@ -100,6 +101,31 @@ class ToolRegistry:
             {"name": name, "description": desc, "arg_names": args}
             for name, (_, desc, args) in self._tools.items()
         ]
+
+    def tool_specs(self) -> list[ToolSpec]:
+        """Return canonical ToolSpec definitions for all registered tools.
+
+        Merges the canonical specs from :func:`build_tool_specs` with the
+        registered tool set. Tools registered but not in canonical specs
+        get a best-effort default spec.
+        """
+        canonical = {s.name: s for s in build_tool_specs()}
+        specs: list[ToolSpec] = []
+        for name, (_, desc, arg_names) in self._tools.items():
+            if name in canonical:
+                specs.append(canonical[name])
+            else:
+                specs.append(ToolSpec(
+                    name=name,
+                    description=desc,
+                    args=[ArgSpec(name=a, description=a) for a in arg_names],
+                ))
+        return specs
+
+    def format_tool_descriptions(self) -> str:
+        """Generate planner-ready tool descriptions from ToolSpec objects."""
+        from shopstack.tools.spec import format_tool_descriptions
+        return format_tool_descriptions(self.tool_specs())
 
     def execute(self, tool_name: str, **kwargs) -> dict[str, Any]:
         entry = self._tools.get(tool_name)

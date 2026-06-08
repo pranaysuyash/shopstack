@@ -1,0 +1,26 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Deploy: Connect your repo, Render auto-detects this file.
+
+services:
+  - type: web
+    name: shopstack
+    runtime: docker
+    repo: https://github.com/<YOUR_ORG>/shopstack
+    plan: starter  # $7/mo — required for persistent disk
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: SHOPSTACK_OFF_THE_GRID
+        value: "true"
+      # Optional: add HF API key for cloud-backed planning
+      # - key: SHOPSTACK_HF_API_KEY
+      #   sync: false  # set via Render dashboard for secrets
+      # - key: SHOPSTACK_PLANNER_BACKEND
+      #   value: "huggingface"
+    disk:
+      name: shopstack-data
+      mountPath: /app/data
+      sizeGB: 1
+    healthCheckPath: /
+    port: 7860
+    autoDeploy: true

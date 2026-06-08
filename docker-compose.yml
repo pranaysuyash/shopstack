@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  shopstack:
+    build: .
+    container_name: shopstack
+    ports:
+      - "7860:7860"
+    volumes:
+      # Persist SQLite database across container restarts
+      - shopstack_data:/app/data
+    environment:
+      # Run with mock providers by default (no AI deps needed)
+      - SHOPSTACK_OFF_THE_GRID=true
+      # Uncomment and set your API keys for cloud-backed AI features:
+      # - SHOPSTACK_HF_API_KEY=hf_xxx
+      # - SHOPSTACK_PLANNER_BACKEND=huggingface
+      # - SHOPSTACK_OPENAI_API_KEY=sk-xxx
+      # - SHOPSTACK_PLANNER_BACKEND=openai
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:7860')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  shopstack_data:

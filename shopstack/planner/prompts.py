@@ -79,7 +79,7 @@ TOOL_DESCRIPTIONS: list[dict[str, Any]] = [
         "name": "create_or_update_shopping_list",
         "description": "Create a shopping list or add items to the active list.",
         "args": {
-            "items": "A JSON array of item dicts, each with canonical_name (required), requested_quantity, unit, priority (high/medium/low), reason.",
+            "items": "A JSON array of item dicts, each with canonical_name (required), requested_quantity, unit, priority (must_buy/optional/avoid_buying), reason.",
             "goal": "A short description of the shopping goal. Optional.",
         },
     },
@@ -118,7 +118,14 @@ TOOL_DESCRIPTIONS: list[dict[str, Any]] = [
 ]
 
 
-def _format_tool_descriptions() -> str:
+def _format_tool_descriptions(tools: ToolRegistry | None = None) -> str:
+    """Format tool descriptions, preferring ToolSpec when available."""
+    if tools is not None and hasattr(tools, "format_tool_descriptions"):
+        try:
+            return tools.format_tool_descriptions()
+        except Exception:
+            pass
+    # Fallback to legacy TOOL_DESCRIPTIONS
     lines: list[str] = []
     for t in TOOL_DESCRIPTIONS:
         args_fmt = ", ".join(

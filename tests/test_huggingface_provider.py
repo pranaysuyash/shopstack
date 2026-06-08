@@ -286,23 +286,32 @@ class TestHuggingFaceProviderPlan:
 
 
 class TestHuggingFaceRegistryWiring:
-    def test_huggingface_backend_falls_back_to_mock_when_package_missing(self):
-        """HuggingFace backend should gracefully fall back to mock when deps not importable."""
+    def test_registry_falls_back_to_mock_for_unknown_backend(self):
+        """Registry gracefully falls back to mock for backends not handled by _try_real_provider."""
+        settings = Settings(
+            _env_file=None,
+            off_the_grid=False,
+            planner_backend="nonexistent_backend_xyz",
+        )
+        registry = ProviderRegistry(settings)
+        # Falls back to MockPlannerProvider for unknown backends
+        assert registry.planner is not None
+        assert registry.planner.available
+        assert "Mock" in type(registry.planner).__name__
+
+    def test_huggingface_backend_resolves_in_registry(self):
+        """HuggingFace backend resolves to HuggingFaceProvider in registry."""
         settings = Settings(
             _env_file=None,
             off_the_grid=False,
             planner_backend="huggingface",
         )
-        # Patch _load_huggingface at the registry level to simulate the import failing
-        with patch(
-            "shopstack.providers.registry._load_huggingface",
-            return_value=None,
-        ):
-            registry = ProviderRegistry(settings)
-            assert registry.planner is not None
-            # Falls back to MockPlannerProvider when HuggingFaceProvider can't be imported
-            assert registry.planner.available
-            assert "Mock" in type(registry.planner).__name__
+        registry = ProviderRegistry(settings)
+        planner = registry.planner
+        assert planner is not None
+        # _load_huggingface() imports the class (not huggingface_hub),
+        # so the registry always creates a HuggingFaceProvider
+        assert planner.name == "huggingface"
 
     def test_huggingface_backend_uses_real_provider_when_available(self):
         """HuggingFace backend should use real provider when deps and key exist."""

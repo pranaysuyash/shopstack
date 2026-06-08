@@ -173,15 +173,17 @@ A hook at `.git/hooks/pre-commit` runs `tools/sync-readme-stats` which extracts 
 | `tests/test_runtime.py` | 5 | Runtime diagnostics: provider status, model info |
 | `tests/test_swiggy_data_source.py` | 4 | Swiggy data source validation |
 | `tests/test_voice_add.py` | 14 | Voice add commands, price intelligence |
-| **Total** | **532+** | (growing) |
+| `tests/test_huggingface_provider.py` | 26 | HuggingFace Inference API provider: init, complete, plan, retry, registry wiring, env key, latency |
+| **Total** | **559** | (growing) |
 
 ## Next Work
 
 - Live deployment test, load testing, performance benchmarking
 - Seed demo data for walkthroughs
 - CI pipeline (GitHub Actions + test suite)
-- HF Inference API provider for fallback when local models aren't installed
 - Modal provider for cloud GPU inference
+- Wire HF Inference API provider into planner routing (currently backend-selected only)
+- Add Blinkit, Zepto, DMart data source adapters
 
 ## Addendum (2026-06-06) — Current Verified State
 
@@ -231,3 +233,14 @@ This file remains a guidance snapshot; code/runtime/tests at the time of work re
 - Fixed `test_views.py`, `test_voice_add.py`, `test_planner.py` to work with mock planner availability.
 - Verified counts: `uv run pytest tests/ -q --ignore=tests/test_local_provider.py` → **532 passed** in 70.01s. `uv run pytest benchmarks/ -v -m benchmark` → **9 passed** in 2.45s.
 - Resolved test suite timeout issue (full suite now runs in ~70s deterministically).
+
+## Addendum (2026-06-07) — HuggingFace Inference API Provider
+
+This file remains a guidance snapshot; code/runtime/tests at the time of work remain source of truth.
+
+- Added `shopstack/providers/huggingface_provider.py` — HuggingFaceProvider implementing `complete()`, `plan()`, retry logic, `last_latency_ms`/`last_token_count` tracking, and healthcheck.
+- Uses `huggingface_hub.InferenceClient` for serverless HF Inference API calls. Default model: `microsoft/Phi-3-mini-4k-instruct` (3.8B params).
+- Added `hf_api_key` to `shopstack/config.py` (reads `SHOPSTACK_HF_API_KEY` env var, falls back to `HF_API_KEY`).
+- Wired into `shopstack/providers/registry.py` — backend `"huggingface"` activates via `planner_backend=huggingface`. Falls back to mock gracefully when deps/token missing.
+- 26 tests in `tests/test_huggingface_provider.py` covering init, complete, plan, retry, registry wiring, env var precedence, and latency tracking.
+- Verified: 26/26 HF provider tests pass; 558+ total tests pass with no regressions.
