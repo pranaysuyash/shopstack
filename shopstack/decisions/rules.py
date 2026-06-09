@@ -1,8 +1,10 @@
 """Decision rules — classification logic for household shopping decisions.
 
-This module computes buy / skip / use-soon / optional / compare / confirm / watch
+This module computes buy / skip / use-soon / optional / compare / wait
 decisions from inventory state, shopping list, and market signals. Pure logic —
 no HTML rendering, no database access except through passed-in interfaces.
+
+Every decision produces a DecisionResult (from shopstack.schemas.models).
 """
 
 from __future__ import annotations
@@ -11,14 +13,13 @@ import logging
 from datetime import date, timedelta
 from typing import Any
 
-from shopstack.decisions.types import (
-    Decision,
-    ItemDecision,
+from shopstack.schemas.models import (
+    DecisionEvidence,
+    DecisionResult,
     DecisionSet,
-    MarketEvidence,
-    Evidence,
-    Reason,
+    DecisionWarning,
 )
+from shopstack.decisions.types import Decision, ACTION_MAP
 from shopstack.persistence.database import Database
 from shopstack.tools.registry import ToolRegistry
 
@@ -54,13 +55,13 @@ def classify_all(
         list_names = {item.canonical_name for item in active_list.items if item.status in ("pending", "seen")}
 
     market_by_canonical: dict[str, Any] = {}
-    market_evidence_map: dict[str, MarketEvidence] = {}
+    market_evidence_map: dict[str, Any] = {}
 
     # Build market data from single snapshot or multi-source registry
     _multi_source_market_data(market_snapshot, source_registry, market_by_canonical, market_evidence_map)
 
     seen: set[str] = set()
-    decisions: list[ItemDecision] = []
+    decisions: list[DecisionResult] = []
 
     for lot in active_inv:
         cname = lot.canonical_name
@@ -76,7 +77,7 @@ def classify_all(
         on_list = cname in list_names
         recently_bought = lot.purchase_date and lot.purchase_date in recent_dates
 
-        decision, reason_str, confidence = _classify(
+        action, reason_str, confidence = _classify(
             quantity=lot.quantity,
             unit=lot.unit,
             low_stock=low_stock,
@@ -87,18 +88,19 @@ def classify_all(
             waste_risk=meta.waste_risk if meta else "unknown",
         )
 
-        evidence_list = []
+        evidence_list: list[DecisionEvidence] = []
         if recently_bought:
-            evidence_list.append(Evidence(source="purchase_history", value=lot.purchase_date.isoformat() if lot.purchase_date else "", confidence=0.9))
+            evidence_list.append(DecisionEvidence(source="purchase_history", value=lot.purchase_date.isoformat() if lot.purchase_date else "", confidence=0.9))
         if market:
-            evidence_list.append(Evidence(source="market_snapshot", value=market.price_inr, confidence=0.7, captured_at=market.captured_at))
+            evidence_list.append(DecisionEvidence(source="market_snapshot", value=market.price_inr, confidence=0.7, captured_at=market.captured_at, is_stale=getattr(market, 'is_stale', False)))
 
-        decisions.append(ItemDecision(
+        decisions.append(DecisionResult(
             canonical_name=cname,
             display_name=lot.display_name,
-            decision=decision,
-            reason=reason_str,
+            action=action,
             confidence=confidence,
+            reasons=[reason_str],
+            evidence=evidence_list,
             quantity_at_home=lot.quantity,
             unit=lot.unit,
             market_price=market.price_inr if market else None,
@@ -110,9 +112,6 @@ def classify_all(
             shelf_life_days=meta.shelf_life_days if meta else 0,
             last_purchase_date=lot.purchase_date,
             location=lot.storage_location_id or "",
-            reasons=[Reason(label=reason_str)],
-            evidence=evidence_list,
-            market_evidence=market_evidence_map.get(cname),
         ))
 
     if active_list and active_list.items:
@@ -131,11 +130,11 @@ def classify_all(
             use_soon_match = item.canonical_name in use_soon_names
 
             if inv_match is None:
-                decision = Decision.BUY.value
+                action = Decision.BUY.value
                 reason_str = "On your list, not in inventory"
                 confidence = 0.9
             else:
-                decision, reason_str, confidence = _classify(
+                action, reason_str, confidence = _classify(
                     quantity=qty,
                     unit=inv_match.unit,
                     low_stock=low_stock,
@@ -146,12 +145,12 @@ def classify_all(
                     waste_risk=meta.waste_risk if meta else "unknown",
                 )
 
-            decisions.append(ItemDecision(
+            decisions.append(DecisionResult(
                 canonical_name=item.canonical_name,
                 display_name=item.canonical_name.replace("_", " ").title(),
-                decision=decision,
-                reason=reason_str,
+                action=action,
                 confidence=confidence,
+                reasons=[reason_str],
                 quantity_at_home=qty,
                 unit=inv_match.unit if inv_match else "unit",
                 market_price=market.price_inr if market else None,
@@ -163,8 +162,6 @@ def classify_all(
                 shelf_life_days=meta.shelf_life_days if meta else 0,
                 last_purchase_date=inv_match.purchase_date if inv_match else None,
                 location=inv_match.storage_location_id if inv_match else "",
-                reasons=[Reason(label=reason_str)],
-                market_evidence=market_evidence_map.get(item.canonical_name),
             ))
 
     if market_snapshot is not None:
@@ -186,37 +183,32 @@ def classify_all(
             if len(all_weighted) >= 2:
                 prices = [rec.price_per_kg for rec in all_weighted if rec.price_per_kg]
                 if prices and price_ppk <= min(prices) * 1.05:
-                    decision = Decision.OPTIONAL.value
+                    action = Decision.OPTIONAL.value
                     reason_str = f"Good price: \u20b9{price_ppk:.0f}/kg on {market_source_name}"
                     confidence = 0.7
                 else:
-                    decision = Decision.WATCH.value
+                    action = Decision.WATCH.value
                     reason_str = f"Available at \u20b9{price_ppk:.0f}/kg on {market_source_name}"
                     confidence = 0.5
             else:
-                decision = Decision.WATCH.value
+                action = Decision.WATCH.value
                 reason_str = f"Available at \u20b9{price_ppk:.0f}/kg on {market_source_name}"
                 confidence = 0.5
 
-            decisions.append(ItemDecision(
+            decisions.append(DecisionResult(
                 canonical_name=cname,
                 display_name=cname.replace("_", " ").title(),
-                decision=decision,
-                reason=reason_str,
+                action=ACTION_MAP.get(action, "wait"),
                 confidence=confidence,
+                reasons=[reason_str],
                 quantity_at_home=0,
                 unit="",
                 market_price=r.price_inr,
                 market_price_per_kg=r.price_per_kg,
                 market_available=True,
                 market_raw_size=r.raw_size,
-                shopping_list_status="",
                 waste_risk=meta.waste_risk if meta else "unknown",
                 shelf_life_days=meta.shelf_life_days if meta else 0,
-                last_purchase_date=None,
-                location="",
-                reasons=[Reason(label=reason_str)],
-                market_evidence=market_evidence_map.get(cname),
             ))
 
     return DecisionSet(decisions=decisions)
@@ -302,30 +294,25 @@ def _multi_source_market_data(
                     existing_evidence = market_evidence_map.get(cname)
                     price_per_kg = best.price_per_kg if best else None
                     if existing_evidence:
-                        # Merge: keep the best price from any source
-                        if price_per_kg is not None and existing_evidence.best_value_per_kg is not None:
-                            if price_per_kg < existing_evidence.best_value_per_kg:
-                                existing_evidence.source = source_id
-                                existing_evidence.best_value_price = best.price_inr if best else None
-                                existing_evidence.best_value_per_kg = price_per_kg
-                        existing_evidence.available_options.extend(r.to_dict() for r in available[:2])
-                        existing_evidence.sold_out_options.extend(r.to_dict() for r in sold_out[:2])
+                        if price_per_kg is not None and existing_evidence.get("best_value_per_kg") is not None:
+                            if price_per_kg < existing_evidence["best_value_per_kg"]:
+                                existing_evidence["source"] = source_id
+                                existing_evidence["best_value_price"] = best.price_inr if best else None
+                                existing_evidence["best_value_per_kg"] = price_per_kg
                     else:
                         try:
                             from shopstack.market.sources._repository import snapshot_freshness
                             freshness = snapshot_freshness(snap)
                         except Exception:
                             freshness = {"age_days": 0, "is_stale": False}
-                        market_evidence_map[cname] = MarketEvidence(
-                            source=source_id,
-                            captured_at=snap.captured_at,
-                            age_days=freshness.get("age_days", 0),
-                            is_stale=freshness.get("is_stale", True),
-                            best_value_price=best.price_inr if best else None,
-                            best_value_per_kg=price_per_kg,
-                            available_options=[r.to_dict() for r in available[:3]],
-                            sold_out_options=[r.to_dict() for r in sold_out[:3]],
-                        )
+                        market_evidence_map[cname] = {
+                            "source": source_id,
+                            "captured_at": snap.captured_at,
+                            "age_days": freshness.get("age_days", 0),
+                            "is_stale": freshness.get("is_stale", True),
+                            "best_value_price": best.price_inr if best else None,
+                            "best_value_per_kg": price_per_kg,
+                        }
         except Exception:
             logger.info("Multi-source market data unavailable, falling back to single snapshot", exc_info=True)
             pass
@@ -343,16 +330,14 @@ def _multi_source_market_data(
             sold_out = [r for r in records if not r.is_available]
             best = market_by_canonical.get(cname)
             freshness = _build_freshness(market_snapshot)
-            market_evidence_map[cname] = MarketEvidence(
-                source=market_snapshot.source,
-                captured_at=market_snapshot.captured_at,
-                age_days=freshness.get("age_days", 0),
-                is_stale=freshness.get("is_stale", True),
-                best_value_price=best.price_inr if best else None,
-                best_value_per_kg=best.price_per_kg if best else None,
-                available_options=[r.to_dict() for r in available[:3]],
-                sold_out_options=[r.to_dict() for r in sold_out[:3]],
-            )
+            market_evidence_map[cname] = {
+                "source": market_snapshot.source,
+                "captured_at": market_snapshot.captured_at,
+                "age_days": freshness.get("age_days", 0),
+                "is_stale": freshness.get("is_stale", True),
+                "best_value_price": best.price_inr if best else None,
+                "best_value_per_kg": best.price_per_kg if best else None,
+            }
 
 
 def _build_freshness(market_snapshot) -> dict[str, Any]:

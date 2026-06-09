@@ -40,6 +40,7 @@ class ReconciliationResult:
     price_observations: list[dict[str, Any]] = field(default_factory=list)
     success: bool = True
     message: str = ""
+    errors: list[str] = field(default_factory=list)
 
     @property
     def count(self) -> int:
@@ -66,6 +67,7 @@ class ReconciliationResult:
             "substituted": self.substituted_count,
             "success": self.success,
             "message": self.message,
+            "errors": self.errors,
         }
 
 
@@ -150,7 +152,9 @@ def reconcile_shopping_trip(
                     "unit": unit,
                 })
             except Exception as exc:
-                logger.warning("Inventory update failed for %s: %s", name, exc)
+                error_msg = f"Inventory update failed for {name}: {exc}"
+                logger.warning(error_msg)
+                result.errors.append(error_msg)
                 result.inventory_updates.append({
                     "action": "failed",
                     "canonical_name": name,
@@ -178,7 +182,9 @@ def reconcile_shopping_trip(
                         "unit": unit,
                     })
                 except Exception as exc:
-                    logger.warning("Substitution inventory update failed for %s→%s: %s", name, sub_name, exc)
+                    error_msg = f"Substitution inventory update failed for {name}→{sub_name}: {exc}"
+                    logger.warning(error_msg)
+                    result.errors.append(error_msg)
 
         # ── Record price observation for bought items ──
         if action_str == "bought" and price_paid is not None and database is not None:
@@ -201,14 +207,15 @@ def reconcile_shopping_trip(
             except Exception as exc:
                 logger.debug("Price observation record failed for %s: %s", name, exc)
 
-    bought_names = [e.canonical_name for e in result.events if e.actual_action == "bought"]
-    skipped_names = [e.canonical_name for e in result.events if e.actual_action == "skipped"]
-
+    # ── Build message with error count ──
+    error_count = len(result.errors)
+    error_suffix = f" ({error_count} error{'s' if error_count != 1 else ''})" if error_count else ""
     result.message = (
         f"Reconciled {result.count} items: "
         f"{result.bought_count} bought, {result.skipped_count} skipped, "
-        f"{result.substituted_count} substituted."
+        f"{result.substituted_count} substituted.{error_suffix}"
     )
+    result.success = error_count == 0
 
     # Record trace if database available
     if database is not None:
@@ -220,7 +227,10 @@ def reconcile_shopping_trip(
                 user_goal="post_shopping_reconciliation",
                 redacted_user_request=f"trip {trip_id}: {result.count} items",
                 perception={"trip_id": trip_id, "item_count": result.count},
-                inventory_context={"bought": bought_names, "skipped": skipped_names},
+                inventory_context={
+                    "bought": [e.canonical_name for e in result.events if e.actual_action == "bought"],
+                    "skipped": [e.canonical_name for e in result.events if e.actual_action == "skipped"],
+                },
                 decision={"action": "reconcile", "bought": result.bought_count},
                 proposed_tool_calls=[],
                 final_response=result.message,
@@ -247,6 +257,10 @@ def build_correction_event(
     "We call this sambar onion."
 
     Returns a dict suitable for storage and learning.
+
+    Note: Returns a dict (not a typed model) because the CorrectionEvent
+    schema is deferred until the PreferenceService is built. The dict keys
+    are documented here for forward compatibility.
     """
     return {
         "event_id": new_id(),

@@ -46,7 +46,7 @@ class TestDecisionClassification:
         ds = classify_all(ctx.db, ctx.tools)
         milk = [d for d in ds.decisions if d.canonical_name == "milk"]
         assert len(milk) == 1
-        assert milk[0].decision == Decision.BUY.value
+        assert milk[0].action == Decision.BUY.value
 
     def test_low_stock_is_buy(self, ctx):
         from shopstack.decisions import classify_all, Decision
@@ -60,7 +60,7 @@ class TestDecisionClassification:
         ds = classify_all(ctx.db, ctx.tools)
         rice = [d for d in ds.decisions if d.canonical_name == "rice"]
         assert len(rice) == 1
-        assert rice[0].decision == Decision.BUY.value
+        assert rice[0].action == Decision.BUY.value
 
     def test_well_stocked_is_skip(self, ctx):
         from shopstack.decisions import classify_all, Decision
@@ -74,7 +74,7 @@ class TestDecisionClassification:
         ds = classify_all(ctx.db, ctx.tools)
         potato = [d for d in ds.decisions if d.canonical_name == "potato"]
         assert len(potato) == 1
-        assert potato[0].decision == Decision.SKIP.value
+        assert potato[0].action == Decision.SKIP.value
 
     def test_on_list_with_stock_is_skip(self, ctx):
         from shopstack.decisions import classify_all, Decision
@@ -92,7 +92,7 @@ class TestDecisionClassification:
         ds = classify_all(ctx.db, ctx.tools)
         onion = [d for d in ds.decisions if d.canonical_name == "onion"]
         assert len(onion) == 1
-        assert onion[0].decision == Decision.SKIP.value
+        assert onion[0].action == Decision.SKIP.value
 
     def test_on_list_without_stock_is_buy(self, ctx):
         from shopstack.decisions import classify_all, Decision
@@ -103,7 +103,7 @@ class TestDecisionClassification:
         ds = classify_all(ctx.db, ctx.tools)
         bread = [d for d in ds.decisions if d.canonical_name == "bread"]
         assert len(bread) == 1
-        assert bread[0].decision == Decision.BUY.value
+        assert bread[0].action == Decision.BUY.value
 
 
 class TestDecisionSetProperties:
@@ -237,13 +237,13 @@ class TestDecisionWithSwiggy:
         assert tomato[0].market_price_per_kg is not None
         assert tomato[0].market_available is True
 
-    def test_market_only_items_as_watch(self, ctx):
+    def test_market_only_items_as_wait(self, ctx):
         from shopstack.decisions import classify_all
         from shopstack.market.sources.swiggy import load_snapshot
         snap = load_snapshot()
 
         ds = classify_all(ctx.db, ctx.tools, snap)
-        assert len(ds.watch) > 0
+        assert len(ds.wait) > 0
 
     def test_basket_total_with_market(self, ctx):
         from shopstack.decisions import classify_all

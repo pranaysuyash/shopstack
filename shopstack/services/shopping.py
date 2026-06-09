@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from shopstack.market.normalization import ITEM_ALIASES, normalize_item_name  # noqa: F401 — re-exported
+from shopstack.market.normalization import normalize_item_name
 from shopstack.services.results import (
     CompletionItem,
     MarkPurchasedResult,
@@ -31,14 +30,6 @@ class ShoppingPlan:
     @property
     def all_items(self) -> list[dict[str, Any]]:
         return self.must_buy + self.optional + self.skipped + self.use_soon
-
-
-def normalize_item_name(name: str) -> str:
-    normal = re.sub(r"[^\w\s]", " ", name.lower()).strip()
-    for canonical, aliases in ITEM_ALIASES.items():
-        if normal == canonical or normal in aliases:
-            return canonical
-    return normal
 
 
 def classify_shopping_items(items: list[dict[str, Any]], tools: ToolRegistry) -> ShoppingPlan:

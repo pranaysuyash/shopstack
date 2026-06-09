@@ -243,6 +243,27 @@ class DecisionWarning(BaseModel):
     severity: str = "info"  # "info" | "warning" | "critical"
 
 
+_ACTION_COLORS: dict[str, str] = {
+    "buy": "#22c55e",
+    "skip": "#6b7280",
+    "use_soon": "#f59e0b",
+    "optional": "#3b82f6",
+    "compare": "#8b5cf6",
+    "wait": "#9ca3af",
+    "substitute": "#ef4444",
+}
+
+_ACTION_ICONS: dict[str, str] = {
+    "buy": "\U0001f6d2",
+    "skip": "\u23f9",
+    "use_soon": "\u23f0",
+    "optional": "\u2794",
+    "compare": "\u2696",
+    "wait": "\U0001f441",
+    "substitute": "\u2753",
+}
+
+
 class DecisionResult(BaseModel):
     """Structured output from the decision engine.
 
@@ -267,15 +288,34 @@ class DecisionResult(BaseModel):
     market_price: float | None = None
     market_price_per_kg: float | None = None
     market_available: bool = False
+    market_raw_size: str = ""
+    shopping_list_status: str = ""
     waste_risk: str = "unknown"
     shelf_life_days: int = 0
+    last_purchase_date: date | None = None
+    location: str = ""
     created_at: datetime = Field(default_factory=datetime.now)
+
+    @property
+    def reason(self) -> str:
+        """Convenience accessor for the first reason string."""
+        return self.reasons[0] if self.reasons else ""
+
+    def badge_html(self) -> str:
+        color = _ACTION_COLORS.get(self.action, "var(--text-dim)")
+        icon = _ACTION_ICONS.get(self.action, "")
+        return (
+            f"<span style='background:{color}20;color:{color};"
+            f"padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;'>"
+            f"{icon} {self.action.upper()}</span>"
+        )
 
     def to_dict(self) -> dict:
         return {
             "canonical_name": self.canonical_name,
             "display_name": self.display_name,
             "action": self.action,
+            "reason": self.reason,
             "confidence": self.confidence,
             "priority": self.priority,
             "reasons": self.reasons,
@@ -284,12 +324,19 @@ class DecisionResult(BaseModel):
             "data_freshness": self.data_freshness,
             "data_freshness_label": self.data_freshness_label,
             "quantity_at_home": self.quantity_at_home,
+            "unit": self.unit,
             "market_price": self.market_price,
+            "market_price_per_kg": self.market_price_per_kg,
             "market_available": self.market_available,
+            "market_raw_size": self.market_raw_size,
+            "shopping_list_status": self.shopping_list_status,
+            "waste_risk": self.waste_risk,
+            "shelf_life_days": self.shelf_life_days,
+            "location": self.location,
         }
 
 
-class DecisionSet_v2(BaseModel):
+class DecisionSet(BaseModel):
     """A complete set of decisions for a household shopping session."""
     decisions: list[DecisionResult] = Field(default_factory=list)
     snapshot_source: str = ""
@@ -308,6 +355,10 @@ class DecisionSet_v2(BaseModel):
     @property
     def use_soon(self) -> list[DecisionResult]:
         return [d for d in self.decisions if d.action == "use_soon"]
+
+    @property
+    def optional(self) -> list[DecisionResult]:
+        return [d for d in self.decisions if d.action == "optional"]
 
     @property
     def compare(self) -> list[DecisionResult]:

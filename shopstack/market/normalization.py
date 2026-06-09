@@ -227,16 +227,82 @@ _COMBO_KEYWORDS = ("combo", "&", "mix")
 # This is the single source of truth for linguistic aliases.
 # Market product variants (e.g. "baby potato", "sambar onion") are NOT here
 # because they represent distinct inventory items — those live in _CANONICAL_MAP.
+# User-facing alias map: Hindi/regional/colloquial → canonical English name.
+# This is the single source of truth for linguistic aliases.
+# Market product variants (e.g. "baby potato", "sambar onion") are NOT here
+# because they represent distinct inventory items — those live in _CANONICAL_MAP.
+#
+# Covers: Hindi, Kannada, Tamil, Telugu, Marathi, Gujarati, Bengali, common English colloquial.
 ITEM_ALIASES: dict[str, list[str]] = {
-    "tomato": ["tamatar", "tomatoes"],
-    "coriander": ["dhania", "cilantro"],
-    "curd": ["dahi", "yogurt"],
-    "wheat flour": ["atta", "aata"],
-    "rice": ["chawal"],
-    "lentils": ["dal", "daal"],
-    "onion": ["pyaaz", "pyaz", "eerulli"],
-    "potato": ["aloo", "alu", "chikka aloo"],
-    "cucumber": ["sowthekaayi"],
+    # ── Vegetables ──
+    "tomato": ["tamatar", "tamatar", "tomatoes", "thakkali"],
+    "onion": ["pyaaz", "pyaz", "eerulli", "uli"],
+    "sambar_onion": ["sambar pyaaz", "sambar ulli", "chinna ulli"],
+    "potato": ["aloo", "alu", "chikka aloo", "batata", "urulai kazhangu"],
+    "baby_potato": ["baby aloo", "baby batata"],
+    "sweet_potato": ["shakarkand", "shakarkandi", "genasu"],
+    "carrot": ["gajar", "gajar", "carrot", "padavalakayi"],
+    "cucumber": ["sowthekaayi", "kheera", "kakdi"],
+    "brinjal": ["baingan", "vankaya", "kathirikai", "eggplant", "aubergine"],
+    "capsicum": ["shimla mirch", "donna mirchi", "kudaimilagai"],
+    "bell_pepper": ["bell pepper", "capsicum shimla", "kudaimilagai"],
+    "cauliflower": ["gobhi", "phool gobhi", "hogekayi"],
+    "broccoli": ["broccoli", "broccoli gobhi"],
+    "ridge_gourd": ["turai", "toraai", "peerkangai", "heerekayi"],
+    "bottle_gourd": ["lauki", "dudhi", "sorekayi"],
+    "bitter_gourd": ["karela", "pavakka", "kagalkayi"],
+    "snake_gourd": ["chichinda", "pudalanga", "padavalakayi"],
+    "pointed_gourd": ["parwal", "paraval", "tindora"],
+    "cluster_beans": ["guar", "guar phali", "kothavarangai"],
+    "french_beans": ["beans", "green beans", "hara phali", "farasbi"],
+    "ladys_finger": ["bhindi", "okra", "vendakkai"],
+    "drumstick": ["moringa", "nuggekaayi", "murungakkai"],
+    "beetroot": ["chukandar", "beetroot", "beet"],
+    "radish": ["mooli", "mooli", "mullangi", "mula"],
+    "raw_banana": ["kaccha kela", "vazhakkai"],
+    "raw_mango": ["kaccha aam", "manga", "mamidi"],
+    "yam": ["suran", "elephant foot yam", "senai"],
+    "colocasia": ["arbi", "arvi", "seppankizhangu"],
+    "zucchini": ["turai chini", "courgette"],
+    "red_cabbage": ["laal gobhi", "red cabbage"],
+    # ── Herbs & spices ──
+    "coriander": ["dhania", "cilantro", "kothambari", "kothamalli"],
+    "curry_leaves": ["kadi patta", "karibevu", "karivepaku", "kadi leaves"],
+    "mint": ["pudina", "pudina", "pudhina"],
+    "green_chilli": ["hari mirch", "hasi menasu", "pachai milagai", "mirchi"],
+    "garlic": ["lehsun", "lasun", "vellulli"],
+    "ginger": ["adrak", "allam", "inji"],
+    # ── Dairy & staples ──
+    "curd": ["dahi", "yogurt", "mosaru"],
+    "wheat flour": ["atta", "aata", "godhi hittu"],
+    "rice": ["chawal", "akki", "arisi"],
+    "lentils": ["dal", "daal", "pappu", "paruppu"],
+    "coconut": ["nariyal", "narkel", "tengina kayi"],
+    "mustard_seeds": ["rai", "sarson", "sasive"],
+    "turmeric": ["haldi", "arishina"],
+    "cumin": ["jeera", "jeerige"],
+    "fenugreek": ["methi", "methi seeds", "menthya"],
+    "black_pepper": ["kali mirch", "kali menasu", "milagu"],
+    # ── Fruits ──
+    "banana": ["kela", "balehannu", "vaazhai pazham"],
+    "mango": ["aam", "mavina kayi", "maanga"],
+    "apple": ["seb", "apple"],
+    "orange": ["santara", "santra", "kintoor"],
+    "grapes": ["angoor", "drakshi"],
+    "papaya": ["papita", "pappali", "babbakayi"],
+    "pineapple": ["ananas", "ananasina hayi"],
+    # ── Grains & pulses ──
+    "moong_dal": ["moong dal", "hesaru bele", "pasiparuppu"],
+    "toor_dal": ["toor dal", "tovar dal", "sambar powder dal", "thuvaram paruppu"],
+    "chana_dal": ["chana dal", "kadalai paruppu"],
+    "urad_dal": ["urad dal", "uzhunnu paruppu"],
+    "besan": ["gram flour", "chickpea flour", "kadle hittu"],
+    # ── Condiments & other ──
+    "sugar": ["cheeni", "sakare", "sarkarai"],
+    "salt": ["namak", "uppu"],
+    "oil": ["tel", "enne", "ennai"],
+    "ghee": ["ghee", "neyyi", "nei"],
+    "vinegar": ["sirka", "vinagiri"],
 }
 
 

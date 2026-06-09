@@ -10,7 +10,7 @@ from datetime import date
 from html import escape
 from typing import Any
 
-from shopstack.decisions.types import DECISION_COLORS, DecisionSet
+from shopstack.schemas.models import DecisionSet, _ACTION_COLORS as DECISION_COLORS
 
 _LOW_STOCK_THRESHOLD = 0.5
 _USE_SOON_DAYS = 3
@@ -119,9 +119,9 @@ def render_my_list_panel(ds: DecisionSet, active_list: Any) -> str:
     rows = []
     for item in active_list.items[:10]:
         decision = next((d for d in ds.decisions if d.canonical_name == item.canonical_name), None)
-        label = decision.decision.replace("_", " ").title() if decision else "Unknown"
+        label = decision.action.replace("_", " ").title() if decision else "Unknown"
         reason = decision.reason if decision else "No decision available"
-        badge_color = DECISION_COLORS.get(decision.decision, "var(--text-dim)") if decision else "var(--text-dim)"
+        badge_color = DECISION_COLORS.get(decision.action, "var(--text-dim)") if decision else "var(--text-dim)"
         rows.append(
             f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
             f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
@@ -142,10 +142,9 @@ def render_my_list_panel(ds: DecisionSet, active_list: Any) -> str:
 
 def render_compare_panel(ds: DecisionSet) -> str:
     compare_items = ds.compare
-    watch_items = ds.watch
-    confirm_items = ds.confirm
+    wait_items = ds.wait  # old watch + confirm both map to wait
 
-    if not compare_items and not watch_items and not confirm_items:
+    if not compare_items and not wait_items:
         return (
             "<div class='stat-card' style='text-align:left;margin-bottom:12px;'>"
             "<h3>Compare / Market Signals</h3>"
@@ -162,17 +161,10 @@ def render_compare_panel(ds: DecisionSet) -> str:
             f"<div style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}{price}</div>"
             f"</div>"
         )
-    for d in watch_items[:4]:
+    for d in wait_items[:4]:
         rows.append(
             f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
             f"<strong style='color:var(--decision-watch);'>Watch</strong> {escape(d.display_name)}"
-            f"<div style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}</div>"
-            f"</div>"
-        )
-    for d in confirm_items[:4]:
-        rows.append(
-            f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
-            f"<strong style='color:var(--red);'>Confirm</strong> {escape(d.display_name)}"
             f"<div style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}</div>"
             f"</div>"
         )

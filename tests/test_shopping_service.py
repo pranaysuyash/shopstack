@@ -89,13 +89,10 @@ class TestNormalizeItemName:
         assert "coriander" in result
         assert "dhania" in result
 
-    def test_multiple_spaces_left_as_is(self):
+    def test_multiple_spaces_collapsed(self):
         from shopstack.services.shopping import normalize_item_name
-        # normalize_item_name does NOT collapse internal spaces
         result = normalize_item_name("wheat    flour")
-        assert "wheat" in result
-        assert "flour" in result
-        assert "    " in result
+        assert result == "wheat flour"
 
     def test_unknown_returns_cleaned(self):
         from shopstack.services.shopping import normalize_item_name

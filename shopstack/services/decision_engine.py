@@ -22,7 +22,7 @@ They consume typed models and return typed results.
 from __future__ import annotations
 
 import logging
-from datetime import date, timedelta
+from datetime import date
 from typing import Any
 
 from shopstack.schemas.models import (
@@ -44,6 +44,7 @@ logger = logging.getLogger(__name__)
 _LOW_STOCK_THRESHOLD = 0.5
 _USE_SOON_DAYS = 3
 _RECENT_PURCHASE_DAYS = 2
+_COMPARISON_SPREAD_THRESHOLD = 0.15
 
 
 def should_buy(
@@ -302,6 +303,17 @@ def use_soon(
         evidence.append(DecisionEvidence(source="produce_metadata", value="high_waste_risk", confidence=0.7))
         confidence = 0.72
         urgency = "medium"
+    elif shelf_life_days > 0 and purchase_date is None and quantity_at_home > 0:
+        # ── Known shelf life but no purchase date — cannot verify freshness ──
+        reasons.append(f"Item has {shelf_life_days}-day shelf life but no purchase date recorded")
+        evidence.append(DecisionEvidence(source="produce_metadata", value=f"shelf_life={shelf_life_days}d", confidence=0.5))
+        warnings.append(DecisionWarning(
+            code="unknown_purchase_date",
+            message="Purchase date unknown — cannot verify freshness",
+            severity="info",
+        ))
+        confidence = 0.55
+        urgency = "low"
     else:
         return None  # no use-soon signal
 
@@ -358,7 +370,7 @@ def compare_candidates(
     if min_ppk <= 0 or max_ppk <= 0:
         return None
     spread = (max_ppk - min_ppk) / min_ppk
-    if spread < 0.15:
+    if spread < _COMPARISON_SPREAD_THRESHOLD:
         return None  # prices too similar, no real comparison needed
 
     reasons = [

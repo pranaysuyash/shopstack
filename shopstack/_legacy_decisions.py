@@ -21,8 +21,7 @@ logger = logging.getLogger(__name__)
 # --- Render wrappers (backward-compatible with old db-based signatures) ---
 
 
-def render_market_basket(ds: DecisionSet) -> str:
-    from shopstack.decisions import DecisionSet  # local import to avoid legacy cycle
+def render_market_basket(ds) -> str:
     from shopstack.ui.renderers.decision_cards import render_market_basket
     return render_market_basket(ds)
 
@@ -32,20 +31,17 @@ def render_inventory_overview(all_inv: list[Any]) -> str:
     return render_inventory_overview(all_inv)
 
 
-def render_my_list_panel(ds: DecisionSet, active_list: Any) -> str:
-    from shopstack.decisions import DecisionSet  # local import to avoid legacy cycle
+def render_my_list_panel(ds, active_list: Any) -> str:
     from shopstack.ui.renderers.decision_cards import render_my_list_panel
     return render_my_list_panel(ds, active_list)
 
 
-def render_compare_panel(ds: DecisionSet) -> str:
-    from shopstack.decisions import DecisionSet  # local import to avoid legacy cycle
+def render_compare_panel(ds) -> str:
     from shopstack.ui.renderers.decision_cards import render_compare_panel
     return render_compare_panel(ds)
 
 
-def render_decision_panel(ds: DecisionSet) -> str:
-    from shopstack.decisions import DecisionSet  # local import to avoid legacy cycle
+def render_decision_panel(ds) -> str:
     from shopstack.ui.renderers.decision_cards import render_decision_panel
     return render_decision_panel(ds)
 

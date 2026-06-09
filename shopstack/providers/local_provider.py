@@ -417,11 +417,19 @@ class LocalProvider:
             return [{"tool": "respond", "args": {"message": self._error or "Local provider not available"}}]
 
         if isinstance(context, str):
-            # Direct provider.plan() calls with a raw prompt are used in benchmark
-            # tests. Preserve app behavior by using PlannerEngine's dict-based
-            # plan(context) path for actual planning, but keep string calls fast.
-            logger.warning("plan() received raw string context; use dict context with PlannerEngine for actual planning")
-            return [{"tool": "respond", "args": {"message": ""}}]
+            # Direct provider.plan() calls with a raw prompt string.
+            # Treat the string as the prompt and delegate to complete() + parse.
+            prompt = context
+            result = self.complete(prompt, max_tokens=64, temperature=0.0)
+            text = result.get("text", "")
+            if not text:
+                return [{"tool": "respond", "args": {"message": ""}}]
+            tool_calls = parse_tool_calls(text)
+            if (len(tool_calls) == 1
+                and tool_calls[0]["tool"] == "respond"
+                and "No structured data" in tool_calls[0]["args"].get("message", "")):
+                return [{"tool": "respond", "args": {"message": text.strip()}}]
+            return tool_calls
 
         prompt = context.get("prompt") or context.get("question") or ""
         max_tokens = context.get("max_tokens", 512)
