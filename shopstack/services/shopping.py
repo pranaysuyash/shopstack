@@ -12,12 +12,22 @@ from shopstack.services.results import (
     PurchaseResultItem,
     ShoppingCompletionResult,
 )
-from shopstack.tools.registry import ToolRegistry
+from shopstack.tools.registry import DEFAULT_STORAGE_LOCATION, ToolRegistry
 
 if TYPE_CHECKING:
     from shopstack.persistence.database import Database
 
 logger = logging.getLogger(__name__)
+
+# Decision confidence scores — higher = more confident in the classification.
+# Skip confidence scales with existing stock (more stock → more confident skip).
+_CONF_SKIP_BASE = 0.82
+_CONF_SKIP_SCALE = 0.13
+_CONF_SKIP_CAP = 0.95
+_CONF_USE_SOON = 0.85
+_CONF_OPTIONAL = 0.72
+_CONF_PARTIAL_STOCK = 0.62
+_CONF_NO_STOCK = 0.52
 
 
 @dataclass
@@ -61,15 +71,15 @@ def classify_shopping_items(items: list[dict[str, Any]], tools: ToolRegistry) ->
             decision = "use_soon"
 
         if decision == "skip":
-            conf = min(0.95, 0.82 + (total_have / (qty * 4)) * 0.13) if total_have > 0 else 0.82
+            conf = min(_CONF_SKIP_CAP, _CONF_SKIP_BASE + (total_have / (qty * 4)) * _CONF_SKIP_SCALE) if total_have > 0 else _CONF_SKIP_BASE
         elif decision == "use_soon":
-            conf = 0.85
+            conf = _CONF_USE_SOON
         elif decision == "optional":
-            conf = 0.72
+            conf = _CONF_OPTIONAL
         elif total_have > 0:
-            conf = 0.62
+            conf = _CONF_PARTIAL_STOCK
         else:
-            conf = 0.52
+            conf = _CONF_NO_STOCK
 
         enriched = {
             "canonical_name": normalized.title(),
@@ -102,8 +112,8 @@ def classify_shopping_items(items: list[dict[str, Any]], tools: ToolRegistry) ->
     return plan
 
 
-def enrich_items_with_swiggy(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Attach Swiggy market price + availability data to shopping-list items."""
+def enrich_items_with_swiggy(items: list[dict[str, Any]]) -> None:
+    """Attach Swiggy market price + availability data to shopping-list items in-place."""
     try:
         from shopstack.decisions import check_swiggy_availability
         names = [item["canonical_name"].lower() for item in items]
@@ -124,7 +134,6 @@ def enrich_items_with_swiggy(items: list[dict[str, Any]]) -> list[dict[str, Any]
             item["swiggy_price_per_kg"] = None
             item["swiggy_available"] = None
             item["swiggy_size"] = ""
-    return items
 
 
 # ─── Shopping Completion Services ───
@@ -174,7 +183,7 @@ def complete_shopping_list_service(
             display_name=item.canonical_name.strip(),
             quantity=qty,
             unit=item.unit or "unit",
-            storage_location_id="kitchen",
+            storage_location_id=DEFAULT_STORAGE_LOCATION,
         )
         lot_id = result.get("lot_id", "")
         added.append(CompletionItem(
@@ -252,7 +261,7 @@ def mark_items_purchased_service(
                 display_name=item.canonical_name.strip(),
                 quantity=qty,
                 unit=item.unit or "unit",
-                storage_location_id="kitchen",
+                storage_location_id=DEFAULT_STORAGE_LOCATION,
             )
             lot_id = result.get("lot_id", "")
             database.update_list_item(item.list_item_id, {"status": "bought"})

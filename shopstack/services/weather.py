@@ -9,6 +9,13 @@ from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
+__all__ = [
+    "CITY_COORDS",
+    "WeatherState",
+    "get_weather",
+    "get_shopping_weather_recommendation",
+]
+
 CITY_COORDS: dict[str, tuple[float, float]] = {
     "mumbai": (19.076, 72.8777),
     "delhi": (28.7041, 77.1025),

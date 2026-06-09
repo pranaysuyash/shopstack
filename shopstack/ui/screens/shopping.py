@@ -135,7 +135,8 @@ def _classify_shopping_items(items: list[dict[str, Any]]) -> tuple[list[dict[str
 
 
 def _enrich_items_with_swiggy(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return enrich_items_with_swiggy(items)
+    enrich_items_with_swiggy(items)
+    return items
 
 
 

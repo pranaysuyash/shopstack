@@ -8,6 +8,16 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+__all__ = [
+    "NutritionInfo",
+    "NutritionSummary",
+    "load_nutrition_reference",
+    "get_nutrition_info",
+    "get_inventory_nutrition_summary",
+    "format_nutrition_html",
+    "lookup_nutrition_html",
+]
+
 _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 _NUTRITION_FILE = _DATA_DIR / "nutrition_reference.json"
 

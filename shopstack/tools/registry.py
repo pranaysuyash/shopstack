@@ -11,7 +11,7 @@ from shopstack.schemas.models import (
     PriceObservation,
     ShoppingListItem,
 )
-from shopstack.tools.spec import ArgSpec, ToolSpec, build_tool_specs
+from shopstack.tools.spec import ArgSpec, ToolSpec, build_tool_specs, DEFAULT_STORAGE_LOCATION
 
 ToolFunc = Callable[..., dict[str, Any]]
 
@@ -162,7 +162,7 @@ class ToolRegistry:
         display_name: str = "",
         quantity: float = 1.0,
         unit: str = "unit",
-        storage_location_id: str = "kitchen",
+        storage_location_id: str = DEFAULT_STORAGE_LOCATION,
         purchase_date: str | None = None,
         estimated_use_by_date: str | None = None,
         label_expiry_date: str | None = None,

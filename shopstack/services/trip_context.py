@@ -9,6 +9,13 @@ from shopstack.services.weather import WeatherState, get_weather
 
 logger = logging.getLogger(__name__)
 
+__all__ = [
+    "TripAdvice",
+    "get_trip_advice",
+    "render_weather_card",
+    "format_trip_advice_html",
+]
+
 
 @dataclass
 class TripAdvice:

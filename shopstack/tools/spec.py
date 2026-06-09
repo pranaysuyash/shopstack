@@ -12,6 +12,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+DEFAULT_STORAGE_LOCATION = "kitchen"
+
 
 @dataclass
 class ArgSpec:
@@ -96,7 +98,7 @@ def build_tool_specs() -> list[ToolSpec]:
                 ArgSpec("display_name", "Display name (defaults to canonical_name). Optional.", required=False, default=""),
                 ArgSpec("quantity", "Amount as a number (e.g., 2.0). Optional, defaults to 1.0.", required=False, default="1.0"),
                 ArgSpec("unit", "Unit like kg, L, pieces, packets. Optional, defaults to 'unit'.", required=False, default="unit"),
-                ArgSpec("storage_location_id", "Where to store it: kitchen, pantry, fridge, freezer, bathroom, etc. Optional, defaults to 'kitchen'.", required=False, default="kitchen"),
+                ArgSpec("storage_location_id", "Where to store it: kitchen, pantry, fridge, freezer, bathroom, etc. Optional, defaults to 'kitchen'.", required=False, default=DEFAULT_STORAGE_LOCATION),
                 ArgSpec("category", "Item category. Optional.", required=False, default=""),
             ],
             mutability="write",

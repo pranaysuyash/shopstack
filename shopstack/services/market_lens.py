@@ -109,10 +109,9 @@ def analyze_visible_items(image_path: str, providers: Any, tools: ToolRegistry) 
     return decisions
 
 
-def enrich_market_prices(decisions: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Attach market price fields through the canonical shopping service path."""
+def enrich_market_prices(decisions: list[dict[str, Any]]) -> None:
+    """Attach market price fields in-place through the canonical shopping service path."""
     enrich_items_with_swiggy(decisions)
-    return decisions
 
 
 def transcribe_audio(audio_path: str, providers: Any) -> str:

@@ -27,8 +27,15 @@ from shopstack.schemas.models import (
     ReconciliationEvent,
     new_id,
 )
+from shopstack.tools.registry import DEFAULT_STORAGE_LOCATION
 
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    "ReconciliationResult",
+    "reconcile_shopping_trip",
+    "build_correction_event",
+]
 
 
 @dataclass
@@ -141,7 +148,7 @@ def reconcile_shopping_trip(
                     display_name=name.replace("_", " ").title(),
                     quantity=qty,
                     unit=unit,
-                    storage_location_id="kitchen",
+                    storage_location_id=DEFAULT_STORAGE_LOCATION,
                 )
                 lot_id = add_result.get("lot_id", "")
                 result.inventory_updates.append({
@@ -170,7 +177,7 @@ def reconcile_shopping_trip(
                         display_name=sub_name.replace("_", " ").title(),
                         quantity=qty,
                         unit=unit,
-                        storage_location_id="kitchen",
+                        storage_location_id=DEFAULT_STORAGE_LOCATION,
                     )
                     lot_id = add_result.get("lot_id", "")
                     result.inventory_updates.append({

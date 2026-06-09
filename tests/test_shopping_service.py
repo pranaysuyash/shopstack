@@ -273,31 +273,32 @@ class TestClassifyShoppingItems:
 class TestEnrichItemsWithSwiggy:
     def test_empty_items(self):
         from shopstack.services.shopping import enrich_items_with_swiggy
-        result = enrich_items_with_swiggy([])
-        assert result == []
+        items: list[dict] = []
+        enrich_items_with_swiggy(items)
+        assert items == []
 
     def test_known_item_has_swiggy_fields(self):
         from shopstack.services.shopping import enrich_items_with_swiggy
         items = [{"canonical_name": "tomato"}]
-        result = enrich_items_with_swiggy(items)
-        assert result[0]["swiggy_price"] is not None
-        assert result[0]["swiggy_available"] is not None
-        assert "swiggy_size" in result[0]
+        enrich_items_with_swiggy(items)
+        assert items[0]["swiggy_price"] is not None
+        assert items[0]["swiggy_available"] is not None
+        assert "swiggy_size" in items[0]
 
     def test_unknown_item_returns_none(self):
         from shopstack.services.shopping import enrich_items_with_swiggy
         items = [{"canonical_name": "unobtainium"}]
-        result = enrich_items_with_swiggy(items)
-        assert result[0]["swiggy_price"] is None
-        assert result[0]["swiggy_available"] is None
-        assert result[0]["swiggy_size"] == ""
+        enrich_items_with_swiggy(items)
+        assert items[0]["swiggy_price"] is None
+        assert items[0]["swiggy_available"] is None
+        assert items[0]["swiggy_size"] == ""
 
     def test_multiple_items(self):
         from shopstack.services.shopping import enrich_items_with_swiggy
         items = [{"canonical_name": "tomato"}, {"canonical_name": "unobtainium"}]
-        result = enrich_items_with_swiggy(items)
-        assert result[0]["swiggy_price"] is not None
-        assert result[1]["swiggy_price"] is None
+        enrich_items_with_swiggy(items)
+        assert items[0]["swiggy_price"] is not None
+        assert items[1]["swiggy_price"] is None
 
 
 # ══════════════════════════════════════════════════════════════════════════

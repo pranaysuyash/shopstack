@@ -8,8 +8,16 @@ from typing import Any
 
 from shopstack.portability import ImportResult
 from shopstack.schemas.models import InventoryLot, PriceObservation, PurchaseEvent
+from shopstack.tools.registry import DEFAULT_STORAGE_LOCATION
 
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    "ReceiptLine",
+    "ReceiptResult",
+    "parse_receipt_text",
+    "confirm_receipt",
+]
 
 UNIT_ALIASES: dict[str, str] = {
     "kg": "kg", "kgs": "kg", "kilo": "kg", "kilogram": "kg",
@@ -243,7 +251,7 @@ def confirm_receipt(database: Any, result: ReceiptResult) -> ImportResult:
                 display_name=line.display_name,
                 quantity=line.quantity,
                 unit=line.unit,
-                storage_location_id="kitchen",
+                storage_location_id=DEFAULT_STORAGE_LOCATION,
                 purchase_date=result.purchase_date,
                 price_paid=line.price,
                 currency="INR",

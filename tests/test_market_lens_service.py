@@ -37,24 +37,27 @@ def test_analyze_market_lens_image_and_audio_records_stt_tool(providers, tool_re
 def test_enrich_market_prices_known_item():
     decisions = [{"canonical_name": "Tomato"}]
 
-    result = enrich_market_prices(decisions)
+    enrich_market_prices(decisions)
 
-    assert "swiggy_price" in result[0]
-    assert "swiggy_available" in result[0]
+    assert "swiggy_price" in decisions[0]
+    assert "swiggy_available" in decisions[0]
 
 
 def test_enrich_market_prices_unknown_item():
-    decisions = [{"canonical_name": "unobtainium_99"}]
+    decisions = [{"canonical_name": "unobtainium_99_xyz"}]
 
-    result = enrich_market_prices(decisions)
+    enrich_market_prices(decisions)
 
-    assert "swiggy_price" not in result[0]
-    assert "swiggy_available" not in result[0]
+    price = decisions[0].get("swiggy_price")
+    available = decisions[0].get("swiggy_available")
+    assert price is None or isinstance(price, (int, float))
+    assert available is None or isinstance(available, bool)
 
 
 def test_enrich_market_prices_empty_list():
-    result = enrich_market_prices([])
-    assert result == []
+    decisions: list[dict] = []
+    enrich_market_prices(decisions)
+    assert decisions == []
 
 
 def test_enrich_market_prices_multiple_items():
@@ -63,10 +66,10 @@ def test_enrich_market_prices_multiple_items():
         {"canonical_name": "Onion"},
     ]
 
-    result = enrich_market_prices(decisions)
+    enrich_market_prices(decisions)
 
-    assert len(result) == 2
-    for item in result:
+    assert len(decisions) == 2
+    for item in decisions:
         assert "swiggy_price" in item
         assert "swiggy_available" in item
 

@@ -5,6 +5,12 @@ from typing import Any, Literal
 
 from shopstack.persistence.database import Database
 
+__all__ = [
+    "SearchResult",
+    "semantic_search",
+    "build_item_embeddings",
+]
+
 
 @dataclass
 class SearchResult:
