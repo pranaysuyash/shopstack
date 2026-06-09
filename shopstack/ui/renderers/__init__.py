@@ -20,6 +20,10 @@ from shopstack.ui.renderers.image_cards import (
     render_shopping_summary_card,
     render_price_comparison_card,
 )
+from shopstack.ui.renderers.shopping_results import (
+    render_shopping_completion,
+    render_mark_purchased,
+)
 
 __all__ = [
     "render_market_basket",
@@ -40,4 +44,6 @@ __all__ = [
     "render_svg_decision_card",
     "render_shopping_summary_card",
     "render_price_comparison_card",
+    "render_shopping_completion",
+    "render_mark_purchased",
 ]

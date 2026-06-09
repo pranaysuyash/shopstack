@@ -12,12 +12,20 @@ def fresh_app():
     os.environ["SHOPSTACK_DB_PATH"] = ":memory:"
     import importlib
     import sys
+    # Save the entire module state before manipulation so we can restore it
+    # after this module's tests finish. Without restoration, the aggressive
+    # sys.modules cleanup below poisons the cache for every subsequent test
+    # file that imports shopstack packages.
+    saved_modules = dict(sys.modules)
     _preserved = {"shopstack.schemas", "shopstack.schemas.models"}
     for mod in list(sys.modules.keys()):
         if mod in ("app",) or (mod.startswith("shopstack") and mod not in _preserved):
             del sys.modules[mod]
     import app as _app
-    return _app
+    yield _app
+    # Restore the original module state so downstream tests aren't contaminated.
+    sys.modules.clear()
+    sys.modules.update(saved_modules)
 
 
 def test_build_app_returns_blocks(fresh_app):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from enum import Enum
 from typing import Literal
 from uuid import uuid4
 
@@ -14,6 +15,35 @@ LocationType = Literal["fridge", "pantry", "shelf", "cabinet", "room", "drawer",
 SourceType = Literal["photo", "video", "receipt", "voice", "manual"]
 MovementSource = Literal["user_voice", "image_scan", "manual"]
 RuntimeMode = Literal["local_transformers", "llama_cpp", "gguf", "mock", "onnx", "diffusers"]
+
+# ── Decision engine types (§7 Priority 4 from review) ──────────────────────
+
+
+class FreshnessStatus(str, Enum):
+    """Data freshness classification for market snapshots and inventory."""
+    LIVE = "live"                  # captured today
+    RECENT_SNAPSHOT = "recent"     # captured within 24h
+    STALE = "stale"                # older than 24h
+    UNKNOWN = "unknown"            # cannot determine
+
+
+class DecisionAction(str, Enum):
+    """Every recommendation maps to exactly one action."""
+    BUY = "buy"
+    SKIP = "skip"
+    USE_SOON = "use_soon"
+    COMPARE = "compare"
+    WAIT = "wait"
+    SUBSTITUTE = "substitute"
+
+
+class ReconciliationAction(str, Enum):
+    """Post-shopping reconciliation outcomes."""
+    BOUGHT = "bought"
+    SKIPPED = "skipped"
+    SUBSTITUTED = "substituted"
+    PRICE_CHANGED = "price_changed"
+    NOT_FOUND = "not_found"
 
 
 def new_id() -> str:
@@ -195,6 +225,140 @@ class MovementEvent(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now)
     source: MovementSource = "manual"
     confidence: float = 1.0
+
+
+class DecisionEvidence(BaseModel):
+    """A single piece of evidence supporting a decision."""
+    source: str  # e.g. "market_snapshot", "inventory", "purchase_history", "price_memory"
+    value: str | float | None = None
+    confidence: float = 0.0
+    captured_at: str | None = None  # ISO date string
+    is_stale: bool = False
+
+
+class DecisionWarning(BaseModel):
+    """A warning attached to a decision recommendation."""
+    code: str  # e.g. "stale_data", "sold_out", "no_cross_platform", "combo_risk"
+    message: str
+    severity: str = "info"  # "info" | "warning" | "critical"
+
+
+class DecisionResult(BaseModel):
+    """Structured output from the decision engine.
+
+    Every recommendation from ShopStack produces one of these.
+    This is the canonical representation that powers dashboard, buy, skip,
+    use-soon, compare, basket, and trace views.
+    """
+    item_id: str = Field(default_factory=new_id)
+    canonical_name: str
+    display_name: str
+    action: str  # DecisionAction value: buy/skip/use_soon/compare/wait/substitute
+    confidence: float = 0.5  # 0.0–1.0
+    priority: int = 0  # higher = more urgent
+    reasons: list[str] = Field(default_factory=list)
+    evidence: list[DecisionEvidence] = Field(default_factory=list)
+    warnings: list[DecisionWarning] = Field(default_factory=list)
+    alternatives: list[str] = Field(default_factory=list)  # canonical names of substitutes
+    data_freshness: str = "unknown"  # FreshnessStatus value
+    data_freshness_label: str = ""  # human-readable, e.g. "Snapshot from 6 Jun 2026"
+    quantity_at_home: float = 0.0
+    unit: str = ""
+    market_price: float | None = None
+    market_price_per_kg: float | None = None
+    market_available: bool = False
+    waste_risk: str = "unknown"
+    shelf_life_days: int = 0
+    created_at: datetime = Field(default_factory=datetime.now)
+
+    def to_dict(self) -> dict:
+        return {
+            "canonical_name": self.canonical_name,
+            "display_name": self.display_name,
+            "action": self.action,
+            "confidence": self.confidence,
+            "priority": self.priority,
+            "reasons": self.reasons,
+            "warnings": [w.model_dump() for w in self.warnings],
+            "alternatives": self.alternatives,
+            "data_freshness": self.data_freshness,
+            "data_freshness_label": self.data_freshness_label,
+            "quantity_at_home": self.quantity_at_home,
+            "market_price": self.market_price,
+            "market_available": self.market_available,
+        }
+
+
+class DecisionSet_v2(BaseModel):
+    """A complete set of decisions for a household shopping session."""
+    decisions: list[DecisionResult] = Field(default_factory=list)
+    snapshot_source: str = ""
+    snapshot_captured_at: str = ""
+    snapshot_freshness: str = "unknown"
+    generated_at: datetime = Field(default_factory=datetime.now)
+
+    @property
+    def buy(self) -> list[DecisionResult]:
+        return [d for d in self.decisions if d.action == "buy"]
+
+    @property
+    def skip(self) -> list[DecisionResult]:
+        return [d for d in self.decisions if d.action == "skip"]
+
+    @property
+    def use_soon(self) -> list[DecisionResult]:
+        return [d for d in self.decisions if d.action == "use_soon"]
+
+    @property
+    def compare(self) -> list[DecisionResult]:
+        return [d for d in self.decisions if d.action == "compare"]
+
+    @property
+    def wait(self) -> list[DecisionResult]:
+        return [d for d in self.decisions if d.action == "wait"]
+
+    @property
+    def substitute(self) -> list[DecisionResult]:
+        return [d for d in self.decisions if d.action == "substitute"]
+
+    @property
+    def estimated_basket_total(self) -> float:
+        return round(sum(d.market_price or 0 for d in self.buy), 2)
+
+    @property
+    def stale_warning_count(self) -> int:
+        return sum(1 for d in self.decisions if d.data_freshness == "stale")
+
+
+class ReconciliationEvent(BaseModel):
+    """Records what actually happened after a shopping trip.
+
+    This closes the loop: plan → shop → reconcile → update memory.
+    """
+    event_id: str = Field(default_factory=new_id)
+    timestamp: datetime = Field(default_factory=datetime.now)
+    canonical_name: str
+    planned_action: str  # what the decision engine recommended
+    actual_action: str  # ReconciliationAction value
+    quantity: float = 0.0
+    unit: str = "unit"
+    price_paid: float | None = None  # actual price, may differ from planned
+    planned_price: float | None = None
+    substituted_with: str | None = None  # canonical name if substituted
+    notes: str | None = None
+    source: str = "manual"  # manual / receipt / scan / voice
+
+
+class PreferenceSignal(BaseModel):
+    """A household preference learned from user corrections or behavior."""
+    signal_id: str = Field(default_factory=new_id)
+    canonical_name: str
+    signal_type: str  # "staple" | "disliked" | "often_wasted" | "brand_preferred" | "pack_size" | "discount_only"
+    value: str  # the preference value
+    confidence: float = 0.5
+    source: str = "observed"  # observed / corrected / explicit
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
 
 
 # TripWeatherContext removed — unrelated schema remnant (see audit 2026-06-08)

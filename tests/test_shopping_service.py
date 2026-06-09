@@ -406,13 +406,14 @@ class TestCompleteShoppingListService:
 
     def test_escapes_html(self, app):
         from shopstack.services.shopping import complete_shopping_list_service
+        from shopstack.ui.renderers import render_shopping_completion
         app.tools.create_or_update_shopping_list(
             items=[{"canonical_name": "<script>alert('x')</script>", "requested_quantity": 1}],
             goal="XSS test",
         )
         sl = app.db.get_active_shopping_list()
         result = complete_shopping_list_service(sl.list_id, app.tools, app.db)
-        html = result.to_html()
+        html = render_shopping_completion(result)
         assert "&lt;script&gt;" in html
         assert "<script>" not in html
 
@@ -493,6 +494,7 @@ class TestMarkItemsPurchasedService:
 
     def test_escapes_html(self, app):
         from shopstack.services.shopping import mark_items_purchased_service
+        from shopstack.ui.renderers import render_mark_purchased
         app.tools.create_or_update_shopping_list(
             items=[{"canonical_name": "<script>x</script>", "requested_quantity": 1}],
             goal="XSS test",
@@ -500,5 +502,5 @@ class TestMarkItemsPurchasedService:
         sl = app.db.get_active_shopping_list()
         item_id = sl.items[0].list_item_id
         result = mark_items_purchased_service(json.dumps([item_id]), app.tools, app.db)
-        html = result.to_html()
+        html = render_mark_purchased(result)
         assert "&lt;script&gt;" in html

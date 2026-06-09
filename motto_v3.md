@@ -706,7 +706,14 @@ A failure is only genuinely pre-existing if:
 
 If the failing file, dependency, type, route, contract, or behavior was touched in the current work sequence, assume the current work introduced or exposed the failure until proven otherwise.
 
-**Blast radius rule:** When an issue is in the blast radius of current work - meaning the same file, module, dependency chain, or behavioral path was touched - fix the issue in the same pass. “Blast radius” is not limited to the exact line changed; it includes the full module, its callers, its tests, and its documentation.
+**Blast radius rule:** When an issue is in the blast radius of current work, fix it in the same pass. “Blast radius” is not limited to the exact line changed; it is the union of:
+
+- files directly touched in this session
+- related module/dependency/caller/callee paths
+- the same route/schema/contract/user flow/operational workflow
+- files identified during this session as coupled or risk-bearing for the same objective
+
+This includes the full module context, its callers, its tests, and its documentation.
 
 When an issue is genuinely pre-existing and clearly outside the blast radius:
 

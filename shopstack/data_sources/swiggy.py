@@ -100,27 +100,6 @@ def _parse_numeric(value: Any) -> float | None:
     return None
 
 
-_ITEM_ALIASES: dict[str, list[str]] = {
-    "tomato": ["tamatar", "tomatoes", "desi tomato", "hybrid tomato", "indian tomato"],
-    "potato": ["aloo", "baby potato", "chikka aloo", "sweet potato"],
-    "onion": ["eerulli", "sambar onion"],
-    "coriander": ["dhania", "cilantro"],
-    "curd": ["dahi", "yogurt"],
-    "rice": ["chawal"],
-    "lentils": ["dal", "daal"],
-    "cucumber": ["sowthekaayi"],
-}
-
-
-def normalize_item_name(name: str) -> str:
-    normalized = re.sub(r"[^\w\s]", " ", name.lower()).strip()
-    normalized = re.sub(r"\s+", " ", normalized)
-    for canonical, aliases in _ITEM_ALIASES.items():
-        if normalized == canonical or normalized in aliases:
-            return canonical
-    return normalized
-
-
 def _normalize_swiggy_name(raw_name: str) -> str:
     cleaned = re.sub(r"\s*\(.*?\)", "", raw_name or "").strip().lower()
     cleaned = re.sub(r"[^\w\s]", " ", cleaned)

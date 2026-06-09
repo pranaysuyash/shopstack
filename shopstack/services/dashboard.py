@@ -8,7 +8,6 @@ from shopstack.decisions import DecisionSet, classify_all, detect_purchase_caden
 from shopstack.persistence.database import Database
 from shopstack.services.weather import WeatherState, get_weather
 from shopstack.tools.registry import ToolRegistry
-from shopstack.ui.renderers.decision_cards import render_cadence_insights, render_waste_warnings
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +22,9 @@ class DashboardState:
     active_inventory: list[Any] = field(default_factory=list)
     low_items: list[Any] = field(default_factory=list)
     recent_purchases: list[Any] = field(default_factory=list)
-    cadence_html: str = ""
-    waste_html: str = ""
+    cadence_data: dict[str, dict[str, Any]] = field(default_factory=dict)
+    waste_data: list[dict[str, Any]] = field(default_factory=list)
     weather: WeatherState | None = None
-    weather_html: str = ""
 
     @property
     def use_soon_count(self) -> int:
@@ -51,17 +49,11 @@ def build_dashboard_state(db: Database, tools: ToolRegistry, city: str = "mumbai
     recent_purchases = db.get_purchase_events(limit=5)
 
     cadence_data = detect_purchase_cadence(db)
-    cadence_html = render_cadence_insights(cadence_data)
-
     waste_data = detect_waste_patterns(db)
-    waste_html = render_waste_warnings(waste_data)
 
-    weather = None
-    weather_html = ""
+    weather: WeatherState | None = None
     try:
-        from shopstack.services.trip_context import render_weather_card
         weather = get_weather(city)
-        weather_html = render_weather_card(weather)
     except Exception as exc:
         logger.info("Weather unavailable for dashboard: %s", exc)
 
@@ -74,10 +66,9 @@ def build_dashboard_state(db: Database, tools: ToolRegistry, city: str = "mumbai
         active_inventory=active_inventory,
         low_items=low_items,
         recent_purchases=recent_purchases,
-        cadence_html=cadence_html,
-        waste_html=waste_html,
+        cadence_data=cadence_data,
+        waste_data=waste_data,
         weather=weather,
-        weather_html=weather_html,
     )
 
 
@@ -100,5 +91,3 @@ def _load_market_snapshot():
     except Exception as exc:
         logger.info("Swiggy market data unavailable: %s", exc)
         return None, None
-
-

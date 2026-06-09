@@ -5,6 +5,7 @@ import logging
 from shopstack.app_context import APP_DESCRIPTION, APP_NAME, db, tools
 from shopstack.services.dashboard import build_dashboard_state
 from shopstack.ui import render_action_grid, render_hero_panel, render_metric
+from shopstack.ui.renderers import render_cadence_insights, render_waste_warnings
 from shopstack.ui.renderers.image_cards import (
     cards_to_grid,
     render_decision_card as render_svg_decision_card,
@@ -79,8 +80,8 @@ def today_dashboard():
     fridge_html = what_is_in_fridge_now()
     what_changed = render_what_changed(db)
     needs_confirm = render_needs_confirmation(db)
-    cadence_html = state.cadence_html
-    waste_html = state.waste_html
+    cadence_html = render_cadence_insights(state.cadence_data)
+    waste_html = render_waste_warnings(state.waste_data)
 
     svg_cards: list[str] = []
     for d in ds.buy[:6]:

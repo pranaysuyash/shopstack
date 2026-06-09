@@ -119,7 +119,7 @@ class TestModelBudgetView:
         assert "Max Budget" in html
 
     def test_workflow_header_is_visible_markup(self, app):
-        assert "Workflow Steps" in app._workflow_header(app.WORKFLOW_STEPS)
+        assert "Workflow Steps" in app.workflow_header(app.WORKFLOW_STEPS)
 
 
 class TestAddPurchase:
