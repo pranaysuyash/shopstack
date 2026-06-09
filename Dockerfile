@@ -59,3 +59,41 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 
 ENTRYPOINT ["python", "app.py"]
 CMD ["--port", "7860"]
+
+# ── Dev stage ─────────────────────────────────────────────────────────
+# docker build --target dev -t shopstack:dev .
+# docker run -p 7860:7860 -v $(pwd):/app shopstack:dev
+FROM python:3.12-slim AS dev
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    GRADIO_SERVER_NAME="0.0.0.0" \
+    GRADIO_SERVER_PORT=7860 \
+    SHOPSTACK_DB_PATH="/app/data/shopstack.db" \
+    SHOPSTACK_DATA_DIR="/app/data"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libzbar0 \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir uv
+
+WORKDIR /app
+
+# Install all deps (including dev/test) for local iteration
+COPY setup.py requirements.txt ./
+RUN uv pip install --system --no-cache -e ".[dev]"
+
+COPY app.py ./
+COPY data/ data/
+COPY shopstack/ shopstack/
+COPY tests/ tests/
+COPY benchmarks/ benchmarks/
+
+RUN adduser --system --no-create-home shopstack && \
+    mkdir -p /app/data && \
+    chown shopstack:shopstack /app/data
+USER shopstack
+
+EXPOSE 7860
+
+CMD ["python", "app.py", "--port", "7860"]

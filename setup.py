@@ -26,5 +26,13 @@ setup(
         "local": [
             "llama-cpp-python>=0.3",
         ],
+        "otel": [
+            "opentelemetry-api>=1.30",
+            "opentelemetry-sdk>=1.30",
+            "opentelemetry-exporter-otlp-proto-grpc>=1.30",
+        ],
+        "eval": [
+            "ruff>=0.9",
+        ],
     },
 )

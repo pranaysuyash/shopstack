@@ -15,6 +15,18 @@ shopstack/data/models
 .gitignore
 .env
 *.md
+# -- media / binary assets (keep out of Docker image) --
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.mp3
+*.wav
+*.mp4
+*.mov
+*.webm
 .DS_Store
 benchmarks
 tests
