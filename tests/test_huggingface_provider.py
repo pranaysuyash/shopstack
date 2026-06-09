@@ -229,14 +229,18 @@ class TestHuggingFaceProviderComplete:
 
 class TestHuggingFaceProviderPlan:
     def test_plan_returns_error_when_not_available(self):
-        """plan() returns error dict when not available."""
+        """plan() returns list[dict] with respond tool call when not available."""
         with _mock_missing_huggingface_hub():
             provider = _get_hf_provider()
             result = provider.plan({"prompt": "What's in my fridge?"})
-            assert "error" in result
+            assert isinstance(result, list)
+            assert len(result) == 1
+            assert result[0]["tool"] == "respond"
+            # Error message should mention the failure reason (deps or key missing)
+            assert len(result[0]["args"]["message"]) > 0
 
     def test_plan_with_string_context(self):
-        """plan() with a string returns empty text (same pattern as LocalProvider)."""
+        """plan() with a string returns empty respond tool call."""
         with patch(
             "shopstack.providers.huggingface_provider._huggingface_available",
             return_value=(True, ""),
@@ -244,10 +248,13 @@ class TestHuggingFaceProviderPlan:
             with patch("huggingface_hub.InferenceClient", return_value=MagicMock()):
                 provider = _get_hf_provider(api_key="key")
                 result = provider.plan("plain string")
-                assert result == {"text": "", "model": provider.name}
+                assert isinstance(result, list)
+                assert len(result) == 1
+                assert result[0]["tool"] == "respond"
+                assert result[0]["args"]["message"] == ""
 
     def test_plan_with_empty_prompt(self):
-        """plan() with empty prompt returns empty text."""
+        """plan() with empty prompt returns empty respond tool call."""
         with patch(
             "shopstack.providers.huggingface_provider._huggingface_available",
             return_value=(True, ""),
@@ -255,10 +262,13 @@ class TestHuggingFaceProviderPlan:
             with patch("huggingface_hub.InferenceClient", return_value=MagicMock()):
                 provider = _get_hf_provider(api_key="key")
                 result = provider.plan({"prompt": ""})
-                assert result == {"text": "", "model": provider.name}
+                assert isinstance(result, list)
+                assert len(result) == 1
+                assert result[0]["tool"] == "respond"
+                assert result[0]["args"]["message"] == ""
 
     def test_plan_delegates_to_complete(self):
-        """plan() with a valid prompt delegates to complete()."""
+        """plan() with a valid prompt delegates to complete() and wraps text in respond."""
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
@@ -277,8 +287,10 @@ class TestHuggingFaceProviderPlan:
                     "max_tokens": 100,
                     "temperature": 0.2,
                 })
-                assert "error" not in result
-                assert result["text"] == "You have milk and bread."
+                assert isinstance(result, list)
+                assert len(result) == 1
+                assert result[0]["tool"] == "respond"
+                assert result[0]["args"]["message"] == "You have milk and bread."
 
     def test_plan_uses_structured_chat_when_system_provided(self):
         """plan() sends system + user as structured messages when ``system`` key is present."""
@@ -300,8 +312,10 @@ class TestHuggingFaceProviderPlan:
                     "question": "Do we have milk?",
                     "prompt": "You are a helpful assistant.\n\nUSER REQUEST: Do we have milk?\n\nJSON tool calls:",
                 })
-                assert "error" not in result
-                assert result["text"] == "Check inventory."
+                assert isinstance(result, list)
+                assert len(result) == 1
+                assert result[0]["tool"] == "respond"
+                assert result[0]["args"]["message"] == "Check inventory."
                 # Verify the API received structured messages
                 call_kwargs = mock_client.chat.completions.create.call_args[1]
                 messages = call_kwargs["messages"]
@@ -351,7 +365,10 @@ class TestHuggingFaceProviderPlan:
             with patch("huggingface_hub.InferenceClient", return_value=mock_client):
                 provider = _get_hf_provider(api_key="key")
                 result = provider.plan({"prompt": "flat prompt"})
-                assert result["text"] == "Fallback."
+                assert isinstance(result, list)
+                assert len(result) == 1
+                assert result[0]["tool"] == "respond"
+                assert result[0]["args"]["message"] == "Fallback."
                 call_kwargs = mock_client.chat.completions.create.call_args[1]
                 assert len(call_kwargs["messages"]) == 1
                 assert call_kwargs["messages"][0]["role"] == "user"

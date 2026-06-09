@@ -173,11 +173,14 @@ A hook at `.git/hooks/pre-commit` runs `tools/sync-readme-stats` which extracts 
 | `tests/test_runtime.py` | 5 | Runtime diagnostics: provider status, model info |
 | `tests/test_swiggy_data_source.py` | 4 | Swiggy data source validation |
 | `tests/test_voice_add.py` | 14 | Voice add commands, price intelligence |
-| `tests/test_huggingface_provider.py` | 26 | HuggingFace Inference API provider: init, complete, plan, retry, registry wiring, env key, latency |
+| `tests/test_huggingface_provider.py` | 62 | HF provider: init, complete, plan, retry, registry, env key, structured chat routing |
+| `tests/test_openai_provider.py` | 21 | OpenAI provider: init, complete, analyze_image, embed, env key, registry |
+| `tests/test_whisper_provider.py` | 21 | Whisper API provider: init, transcribe, file-not-found, env key, registry |
+| `tests/test_new_providers.py` | 55 | MiniCPM-V, MiniCPM5, Qwen3-TTS, NuExtract3, RMBG, Parakeet, SenseVoice, Qwen3-ASR |
 | `tests/test_adapter_blinkit.py` | 21 | Blinkit market source adapter: loader, normalization, freshness, adapter class |
 | `tests/test_adapter_zepto.py` | 20 | Zepto market source adapter: loader, normalization, freshness, adapter class |
 | `tests/test_adapter_dmart.py` | 20 | DMart market source adapter: loader, normalization, freshness, adapter class |
-| **Total** | **620** | (growing) |
+| **Total** | **737** | (growing) |
 
 ## Next Work
 
@@ -187,6 +190,8 @@ A hook at `.git/hooks/pre-commit` runs `tools/sync-readme-stats` which extracts 
 - Modal provider for cloud GPU inference
 - ~~Wire HF Inference API provider into planner routing (currently backend-selected only)~~ (done)
 - ~~Add Blinkit, Zepto, DMart data source adapters~~ (done)
+- ~~Create test_openai_provider.py and test_whisper_provider.py~~ (done)
+- ~~Create per-model config.yaml + claims.yaml for all model registry entries~~ (done)
 
 ## Addendum (2026-06-06) — Current Verified State
 
@@ -247,3 +252,22 @@ This file remains a guidance snapshot; code/runtime/tests at the time of work re
 - Wired into `shopstack/providers/registry.py` — backend `"huggingface"` activates via `planner_backend=huggingface`. Falls back to mock gracefully when deps/token missing.
 - 26 tests in `tests/test_huggingface_provider.py` covering init, complete, plan, retry, registry wiring, env var precedence, and latency tracking.
 - Verified: 26/26 HF provider tests pass; 558+ total tests pass with no regressions.
+
+## Addendum (2026-06-09) — Python 3.14 + mlx segfault fix
+
+This file remains a guidance snapshot; code/runtime/tests at the time of work remain source of truth.
+
+**Root cause:** `LocalWhisperProvider._init_mlx()` called `import mlx_whisper` which triggers `mlx.core` C extension loading. On Python 3.14.5 (darwin), this segfaults when multiple AI modules (transformers, torch, etc.) are initialised concurrently during pytest collection. A C-level segfault cannot be caught by `try/except ImportError`.
+
+**Fix** (`shopstack/providers/local_whisper_provider.py`):
+- Use `importlib.util.find_spec("mlx_whisper")` instead of direct import to check package availability — `find_spec` scans the filesystem without loading C extensions
+- Added `sys.modules` guard before `find_spec` to respect test mocking (`patch.dict("sys.modules", {"mlx_whisper": None})`)
+- Defer the actual `import mlx_whisper` to `transcribe()` via lazy import (`self._mlx_module`), avoiding the crash entirely during init-time and test collection
+- Initialize `self._mlx_module: Any = None` in `__init__()` for defensive coding
+
+**CI compatibility note:**
+- mlx 0.31.2 on Python 3.14.5 is the confirmed crash combination. If CI uses a different Python version or mlx release, the `find_spec` + lazy-import pattern remains the safe approach since it avoids C-extension loading during availability checks.
+- Other packages imported via `find_spec` + deferred load pattern (safe for any C-extension-backed package that may crash on import): `mlx`, `mlx-lm`, `llama-cpp-python`, `faster-whisper`
+- The pattern: `find_spec("package")` → set `_available = True` → defer `import package` to the method that actually uses it
+- 737 total tests pass (`uv run pytest tests/ -q`)
+- No git commands were used in this fix

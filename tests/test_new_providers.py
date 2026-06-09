@@ -137,25 +137,30 @@ class TestMiniCPM5ProviderInit:
         with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
             provider = MiniCPM5Provider()
             result = provider.plan({"prompt": "What's in my fridge?"})
-            assert "error" in result
+            assert isinstance(result, list)
+            assert len(result) == 1
+            assert result[0]["tool"] == "respond"
+            assert len(result[0]["args"]["message"]) > 0
 
     def test_plan_with_string_context(self):
         from shopstack.providers.planner_provider import MiniCPM5Provider
         with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
             provider = MiniCPM5Provider()
             result = provider.plan("plain string")
-            # When not available, plan() returns error dict (same pattern as HFProvider/LocalProvider)
-            assert "error" in result
-            assert result["model"] == "minicpm5"
+            assert isinstance(result, list)
+            assert len(result) == 1
+            assert result[0]["tool"] == "respond"
+            assert len(result[0]["args"]["message"]) > 0
 
     def test_plan_with_empty_prompt(self):
         from shopstack.providers.planner_provider import MiniCPM5Provider
         with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
             provider = MiniCPM5Provider()
             result = provider.plan({"prompt": ""})
-            # When not available, plan() returns error dict
-            assert "error" in result
-            assert result["model"] == "minicpm5"
+            assert isinstance(result, list)
+            assert len(result) == 1
+            assert result[0]["tool"] == "respond"
+            assert len(result[0]["args"]["message"]) > 0
 
     def test_healthcheck_false_when_not_available(self):
         from shopstack.providers.planner_provider import MiniCPM5Provider
@@ -327,7 +332,10 @@ class TestParakeetSTTProviderInit:
     def test_not_available_when_deps_missing(self):
         from shopstack.providers.stt_provider import ParakeetSTTProvider
         with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
-            provider = ParakeetSTTProvider()
+            # fallback_whisper=False to test Parakeet's own availability
+            # without the Whisper fallback layer (LocalWhisperProvider may
+            # be available even when Parakeet's deps are missing).
+            provider = ParakeetSTTProvider(fallback_whisper=False)
             assert not provider.available
             assert provider.error is not None
             assert "transformers" in (provider.error or "").lower()
@@ -357,6 +365,90 @@ class TestParakeetSTTProviderInit:
         from shopstack.providers.stt_provider import ParakeetSTTProvider
         with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
             provider = ParakeetSTTProvider()
+            assert provider.last_latency_ms is None
+
+
+# ============================================================
+#  SenseVoiceSTTProvider
+# ============================================================
+
+
+class TestSenseVoiceProviderInit:
+    def test_not_available_when_deps_missing(self):
+        from shopstack.providers.stt_provider import SenseVoiceSTTProvider
+        with patch.dict("sys.modules", {"funasr": None}, clear=False):
+            # fallback_whisper=False to test SenseVoice's own availability
+            # without the Whisper fallback layer.
+            provider = SenseVoiceSTTProvider(fallback_whisper=False)
+            assert not provider.available
+            assert provider.error is not None
+            assert "funasr" in (provider.error or "").lower()
+
+    def test_name_and_capabilities(self):
+        from shopstack.providers.stt_provider import SenseVoiceSTTProvider
+        provider = SenseVoiceSTTProvider(fallback_whisper=False)
+        assert provider.name == "sensevoice"
+        assert "stt" in provider.capabilities
+
+    def test_transcribe_missing_file(self):
+        from shopstack.providers.stt_provider import SenseVoiceSTTProvider
+        provider = SenseVoiceSTTProvider(fallback_whisper=False)
+        result = provider.transcribe("/tmp/nonexistent.wav")
+        assert "error" in result
+        assert "not found" in result["error"]
+
+    def test_healthcheck_false_when_not_available(self):
+        from shopstack.providers.stt_provider import SenseVoiceSTTProvider
+        with patch.dict("sys.modules", {"funasr": None}, clear=False):
+            provider = SenseVoiceSTTProvider(fallback_whisper=False)
+            assert not provider.healthcheck()
+
+    def test_last_latency_default(self):
+        from shopstack.providers.stt_provider import SenseVoiceSTTProvider
+        with patch.dict("sys.modules", {"funasr": None}, clear=False):
+            provider = SenseVoiceSTTProvider(fallback_whisper=False)
+            assert provider.last_latency_ms is None
+
+
+# ============================================================
+#  Qwen3ASRProvider
+# ============================================================
+
+
+class TestQwen3ASRProviderInit:
+    def test_not_available_when_deps_missing(self):
+        from shopstack.providers.stt_provider import Qwen3ASRProvider
+        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+            # fallback_whisper=False to test Qwen3-ASR's own availability
+            # without the Whisper fallback layer.
+            provider = Qwen3ASRProvider(fallback_whisper=False)
+            assert not provider.available
+            assert provider.error is not None
+            assert "transformers" in (provider.error or "").lower()
+
+    def test_name_and_capabilities(self):
+        from shopstack.providers.stt_provider import Qwen3ASRProvider
+        provider = Qwen3ASRProvider(fallback_whisper=False)
+        assert provider.name == "qwen3_asr"
+        assert "stt" in provider.capabilities
+
+    def test_transcribe_missing_file(self):
+        from shopstack.providers.stt_provider import Qwen3ASRProvider
+        provider = Qwen3ASRProvider(fallback_whisper=False)
+        result = provider.transcribe("/tmp/nonexistent.wav")
+        assert "error" in result
+        assert "not found" in result["error"]
+
+    def test_healthcheck_false_when_not_available(self):
+        from shopstack.providers.stt_provider import Qwen3ASRProvider
+        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+            provider = Qwen3ASRProvider(fallback_whisper=False)
+            assert not provider.healthcheck()
+
+    def test_last_latency_default(self):
+        from shopstack.providers.stt_provider import Qwen3ASRProvider
+        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+            provider = Qwen3ASRProvider(fallback_whisper=False)
             assert provider.last_latency_ms is None
 
 
@@ -430,3 +522,11 @@ class TestProviderImport:
     def test_qwen3_tts_import(self):
         from shopstack.providers.tts_provider import Qwen3TTSProvider
         assert Qwen3TTSProvider.name == "qwen3_tts"
+
+    def test_sensevoice_import(self):
+        from shopstack.providers.stt_provider import SenseVoiceSTTProvider
+        assert SenseVoiceSTTProvider.name == "sensevoice"
+
+    def test_qwen3_asr_import(self):
+        from shopstack.providers.stt_provider import Qwen3ASRProvider
+        assert Qwen3ASRProvider.name == "qwen3_asr"

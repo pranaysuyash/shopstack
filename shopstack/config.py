@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     local_model_dir: str = ""
     local_model_repo: str = "unsloth/Llama-3.2-3B-Instruct-GGUF"
     local_model_file: str = "Llama-3.2-3B-Instruct-Q4_K_M.gguf"
+    local_mlx_model: str = "Qwen/Qwen3.5-4B"
     local_auto_download: bool = False
 
     local_whisper_size: str = "tiny"
@@ -38,7 +39,7 @@ class Settings(BaseSettings):
     stt_backend: str = "sensevoice"
     tts_backend: str = "kokoro"
     vision_backend: str = "mock"
-    ocr_backend: str = "mock"
+    ocr_backend: str = "tesseract"
     segmentation_backend: str = "mock"
     image_gen_backend: str = "svg"
 

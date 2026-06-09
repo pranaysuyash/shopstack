@@ -12,6 +12,33 @@ from shopstack.ui.screens._utils import safe_render
 logger = logging.getLogger(__name__)
 
 
+def _load_ocr_model() -> str:
+    """Pre-load the GLM-OCR model so the first scan doesn't include cold-start latency.
+
+    Returns an HTML status message for display.
+    """
+    try:
+        ocr_provider = providers.get("ocr")
+        if ocr_provider is None:
+            return "<div style='color:var(--text-dim);font-size:12px;margin-bottom:4px;'>OCR backend not available</div>"
+        if not getattr(ocr_provider, "available", False):
+            return f"<div style='color:var(--text-dim);font-size:12px;margin-bottom:4px;'>OCR backend {getattr(ocr_provider, 'name', '?')} not available.</div>"
+
+        # Check if model is already loaded
+        model = getattr(ocr_provider, "_model", None)
+        if model is not None:
+            return "<div style='color:var(--green);font-size:12px;margin-bottom:4px;'>OCR model loaded &#10003;</div>"
+
+        # Trigger load
+        ocr_provider.load()
+        if getattr(ocr_provider, "_model", None) is not None:
+            return "<div style='color:var(--green);font-size:12px;margin-bottom:4px;'>OCR model loaded &#10003;</div>"
+        return "<div style='color:var(--text-dim);font-size:12px;margin-bottom:4px;'>OCR model not loaded (will load on first scan)</div>"
+    except Exception as e:
+        logger.warning("OCR model pre-load failed: %s", e)
+        return f"<div style='color:var(--text-dim);font-size:12px;margin-bottom:4px;'>OCR model pre-load: {escape(str(e))}</div>"
+
+
 def _render_receipt_review(result: ReceiptResult | None) -> str:
     if not result or not result.lines:
         return "<div style='color:var(--text-dim);'>No receipt parsed yet.</div>"

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-RuntimeType = Literal["transformers", "llama.cpp", "gguf", "onnx", "diffusers", "custom", "mock"]
+RuntimeType = Literal["transformers", "llama.cpp", "gguf", "onnx", "diffusers", "custom", "mock", "mlx"]
 BadgeRelevance = Literal["llama_champion", "well_tuned", "off_the_grid", "none"]
 ModelStatus = Literal["candidate", "active", "deprecated", "rejected"]
 MAX_ACTIVE_MODEL_PARAMS_B = 32.0
@@ -87,6 +87,18 @@ MODEL_REGISTRY: list[ModelEntry] = [
         badge_relevance="off_the_grid",
         notes="extremely lightweight — KokoroTTSProvider wired as kokoro backend",
     ),
+    # TTS — CosyVoice 2 (higher quality, Hindi support)
+    ModelEntry(
+        provider_group="tts",
+        model_id="cosyvoice2-0.5b",
+        hf_model="FunAudioLLM/CosyVoice2-0.5B",
+        params_b=0.5,
+        license_note="Apache-2.0",
+        runtime="custom",
+        status="active",
+        badge_relevance="off_the_grid",
+        notes="higher quality TTS with Hindi support. Downloaded (19 files, 3.5GB). Custom architecture — needs CosyVoice repo for inference. Not yet wired as provider.",
+    ),
     # Vision
     ModelEntry(
         provider_group="vision",
@@ -98,6 +110,18 @@ MODEL_REGISTRY: list[ModelEntry] = [
         status="active",
         badge_relevance="llama_champion",
         notes="strong VLM for household items — provider wired as minicpmv backend",
+    ),
+    # Vision — Qwen2.5-VL-3B (lighter alternative via MLX)
+    ModelEntry(
+        provider_group="vision",
+        model_id="qwen2.5-vl-3b",
+        hf_model="Qwen/Qwen2.5-VL-3B-Instruct",
+        params_b=3.0,
+        license_note="Apache-2.0",
+        runtime="mlx",
+        status="active",
+        badge_relevance="off_the_grid",
+        notes="3B params, 0.9s load via MLX. Excellent throughput (43-80 tok/s) at 1/3 the params of MiniCPM-V. Use for high-volume vision tasks.",
     ),
     # Planner
     ModelEntry(
@@ -129,9 +153,33 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=3.0,
         license_note="Llama 3.2 Community",
         runtime="gguf",
+        status="candidate",
+        badge_relevance="none",
+        notes="downloaded & tested: 493ms for 49 tokens via llama.cpp. Superseded by qwen3.5-4b for planner (better tool-calling accuracy).",
+    ),
+    # Planner — Qwen3.5-4B (current best-in-class for tool-calling under 4B params)
+    ModelEntry(
+        provider_group="planner",
+        model_id="qwen3.5-4b",
+        hf_model="Qwen/Qwen3.5-4B",
+        params_b=4.0,
+        license_note="Apache-2.0",
+        runtime="mlx",
         status="active",
         badge_relevance="llama_champion",
-        notes="downloaded & tested: 493ms for 49 tokens via llama.cpp",
+        notes="Top-ranked small model for tool-calling (June 2026). ~97.5% pass rate on structured tool-calling benchmarks. Downloaded & tested: 12.5 tok/s via MLX on Apple Silicon.",
+    ),
+    # OCR / extraction
+    ModelEntry(
+        provider_group="ocr",
+        model_id="glm-ocr-0.9b",
+        hf_model="zai-org/GLM-OCR",
+        params_b=1.0,
+        license_note="Apache-2.0",
+        runtime="transformers",
+        status="active",
+        badge_relevance="off_the_grid",
+        notes="Specialized 0.9B document/receipt OCR model. Current SOTA for small OCR (June 2026). Loaded & verified: 1016M params on Apple Silicon.",
     ),
     # OCR / extraction
     ModelEntry(
@@ -141,8 +189,8 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=4.0,
         license_note="CC-BY-NC-4.0",
         runtime="transformers",
-        status="active",
-        notes="strong receipt extraction, non-commercial — provider wired as nuextract3 backend",
+        status="candidate",
+        notes="strong receipt extraction, non-commercial. Superseded by glm-ocr-0.9b (1B params, purpose-built for OCR).",
     ),
     # Segmentation
     ModelEntry(

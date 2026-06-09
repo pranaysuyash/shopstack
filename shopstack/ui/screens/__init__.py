@@ -58,6 +58,11 @@ from shopstack.ui.screens.swiggy_market import (
     swiggy_basket_estimate,
 )
 from shopstack.ui.screens.portability import export_data_json, export_data_csv, import_data_file
+from shopstack.ui.screens.price_compare import (
+    multi_source_price_view,
+    single_item_compare,
+    refresh_source_registry,
+)
 from shopstack.ui.screens.receipt import (
     receipt_scan_ocr,
     receipt_parse_text,
@@ -108,6 +113,9 @@ __all__ = [
     "field_notes_save",
     "swiggy_market_view",
     "swiggy_basket_estimate",
+    "multi_source_price_view",
+    "single_item_compare",
+    "refresh_source_registry",
     "export_data_json",
     "export_data_csv",
     "import_data_file",

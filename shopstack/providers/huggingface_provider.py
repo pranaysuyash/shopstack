@@ -169,12 +169,14 @@ class HuggingFaceProvider:
 
         return {"error": "HF chat failed after all retries", "model": self.name}
 
-    def plan(self, context: dict[str, Any] | str) -> dict[str, Any]:
+    def plan(self, context: dict[str, Any] | str) -> list[dict[str, Any]]:
+        from shopstack.planner.parser import parse_tool_calls
+
         if not self._available:
-            return {"error": self._error or "HF not available", "model": self.name}
+            return [{"tool": "respond", "args": {"message": self._error or "HF not available"}}]
 
         if isinstance(context, str):
-            return {"text": "", "model": self.name}
+            return [{"tool": "respond", "args": {"message": ""}}]
 
         max_tokens = context.get("max_tokens", 512)
         temperature = context.get("temperature", 0.3)
@@ -189,13 +191,26 @@ class HuggingFaceProvider:
                 {"role": "system", "content": system},
                 {"role": "user", "content": f"{question}\n\nJSON tool calls:"},
             ]
-            return self.chat(messages, max_tokens=max_tokens, temperature=temperature)
+            result = self.chat(messages, max_tokens=max_tokens, temperature=temperature)
+        else:
+            # Fallback: use the combined prompt as a single user message
+            prompt = context.get("prompt", "") or question
+            if not prompt:
+                return [{"tool": "respond", "args": {"message": ""}}]
+            result = self.complete(prompt, max_tokens=max_tokens, temperature=temperature)
 
-        # Fallback: use the combined prompt as a single user message
-        prompt = context.get("prompt", "") or question
-        if not prompt:
-            return {"text": "", "model": self.name}
-        return self.complete(prompt, max_tokens=max_tokens, temperature=temperature)
+        text = result.get("text", "")
+        if not text:
+            return [{"tool": "respond", "args": {"message": ""}}]
+
+        # Try to parse structured tool calls from model output.
+        # If no JSON is found, wrap the raw text as a respond message.
+        tool_calls = parse_tool_calls(text)
+        if (len(tool_calls) == 1
+            and tool_calls[0]["tool"] == "respond"
+            and "No structured data" in tool_calls[0]["args"].get("message", "")):
+            return [{"tool": "respond", "args": {"message": text.strip()}}]
+        return tool_calls
 
     @property
     def available(self) -> bool:

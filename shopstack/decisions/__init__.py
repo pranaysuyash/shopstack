@@ -17,24 +17,40 @@ from shopstack.decisions.rules import (
     check_swiggy_availability,
 )
 
-# Backward-compatible render wrappers — new code should import
-# directly from shopstack.ui.renderers.decision_cards.
-from shopstack.ui.renderers import (
-    render_market_basket,
-    render_inventory_overview,
-    render_my_list_panel,
-    render_compare_panel,
-    render_decision_panel,
-)
+_RENDER_NAMES = {
+    "render_market_basket",
+    "render_inventory_overview",
+    "render_my_list_panel",
+    "render_compare_panel",
+    "render_decision_panel",
+}
+_LEGACY_NAMES = {
+    "render_what_changed",
+    "render_cadence_insights",
+    "render_waste_warnings",
+    "render_swiggy_soldout_warning",
+    "render_needs_confirmation",
+}
 
-# Db-dependent wrappers (fetch data then delegate to renderers):
-from shopstack._legacy_decisions import (
-    render_what_changed,
-    render_cadence_insights,
-    render_waste_warnings,
-    render_swiggy_soldout_warning,
-    render_needs_confirmation,
-)
+
+def __getattr__(name: str):
+    """Lazy re-exports for backward-compatible render wrappers.
+
+    New code should import directly from shopstack.ui.renderers.decision_cards
+    or shopstack._legacy_decisions.
+
+    This __getattr__ avoids a circular import: decisions → renderers → decisions
+    that would otherwise crash when any code path triggers both packages.
+    """
+    if name in _RENDER_NAMES:
+        import shopstack.ui.renderers as _r
+        return getattr(_r, name)
+    if name in _LEGACY_NAMES:
+        import shopstack._legacy_decisions as _l
+        return getattr(_l, name)
+    msg = f"module {__name__!r} has no attribute {name!r}"
+    raise AttributeError(msg)
+
 
 __all__ = [
     "Decision",

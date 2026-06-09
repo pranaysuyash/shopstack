@@ -52,8 +52,14 @@ from shopstack.ui.screens.receipt import (
     receipt_scan_ocr,
     receipt_parse_text,
     receipt_confirm,
+    _load_ocr_model,
 )
 from shopstack.ui.screens.nutrition import nutrition_lookup_view, nutrition_kitchen_view
+from shopstack.ui.screens.price_compare import (
+    multi_source_price_view,
+    single_item_compare,
+    refresh_source_registry,
+)
 from shopstack.ui.screens._utils import WORKFLOW_STEPS, workflow_header, workflow_title_bar
 from shopstack.ui.theme import CSS
 
@@ -251,6 +257,41 @@ document.addEventListener('keydown', function(e) {
                             outputs=sl_item_dropdown
                         )
 
+                    # ── Price Compare (Multi-Source) ──
+                    with gr.Tab("Price Compare"):
+                        gr.Markdown("### Compare prices across Swiggy, Blinkit, Zepto, and DMart")
+                        pc_button = gr.Button("Refresh Comparison", elem_classes="secondary")
+                        pc_results = gr.HTML("")
+                        pc_status = gr.HTML("")
+                        pc_button.click(
+                            multi_source_price_view,
+                            outputs=pc_results,
+                            api_name="price_compare_refresh",
+                            api_description="Refresh multi-source price comparison dashboard",
+                        )
+                        pc_status_btn = gr.Button("Check Registry Status", elem_classes="secondary")
+                        pc_status_btn.click(
+                            refresh_source_registry,
+                            outputs=pc_status,
+                            api_name="price_compare_status",
+                            api_description="Check which market sources are registered and loaded",
+                        )
+                        app.load(multi_source_price_view, outputs=pc_results)
+
+                        gr.Markdown("---")
+                        gr.Markdown("### Item Lookup")
+                        with gr.Row():
+                            pc_item_input = gr.Textbox(label="Item Name", placeholder="e.g. tomato, onion, milk")
+                            pc_lookup_btn = gr.Button("Look Up")
+                        pc_lookup_result = gr.HTML("")
+                        pc_lookup_btn.click(
+                            single_item_compare,
+                            pc_item_input,
+                            pc_lookup_result,
+                            api_name="price_compare_item",
+                            api_description="Compare single item prices across all market sources",
+                        )
+
                     # ── Price Check ──
                     with gr.Tab("Price Check"):
                         with gr.Row():
@@ -299,6 +340,7 @@ document.addEventListener('keydown', function(e) {
 
                     # ── Scan Receipt ──
                     with gr.Tab("Scan Receipt"):
+                        receipt_status = gr.HTML("")
                         gr.Markdown("### Scan a Receipt")
                         gr.Markdown("Upload a receipt image (OCR) or a text file containing the receipt text.")
                         with gr.Row():
@@ -333,6 +375,7 @@ document.addEventListener('keydown', function(e) {
                             api_name="receipt_confirm",
                             api_description="Confirm parsed receipt lines and add items to inventory",
                         )
+                        app.load(_load_ocr_model, outputs=receipt_status)
 
             # ═══════════════════════════════════════════════════════════════
             # Tab 3: ShopLens — check while shopping

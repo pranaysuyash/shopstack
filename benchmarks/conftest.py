@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import tempfile
 from datetime import date, timedelta
 from pathlib import Path
@@ -107,8 +108,10 @@ def settings() -> Settings:
         _env_file=None,
         db_path=":memory:",
         off_the_grid=True,
+        planner_backend="mock",
         stt_backend="mock",
         tts_backend="mock",
+        ocr_backend="mock",
     )
 
 
@@ -230,3 +233,312 @@ def fresh_db() -> Generator[Database, None, None]:
     database = Database(path)
     yield database
     Path(path).unlink(missing_ok=True)
+
+
+# ── Real-model fixtures (skip in CI, requires cached model weights) ──
+
+
+def _glm_ocr_cache_path() -> str | None:
+    """Return the cached GLM-OCR model path if available, else None."""
+    import importlib
+    if importlib.util.find_spec("transformers") is None:
+        return None
+    try:
+        from transformers.models.glm_ocr import GlmOcrForConditionalGeneration  # noqa: F401
+    except ImportError:
+        return None
+
+    cache_dir = os.path.expanduser("~/.cache/huggingface/hub")
+    model_dir_name = "models--zai-org--GLM-OCR"
+    model_dir = os.path.join(cache_dir, model_dir_name)
+    snapshots_dir = os.path.join(model_dir, "snapshots")
+    if not os.path.isdir(snapshots_dir):
+        return None
+    snapshots = os.listdir(snapshots_dir)
+    if not snapshots:
+        return None
+    snapshot_path = os.path.join(snapshots_dir, snapshots[0])
+    if os.path.isfile(os.path.join(snapshot_path, "model.safetensors")):
+        return snapshot_path
+    return None
+
+
+def _create_hindi_receipt_image() -> str:
+    """Generate a bilingual Hindi-English receipt image and return its path.
+
+    Uses Devanagari MT font for Hindi-transliterated item names mixed with
+    English (e.g. PYAAZ (Onion), TAMATAR (Tomato)). Tests multilingual OCR.
+    """
+    from PIL import Image, ImageDraw, ImageFont
+
+    lines = [
+        "  SHARMA KIRANA STORE  ",
+        "  12th Main, Koramangala",
+        "  Date: 15/06/2026",
+        "========================================",
+        "  VATRA (ITEM)     QTY      RUPIYAH",
+        "----------------------------------------",
+        "1. PYAAZ (Onion)         2 KG      40",
+        "2. TAMATAR (Tomato)      1 KG      35",
+        "3. AALOO (Potato)        2 KG      50",
+        "4. DOODH (Milk)          1 L       64",
+        "5. ANDAY (Eggs)          12 PC     85",
+        "6. MAKKHAN (Butter)    500 G       60",
+        "7. CHEENI (Sugar)        1 KG      45",
+        "8. SARSON KA TEL         1 L      185",
+        "9. AATA (Wheat Flour)    1 KG      42",
+        "10. CHAWAL (Rice)        1 KG      75",
+        "----------------------------------------",
+        "  KUUL YOG (Total)             681",
+        "  AADHAA KAR (GST)              0",
+        "========================================",
+        "  DHANYAVAAD! THANK YOU!",
+    ]
+    ground_truth = "\n".join(lines)
+
+    padding = 14
+    font_size = 14
+    line_height = font_size + 6
+    width = 420
+    height = len(lines) * line_height + padding * 2
+
+    img = Image.new("RGB", (width, height), (248, 244, 240))
+    draw = ImageDraw.Draw(img)
+
+    try:
+        font = ImageFont.truetype("/System/Library/Fonts/Supplemental/DevanagariMT.ttc", font_size)
+    except Exception:
+        font = ImageFont.load_default()
+
+    for i, line in enumerate(lines):
+        y = padding + i * line_height
+        stripped = line.strip()
+        if not stripped:
+            continue
+        lower = stripped.lower()
+        if any(lower.startswith(k) for k in ["kuul", "aadhaa"]):
+            tw = draw.textlength(stripped, font=font)
+            draw.text((width - padding - tw, y), stripped, fill="black", font=font)
+        else:
+            draw.text((padding, y), stripped, fill="black", font=font)
+
+    import tempfile
+    fd, path = tempfile.mkstemp(suffix=".png", prefix="glm_ocr_hindi_")
+    os.close(fd)
+    img.save(path)
+
+    # Save ground truth alongside the image
+    gt_path = path.replace(".png", "_ground_truth.txt")
+    with open(gt_path, "w", encoding="utf-8") as f:
+        f.write(ground_truth)
+
+    return path, gt_path
+
+
+def _create_receipt_image() -> str:
+    """Generate a test receipt image and return its path.
+
+    Creates a thermal-printer style receipt with 13 line items,
+    store name, date, and totals. Used by GLM-OCR benchmarks.
+    """
+    from PIL import Image, ImageDraw, ImageFont
+
+    receipt_text = SAMPLE_RECEIPT_TEXT
+
+    lines = receipt_text.split("\n")
+    font_size = 15
+    line_height = font_size + 7
+    padding = 16
+    width = 380
+    height = len(lines) * line_height + padding * 2
+
+    img = Image.new("RGB", (width, height), (248, 244, 240))
+    draw = ImageDraw.Draw(img)
+
+    try:
+        font = ImageFont.truetype("/System/Library/Fonts/Menlo.ttc", font_size)
+    except Exception:
+        font = ImageFont.load_default()
+
+    right_align_keys = {"total", "subtotal", "gst", "cgst", "sgst", "cash", "change", "grand", "net"}
+    for i, line in enumerate(lines):
+        y = padding + i * line_height
+        stripped = line.strip()
+        if not stripped:
+            continue
+        lower = stripped.lower()
+        if any(lower.startswith(k) for k in right_align_keys):
+            tw = draw.textlength(stripped, font=font)
+            draw.text((width - padding - tw, y), stripped, fill="black", font=font)
+        else:
+            draw.text((padding, y), stripped, fill="black", font=font)
+
+    import tempfile
+    fd, path = tempfile.mkstemp(suffix=".png", prefix="glm_ocr_bench_")
+    os.close(fd)
+    img.save(path)
+    return path
+
+
+def _mlx_model_cache_path() -> str | None:
+    """Return the cached MLX model path if available, else None."""
+    cache_dir = os.path.expanduser("~/.cache/huggingface/hub")
+    model_dir_name = "models--mlx-community--Llama-3.2-3B-Instruct-4bit"
+    model_dir = os.path.join(cache_dir, model_dir_name)
+    snapshots_dir = os.path.join(model_dir, "snapshots")
+    if not os.path.isdir(snapshots_dir):
+        return None
+    snapshots = os.listdir(snapshots_dir)
+    if not snapshots:
+        return None
+    # Use the first (and usually only) snapshot
+    snapshot_path = os.path.join(snapshots_dir, snapshots[0])
+    if os.path.isfile(os.path.join(snapshot_path, "model.safetensors")):
+        return snapshot_path
+    if os.path.isfile(os.path.join(snapshot_path, "model.safetensors.index.json")):
+        return snapshot_path
+    return None
+
+
+@pytest.fixture(scope="session")
+def glm_ocr_model() -> Generator[Any, None, None]:
+    """Provide a GlmOCRProvider loaded with GLM-OCR via transformers.
+
+    Skips the test if:
+    - transformers with GlmOcrForConditionalGeneration is not installed
+    - The GLM-OCR model is not cached in the HuggingFace hub cache
+
+    Yields ``(provider, image_path, warm_elapsed)`` so benchmarks can
+    measure cold-start load time separately from extraction latency.
+    The test receipt image is created in a temp dir and cleaned up
+    on teardown.
+    """
+    import importlib
+
+    if importlib.util.find_spec("transformers") is None:
+        pytest.skip("transformers not installed")
+    if importlib.util.find_spec("PIL") is None:
+        pytest.skip("Pillow not installed")
+
+    cache_path = _glm_ocr_cache_path()
+    if cache_path is None:
+        pytest.skip(
+            "GLM-OCR model not cached. Run: "
+            "uv run python -c 'from transformers import AutoModel; "
+            "AutoModel.from_pretrained(\"zai-org/GLM-OCR\", trust_remote_code=True)'"
+        )
+
+    from shopstack.providers.ocr_provider import GlmOCRProvider
+
+    provider = GlmOCRProvider()
+
+    # Warm: load the model into memory once
+    warm_start = __import__("time").perf_counter()
+    provider.load()
+    warm_elapsed = __import__("time").perf_counter() - warm_start
+
+    # Create test receipt image
+    image_path = _create_receipt_image()
+
+    yield provider, image_path, warm_elapsed
+
+    # Teardown: drop references and clean up temp file
+    provider._model = None
+    provider._processor = None
+    try:
+        import os as _os
+        _os.unlink(image_path)
+    except Exception:
+        pass
+
+
+@pytest.fixture(scope="session")
+def llama3b_model() -> Generator[Any, None, None]:
+    """Provide a LocalProvider loaded with llama-3.2-3b (MLX).
+
+    Skips the test if:
+    - mlx_lm is not installed
+    - The MLX model is not cached in the HuggingFace hub cache
+
+    Loading is deferred to the first ``complete()`` call so that
+    inference-only benchmarks can measure cold-start separately.
+    """
+    import importlib
+
+    if importlib.util.find_spec("mlx_lm") is None:
+        pytest.skip("mlx-lm not installed")
+
+    cache_path = _mlx_model_cache_path()
+    if cache_path is None:
+        pytest.skip("MLX llama-3.2-3b model not cached (run: uv run python -c 'import mlx_lm; mlx_lm.load(\"mlx-community/Llama-3.2-3B-Instruct-4bit\")')")
+
+    from shopstack.providers.local_provider import LocalProvider
+
+    provider = LocalProvider(
+        model_dir=os.path.dirname(cache_path),
+        mlx_model=cache_path,
+        allow_download=False,
+        auto_unload=False,  # keep loaded across benchmark calls
+    )
+
+    # Warm: load the model into memory once
+    warm_start = __import__("time").perf_counter()
+    provider._ensure_model()
+    warm_elapsed = __import__("time").perf_counter() - warm_start
+
+    yield provider, warm_elapsed
+
+    # Teardown: drop reference so the model can be garbage-collected
+    provider._llm = None
+    provider._tokenizer = None
+
+
+def _tesseract_check() -> bool:
+    """Return True if Tesseract OCR CLI is available and working."""
+    try:
+        import pytesseract
+        pytesseract.get_tesseract_version()
+        return True
+    except Exception:
+        return False
+
+
+@pytest.fixture(scope="session")
+def tesseract_model() -> Generator[Any, None, None]:
+    """Provide a TesseractOCRProvider for real-model benchmarks.
+
+    Tesseract is a CLI tool (not a neural model), so there is no model
+    loading step — it's always available if the CLI is installed.
+
+    Skips the test if:
+    - pytesseract is not installed
+    - The tesseract CLI binary is not found
+
+    Yields ``(provider, image_path)`` where ``image_path`` is a generated
+    thermal-printer receipt image used for extraction benchmarks.
+    The temp image is cleaned up on teardown.
+    """
+    import importlib
+
+    if importlib.util.find_spec("pytesseract") is None:
+        pytest.skip("pytesseract not installed")
+    if not _tesseract_check():
+        pytest.skip("Tesseract CLI not available (brew install tesseract)")
+
+    from shopstack.providers.tesseract_provider import TesseractOCRProvider
+
+    provider = TesseractOCRProvider(lang="eng", psm=6)
+
+    assert provider.available, "TesseractOCRProvider should report available"
+
+    # Create test receipt image (reuse the GLM-OCR image generator)
+    image_path = _create_receipt_image()
+
+    yield provider, image_path
+
+    # Teardown: clean up temp file
+    try:
+        import os as _os
+        _os.unlink(image_path)
+    except Exception:
+        pass

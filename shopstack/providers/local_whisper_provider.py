@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import importlib.util
 import logging
 import os
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -38,6 +40,7 @@ class LocalWhisperProvider:
         self._model: Any = None
         self._auto_unload = auto_unload
         self._last_latency_ms: float | None = None
+        self._mlx_module: Any = None  # lazy-loaded in transcribe()
         self._init()
 
     def _init(self) -> None:
@@ -47,15 +50,24 @@ class LocalWhisperProvider:
         self._init_faster_whisper()
 
     def _init_mlx(self) -> None:
-        try:
-            import mlx_whisper  # noqa: F401
-        except ImportError:
+        # Respect sys.modules mocking used in tests to simulate a missing
+        # package (patch.dict("sys.modules", {"mlx_whisper": None})).
+        if "mlx_whisper" in sys.modules and sys.modules["mlx_whisper"] is None:
+            self._error = "mlx-whisper not installed. Run: uv pip install mlx-whisper"
+            return
+        # Use find_spec to check for the package without importing it.
+        # Direct import of mlx_whisper triggers mlx.core which can segfault
+        # on Python 3.14+ when multiple modules are initialised concurrently
+        # (common during pytest collection). A segfault is not catchable
+        # with try/except, so we avoid the import entirely until needed.
+        spec = importlib.util.find_spec("mlx_whisper")
+        if spec is None:
             self._error = "mlx-whisper not installed. Run: uv pip install mlx-whisper"
             return
         self._backend = "mlx"
         self._available = True
         self._error = None
-        logger.info("Local Whisper provider loaded via mlx-whisper (size=%s)", self._model_size)
+        logger.info("Local Whisper provider prepared for mlx-whisper (size=%s)", self._model_size)
 
     def _init_faster_whisper(self) -> None:
         try:
@@ -134,9 +146,15 @@ class LocalWhisperProvider:
             t0 = time.monotonic()
 
             if self._backend == "mlx":
-                import mlx_whisper
+                # Lazy-import: the real import is deferred until transcription
+                # is actually needed. This avoids the mlx.core segfault that
+                # occurs when importing alongside other AI modules during
+                # test collection on Python 3.14+.
+                if self._mlx_module is None:
+                    import mlx_whisper as _mlx
+                    self._mlx_module = _mlx
 
-                result: dict[str, Any] = mlx_whisper.transcribe(
+                result: dict[str, Any] = self._mlx_module.transcribe(
                     audio_path,
                     path_or_hf_repo=self._mlx_model,
                     language=language,

@@ -23,6 +23,7 @@ class SenseVoiceSTTProvider:
         self._error: str | None = None
         self._fallback_whisper = fallback_whisper
         self._whisper_provider: Any = None
+        self._last_latency_ms: float | None = None
         self._init()
 
     def _init(self) -> None:
@@ -74,6 +75,7 @@ class SenseVoiceSTTProvider:
                 t0 = time.monotonic()
                 result = self._model.generate(input=audio_path, language=language)
                 elapsed = time.monotonic() - t0
+                self._last_latency_ms = round(elapsed * 1000, 1)
 
                 if isinstance(result, list) and len(result) > 0:
                     text = result[0].get("text", "")
@@ -88,7 +90,7 @@ class SenseVoiceSTTProvider:
                     "confidence": None,
                     "model": self._model_id,
                     "backend": "sensevoice",
-                    "latency_ms": round(elapsed * 1000, 1),
+                    "latency_ms": self._last_latency_ms,
                 }
             except Exception:
                 logger.warning("SenseVoice transcription failed, trying fallback", exc_info=True)
@@ -99,6 +101,9 @@ class SenseVoiceSTTProvider:
 
         return {"text": "", "error": self._error or "No STT backend available"}
 
+    def healthcheck(self) -> bool:
+        return self._available
+
     @property
     def available(self) -> bool:
         return self._available or (
@@ -108,6 +113,10 @@ class SenseVoiceSTTProvider:
     @property
     def error(self) -> str | None:
         return self._error
+
+    @property
+    def last_latency_ms(self) -> float | None:
+        return self._last_latency_ms
 
 
 class Qwen3ASRProvider:
@@ -126,6 +135,7 @@ class Qwen3ASRProvider:
         self._error: str | None = None
         self._fallback_whisper = fallback_whisper
         self._whisper_provider: Any = None
+        self._last_latency_ms: float | None = None
         self._init()
 
     def _init(self) -> None:
@@ -205,6 +215,7 @@ class Qwen3ASRProvider:
                 text = self._processor.batch_decode(predicted_ids)[0]
 
                 elapsed = time.monotonic() - t0
+                self._last_latency_ms = round(elapsed * 1000, 1)
 
                 return {
                     "text": text.strip(),
@@ -212,7 +223,7 @@ class Qwen3ASRProvider:
                     "confidence": None,
                     "model": self._model_id,
                     "backend": "qwen3-asr",
-                    "latency_ms": round(elapsed * 1000, 1),
+                    "latency_ms": self._last_latency_ms,
                 }
             except Exception:
                 logger.warning(
@@ -224,6 +235,9 @@ class Qwen3ASRProvider:
 
         return {"text": "", "error": self._error or "No STT backend available"}
 
+    def healthcheck(self) -> bool:
+        return self._available
+
     @property
     def available(self) -> bool:
         return self._available or (
@@ -233,6 +247,10 @@ class Qwen3ASRProvider:
     @property
     def error(self) -> str | None:
         return self._error
+
+    @property
+    def last_latency_ms(self) -> float | None:
+        return self._last_latency_ms
 
 
 class ParakeetSTTProvider:

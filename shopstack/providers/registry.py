@@ -151,6 +151,22 @@ def _load_rmbg():
     except ImportError:
         return None
 
+def _load_glm_ocr():
+    try:
+        from shopstack.providers.ocr_provider import GlmOCRProvider
+        return GlmOCRProvider
+    except ImportError:
+        return None
+
+
+def _load_tesseract():
+    try:
+        from shopstack.providers.tesseract_provider import TesseractOCRProvider
+        return TesseractOCRProvider
+    except ImportError:
+        return None
+
+
 def _load_parakeet():
     try:
         from shopstack.providers.stt_provider import ParakeetSTTProvider
@@ -189,10 +205,11 @@ def _try_real_provider(backend: str, settings: Settings) -> Any | None:
                 model_dir=settings.local_model_dir,
                 model_repo=settings.local_model_repo,
                 model_file=settings.local_model_file,
+                mlx_model=settings.local_mlx_model,
                 allow_download=settings.local_auto_download,
                 auto_unload=settings.local_auto_unload,
             )
-        logger.info("Local provider not available (llama-cpp-python missing), falling back to mock")
+        logger.info("Local provider not available (mlx-lm / llama-cpp-python missing), falling back to mock")
         return None
     if backend == "huggingface":
         cls = _load_huggingface()
@@ -248,6 +265,18 @@ def _try_real_provider(backend: str, settings: Settings) -> Any | None:
             return cls()
         logger.info("NuExtract3 provider not available (transformers/torch missing), falling back to mock")
         return None
+    if backend == "glm_ocr" or backend == "glm-ocr":
+        cls = _load_glm_ocr()
+        if cls:
+            return cls()
+        logger.info("GLM-OCR provider not available (transformers/torch/torchvision missing), falling back to mock")
+        return None
+    if backend == "tesseract":
+        cls = _load_tesseract()
+        if cls:
+            return cls()
+        logger.info("Tesseract OCR provider not available (pytesseract missing), falling back to mock")
+        return None
     if backend == "rmbg":
         cls = _load_rmbg()
         if cls:
@@ -273,7 +302,7 @@ class ProviderRegistry:
 
     def _init_lazy(self) -> None:
         backends = self._settings.provider_backends
-        offline_mock = {"vision", "object_detection", "grounding", "segmentation", "ocr", "tool_call_parser", "image_edit"}
+        offline_mock = {"vision", "object_detection", "grounding", "segmentation", "tool_call_parser", "image_edit"}
         for name in ["stt", "tts", "vision", "object_detection", "grounding",
                      "segmentation", "ocr", "planner", "tool_call_parser",
                      "embeddings", "image_edit", "image_gen"]:
