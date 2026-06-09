@@ -15,6 +15,7 @@ from shopstack.services.shopping import (
     mark_items_purchased_service,
 )
 from shopstack.ui import list_to_table
+from shopstack.ui.renderers import render_mark_purchased, render_shopping_completion
 from shopstack.traces.export import create_trace
 from shopstack.ui.screens._utils import (
     parse_shopping_text,
@@ -398,12 +399,12 @@ def mark_items_purchased(item_ids_json: str | list[str]) -> str:
     else:
         item_ids = item_ids_json
     result = mark_items_purchased_service(item_ids, tools, db)
-    return result.to_html()
+    return render_mark_purchased(result)
 
 
 def complete_shopping_list(list_id: str) -> str:
     result = complete_shopping_list_service(list_id, tools, db)
-    return result.to_html()
+    return render_shopping_completion(result)
 
 
 def _build_shopping_list_and_refresh(

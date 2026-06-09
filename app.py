@@ -60,15 +60,13 @@ from shopstack.ui.screens.price_compare import (
     single_item_compare,
     refresh_source_registry,
 )
-from shopstack.ui.screens._utils import WORKFLOW_STEPS, workflow_header, workflow_title_bar
+from shopstack.ui.screens._utils import WORKFLOW_STEPS, workflow_header as _workflow_header, workflow_title_bar
 from shopstack.ui.theme import CSS
 
 from pathlib import Path
 from shopstack.app_context import APP_DESCRIPTION, APP_NAME, db, providers, tools, planner, model_registry
 from shopstack.config import settings
 from shopstack.module_registry import tab_label as _tab_label
-
-_workflow_header = workflow_header
 
 
 def _model_download_status() -> str:

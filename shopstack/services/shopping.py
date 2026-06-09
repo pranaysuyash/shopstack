@@ -4,7 +4,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from shopstack.market.normalization import ITEM_ALIASES, normalize_item_name  # noqa: F401 — re-exported
 from shopstack.services.results import (
@@ -14,6 +14,9 @@ from shopstack.services.results import (
     ShoppingCompletionResult,
 )
 from shopstack.tools.registry import ToolRegistry
+
+if TYPE_CHECKING:
+    from shopstack.persistence.database import Database
 
 logger = logging.getLogger(__name__)
 
@@ -135,24 +138,19 @@ def enrich_items_with_swiggy(items: list[dict[str, Any]]) -> list[dict[str, Any]
 
 # ─── Shopping Completion Services ───
 
-from shopstack.persistence.database import Database  # noqa: E402 — circular import
-from shopstack.traces.export import create_trace  # noqa: E402 — circular import
+from shopstack.traces.export import create_trace
 
 
 def complete_shopping_list_service(
     list_id: str,
     tools: ToolRegistry,
-    database: Database | None = None,
+    database: Database,
 ) -> ShoppingCompletionResult:
     """Complete a shopping list: convert items to inventory and mark list complete.
 
-    Returns a typed ShoppingCompletionResult. Call ``.to_html()`` for display.
-    Accepts an optional ``database`` parameter for dependency injection;
-    falls back to ``shopstack.app_context.db`` when not provided (legacy path).
+    Returns a typed ShoppingCompletionResult. Use ``render_shopping_completion()``
+    from ``shopstack.ui.renderers`` for Gradio HTML display.
     """
-    if database is None:
-        from shopstack.app_context import db as database
-
     if not list_id:
         return ShoppingCompletionResult(
             success=False, list_id="", message="No active shopping list to complete."
@@ -228,17 +226,13 @@ def complete_shopping_list_service(
 def mark_items_purchased_service(
     item_ids_json: str | list[str],
     tools: ToolRegistry,
-    database: Database | None = None,
+    database: Database,
 ) -> MarkPurchasedResult:
     """Mark selected shopping list items as purchased and add to inventory.
 
-    Returns a typed MarkPurchasedResult. Call ``.to_html()`` for display.
-    Accepts an optional ``database`` parameter for dependency injection;
-    falls back to ``shopstack.app_context.db`` when not provided (legacy path).
+    Returns a typed MarkPurchasedResult. Use ``render_mark_purchased()``
+    from ``shopstack.ui.renderers`` for Gradio HTML display.
     """
-    if database is None:
-        from shopstack.app_context import db as database
-
     if item_ids_json == "[]" or item_ids_json == [] or not item_ids_json:
         return MarkPurchasedResult(success=False, message="No items selected.")
 
