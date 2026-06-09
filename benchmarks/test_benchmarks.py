@@ -305,6 +305,116 @@ class TestTesseractBenchmarks:
             f"(expected >60 for Tesseract on CPU)"
         )
 
+    def test_tesseract_hindi_devanagari_receipt(self):
+        """Benchmark Tesseract on a Devanagari-font bilingual Hindi receipt.
+
+        Uses the ``_create_hindi_receipt_image()`` helper (Devanagari MT font,
+        Hinglish-transliterated terms like PYAAZ, TAMATAR, DOODH) and Tesseract
+        with ``lang='eng+hin'`` to test actual Devanagari script support.
+
+        **Current status — NOT VERIFIED, PENDING.**
+        Tesseract requires the ``tesseract-lang`` package (``brew install
+        tesseract-lang``) to access the ``hin`` language data. On macOS without
+        this package, the test skips gracefully with a clear message.
+
+        Once ``hin`` is available, this test will measure:
+        - Extraction latency with bilingual lang pack
+        - Accuracy on Latin-script terms rendered in Devanagari MT font
+        - Accuracy on actual Devanagari text (if present)
+
+        See also:
+        - ``Docs/models/tesseract/claims.yaml`` claim
+          ``tesseract_hindi_devanagari_support`` (status: pending)
+        - ``Docs/exploration/MODEL_EXPLORATION_2026.md`` section
+          "Multilingual OCR Research — Hindi/Devanagari Support" for
+          the full exploration map of Devanagari OCR candidates
+        """
+        import importlib
+
+        if importlib.util.find_spec("pytesseract") is None:
+            pytest.skip("pytesseract not installed")
+        if importlib.util.find_spec("PIL") is None:
+            pytest.skip("Pillow not installed")
+
+        # Check if 'hin' language data is available
+        try:
+            import pytesseract
+            langs = pytesseract.get_languages()
+            if "hin" not in langs:
+                pytest.skip(
+                    "Tesseract Hindi Devanagari benchmark requires 'hin' language pack. "
+                    "Install with: brew install tesseract-lang. "
+                    "See Docs/exploration/MODEL_EXPLORATION_2026.md "
+                    "section 'Multilingual OCR Research — Hindi/Devanagari Support' "
+                    "for how to enable and the full research context."
+                )
+        except Exception as e:
+            pytest.skip(f"Could not check Tesseract languages: {e}")
+
+        from shopstack.providers.tesseract_provider import TesseractOCRProvider
+        from benchmarks.conftest import _create_hindi_receipt_image
+
+        import time
+        import os
+
+        provider = TesseractOCRProvider(lang="eng+hin", psm=6)
+        assert provider.available, "TesseractOCRProvider should be available"
+
+        # Use the same Devanagari MT font receipt as GLM-OCR's Hindi test
+        devanagari_path, gt_path = _create_hindi_receipt_image()
+
+        try:
+            with open(gt_path, encoding="utf-8") as f:
+                ground_truth = f.read()
+
+            start = time.perf_counter()
+            result = provider.extract(devanagari_path)
+            elapsed = time.perf_counter() - start
+
+            assert "error" not in result, f"Extraction failed: {result.get('error')}"
+            ext = result.get("text", "")
+
+            # Ground truth terms (Hindi-transliterated Latin script)
+            hindi_terms = ["pyaaz", "tamatar", "aaloo", "doodh", "anday",
+                           "makkhan", "cheeni", "sarson", "aata", "chawal",
+                           "dhanyavaad", "kuul", "aadhaa", "rupiyah", "vatra"]
+            found = [t for t in hindi_terms if t in ext.lower()]
+
+            # Devanagari MT font renders Latin characters differently than
+            # standard fonts — Tesseract may struggle with character shapes.
+            # Log the results even if accuracy is low.
+            ext_lower = ext.lower()
+
+            # Simple word-level overlap
+            gt_words = set(ground_truth.lower().split())
+            ext_words = set(ext_lower.split())
+            overlap = len(gt_words & ext_words)
+            accuracy = overlap / len(gt_words) if gt_words else 0.0
+
+            # Log for tracking — not a hard pass/fail since this is
+            # an exploratory benchmark for a pending claim
+            print(
+                f"\n[DENAVAGARI BENCHMARK] Tesseract lang='eng+hin': "
+                f"{elapsed:.2f}s, "
+                f"{len(found)}/{len(hindi_terms)} Hindi terms found, "
+                f"Word overlap: {accuracy:.1%} ({overlap}/{len(gt_words)}). "
+                f"Found: {found}"
+            )
+
+            # Expect at least some output (the test should not crash)
+            assert elapsed < 10.0, f"Extraction too slow: {elapsed:.1f}s"
+            assert len(ext) > 20, f"Extracted text too short: {len(ext)} chars"
+
+        finally:
+            try:
+                os.unlink(devanagari_path)
+            except Exception:
+                pass
+            try:
+                os.unlink(gt_path)
+            except Exception:
+                pass
+
     def test_tesseract_no_model_load(self, tesseract_model):
         """Tesseract should have zero load time — it's a CLI tool.
 
@@ -333,12 +443,10 @@ class TestTesseractBenchmarks:
         Unlike GLM-OCR (which hallucinates on any Hindi-style content),
         Tesseract should extract most of the Latin-script transliterated
         terms accurately.
-
-        The ``eng+hin`` language pack enables better handling if installed.
-        If only ``eng`` is available the test still runs and validates
-        that Latin-script Indian terms are readable.
         """
+        import os as _os
         import time
+        import tempfile
 
         from PIL import Image, ImageDraw, ImageFont
 
@@ -373,7 +481,6 @@ class TestTesseractBenchmarks:
             "========================================",
             "  DHANYAVAAD! THANK YOU!",
         ]
-        ground_truth = "\n".join(lines)
 
         padding = 16
         font_size = 15
@@ -402,9 +509,8 @@ class TestTesseractBenchmarks:
             else:
                 draw.text((padding, y), stripped, fill="black", font=font)
 
-        import tempfile
         fd, path = tempfile.mkstemp(suffix=".png", prefix="tesseract_hindi_")
-        os.close(fd)
+        _os.close(fd)
         img.save(path)
 
         try:
@@ -440,9 +546,8 @@ class TestTesseractBenchmarks:
             assert elapsed < 3.0, f"Extraction too slow: {elapsed:.1f}s"
 
         finally:
-            import os
             try:
-                os.unlink(path)
+                _os.unlink(path)
             except Exception:
                 pass
 

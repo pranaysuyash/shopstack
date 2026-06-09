@@ -68,7 +68,7 @@ class OCRProvider(ProviderBase):
 
 class PlannerProvider(ProviderBase):
     @abstractmethod
-    def plan(self, context: dict[str, Any]) -> list[dict[str, Any]]:
+    def plan(self, context: dict[str, Any] | str) -> list[dict[str, Any]]:
         ...
 
 

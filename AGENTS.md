@@ -117,6 +117,8 @@ shopstack/
 - HTML escaping with `html.escape()` for all user/data-derived content in UI output.
 - Unit price normalization (kg/g/L/mL → per-base-unit) for price intelligence.
 - Pre-launch: no backward-compat shims, no legacy IDs, canonical paths only.
+- **Multi-venv fallback (adopted June 2026):** Models whose C-extension dependencies lack Python 3.14 wheels (PaddlePaddle max cp313, matcha-tts needs distutils) can run via a `.venv-py312` secondary environment using a subprocess gateway pattern. The primary 3.14 process spawns a subprocess for inference, communicating via JSON over stdin/stdout. Do not build speculatively — only implement when a provider integration depends on it. Documented in `Docs/exploration/MODEL_EXPLORATION_2026.md` section "Multi-Venv Architecture".
+- **Nothing gets silently removed:** Anyone who built and benchmarked a model — even one that failed — stays in the codebase with its provider, tests, benchmarks, and per-model docs. Failed claims are reclassified from `pending` to `failed` with measured evidence and an exploration doc reference for future re-evaluation. The exploration map documents every model's status, blocker, and path forward. If a claim is superseded, it's benchmarked on what worked, documented on what didn't, and referenced in the exploration map for later.
 
 ## Engineering Operating Rules
 
@@ -180,7 +182,7 @@ A hook at `.git/hooks/pre-commit` runs `tools/sync-readme-stats` which extracts 
 | `tests/test_adapter_blinkit.py` | 21 | Blinkit market source adapter: loader, normalization, freshness, adapter class |
 | `tests/test_adapter_zepto.py` | 20 | Zepto market source adapter: loader, normalization, freshness, adapter class |
 | `tests/test_adapter_dmart.py` | 20 | DMart market source adapter: loader, normalization, freshness, adapter class |
-| **Total** | **737** | (growing) |
+| **Total** | **760** | (growing) |
 
 ## Next Work
 
@@ -271,3 +273,18 @@ This file remains a guidance snapshot; code/runtime/tests at the time of work re
 - The pattern: `find_spec("package")` → set `_available = True` → defer `import package` to the method that actually uses it
 - 737 total tests pass (`uv run pytest tests/ -q`)
 - No git commands were used in this fix
+
+## Addendum (2026-06-09) — C-Extension Import Audit, Planner Eval, Multi-Source Decisions, Doc Updates
+
+This file remains a guidance snapshot; code/runtime/tests at the time of work remain source of truth.
+
+- Added `tests/test_import_audit.py` (19 tests) — verifies no C-extensions are loaded during provider import time. Uses `importlib.util.find_spec` pattern to prevent segfaults from C-extension loading during test collection.
+- Added `tests/test_planner_eval.py` (4 tests) — planner tool-call validation: structure checks, tool name validation against registry, edge cases (empty/None context), backend independence.
+- Fixed ABC contract in `shopstack/providers/interfaces.py`: `plan()` signature from `dict[str, Any]` to `dict[str, Any] | str` to match all implementations.
+- Added `embeddings_backend=bge_m3` and `tool_call_parser_backend=minicpm5` to `shopstack/config.py`.
+- Added multi-source market data integration via `SourceRegistry` in `shopstack/decisions/rules.py` and `shopstack/services/dashboard.py`.
+- Benchmark: `test_tesseract_hindi_devanagari_receipt` added — Tesseract+hin extracted **0/15 Devanagari terms** (16% word overlap from English only). Claim reclassified `pending → failed` with evidence.
+- Evaluation: PaddleOCR-VL-1.5 (0.9B, Apache 2.0, 109 languages) — blocked on Python 3.14 (PaddlePaddle wheels max cp313). Documented in exploration doc with multi-venv architecture proposal.
+- Multi-venv architecture documented as an Active Decision: `.venv-py312` secondary env via subprocess gateway pattern for Python-3.14-blocked C-extension models.
+- Exploration doc updated: PaddleOCR status, Tesseract+hin 0/15 result, multi-venv architecture section, updated practical path forward.
+- Verified counts: `uv run pytest tests/ -q` → **749 passed** in 40.14s. `uv run pytest tests/test_import_audit.py tests/test_planner_eval.py -q` → **23 passed**. `uv run pytest benchmarks/ -v -m benchmark -k tesseract -q` → **7 passed**.

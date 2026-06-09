@@ -33,6 +33,7 @@ def classify_all(
     db: Database,
     tools: ToolRegistry,
     market_snapshot=None,
+    source_registry: Any = None,
 ) -> DecisionSet:
     active_inv = [lot for lot in db.get_inventory() if lot.status == "active"]
     use_soon_items = tools.get_use_soon_items(days=_USE_SOON_DAYS).get("items", [])
@@ -54,28 +55,9 @@ def classify_all(
 
     market_by_canonical: dict[str, Any] = {}
     market_evidence_map: dict[str, MarketEvidence] = {}
-    if market_snapshot is not None:
-        for r in market_snapshot.normalized_records:
-            if r.is_available and r.is_weight_based and not r.is_combo:
-                existing = market_by_canonical.get(r.canonical_name)
-                if existing is None or (r.price_per_kg and existing.price_per_kg and r.price_per_kg < existing.price_per_kg):
-                    market_by_canonical[r.canonical_name] = r
-        for cname in set(market_by_canonical.keys()):
-            records = [r for r in market_snapshot.normalized_records if r.canonical_name == cname]
-            available = [r for r in records if r.is_available]
-            sold_out = [r for r in records if not r.is_available]
-            best = market_by_canonical.get(cname)
-            freshness = _build_freshness(market_snapshot)
-            market_evidence_map[cname] = MarketEvidence(
-                source=market_snapshot.source,
-                captured_at=market_snapshot.captured_at,
-                age_days=freshness.get("age_days", 0),
-                is_stale=freshness.get("is_stale", True),
-                best_value_price=best.price_inr if best else None,
-                best_value_per_kg=best.price_per_kg if best else None,
-                available_options=[r.to_dict() for r in available[:3]],
-                sold_out_options=[r.to_dict() for r in sold_out[:3]],
-            )
+
+    # Build market data from single snapshot or multi-source registry
+    _multi_source_market_data(market_snapshot, source_registry, market_by_canonical, market_evidence_map)
 
     seen: set[str] = set()
     decisions: list[ItemDecision] = []
@@ -186,6 +168,7 @@ def classify_all(
             ))
 
     if market_snapshot is not None:
+        market_source_name = getattr(market_snapshot, 'source', 'market')
         for cname, r in market_by_canonical.items():
             if cname in seen:
                 continue
@@ -204,15 +187,15 @@ def classify_all(
                 prices = [rec.price_per_kg for rec in all_weighted if rec.price_per_kg]
                 if prices and price_ppk <= min(prices) * 1.05:
                     decision = Decision.OPTIONAL.value
-                    reason_str = f"Good price: \u20b9{price_ppk:.0f}/kg on Swiggy"
+                    reason_str = f"Good price: \u20b9{price_ppk:.0f}/kg on {market_source_name}"
                     confidence = 0.7
                 else:
                     decision = Decision.WATCH.value
-                    reason_str = f"Available at \u20b9{price_ppk:.0f}/kg"
+                    reason_str = f"Available at \u20b9{price_ppk:.0f}/kg on {market_source_name}"
                     confidence = 0.5
             else:
                 decision = Decision.WATCH.value
-                reason_str = f"Available at \u20b9{price_ppk:.0f}/kg"
+                reason_str = f"Available at \u20b9{price_ppk:.0f}/kg on {market_source_name}"
                 confidence = 0.5
 
             decisions.append(ItemDecision(
@@ -286,6 +269,90 @@ def _get_produce_meta(canonical_name: str):
         return get_produce_metadata(canonical_name)
     except Exception:
         return None
+
+
+def _multi_source_market_data(
+    market_snapshot,
+    source_registry,
+    market_by_canonical: dict,
+    market_evidence_map: dict,
+) -> None:
+    """Populate market_by_canonical and market_evidence_map from single snapshot or multi-source registry."""
+    if source_registry is not None:
+        try:
+            all_snapshots = source_registry.all_snapshots()
+            for source_id, snap in all_snapshots.items():
+                if snap and snap.normalized_records:
+                    for r in snap.normalized_records:
+                        if r.is_available and r.is_weight_based and not r.is_combo:
+                            existing = market_by_canonical.get(r.canonical_name)
+                            if existing is None or (r.price_per_kg and existing.price_per_kg and r.price_per_kg < existing.price_per_kg):
+                                market_by_canonical[r.canonical_name] = r
+
+            for source_id, snap in all_snapshots.items():
+                if not snap or not snap.normalized_records:
+                    continue
+                for cname in set(market_by_canonical.keys()):
+                    records = [r for r in snap.normalized_records if r.canonical_name == cname]
+                    if not records:
+                        continue
+                    available = [r for r in records if r.is_available]
+                    sold_out = [r for r in records if not r.is_available]
+                    best = market_by_canonical.get(cname)
+                    existing_evidence = market_evidence_map.get(cname)
+                    price_per_kg = best.price_per_kg if best else None
+                    if existing_evidence:
+                        # Merge: keep the best price from any source
+                        if price_per_kg is not None and existing_evidence.best_value_per_kg is not None:
+                            if price_per_kg < existing_evidence.best_value_per_kg:
+                                existing_evidence.source = source_id
+                                existing_evidence.best_value_price = best.price_inr if best else None
+                                existing_evidence.best_value_per_kg = price_per_kg
+                        existing_evidence.available_options.extend(r.to_dict() for r in available[:2])
+                        existing_evidence.sold_out_options.extend(r.to_dict() for r in sold_out[:2])
+                    else:
+                        try:
+                            from shopstack.market.sources._repository import snapshot_freshness
+                            freshness = snapshot_freshness(snap)
+                        except Exception:
+                            freshness = {"age_days": 0, "is_stale": False}
+                        market_evidence_map[cname] = MarketEvidence(
+                            source=source_id,
+                            captured_at=snap.captured_at,
+                            age_days=freshness.get("age_days", 0),
+                            is_stale=freshness.get("is_stale", True),
+                            best_value_price=best.price_inr if best else None,
+                            best_value_per_kg=price_per_kg,
+                            available_options=[r.to_dict() for r in available[:3]],
+                            sold_out_options=[r.to_dict() for r in sold_out[:3]],
+                        )
+        except Exception:
+            logger.info("Multi-source market data unavailable, falling back to single snapshot", exc_info=True)
+            pass
+
+    # Fallback: single snapshot path
+    if market_snapshot is not None and not market_by_canonical:
+        for r in market_snapshot.normalized_records:
+            if r.is_available and r.is_weight_based and not r.is_combo:
+                existing = market_by_canonical.get(r.canonical_name)
+                if existing is None or (r.price_per_kg and existing.price_per_kg and r.price_per_kg < existing.price_per_kg):
+                    market_by_canonical[r.canonical_name] = r
+        for cname in set(market_by_canonical.keys()):
+            records = [r for r in market_snapshot.normalized_records if r.canonical_name == cname]
+            available = [r for r in records if r.is_available]
+            sold_out = [r for r in records if not r.is_available]
+            best = market_by_canonical.get(cname)
+            freshness = _build_freshness(market_snapshot)
+            market_evidence_map[cname] = MarketEvidence(
+                source=market_snapshot.source,
+                captured_at=market_snapshot.captured_at,
+                age_days=freshness.get("age_days", 0),
+                is_stale=freshness.get("is_stale", True),
+                best_value_price=best.price_inr if best else None,
+                best_value_per_kg=best.price_per_kg if best else None,
+                available_options=[r.to_dict() for r in available[:3]],
+                sold_out_options=[r.to_dict() for r in sold_out[:3]],
+            )
 
 
 def _build_freshness(market_snapshot) -> dict[str, Any]:

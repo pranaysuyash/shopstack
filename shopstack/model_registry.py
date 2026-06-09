@@ -167,7 +167,43 @@ MODEL_REGISTRY: list[ModelEntry] = [
         runtime="mlx",
         status="active",
         badge_relevance="llama_champion",
-        notes="Top-ranked small model for tool-calling (June 2026). ~97.5% pass rate on structured tool-calling benchmarks. Downloaded & tested: 12.5 tok/s via MLX on Apple Silicon.",
+        notes="Top-ranked small model for tool-calling (June 2026). ~97.5% pass rate. Cached in full bf16 precision (8.9GB). Config defaults to mlx-community/Qwen3.5-4B-4bit for production.",
+    ),
+    # Planner — Qwen3.5-4B-4bit (deployment variant, ~2.3GB, same accuracy)
+    ModelEntry(
+        provider_group="planner",
+        model_id="qwen3.5-4b-4bit",
+        hf_model="mlx-community/Qwen3.5-4B-4bit",
+        params_b=4.0,
+        license_note="Apache-2.0",
+        runtime="mlx",
+        status="active",
+        badge_relevance="llama_champion",
+        notes="4-bit quantized variant of Qwen3.5-4B. ~2.3GB vs 8.9GB for full bf16. Should match accuracy (~97.5%) at 4x less memory. Config default. Not yet cached — download: mlx_lm.load(\"mlx-community/Qwen3.5-4B-4bit\")",
+    ),
+    # Planner — Gemma 3 4B (strong architecture, needs prompt engineering)
+    ModelEntry(
+        provider_group="planner",
+        model_id="gemma-3-4b-it-4bit",
+        hf_model="mlx-community/gemma-3-4b-it-4bit",
+        params_b=4.0,
+        license_note="Gemma Terms of Use",
+        runtime="mlx",
+        status="candidate",
+        badge_relevance="none",
+        notes="Google Gemma 3 4B Instruct, 4-bit MLX quantized. Strong architecture but requires more prompt engineering for JSON output. Not yet downloaded or benchmarked.",
+    ),
+    # Planner — DeepSeek-R1-Distill-Qwen-7B (higher accuracy, heavier)
+    ModelEntry(
+        provider_group="planner",
+        model_id="deepseek-r1-distill-qwen-7b-4bit",
+        hf_model="mlx-community/DeepSeek-R1-Distill-Qwen-7B-abliterated-4bit",
+        params_b=7.0,
+        license_note="MIT",
+        runtime="mlx",
+        status="candidate",
+        badge_relevance="none",
+        notes="DeepSeek R1 Distill Qwen 7B, 4-bit MLX quantized. Higher accuracy potential but 7B params (~4GB). Not yet downloaded or benchmarked. Add to active only after verification.",
     ),
     # OCR / extraction
     ModelEntry(

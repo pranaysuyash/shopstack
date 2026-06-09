@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     local_model_dir: str = ""
     local_model_repo: str = "unsloth/Llama-3.2-3B-Instruct-GGUF"
     local_model_file: str = "Llama-3.2-3B-Instruct-Q4_K_M.gguf"
-    local_mlx_model: str = "Qwen/Qwen3.5-4B"
+    local_mlx_model: str = "mlx-community/Qwen3.5-4B-4bit"
     local_auto_download: bool = False
 
     local_whisper_size: str = "tiny"
@@ -35,13 +35,15 @@ class Settings(BaseSettings):
 
     cost_budget_limit: float = 1.00
 
-    planner_backend: str = "mock"
+    planner_backend: str = "local"
     stt_backend: str = "sensevoice"
     tts_backend: str = "kokoro"
     vision_backend: str = "mock"
     ocr_backend: str = "tesseract"
     segmentation_backend: str = "mock"
     image_gen_backend: str = "svg"
+    embeddings_backend: str = "bge_m3"
+    tool_call_parser_backend: str = "minicpm5"
 
     model_config = {"env_file": ".env", "env_prefix": "SHOPSTACK_", "extra": "ignore"}
 
@@ -69,8 +71,8 @@ class Settings(BaseSettings):
             "segmentation": self.segmentation_backend,
             "ocr": self.ocr_backend,
             "planner": self.planner_backend,
-            "tool_call_parser": self.planner_backend,
-            "embeddings": self.planner_backend,
+            "tool_call_parser": self.tool_call_parser_backend,
+            "embeddings": self.embeddings_backend,
             "image_edit": self.planner_backend,
             "image_gen": self.image_gen_backend,
         }

@@ -38,8 +38,11 @@ class DashboardState:
 
 
 def build_dashboard_state(db: Database, tools: ToolRegistry, city: str = "mumbai") -> DashboardState:
-    market_snapshot = _load_market_snapshot()
-    decision_set = classify_all(db, tools, market_snapshot)
+    """Assemble the Today dashboard state from inventory, decisions, market data, and weather."""
+    market_input = _load_market_snapshot()
+    # _load_market_snapshot returns (snapshot, registry) or (None, None)
+    market_snapshot, source_registry = market_input if isinstance(market_input, tuple) else (market_input, None)
+    decision_set = classify_all(db, tools, market_snapshot=market_snapshot, source_registry=source_registry)
     use_soon = tools.get_use_soon_items(days=3)
     active_list = db.get_active_shopping_list()
     all_inventory = db.get_inventory()
@@ -79,9 +82,23 @@ def build_dashboard_state(db: Database, tools: ToolRegistry, city: str = "mumbai
 
 
 def _load_market_snapshot():
+    """Load market snapshot(s) — prefers multi-source registry, falls back to Swiggy-only."""
+    try:
+        from shopstack.market.sources import build_registry
+        registry = build_registry()
+        snapshots = registry.all_snapshots()
+        if snapshots:
+            # Return first available snapshot + registry for multi-source
+            return (list(snapshots.values())[0], registry)
+    except Exception as exc:
+        logger.debug("Multi-source registry not available: %s", exc)
+
+    # Fallback: single Swiggy snapshot
     try:
         from shopstack.market.sources.swiggy import load_snapshot
-        return load_snapshot()
+        return (load_snapshot(), None)
     except Exception as exc:
         logger.info("Swiggy market data unavailable: %s", exc)
-        return None
+        return None, None
+
+

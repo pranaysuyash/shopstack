@@ -26,6 +26,7 @@ class TestSettings:
         assert s.stt_backend == "sensevoice"
         assert s.tts_backend == "kokoro"
         assert s.vision_backend == "mock"
+        assert s.planner_backend == "local"  # changed from mock to local
         assert s.ocr_backend == "tesseract"
 
     def test_provider_backends_compat_alias(self):

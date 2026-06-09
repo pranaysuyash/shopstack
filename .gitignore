@@ -13,6 +13,9 @@ benchmarks/RESULTS.md
 data/*.db
 data/*.db-shm
 data/*.db-wal
+data/*.png
+data/receipt_benchmark_results.json
+data/models/
 shopstack/data/models/
 .coverage
 .python-version

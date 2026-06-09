@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import importlib.util
 import logging
 import os
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -80,9 +82,24 @@ class LocalProvider:
         self._init_llamacpp()
 
     def _init_mlx(self) -> None:
+        # Respect sys.modules mocking used in tests to simulate a missing
+        # package (patch.dict("sys.modules", {"mlx_lm": None})).
+        if "mlx_lm" in sys.modules and sys.modules["mlx_lm"] is None:
+            self._error = "mlx-lm not installed. Run: uv pip install mlx-lm"
+            return
+        # Use find_spec to check for the package without importing it.
+        # Direct import of mlx_lm triggers mlx.core which can segfault
+        # on Python 3.14+ when multiple modules are initialised concurrently
+        # (common during pytest collection). A segfault is not catchable
+        # with try/except, so we avoid the import entirely until needed.
         try:
-            import mlx_lm  # noqa: F401
-        except ImportError:
+            spec = importlib.util.find_spec("mlx_lm")
+        except ValueError:
+            # find_spec can raise ValueError when a module is in sys.modules
+            # but __spec__ is not set (common in test mocking scenarios).
+            # Fall back to sys.modules check as an availability signal.
+            spec = None if "mlx_lm" not in sys.modules else sys.modules["mlx_lm"]
+        if spec is None:
             self._error = "mlx-lm not installed. Run: uv pip install mlx-lm"
             return
         try:
@@ -101,9 +118,19 @@ class LocalProvider:
             logger.info("MLX init failed (%s), trying llama.cpp fallback", e)
 
     def _init_llamacpp(self) -> None:
+        if "llama_cpp" in sys.modules and sys.modules["llama_cpp"] is None:
+            self._error = (
+                "No local inference engine available. "
+                "Install one: uv pip install mlx-lm  (Apple Silicon) "
+                "or uv pip install 'shopstack[local]' (llama-cpp-python)"
+            )
+            self._available = False
+            return
         try:
-            import llama_cpp  # noqa: F401
-        except ImportError:
+            spec = importlib.util.find_spec("llama_cpp")
+        except ValueError:
+            spec = None if "llama_cpp" not in sys.modules else sys.modules["llama_cpp"]
+        if spec is None:
             self._error = (
                 "No local inference engine available. "
                 "Install one: uv pip install mlx-lm  (Apple Silicon) "
