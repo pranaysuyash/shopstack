@@ -1,17 +1,50 @@
 #!/usr/bin/env python3
-"""Update README.md status sections with live test/benchmark counts."""
+"""Update README.md status sections with live test/benchmark counts.
+
+Non-blocking: if uv/pytest aren't available (e.g., CI, fresh checkout),
+the script exits 0 and leaves README unchanged.
+"""
+import os
+import shutil
 import subprocess
 import re
 import sys
 from pathlib import Path
+from typing import Optional
 
 REPO = Path(__file__).resolve().parent.parent
 README = REPO / "README.md"
 
 
-def run(cmd: list[str], timeout: int = 30) -> str:
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=REPO)
-    return result.stdout
+def _find_uv() -> Optional[str]:
+    """Locate the uv binary, trying venv-first, then PATH."""
+    candidates = [
+        REPO / ".venv" / "bin" / "uv",
+        Path.home() / ".local" / "bin" / "uv",
+        shutil.which("uv"),
+    ]
+    for c in candidates:
+        if c and Path(str(c)).is_file():
+            return str(c)
+    return None
+
+
+def _pytest(uv: str, target: str, extra_args: Optional[list] = None) -> Optional[str]:
+    """Run pytest via uv, returning stdout or None on failure."""
+    cmd = [uv, "run", "pytest", target, "-q"] + (extra_args or [])
+    env = {**os.environ, "PATH": os.environ.get("PATH", "")}
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            cwd=REPO,
+            env=env,
+        )
+        return result.stdout
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return None
 
 
 def extract_summary(output: str) -> str:
@@ -19,34 +52,47 @@ def extract_summary(output: str) -> str:
     return m.group(0) if m else ""
 
 
-def extract_count(output: str) -> str:
-    m = re.search(r"^.*?(\d+) passed.*?$", output, re.MULTILINE)
-    return m.group(0).strip() if m else ""
+def main() -> int:
+    uv = _find_uv()
+    if uv is None:
+        print("sync-readme-stats: uv not found — skipping README sync", file=sys.stderr)
+        return 0
+
+    test_output = _pytest(uv, "tests/")
+    bench_output = _pytest(uv, "benchmarks/", ["-m", "benchmark"])
+
+    if test_output is None and bench_output is None:
+        print("sync-readme-stats: pytest not available — skipping README sync", file=sys.stderr)
+        return 0
+
+    test_summary = extract_summary(test_output) if test_output else ""
+    bench_summary = extract_summary(bench_output) if bench_output else ""
+
+    if not test_summary and not bench_summary:
+        print("sync-readme-stats: no test/benchmark output — skipping README sync", file=sys.stderr)
+        return 0
+
+    readme_text = README.read_text()
+
+    if test_summary:
+        readme_text = re.sub(
+            r"uv run pytest tests/ -v          # .*$",
+            f"uv run pytest tests/ -v          # {test_summary}",
+            readme_text,
+            flags=re.MULTILINE,
+        )
+    if bench_summary:
+        readme_text = re.sub(
+            r"uv run pytest benchmarks/ -v -m benchmark  # .*$",
+            f"uv run pytest benchmarks/ -v -m benchmark  # {bench_summary}",
+            readme_text,
+            flags=re.MULTILINE,
+        )
+
+    README.write_text(readme_text)
+    print(f"README synced: tests={test_summary}, benchmarks={bench_summary}")
+    return 0
 
 
-test_output = run(["uv", "run", "pytest", "tests/", "-q"])
-test_summary = extract_summary(test_output)
-
-bench_output = run(["uv", "run", "pytest", "benchmarks/", "-q", "-m", "benchmark"])
-bench_summary = extract_summary(bench_output)
-
-readme_text = README.read_text()
-
-# Replace test count line
-if test_summary:
-    readme_text = re.sub(
-        r"uv run pytest tests/ -v          # .*$",
-        f"uv run pytest tests/ -v          # {test_summary}",
-        readme_text,
-        flags=re.MULTILINE,
-    )
-if bench_summary:
-    readme_text = re.sub(
-        r"uv run pytest benchmarks/ -v -m benchmark  # .*$",
-        f"uv run pytest benchmarks/ -v -m benchmark  # {bench_summary}",
-        readme_text,
-        flags=re.MULTILINE,
-    )
-
-README.write_text(readme_text)
-print(f"README synced: tests={test_summary}, benchmarks={bench_summary}")
+if __name__ == "__main__":
+    sys.exit(main())

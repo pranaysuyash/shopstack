@@ -138,6 +138,89 @@ class TestParseToolCalls:
         assert result[0]["tool"] == "find_item"
 
 
+class TestThinkTagStripping:
+    """Test that think-tag wrappers (Qwen3.5-style) are stripped before JSON extraction."""
+
+    def test_think_tag_wrapped_json(self):
+        """Full think block before JSON array."""
+        text = (
+            '<think>The user wants to find red onions. I should use find_item.</think>\n\n'
+            '[{"tool": "find_item", "args": {"query": "red onions"}}]'
+        )
+        result = extract_json(text)
+        assert result is not None
+        assert isinstance(result, list)
+        assert result[0]["tool"] == "find_item"
+        assert result[0]["args"]["query"] == "red onions"
+
+    def test_think_tag_with_brackets_in_reasoning(self):
+        """Think block containing brackets that would confuse the bracket search."""
+        text = (
+            '<think>I should use [find_item] to search for this. Also check [add_inventory_item].</think>\n\n'
+            '[{"tool": "find_item", "args": {"query": "milk"}}]'
+        )
+        result = extract_json(text)
+        assert result is not None
+        assert isinstance(result, list)
+        assert result[0]["tool"] == "find_item"
+
+    def test_think_tag_multiline(self):
+        """Multiline think block with newlines inside the tag."""
+        text = (
+            '<think>\n'
+            'The user is asking about inventory.\n'
+            'I should search for the item.\n'
+            'Let me use find_item with the right query.\n'
+            '</think>\n\n'
+            '[{"tool": "find_item", "args": {"query": "sugar"}}]'
+        )
+        result = extract_json(text)
+        assert result is not None
+        assert isinstance(result, list)
+        assert result[0]["args"]["query"] == "sugar"
+
+    def test_think_tag_with_markdown_fence(self):
+        """Think block followed by markdown-fenced JSON."""
+        text = (
+            '<think>I need to add this item.</think>\n\n'
+            '```json\n'
+            '[{"tool": "add_inventory_item", "args": {"canonical_name": "bread", "quantity": 2}}]\n'
+            '```'
+        )
+        result = extract_json(text)
+        assert result is not None
+        assert isinstance(result, list)
+        assert result[0]["tool"] == "add_inventory_item"
+
+    def test_think_tag_only(self):
+        """Think block with no JSON after it returns None."""
+        text = '<think>I don\'t think I have enough information.</think>'
+        result = extract_json(text)
+        assert result is None
+
+    def test_bare_think_end_tag(self):
+        """A standalone </think> tag (from Qwen with no opening tag) is harmless."""
+        text = (
+            '</think>\n\n'
+            '[{"tool": "find_item", "args": {"query": "rice"}}]'
+        )
+        result = extract_json(text)
+        assert result is not None
+        assert isinstance(result, list)
+        assert result[0]["args"]["query"] == "rice"
+
+    def test_nested_brackets_in_think_with_json_after(self):
+        """Think block with JSON-like content inside it, real JSON after."""
+        text = (
+            '<think>So the output would be [{"tool": "find_item"}] but that is wrong. I need to think more.</think>\n\n'
+            '[{"tool": "find_item", "args": {"query": "eggs"}}]'
+        )
+        result = extract_json(text)
+        assert result is not None
+        assert isinstance(result, list)
+        assert result[0]["args"]["query"] == "eggs"
+
+
 # ─── Prompt tests ────────────────────────────────────────────────
 
 class TestFormatInventoryContext:
