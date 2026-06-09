@@ -5,6 +5,7 @@
 
 ## Ground Rules
 - **Git read-only.** Never commit, push, reset, or checkout without explicit permission.
+- **Git-tracked docs only.** A doc that exists on disk but is not committed is not a source of truth. `Docs/SHOPSTACK_PRODUCT_ARCHITECTURE.md` exists locally but is not git-tracked (not returned by `git ls-files`). It must be committed before it is authoritative.
 - **Extend existing routes.** No duplicate API routes or parallel systems.
 - **Preserve docs.** Never delete documentation files without permission.
 - **Test every mutation path.** All DB write operations must have corresponding tests.
@@ -151,38 +152,50 @@ uv run pytest benchmarks/ -v -m benchmark  # Run benchmarks
 
 A hook at `.git/hooks/pre-commit` runs `tools/sync-readme-stats` which extracts live test/benchmark counts from `pytest -q` output and updates README.md. On every commit, README test counts stay current automatically.
 
+> Current verified: **837 tests** (`uv run pytest tests/ --collect-only -q`). The inventory table above is the canonical reference.
+
 ## Test Inventory
 
 | File | Tests | Scope |
 |------|-------|-------|
 | `tests/test_config.py` | 6 | Settings defaults, env overrides, aliases |
 | `tests/test_database.py` | 32 | All 10 tables: CRUD, edge cases, seeds, deprecated wrappers |
-| `tests/test_schemas.py` | 19 | Model validation, defaults, edge cases |
+| `tests/test_schemas.py` | 22 | Model validation, defaults, edge cases |
 | `tests/test_tools.py` | 22 | All 11 tools, arg validation, list tools, prefix resolution |
 | `tests/test_traces.py` | 12 | PII redaction, trace creation, JSONL export |
 | `tests/test_provider_registry.py` | 2 | Mock fallback for custom backends, local backend fallback |
 | `tests/test_model_registry.py` | 4 | Parameter limit enforcement, budget validation |
-| `tests/test_ui_support.py` | 19 | PriceMemoryView, FieldNotesView, escaping, sort, unit price, list_to_table |
-| `tests/test_views.py` | 47 | All view functions: dashboard, shopping, add (inc. neg validation), inventory, cards, consume (inc. prefix), use-soon, map, traces, field notes |
-| `tests/test_app.py` | 5 | App smoke tests (build_app, imports, dashboard shape, tabs) |
+| `tests/test_ui_support.py` | 24 | PriceMemoryView, FieldNotesView, escaping, sort, unit price, list_to_table |
+| `tests/test_views.py` | 48 | All view functions: dashboard, shopping, add (inc. neg validation), inventory, cards, consume (inc. prefix), use-soon, map, traces, field notes |
+| `tests/test_app.py` | 6 | App smoke tests (build_app, imports, dashboard shape, tabs) |
 | `tests/test_portability.py` | 18 | JSON + CSV export/import, dedup, validation, summary HTML |
-| `tests/test_local_provider.py` | 10 | Local provider init, graceful fallback, capability checks |
-| `tests/test_planner.py` | 26 | JSON extraction, tool-call parsing, inventory formatting, planner engine |
-| `tests/test_market.py` | 52 | Swiggy loader, size parser, unit prices, canonical matching, analytics, basket, produce metadata |
+| `tests/test_screens.py` | 113 | Screen builders: dashboard, shopping, market lens, ask, inventory, traces |
+| `tests/test_shopping_service.py` | 50 | Service-layer: shopping completion, mark purchased, edge cases |
+| `tests/test_dashboard_service.py` | 3 | Dashboard state assembly service |
+| `tests/test_market_lens_service.py` | 4 | Market Lens analysis service |
+| `tests/test_local_provider.py` | 37 | Local provider init, graceful fallback, capability checks |
+| `tests/test_local_whisper_provider.py` | 9 | Local whisper provider init, mlx guard, deferred import |
+| `tests/test_planner.py` | 33 | JSON extraction, tool-call parsing, inventory formatting, planner engine |
+| `tests/test_planner_eval.py` | 4 | Planner tool-call validation, structure checks, name validation |
+| `tests/test_market.py` | 55 | Swiggy loader, size parser, unit prices, canonical matching, analytics, basket, produce metadata |
 | `tests/test_decisions.py` | 20 | Decision engine: BUY/SKIP/USE_SOON classification, market basket, Swiggy integration |
-| `tests/test_cadence_waste.py` | 15 | Purchase cadence detection, waste patterns, Swiggy availability checks |
+| `tests/test_cadence_waste.py` | 16 | Purchase cadence detection, waste patterns, Swiggy availability checks |
 | `tests/test_safe_render.py` | 4 | Error boundary decorator: pass-through, catch, args, name preservation |
 | `tests/test_runtime.py` | 5 | Runtime diagnostics: provider status, model info |
 | `tests/test_swiggy_data_source.py` | 4 | Swiggy data source validation |
 | `tests/test_voice_add.py` | 14 | Voice add commands, price intelligence |
-| `tests/test_huggingface_provider.py` | 62 | HF provider: init, complete, plan, retry, registry, env key, structured chat routing |
-| `tests/test_openai_provider.py` | 21 | OpenAI provider: init, complete, analyze_image, embed, env key, registry |
-| `tests/test_whisper_provider.py` | 21 | Whisper API provider: init, transcribe, file-not-found, env key, registry |
-| `tests/test_new_providers.py` | 55 | MiniCPM-V, MiniCPM5, Qwen3-TTS, NuExtract3, RMBG, Parakeet, SenseVoice, Qwen3-ASR |
-| `tests/test_adapter_blinkit.py` | 21 | Blinkit market source adapter: loader, normalization, freshness, adapter class |
+| `tests/test_import_audit.py` | 19 | C-extension import audit during provider init |
+| `tests/test_huggingface_provider.py` | 34 | HF provider: init, complete, plan, retry, registry, env key, structured chat routing |
+| `tests/test_openai_provider.py` | 24 | OpenAI provider: init, complete, analyze_image, embed, env key, registry |
+| `tests/test_whisper_provider.py` | 18 | Whisper API provider: init, transcribe, file-not-found, env key, registry |
+| `tests/test_new_providers.py` | 59 | MiniCPM-V, MiniCPM5, Qwen3-TTS, NuExtract3, RMBG, Parakeet, SenseVoice, Qwen3-ASR |
+| `tests/test_flux_provider.py` | 19 | Flux image generation provider |
+| `tests/test_module_registry.py` | 16 | Module registry: registration, lookup, tab labels |
+| `tests/test_weather_trip.py` | 21 | Weather and trip context services |
+| `tests/test_adapter_blinkit.py` | 20 | Blinkit market source adapter: loader, normalization, freshness, adapter class |
 | `tests/test_adapter_zepto.py` | 20 | Zepto market source adapter: loader, normalization, freshness, adapter class |
 | `tests/test_adapter_dmart.py` | 20 | DMart market source adapter: loader, normalization, freshness, adapter class |
-| **Total** | **760** | (growing) |
+| **Total** | **837** | (growing) |
 
 ## Next Work
 
@@ -202,7 +215,6 @@ This file is a project guidance snapshot; current source of truth remains code/r
 - Primary app UI no longer exposes `Load Demo Data` on the Today tab; seed utilities remain developer/walkthrough tooling only.
 - Header runtime badge is derived from provider runtime state instead of hardcoded `Mock`/version copy.
 - Swiggy views, shopping-list enrichment, and Market Lens price cross-references now label Swiggy data as point-in-time and surface freshness.
-- Verified counts: `uv run pytest tests/ -q` → 348 passed; `uv run pytest tests/ benchmarks/ -q` → 357 passed.
 
 ## Addendum (2026-06-06) — Service Boundary Extraction
 
@@ -212,7 +224,6 @@ This file remains a guidance snapshot; code/runtime/tests at the time of work re
 - Added `shopstack/services/market_lens.py` for Market Lens barcode/object/OCR/STT analysis and Swiggy enrichment.
 - Added `shopstack/services/dashboard.py` for Today dashboard state assembly.
 - `shopstack/ui/screens/shopping.py`, `shopstack/ui/screens/market_lens.py`, and `shopstack/ui/screens/dashboard.py` now act more like Gradio adapters: parse/render/trace/wire, while product logic lives in services.
-- Verified counts: `uv run pytest tests/ -q` → 375 passed; `uv run pytest tests/ benchmarks/ -q` → 384 passed.
 
 ## Addendum (2026-06-06) — Product Naming & Module Architecture
 
@@ -231,7 +242,6 @@ This file remains a guidance snapshot; code/runtime/tests at the time of work re
 - The product subtitle in `app.py` updated to "Your home's shopping intelligence & memory."
 - `shopstack/config.py` app_name remains "ShopStack"; added `app_description` field.
 - `README.md` reframed around shopping intelligence platform language.
-- Verified counts: `uv run pytest tests/ -q` → same as previous (`357`); architecture and copy changes are non-functional.
 
 ## Addendum (2026-06-07) — Test Suite Stabilization
 
@@ -241,7 +251,6 @@ This file remains a guidance snapshot; code/runtime/tests at the time of work re
 - Fixed indentation error in `shopstack/providers/registry.py` (`_try_real_provider` was syntactically broken).
 - Fixed tests to explicitly set `planner_backend="mock"` to prevent OS env var overrides.
 - Fixed `test_views.py`, `test_voice_add.py`, `test_planner.py` to work with mock planner availability.
-- Verified counts: `uv run pytest tests/ -q --ignore=tests/test_local_provider.py` → **532 passed** in 70.01s. `uv run pytest benchmarks/ -v -m benchmark` → **9 passed** in 2.45s.
 - Resolved test suite timeout issue (full suite now runs in ~70s deterministically).
 
 ## Addendum (2026-06-07) — HuggingFace Inference API Provider
@@ -253,7 +262,6 @@ This file remains a guidance snapshot; code/runtime/tests at the time of work re
 - Added `hf_api_key` to `shopstack/config.py` (reads `SHOPSTACK_HF_API_KEY` env var, falls back to `HF_API_KEY`).
 - Wired into `shopstack/providers/registry.py` — backend `"huggingface"` activates via `planner_backend=huggingface`. Falls back to mock gracefully when deps/token missing.
 - 26 tests in `tests/test_huggingface_provider.py` covering init, complete, plan, retry, registry wiring, env var precedence, and latency tracking.
-- Verified: 26/26 HF provider tests pass; 558+ total tests pass with no regressions.
 
 ## Addendum (2026-06-09) — Python 3.14 + mlx segfault fix
 
@@ -271,8 +279,6 @@ This file remains a guidance snapshot; code/runtime/tests at the time of work re
 - mlx 0.31.2 on Python 3.14.5 is the confirmed crash combination. If CI uses a different Python version or mlx release, the `find_spec` + lazy-import pattern remains the safe approach since it avoids C-extension loading during availability checks.
 - Other packages imported via `find_spec` + deferred load pattern (safe for any C-extension-backed package that may crash on import): `mlx`, `mlx-lm`, `llama-cpp-python`, `faster-whisper`
 - The pattern: `find_spec("package")` → set `_available = True` → defer `import package` to the method that actually uses it
-- 737 total tests pass (`uv run pytest tests/ -q`)
-- No git commands were used in this fix
 
 ## Addendum (2026-06-09) — C-Extension Import Audit, Planner Eval, Multi-Source Decisions, Doc Updates
 
@@ -287,4 +293,3 @@ This file remains a guidance snapshot; code/runtime/tests at the time of work re
 - Evaluation: PaddleOCR-VL-1.5 (0.9B, Apache 2.0, 109 languages) — blocked on Python 3.14 (PaddlePaddle wheels max cp313). Documented in exploration doc with multi-venv architecture proposal.
 - Multi-venv architecture documented as an Active Decision: `.venv-py312` secondary env via subprocess gateway pattern for Python-3.14-blocked C-extension models.
 - Exploration doc updated: PaddleOCR status, Tesseract+hin 0/15 result, multi-venv architecture section, updated practical path forward.
-- Verified counts: `uv run pytest tests/ -q` → **749 passed** in 40.14s. `uv run pytest tests/test_import_audit.py tests/test_planner_eval.py -q` → **23 passed**. `uv run pytest benchmarks/ -v -m benchmark -k tesseract -q` → **7 passed**.
