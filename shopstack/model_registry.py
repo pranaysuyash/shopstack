@@ -157,7 +157,7 @@ MODEL_REGISTRY: list[ModelEntry] = [
         badge_relevance="none",
         notes="downloaded & tested: 493ms for 49 tokens via llama.cpp. Superseded by qwen3.5-4b for planner (better tool-calling accuracy).",
     ),
-    # Planner — Qwen3.5-4B (current best-in-class for tool-calling under 4B params)
+    # Planner — Qwen3.5-4B (full bf16 variant, cached, used for accuracy-critical tasks)
     ModelEntry(
         provider_group="planner",
         model_id="qwen3.5-4b",
@@ -165,9 +165,9 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=4.0,
         license_note="Apache-2.0",
         runtime="mlx",
-        status="active",
+        status="candidate",
         badge_relevance="llama_champion",
-        notes="Top-ranked small model for tool-calling (June 2026). ~97.5% pass rate. Cached in full bf16 precision (8.9GB). Config defaults to mlx-community/Qwen3.5-4B-4bit for production.",
+        notes="Full bf16 precision variant (8.9GB). ~18 tok/s via MLX. Demoted to candidate because config now defaults to 4-bit variant. Keep cached for quality-benchmarking (97.5% accuracy).",
     ),
     # Planner — Qwen3.5-4B-4bit (deployment variant, ~2.3GB, same accuracy)
     ModelEntry(

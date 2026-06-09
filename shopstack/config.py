@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     local_model_repo: str = "unsloth/Llama-3.2-3B-Instruct-GGUF"
     local_model_file: str = "Llama-3.2-3B-Instruct-Q4_K_M.gguf"
     local_mlx_model: str = "mlx-community/Qwen3.5-4B-4bit"
-    local_auto_download: bool = False
+    local_auto_download: bool = True
 
     local_whisper_size: str = "tiny"
     local_auto_unload: bool = True

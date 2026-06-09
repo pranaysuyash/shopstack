@@ -63,10 +63,49 @@ from shopstack.ui.screens.price_compare import (
 from shopstack.ui.screens._utils import WORKFLOW_STEPS, workflow_header, workflow_title_bar
 from shopstack.ui.theme import CSS
 
+from pathlib import Path
 from shopstack.app_context import APP_DESCRIPTION, APP_NAME, db, providers, tools, planner, model_registry
+from shopstack.config import settings
 from shopstack.module_registry import tab_label as _tab_label
 
 _workflow_header = workflow_header
+
+
+def _model_download_status() -> str:
+    """Check whether the configured MLX planner model is cached locally.
+    Returns an HTML snippet if a download is pending, or empty string if cached.
+    """
+    try:
+        import os as _os
+
+        mlx_model = settings.local_mlx_model
+        if not mlx_model:
+            return ""
+
+        # Check HF hub cache
+        hf_home = _os.environ.get("HF_HOME", _os.path.expanduser("~/.cache/huggingface"))
+        hf_cache = Path(hf_home) / "hub"
+        model_dir_name = "models--" + mlx_model.replace("/", "--")
+        model_cache_dir = hf_cache / model_dir_name
+
+        if model_cache_dir.is_dir():
+            snapshots_dir = model_cache_dir / "snapshots"
+            if snapshots_dir.is_dir():
+                for snap in snapshots_dir.iterdir():
+                    if snap.is_dir() and any(
+                        f.suffix in (".safetensors", ".gguf")
+                        for f in snap.iterdir()
+                    ):
+                        return ""
+            return ""
+
+        return (
+            "<div style='font-size:11px;color:var(--amber);margin-top:4px;'>"
+            f"<span>\u23F3 {mlx_model.split('/')[-1]} download pending (first query triggers it)</span>"
+            "</div>"
+        )
+    except Exception:
+        return ""
 
 
 def _runtime_label() -> str:
@@ -89,6 +128,7 @@ def build_app() -> gr.Blocks:
   </div>
   <div>
     <div class=\"env-badge\">{runtime_label}</div>
+    {_model_download_status()}
     <button onclick=\"toggleTheme()\" style=\"margin-top:4px;background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 10px;cursor:pointer;font-size:11px;color:var(--text-muted);\">🌓</button>
   </div>
 </div>"""

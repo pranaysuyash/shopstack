@@ -288,31 +288,25 @@ class TestLocalProviderEmbed:
     def test_embed_unavailable(self):
         provider = _provider_without_model()
         result = provider.embed(["hello"])
-        assert len(result) == 1
-        assert len(result[0]) == 128
-        assert all(v == 0.0 for v in result[0])
+        assert result == []
 
     def test_embed_mlx_backend(self):
-        """embed returns zeros for MLX backend (not implemented)."""
+        """embed returns empty for MLX backend (not implemented)."""
         provider = _provider_without_model()
         provider._available = True
         provider._backend = "mlx"
         result = provider.embed(["hello"])
-        assert len(result) == 1
-        assert len(result[0]) == 128
-        assert all(v == 0.0 for v in result[0])
+        assert result == []
 
     def test_embed_error(self):
-        """embed returns zeros when llama.cpp backend fails."""
+        """embed returns empty when llama.cpp backend fails."""
         provider = _provider_without_model()
         provider._available = True
         provider._backend = "llama.cpp"
         provider._llm = MagicMock()
         provider._llm.create_embedding.side_effect = RuntimeError("embedding failed")
         result = provider.embed(["hello"])
-        assert len(result) == 1
-        assert len(result[0]) == 128
-        assert all(v == 0.0 for v in result[0])
+        assert result == []
 
 
 # ── Vision / Audio fallbacks ───────────────────────────────────────────

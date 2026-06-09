@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 
 _WEIGHT_PATTERN = re.compile(
@@ -17,6 +20,11 @@ _SIZE_CLASS_PATTERN = re.compile(
     r"^(\d+)\s*(small|medium|large)$",
     re.IGNORECASE,
 )
+_SIZE_CLASS_GRAM_ESTIMATES: dict[str, int] = {
+    "small": 80,
+    "medium": 120,
+    "large": 180,
+}
 
 
 @dataclass
@@ -84,13 +92,15 @@ def parse_size(raw_size: str) -> SizeParseResult:
     if m:
         count = int(m.group(1))
         cls = m.group(2).lower()
+        estimated_grams = count * _SIZE_CLASS_GRAM_ESTIMATES[cls]
         return SizeParseResult(
-            normalized_quantity=float(count),
-            normalized_unit="size_class",
+            normalized_quantity=float(estimated_grams),
+            normalized_unit="g",
             package_count=count,
             is_size_class=True,
+            is_weight_based=True,
             size_class=cls,
-            warnings=["size_class_no_weight"],
+            warnings=[f"estimated_size_class_weight:{cls}:{_SIZE_CLASS_GRAM_ESTIMATES[cls]}g_each"],
         )
 
     if re.match(r"^\d+\s*$", stripped):
@@ -212,6 +222,36 @@ _CANONICAL_MAP: dict[str, str] = {
 }
 
 _COMBO_KEYWORDS = ("combo", "&", "mix")
+
+# User-facing alias map: Hindi/regional/colloquial → canonical English name.
+# This is the single source of truth for linguistic aliases.
+# Market product variants (e.g. "baby potato", "sambar onion") are NOT here
+# because they represent distinct inventory items — those live in _CANONICAL_MAP.
+ITEM_ALIASES: dict[str, list[str]] = {
+    "tomato": ["tamatar", "tomatoes"],
+    "coriander": ["dhania", "cilantro"],
+    "curd": ["dahi", "yogurt"],
+    "wheat flour": ["atta", "aata"],
+    "rice": ["chawal"],
+    "lentils": ["dal", "daal"],
+    "onion": ["pyaaz", "pyaz", "eerulli"],
+    "potato": ["aloo", "alu", "chikka aloo"],
+    "cucumber": ["sowthekaayi"],
+}
+
+
+def normalize_item_name(name: str) -> str:
+    """Normalize a user-supplied item name: clean punctuation + resolve aliases.
+
+    This is the canonical normalization for user-input and inventory matching.
+    Market-data normalization uses ``canonicalize_name`` instead.
+    """
+    normal = re.sub(r"[^\w\s]", " ", name.lower()).strip()
+    normal = re.sub(r"\s+", " ", normal)
+    for canonical, aliases in ITEM_ALIASES.items():
+        if normal == canonical or normal in aliases:
+            return canonical
+    return normal
 
 
 def canonicalize_name(raw_name: str) -> tuple[str, str, list[str]]:

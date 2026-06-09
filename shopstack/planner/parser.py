@@ -12,7 +12,14 @@ def extract_json(text: str) -> list[dict[str, Any]] | dict[str, Any] | None:
     cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
     cleaned = re.sub(r"\s*```\s*$", "", cleaned)
 
-    # Step 2: try to find a JSON array or object in the text
+    # Step 2: strip <think>...</think> wrappers (Qwen3.5 thinking tags)
+    # Chat-based models like Qwen wrap reasoning in <think> blocks before
+    # the JSON output. If the think-text contains brackets (e.g.
+    # "I should use [find_item]"), the bracket search below would find the
+    # wrong delimiter. Stripping think tags first prevents this.
+    cleaned = re.sub(r"<think>.*?</think>", "", cleaned, flags=re.DOTALL)
+
+    # Step 3: try to find a JSON array or object in the text
     first_bracket = cleaned.find("[")
     first_brace = cleaned.find("{")
 

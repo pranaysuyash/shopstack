@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from shopstack.market.normalization import ITEM_ALIASES, normalize_item_name  # noqa: F401 — re-exported
 from shopstack.services.results import (
     CompletionItem,
     MarkPurchasedResult,
@@ -15,17 +16,6 @@ from shopstack.services.results import (
 from shopstack.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
-
-ITEM_ALIASES: dict[str, list[str]] = {
-    "tomato": ["tamatar", "tomatoes"],
-    "coriander": ["dhania", "cilantro"],
-    "curd": ["dahi", "yogurt"],
-    "wheat flour": ["atta", "aata"],
-    "rice": ["chawal"],
-    "lentils": ["dal", "daal"],
-    "onion": ["pyaaz", "pyaz"],
-    "potato": ["aloo", "alu"],
-}
 
 
 @dataclass
@@ -125,6 +115,7 @@ def enrich_items_with_swiggy(items: list[dict[str, Any]]) -> list[dict[str, Any]
         names = [item["canonical_name"].lower() for item in items]
         availability = check_swiggy_availability(names)
     except Exception:
+        logger.warning("Swiggy enrichment failed, prices will be empty", exc_info=True)
         availability = {}
 
     for item in items:

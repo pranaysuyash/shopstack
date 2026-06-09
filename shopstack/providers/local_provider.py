@@ -108,6 +108,32 @@ class LocalProvider:
             local_path = Path(self._model_dir) / self._mlx_model.split("/")[-1]
             if local_path.is_dir():
                 model_path = str(local_path)
+            else:
+                # Check the HF hub cache (respects HF_HOME env var).
+                # If the model isn't cached locally, only return early
+                # (fall through to llama.cpp GGUF) when auto-download is
+                # disabled. With auto-download enabled, claim MLX availability
+                # and let _init_mlx_model() download via mlx_lm.load().
+                if not self._allow_download:
+                    hf_home = os.environ.get(
+                        "HF_HOME",
+                        os.path.expanduser("~/.cache/huggingface"),
+                    )
+                    hf_cache = Path(hf_home) / "hub"
+                    model_dir_name = "models--" + self._mlx_model.replace("/", "--")
+                    hf_model_dir = hf_cache / model_dir_name
+                    if not hf_model_dir.is_dir():
+                        logger.info(
+                            "MLX model %s not cached locally, "
+                            "falling through to llama.cpp GGUF path",
+                            self._mlx_model,
+                        )
+                        return
+                else:
+                    logger.info(
+                        "MLX model %s not cached locally, will auto-download on first use",
+                        self._mlx_model,
+                    )
 
             self._model_path = model_path
             self._backend = "mlx"
@@ -263,6 +289,8 @@ class LocalProvider:
                 stop = kwargs.get("stop", [])
                 if not self._ensure_model():
                     return {"error": self._error or "Local provider not available", "model": self.name}
+                if not prompt:
+                    return {"text": "", "model": model_name, "usage": {"total_tokens": 0}}
 
                 t0 = time.monotonic()
 
@@ -316,11 +344,14 @@ class LocalProvider:
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         if not self._available:
-            return [[0.0] * 128 for _ in texts]
+            logger.warning("embed() called but local provider unavailable; returning empty list")
+            return []
         if not self._ensure_model():
-            return [[0.0] * 128 for _ in texts]
+            logger.warning("embed() called but model could not be loaded; returning empty list")
+            return []
         if self._backend == "mlx":
-            return [[0.0] * 128 for _ in texts]
+            logger.warning("MLX backend does not support embeddings; use BGE-M3 provider instead")
+            return []
         try:
             results = []
             for text in texts:
@@ -329,7 +360,7 @@ class LocalProvider:
             return results
         except Exception:
             logger.warning("Local embedding failed", exc_info=True)
-            return [[0.0] * 128 for _ in texts]
+            return []
         finally:
             self._maybe_unload_model()
 
@@ -349,6 +380,36 @@ class LocalProvider:
     def extract_text(self, image_path: str) -> dict[str, Any]:
         return {"error": "Local provider does not support OCR. Use a dedicated OCR model.", "model": self.name}
 
+    def _format_chat_prompt(self, system_prompt: str, question: str) -> str | None:
+        """Format system + user messages using the tokenizer's chat template.
+
+        Chat-based models like Qwen3.5 require the chat template to correctly
+        interpret system/user message boundaries. Without it, the model
+        generates conversation continuations (multiple turns) that break
+        JSON parsing and waste token budget on thinking.
+
+        Returns the formatted prompt string, or None if the tokenizer
+        isn't loaded or doesn't have a chat_template (e.g., GGUF backend).
+        """
+        if self._tokenizer is None:
+            return None
+        chat_template = getattr(self._tokenizer, "chat_template", None)
+        if not chat_template:
+            return None
+        if not question:
+            return None
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"USER REQUEST: {question}\n\nJSON tool calls:"},
+        ]
+        try:
+            return self._tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+        except Exception as exc:
+            logger.debug("Chat template formatting failed: %s", exc)
+            return None
+
     def plan(self, context: dict[str, Any] | str) -> list[dict[str, Any]]:
         from shopstack.planner.parser import parse_tool_calls
 
@@ -359,14 +420,26 @@ class LocalProvider:
             # Direct provider.plan() calls with a raw prompt are used in benchmark
             # tests. Preserve app behavior by using PlannerEngine's dict-based
             # plan(context) path for actual planning, but keep string calls fast.
+            logger.warning("plan() received raw string context; use dict context with PlannerEngine for actual planning")
             return [{"tool": "respond", "args": {"message": ""}}]
 
         prompt = context.get("prompt") or context.get("question") or ""
-        max_tokens = context.get("max_tokens", 64)
+        max_tokens = context.get("max_tokens", 512)
         temperature = context.get("temperature", 0.0)
 
         if not prompt:
             return [{"tool": "respond", "args": {"message": ""}}]
+
+        # Apply chat template for chat-based MLX models (e.g., Qwen3.5).
+        # This prevents the model from generating conversation continuations
+        # that break JSON parsing.
+        system_prompt = context.get("system", "")
+        question = context.get("question", "")
+        if self._backend == "mlx" and system_prompt and question:
+            if self._ensure_model():
+                formatted = self._format_chat_prompt(system_prompt, question)
+                if formatted is not None:
+                    prompt = formatted
 
         # Reuse complete() for planning; this returns a raw model response.
         result = self.complete(prompt, max_tokens=max_tokens, temperature=temperature)

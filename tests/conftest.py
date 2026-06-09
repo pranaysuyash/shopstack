@@ -30,6 +30,7 @@ def settings(db_path: str) -> Settings:
     # The project Settings API uses `db_path`, not the older `database_path` name.
     # Ignore the repo .env file during tests so defaults are deterministic.
     return Settings(_env_file=None, db_path=db_path, off_the_grid=True,
+                    planner_backend="mock",
                     stt_backend="mock", tts_backend="mock")
 
 

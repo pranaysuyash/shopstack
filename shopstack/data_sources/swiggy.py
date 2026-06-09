@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from shopstack.config import settings
+from shopstack.market.normalization import normalize_item_name
 from shopstack.persistence.database import Database
 from shopstack.schemas.models import PriceObservation
 

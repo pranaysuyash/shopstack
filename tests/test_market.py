@@ -60,8 +60,17 @@ class TestSizeParser:
         r = parse_size("2 Medium")
         assert r.is_size_class is True
         assert r.size_class == "medium"
-        assert r.is_weight_based is False
+        assert r.is_weight_based is True
         assert r.is_piece_based is False
+        assert r.normalized_quantity == 240
+        assert r.normalized_unit == "g"
+        assert r.warnings == ["estimated_size_class_weight:medium:120g_each"]
+
+    def test_size_class_unit_price_is_estimated(self):
+        r = parse_size("1 Large")
+        prices = compute_unit_prices(36, r.normalized_quantity, r.normalized_unit, r.is_weight_based, r.is_piece_based)
+        assert prices["price_per_kg"] == 200.0
+        assert prices["price_per_100g"] == 20.0
 
     def test_4_pieces(self):
         r = parse_size("4 Pieces")

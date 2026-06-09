@@ -7,6 +7,7 @@ import traceback
 from html import escape
 from typing import Any, Callable
 
+from shopstack.market.normalization import normalize_item_name
 from shopstack.ui import card as ui_card
 from shopstack.ui.components import render_workflow_rail
 
@@ -35,17 +36,6 @@ def safe_render(fn: Callable) -> Callable:
             )
             return error_html
     return wrapper
-
-ITEM_ALIASES: dict[str, list[str]] = {
-    "tomato": ["tamatar", "tomatoes"],
-    "coriander": ["dhania", "cilantro"],
-    "curd": ["dahi", "yogurt"],
-    "wheat flour": ["atta", "aata"],
-    "rice": ["chawal"],
-    "lentils": ["dal", "daal"],
-    "onion": ["pyaaz", "pyaz"],
-    "potato": ["aloo", "alu"],
-}
 
 WORKFLOW_STEPS = (
     "Input",
@@ -109,14 +99,6 @@ def rows_to_html(rows: list[dict[str, Any]], headers: list[str]) -> str:
         f"{body_html}"
         "</table>"
     )
-
-
-def normalize_item_name(name: str) -> str:
-    normal = re.sub(r"[^\w\s]", " ", name.lower()).strip()
-    for canonical, aliases in ITEM_ALIASES.items():
-        if normal == canonical or normal in aliases:
-            return canonical
-    return normal
 
 
 def parse_shopping_text(items_text: str) -> list[str]:

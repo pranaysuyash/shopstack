@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Callable
 
 from shopstack.config import Settings
 from shopstack.providers.interfaces import (
@@ -37,7 +38,8 @@ from shopstack.providers.image_gen_provider import FluxImageProvider
 
 logger = logging.getLogger(__name__)
 
-_REAL_PROVIDER_MAP: dict[str, str] = {}
+
+# ── Lazy loader helpers ────────────────────────────────────────────────
 
 
 def _load_local_whisper():
@@ -151,6 +153,7 @@ def _load_rmbg():
     except ImportError:
         return None
 
+
 def _load_glm_ocr():
     try:
         from shopstack.providers.ocr_provider import GlmOCRProvider
@@ -175,121 +178,130 @@ def _load_parakeet():
         return None
 
 
+# ── Provider specification table ───────────────────────────────────────
+# Adding a new provider = one entry here + a _load_* function above.
+
+
+@dataclass
+class _ProviderSpec:
+    loader: Callable[[], type | None]
+    kwargs_fn: Callable[[Settings], dict[str, Any]]
+    unavailable_msg: str
+
+
+_PROVIDER_SPECS: dict[str, _ProviderSpec] = {
+    "local_whisper": _ProviderSpec(
+        loader=_load_local_whisper,
+        kwargs_fn=lambda s: {
+            "model_dir": s.local_model_dir,
+            "model_size": s.local_whisper_size,
+            "auto_unload": s.local_whisper_auto_unload,
+        },
+        unavailable_msg="Local Whisper provider not available (mlx-whisper / faster-whisper missing), falling back to mock",
+    ),
+    "openai": _ProviderSpec(
+        loader=_load_openai,
+        kwargs_fn=lambda s: {"api_key": s.openai_api_key},
+        unavailable_msg="OpenAI provider not available (openai package missing), falling back to mock",
+    ),
+    "whisper": _ProviderSpec(
+        loader=_load_whisper,
+        kwargs_fn=lambda s: {"api_key": s.openai_api_key},
+        unavailable_msg="Whisper provider not available (openai package missing), falling back to mock",
+    ),
+    "local": _ProviderSpec(
+        loader=_load_local,
+        kwargs_fn=lambda s: {
+            "model_dir": s.local_model_dir,
+            "model_repo": s.local_model_repo,
+            "model_file": s.local_model_file,
+            "mlx_model": s.local_mlx_model,
+            "allow_download": s.local_auto_download,
+            "auto_unload": s.local_auto_unload,
+        },
+        unavailable_msg="Local provider not available (mlx-lm / llama-cpp-python missing), falling back to mock",
+    ),
+    "huggingface": _ProviderSpec(
+        loader=_load_huggingface,
+        kwargs_fn=lambda s: {"api_key": s.hf_api_key},
+        unavailable_msg="HuggingFace provider not available (huggingface_hub package missing), falling back to mock",
+    ),
+    "sensevoice": _ProviderSpec(
+        loader=_load_sensevoice,
+        kwargs_fn=lambda _s: {},
+        unavailable_msg="SenseVoice STT provider not available (funasr package missing), falling back to mock",
+    ),
+    "kokoro": _ProviderSpec(
+        loader=_load_kokoro_tts,
+        kwargs_fn=lambda _s: {},
+        unavailable_msg="Kokoro TTS provider not available (kokoro package missing), falling back to mock",
+    ),
+    "qwen3_asr": _ProviderSpec(
+        loader=_load_qwen3_asr,
+        kwargs_fn=lambda _s: {},
+        unavailable_msg="Qwen3-ASR provider not available (transformers/torch missing), falling back to mock",
+    ),
+    "bge_m3": _ProviderSpec(
+        loader=_load_bge_m3,
+        kwargs_fn=lambda _s: {},
+        unavailable_msg="BGE-M3 provider not available (sentence-transformers missing), falling back to mock",
+    ),
+    "minicpmv": _ProviderSpec(
+        loader=_load_minicpmv,
+        kwargs_fn=lambda _s: {},
+        unavailable_msg="MiniCPM-V provider not available (transformers/torch missing), falling back to mock",
+    ),
+    "minicpm5": _ProviderSpec(
+        loader=_load_minicpm5,
+        kwargs_fn=lambda _s: {},
+        unavailable_msg="MiniCPM5 provider not available (transformers/torch missing), falling back to mock",
+    ),
+    "qwen3_tts": _ProviderSpec(
+        loader=_load_qwen3_tts,
+        kwargs_fn=lambda _s: {},
+        unavailable_msg="Qwen3-TTS provider not available (transformers/torch missing), falling back to mock",
+    ),
+    "nuextract3": _ProviderSpec(
+        loader=_load_nuextract3,
+        kwargs_fn=lambda _s: {},
+        unavailable_msg="NuExtract3 provider not available (transformers/torch missing), falling back to mock",
+    ),
+    "glm_ocr": _ProviderSpec(
+        loader=_load_glm_ocr,
+        kwargs_fn=lambda _s: {},
+        unavailable_msg="GLM-OCR provider not available (transformers/torch/torchvision missing), falling back to mock",
+    ),
+    "tesseract": _ProviderSpec(
+        loader=_load_tesseract,
+        kwargs_fn=lambda _s: {},
+        unavailable_msg="Tesseract OCR provider not available (pytesseract missing), falling back to mock",
+    ),
+    "rmbg": _ProviderSpec(
+        loader=_load_rmbg,
+        kwargs_fn=lambda _s: {},
+        unavailable_msg="RMBG provider not available (transformers/torch missing), falling back to mock",
+    ),
+    "parakeet": _ProviderSpec(
+        loader=_load_parakeet,
+        kwargs_fn=lambda _s: {},
+        unavailable_msg="Parakeet provider not available (transformers/torch missing), falling back to mock",
+    ),
+}
+
+
 def _try_real_provider(backend: str, settings: Settings) -> Any | None:
-    if backend == "local_whisper":
-        cls = _load_local_whisper()
-        if cls:
-            return cls(
-                model_dir=settings.local_model_dir,
-                model_size=settings.local_whisper_size,
-                auto_unload=settings.local_whisper_auto_unload,
-            )
-        logger.info("Local Whisper provider not available (mlx-whisper / faster-whisper missing), falling back to mock")
+    normalized = backend.replace("-", "_")
+    spec = _PROVIDER_SPECS.get(normalized)
+    if spec is None:
         return None
-    if backend == "openai":
-        cls = _load_openai()
-        if cls:
-            return cls(api_key=settings.openai_api_key)
-        logger.info("OpenAI provider not available (openai package missing), falling back to mock")
-        return None
-    if backend == "whisper":
-        cls = _load_whisper()
-        if cls:
-            return cls(api_key=settings.openai_api_key)
-        logger.info("Whisper provider not available (openai package missing), falling back to mock")
-        return None
-    if backend == "local":
-        cls = _load_local()
-        if cls:
-            return cls(
-                model_dir=settings.local_model_dir,
-                model_repo=settings.local_model_repo,
-                model_file=settings.local_model_file,
-                mlx_model=settings.local_mlx_model,
-                allow_download=settings.local_auto_download,
-                auto_unload=settings.local_auto_unload,
-            )
-        logger.info("Local provider not available (mlx-lm / llama-cpp-python missing), falling back to mock")
-        return None
-    if backend == "huggingface":
-        cls = _load_huggingface()
-        if cls:
-            return cls(api_key=settings.hf_api_key)
-        logger.info("HuggingFace provider not available (huggingface_hub package missing), falling back to mock")
-        return None
-    if backend == "sensevoice":
-        cls = _load_sensevoice()
-        if cls:
-            return cls()
-        logger.info("SenseVoice STT provider not available (funasr package missing), falling back to mock")
-        return None
-    if backend == "kokoro":
-        cls = _load_kokoro_tts()
-        if cls:
-            return cls()
-        logger.info("Kokoro TTS provider not available (kokoro package missing), falling back to mock")
-        return None
-    if backend == "qwen3_asr":
-        cls = _load_qwen3_asr()
-        if cls:
-            return cls()
-        logger.info("Qwen3-ASR provider not available (transformers/torch missing), falling back to mock")
-        return None
-    if backend == "bge_m3" or backend == "bge-m3":
-        cls = _load_bge_m3()
-        if cls:
-            return cls()
-        logger.info("BGE-M3 provider not available (sentence-transformers missing), falling back to mock")
-        return None
-    if backend == "minicpmv":
-        cls = _load_minicpmv()
-        if cls:
-            return cls()
-        logger.info("MiniCPM-V provider not available (transformers/torch missing), falling back to mock")
-        return None
-    if backend == "minicpm5":
-        cls = _load_minicpm5()
-        if cls:
-            return cls()
-        logger.info("MiniCPM5 provider not available (transformers/torch missing), falling back to mock")
-        return None
-    if backend == "qwen3_tts":
-        cls = _load_qwen3_tts()
-        if cls:
-            return cls()
-        logger.info("Qwen3-TTS provider not available (transformers/torch missing), falling back to mock")
-        return None
-    if backend == "nuextract3" or backend == "nuextract":
-        cls = _load_nuextract3()
-        if cls:
-            return cls()
-        logger.info("NuExtract3 provider not available (transformers/torch missing), falling back to mock")
-        return None
-    if backend == "glm_ocr" or backend == "glm-ocr":
-        cls = _load_glm_ocr()
-        if cls:
-            return cls()
-        logger.info("GLM-OCR provider not available (transformers/torch/torchvision missing), falling back to mock")
-        return None
-    if backend == "tesseract":
-        cls = _load_tesseract()
-        if cls:
-            return cls()
-        logger.info("Tesseract OCR provider not available (pytesseract missing), falling back to mock")
-        return None
-    if backend == "rmbg":
-        cls = _load_rmbg()
-        if cls:
-            return cls()
-        logger.info("RMBG provider not available (transformers/torch missing), falling back to mock")
-        return None
-    if backend == "parakeet":
-        cls = _load_parakeet()
-        if cls:
-            return cls()
-        logger.info("Parakeet provider not available (transformers/torch missing), falling back to mock")
-        return None
+    cls = spec.loader()
+    if cls:
+        return cls(**spec.kwargs_fn(settings))
+    logger.info(spec.unavailable_msg)
     return None
+
+
+# ── Provider registry ──────────────────────────────────────────────────
 
 
 class ProviderRegistry:

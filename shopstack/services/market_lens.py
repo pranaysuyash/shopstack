@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
 from shopstack.scanner import decode_barcode, infer_product_from_code
 from shopstack.services.shopping import normalize_item_name
 from shopstack.tools.registry import ToolRegistry
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -111,6 +114,7 @@ def enrich_market_prices(decisions: list[dict[str, Any]]) -> list[dict[str, Any]
         from shopstack.decisions import check_swiggy_availability
         prices = check_swiggy_availability([d["canonical_name"].lower() for d in decisions])
     except Exception:
+        logger.warning("Market price enrichment failed", exc_info=True)
         prices = {}
 
     for decision in decisions:

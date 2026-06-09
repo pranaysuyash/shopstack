@@ -63,9 +63,14 @@ def semantic_search(
 
     if not results and embedding_provider is not None:
         try:
-            query_emb = embedding_provider.embed([q])[0]
+            query_embs = embedding_provider.embed([q])
+            if not query_embs:
+                return results
+            query_emb = query_embs[0]
             item_texts = list(items.keys())
             item_embs = embedding_provider.embed(item_texts)
+            if not item_embs or len(item_embs) != len(item_texts):
+                return results
             scored: list[tuple[float, str]] = []
             for i, cname in enumerate(item_texts):
                 sim = embedding_provider.similarity(query_emb, item_embs[i])
