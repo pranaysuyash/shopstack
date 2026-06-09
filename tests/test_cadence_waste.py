@@ -159,7 +159,6 @@ class TestShoppingListSwiggyEnrichment:
         assert result[0]["swiggy_available"] is None
 
     def test_shopping_freshness_note(self, ctx):
-        from shopstack.ui.screens.shopping import _swiggy_freshness_note
-        html = _swiggy_freshness_note()
+        from shopstack.ui.screens._utils import source_freshness_html
+        html = source_freshness_html("swiggy")
         assert "point-in-time" in html
-        assert "Verify before checkout" in html

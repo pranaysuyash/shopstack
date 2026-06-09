@@ -9,24 +9,10 @@ from shopstack.app_context import db, providers, tools
 from shopstack.services.market_lens import MarketLensResult, analyze_market_lens
 from shopstack.ui.components import render_grouped_cards
 from shopstack.traces.export import create_trace, update_trace_confirmation
-from shopstack.ui.screens._utils import WORKFLOW_STEPS
+from shopstack.ui.screens._utils import WORKFLOW_STEPS, source_freshness_html
 from shopstack.ui.screens.ask import ask_shopstack
 
 logger = logging.getLogger(__name__)
-
-
-def _swiggy_freshness_note() -> str:
-    try:
-        from shopstack.market.sources.swiggy import load_snapshot, snapshot_freshness
-        freshness = snapshot_freshness(load_snapshot())
-    except Exception:
-        return ""
-    color = "#ef4444" if freshness["is_stale"] else "var(--text-dim)"
-    return (
-        f"<div style='font-size:11px;color:{color};margin-top:6px;'>"
-        f"Swiggy prices are point-in-time: {escape(freshness['label'])}. Verify before checkout."
-        f"</div>"
-    )
 
 
 def market_lens_process(image_path: str | None, audio_path: str | None) -> tuple:
@@ -128,7 +114,7 @@ def _render_swiggy_section(decisions: list[dict[str, Any]]) -> str:
         "<div class='stat-card' style='margin-top:10px;'>"
         "<h4>Swiggy Instamart Prices</h4>"
         + "".join(swiggy_rows)
-        + _swiggy_freshness_note()
+        + source_freshness_html("swiggy")
         + "</div>"
     )
 

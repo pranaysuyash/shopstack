@@ -18,7 +18,7 @@ def _load_pyzbar():
             try:
                 ctypes.cdll.LoadLibrary(_ZBAR_PATH)
             except Exception:
-                pass
+                logger.debug("Could not preload zbar shared library from %s", _ZBAR_PATH, exc_info=True)
         from pyzbar.pyzbar import decode as _pyzbar_decode, ZBarSymbol
         return _pyzbar_decode, ZBarSymbol
     except ImportError:

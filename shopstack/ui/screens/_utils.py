@@ -14,6 +14,31 @@ from shopstack.ui.components import render_workflow_rail
 logger = logging.getLogger(__name__)
 
 
+def source_freshness_html(source_id: str = "swiggy") -> str:
+    """Load a market source snapshot and return an HTML freshness note.
+
+    Returns an empty string if the source data is unavailable.
+    """
+    try:
+        if source_id == "swiggy":
+            from shopstack.market.sources.swiggy import load_snapshot, snapshot_freshness
+            freshness = snapshot_freshness(load_snapshot())
+        else:
+            from shopstack.market.sources import build_registry
+            registry = build_registry()
+            freshness = registry.freshness_of(source_id)
+    except Exception:
+        return ""
+    color = "#ef4444" if freshness.get("is_stale") else "var(--text-dim)"
+    label = freshness.get("label", "")
+    prefix = "Market data may be stale" if freshness.get("is_stale") else "Market snapshot"
+    return (
+        f"<div style='font-size:11px;color:{color};margin-top:6px;'>"
+        f"{escape(prefix)}: {escape(label)}. Prices and availability are point-in-time signals."
+        f"</div>"
+    )
+
+
 def safe_render(fn: Callable) -> Callable:
     """Decorator that catches exceptions from UI render functions and returns a friendly error card.
 

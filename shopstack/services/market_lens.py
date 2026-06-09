@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from shopstack.scanner import decode_barcode, infer_product_from_code
-from shopstack.services.shopping import normalize_item_name
+from shopstack.services.shopping import enrich_items_with_swiggy, normalize_item_name
 from shopstack.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -110,19 +110,8 @@ def analyze_visible_items(image_path: str, providers: Any, tools: ToolRegistry) 
 
 
 def enrich_market_prices(decisions: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    try:
-        from shopstack.decisions import check_swiggy_availability
-        prices = check_swiggy_availability([d["canonical_name"].lower() for d in decisions])
-    except Exception:
-        logger.warning("Market price enrichment failed", exc_info=True)
-        prices = {}
-
-    for decision in decisions:
-        info = prices.get(decision["canonical_name"].lower())
-        if info:
-            decision["swiggy_price"] = info["price"]
-            decision["swiggy_available"] = info["available"]
-            decision["swiggy_price_per_kg"] = info["price_per_kg"]
+    """Attach market price fields through the canonical shopping service path."""
+    enrich_items_with_swiggy(decisions)
     return decisions
 
 

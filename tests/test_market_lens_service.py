@@ -41,3 +41,46 @@ def test_enrich_market_prices_known_item():
 
     assert "swiggy_price" in result[0]
     assert "swiggy_available" in result[0]
+
+
+def test_enrich_market_prices_unknown_item():
+    decisions = [{"canonical_name": "unobtainium_99"}]
+
+    result = enrich_market_prices(decisions)
+
+    assert "swiggy_price" not in result[0]
+    assert "swiggy_available" not in result[0]
+
+
+def test_enrich_market_prices_empty_list():
+    result = enrich_market_prices([])
+    assert result == []
+
+
+def test_enrich_market_prices_multiple_items():
+    decisions = [
+        {"canonical_name": "Tomato"},
+        {"canonical_name": "Onion"},
+    ]
+
+    result = enrich_market_prices(decisions)
+
+    assert len(result) == 2
+    for item in result:
+        assert "swiggy_price" in item
+        assert "swiggy_available" in item
+
+
+def test_analyze_market_lens_no_input(providers, tool_registry):
+    result = analyze_market_lens(None, None, providers, tool_registry)
+
+    assert result.items_found == []
+    assert result.decisions == []
+    assert result.transcript_text == ""
+
+
+def test_analyze_market_lens_barcode_json_format(providers, tool_registry):
+    result = analyze_market_lens("fake-market-image.jpg", None, providers, tool_registry)
+
+    barcode = json.loads(result.barcode_json)
+    assert isinstance(barcode, list)

@@ -4,22 +4,14 @@ import logging
 from html import escape
 
 from shopstack.market.schema import NormalizedMarketRecord
-from shopstack.ui.screens._utils import safe_render
+from shopstack.ui.screens._utils import safe_render, source_freshness_html
 
 
 logger = logging.getLogger(__name__)
 
-def _market_freshness_html(snapshot) -> str:
-    from shopstack.market.sources.swiggy import snapshot_freshness
 
-    freshness = snapshot_freshness(snapshot)
-    color = "#ef4444" if freshness["is_stale"] else "var(--text-dim)"
-    prefix = "Market data may be stale" if freshness["is_stale"] else "Market snapshot"
-    return (
-        f"<div style='font-size:11px;color:{color};margin-top:4px;'>"
-        f"{escape(prefix)}: {escape(freshness['label'])}. Prices and availability are point-in-time signals."
-        f"</div>"
-    )
+def _market_freshness_html(snapshot) -> str:
+    return source_freshness_html("swiggy")
 
 
 @safe_render

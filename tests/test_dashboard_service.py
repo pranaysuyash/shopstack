@@ -46,3 +46,88 @@ def test_build_dashboard_state_includes_active_list(db, tool_registry):
     assert state.active_list is not None
     assert state.active_list.goal == "Vegetables"
     assert any(d.canonical_name == "tomato" for d in state.decision_set.decisions)
+
+
+def test_dashboard_state_use_soon_count_property():
+    state = DashboardState(
+        decision_set=None,
+        market_snapshot=None,
+        use_soon={"count": 3, "items": [{"name": "milk"}, {"name": "bread"}]},
+        active_list=None,
+    )
+    assert state.use_soon_count == 3
+
+
+def test_dashboard_state_use_soon_items_property():
+    items = [{"name": "milk"}, {"name": "bread"}]
+    state = DashboardState(
+        decision_set=None,
+        market_snapshot=None,
+        use_soon={"count": 2, "items": items},
+        active_list=None,
+    )
+    assert state.use_soon_items == items
+
+
+def test_dashboard_state_use_soon_empty():
+    state = DashboardState(
+        decision_set=None,
+        market_snapshot=None,
+        use_soon={},
+        active_list=None,
+    )
+    assert state.use_soon_count == 0
+    assert state.use_soon_items == []
+
+
+def test_build_dashboard_state_includes_cadence_data(db, tool_registry):
+    tool_registry.add_inventory_item(
+        canonical_name="milk",
+        display_name="Milk",
+        quantity=1.0,
+        unit="L",
+        source_event_id="test",
+    )
+    state = build_dashboard_state(db, tool_registry)
+    assert isinstance(state.cadence_data, dict)
+
+
+def test_build_dashboard_state_includes_waste_data(db, tool_registry):
+    tool_registry.add_inventory_item(
+        canonical_name="milk",
+        display_name="Milk",
+        quantity=1.0,
+        unit="L",
+    )
+    state = build_dashboard_state(db, tool_registry)
+    assert isinstance(state.waste_data, list)
+
+
+def test_build_dashboard_state_recent_purchases(db, tool_registry):
+    tool_registry.add_inventory_item(
+        canonical_name="rice",
+        display_name="Rice",
+        quantity=5.0,
+        unit="kg",
+    )
+    state = build_dashboard_state(db, tool_registry)
+    assert isinstance(state.recent_purchases, list)
+
+
+def test_build_dashboard_state_low_items_filter(db, tool_registry):
+    tool_registry.add_inventory_item(
+        canonical_name="onion",
+        display_name="Onion",
+        quantity=0.1,
+        unit="kg",
+    )
+    tool_registry.add_inventory_item(
+        canonical_name="potato",
+        display_name="Potato",
+        quantity=2.0,
+        unit="kg",
+    )
+    state = build_dashboard_state(db, tool_registry)
+    low_names = {item.canonical_name for item in state.low_items}
+    assert "onion" in low_names
+    assert "potato" not in low_names

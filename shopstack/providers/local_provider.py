@@ -483,3 +483,29 @@ class LocalProvider:
     @property
     def last_token_count(self) -> int | None:
         return self._last_token_count
+
+    @property
+    def model_id(self) -> str:
+        if self._backend == "mlx":
+            return self._mlx_model
+        if self._backend == "llama.cpp":
+            return f"{self._model_repo}/{self._model_file}"
+        return ""
+
+    def runtime_report(self) -> dict[str, Any]:
+        """Return operator-facing local runtime health without loading a model."""
+        return {
+            "provider": self.name,
+            "available": self._available,
+            "backend": self._backend or "unavailable",
+            "model_id": self.model_id,
+            "model_path": self._model_path or "",
+            "model_dir": self._model_dir,
+            "allow_download": self._allow_download,
+            "auto_unload": self._auto_unload,
+            "context_length": self._n_ctx,
+            "gpu_layers": self._n_gpu_layers,
+            "last_latency_ms": self._last_latency_ms,
+            "last_token_count": self._last_token_count,
+            "error": self._error or "",
+        }

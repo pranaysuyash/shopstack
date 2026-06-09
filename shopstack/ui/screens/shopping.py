@@ -19,6 +19,7 @@ from shopstack.ui.renderers import render_mark_purchased, render_shopping_comple
 from shopstack.traces.export import create_trace
 from shopstack.ui.screens._utils import (
     parse_shopping_text,
+    source_freshness_html,
 )
 
 logger = logging.getLogger(__name__)
@@ -136,20 +137,6 @@ def _classify_shopping_items(items: list[dict[str, Any]]) -> tuple[list[dict[str
 def _enrich_items_with_swiggy(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return enrich_items_with_swiggy(items)
 
-
-def _swiggy_freshness_note() -> str:
-    try:
-        from shopstack.market.sources.swiggy import load_snapshot, snapshot_freshness
-        snapshot = load_snapshot()
-        freshness = snapshot_freshness(snapshot)
-    except Exception:
-        return ""
-    color = "#ef4444" if freshness["is_stale"] else "var(--text-dim)"
-    return (
-        f"<div style='font-size:11px;color:{color};margin-top:8px;'>"
-        f"Swiggy prices are point-in-time: {escape(freshness['label'])}. Verify before checkout."
-        f"</div>"
-    )
 
 
 def _render_shopping_plan_html(
@@ -340,7 +327,7 @@ def _shopping_list_payload() -> tuple[str, list[list[str]], str, str, str, str]:
 
     cards = _render_shopping_plan_html(must_buy, optional, skipped, use_soon)
     if cards and any(item.get("swiggy_available") is not None for item in rows):
-        cards += _swiggy_freshness_note()
+        cards += source_freshness_html("swiggy")
 
     table_rows = []
     for item in rows:

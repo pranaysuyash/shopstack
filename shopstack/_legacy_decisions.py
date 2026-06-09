@@ -1,10 +1,11 @@
-"""Decision engine — backward-compatible re-exports.
+"""DB-aware render wrappers for decision dashboard cards.
 
-New code should import directly from shopstack.decisions (types, rules)
-and shopstack.ui.renderers.decision_cards (HTML renderers).
+These functions combine data fetching (from Database) with HTML rendering
+(from ui.renderers.decision_cards). They exist here because the decisions
+package cannot import from UI without creating circular imports.
 
-This module remains for backward compatibility — all names delegate to
-the canonical implementation in shopstack.decisions.
+New code should call renderers directly with pre-fetched data rather than
+using these wrappers.
 """
 
 from __future__ import annotations

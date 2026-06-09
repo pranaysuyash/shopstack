@@ -119,9 +119,13 @@ def price_intelligence_view() -> str:
             + "</div>"
         )
     try:
-        from shopstack.market.sources import build_registry
-        from shopstack.market.sources._comparison import CrossSourcePrice, compare_across_sources, format_cross_source_html
-        from shopstack.market.sources._repository import MarketSnapshotRepository
+        from shopstack.market.sources import (
+            build_registry,
+            CrossSourcePrice,
+            compare_across_sources,
+            format_cross_source_html,
+            MarketSnapshotRepository,
+        )
 
         _reg = build_registry(repository=MarketSnapshotRepository())
         snapshots = _reg.all_snapshots()

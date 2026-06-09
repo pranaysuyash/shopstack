@@ -15,15 +15,16 @@ from shopstack.schemas.models import DecisionSet, _ACTION_COLORS as DECISION_COL
 _LOW_STOCK_THRESHOLD = 0.5
 _USE_SOON_DAYS = 3
 
+_CARD_OPEN = "<div class='stat-card' style='text-align:left;margin-bottom:12px;'>"
+_CARD_ALERT_OPEN = "<div class='stat-card' style='text-align:left;margin-bottom:12px;border-left:3px solid var(--red);'>"
+
 
 def render_market_basket(ds: DecisionSet) -> str:
     buy_items = ds.buy
     if not buy_items:
         return (
-            "<div class='stat-card' style='text-align:left;margin-bottom:12px;'>"
-            "<h3>Today's Market Basket</h3>"
-            "<div style='color:var(--text-dim);'>Nothing to buy right now. Your pantry is in good shape.</div>"
-            "</div>"
+            f"{_CARD_OPEN}<h3>Today's Market Basket</h3>"
+            "<div style='color:var(--text-dim);'>Nothing to buy right now. Your pantry is in good shape.</div></div>"
         )
 
     rows = []
@@ -54,20 +55,16 @@ def render_market_basket(ds: DecisionSet) -> str:
             parts.append(f"{use_soon_count} use-soon")
         savings_note = (
             f"<div style='margin-top:8px;font-size:11px;color:var(--text-dim);'>"
-            f"Waste prevention: {' + '.join(parts)}"
-            f"</div>"
+            f"Waste prevention: {' + '.join(parts)}</div>"
         )
 
     return (
-        f"<div class='stat-card' style='text-align:left;margin-bottom:12px;'>"
-        f"<h3>Today's Market Basket</h3>"
+        f"{_CARD_OPEN}<h3>Today's Market Basket</h3>"
         f"{''.join(rows)}"
         f"<div style='margin-top:8px;padding-top:8px;border-top:2px solid var(--border);display:flex;justify-content:space-between;'>"
         f"<span style='font-weight:600;'>Estimated total</span>"
-        f"<span style='font-weight:700;font-size:16px;'>&#8377;{total:.0f}</span>"
-        f"</div>"
-        f"{savings_note}"
-        f"</div>"
+        f"<span style='font-weight:700;font-size:16px;'>&#8377;{total:.0f}</span></div>"
+        f"{savings_note}</div>"
     )
 
 
@@ -96,24 +93,20 @@ def render_inventory_overview(all_inv: list[Any]) -> str:
     no_recent = "<div style='color:var(--text-dim);'>No recent additions recorded.</div>"
 
     return (
-        "<div class='stat-card' style='text-align:left;margin-bottom:12px;'>"
-        "<h3>What I Have</h3>"
+        f"{_CARD_OPEN}<h3>What I Have</h3>"
         f"<div style='margin-bottom:8px;color:var(--text-dim);'>Total active inventory items: {total}</div>"
         f"<div style='font-size:12px;margin-bottom:8px;'>Locations: {escape(location_html or 'None')}</div>"
         f"<div style='font-size:12px;margin-bottom:8px;'>Duplicates: {duplicate_count}</div>"
-        "<div style='font-weight:600;margin-bottom:4px;'>Recently added</div>"
-        f"{recent_html or no_recent}"
-        "</div>"
+        f"<div style='font-weight:600;margin-bottom:4px;'>Recently added</div>"
+        f"{recent_html or no_recent}</div>"
     )
 
 
 def render_my_list_panel(ds: DecisionSet, active_list: Any) -> str:
     if not active_list or not getattr(active_list, "items", None):
         return (
-            "<div class='stat-card' style='text-align:left;margin-bottom:12px;'>"
-            "<h3>My Own List</h3>"
-            "<div style='color:var(--text-dim);'>No active shopping list.</div>"
-            "</div>"
+            f"{_CARD_OPEN}<h3>My Own List</h3>"
+            "<div style='color:var(--text-dim);'>No active shopping list.</div></div>"
         )
 
     rows = []
@@ -126,30 +119,21 @@ def render_my_list_panel(ds: DecisionSet, active_list: Any) -> str:
             f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
             f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
             f"<span>{escape(item.canonical_name.replace('_', ' ').title())}</span>"
-            f"<span style='color:{badge_color};font-weight:600;'>{escape(label)}</span>"
-            f"</div>"
-            f"<div style='font-size:11px;color:var(--text-dim);'>{escape(reason)}</div>"
-            f"</div>"
+            f"<span style='color:{badge_color};font-weight:600;'>{escape(label)}</span></div>"
+            f"<div style='font-size:11px;color:var(--text-dim);'>{escape(reason)}</div></div>"
         )
 
-    return (
-        "<div class='stat-card' style='text-align:left;margin-bottom:12px;'>"
-        "<h3>My Own List</h3>"
-        f"{''.join(rows)}"
-        "</div>"
-    )
+    return f"{_CARD_OPEN}<h3>My Own List</h3>{''.join(rows)}</div>"
 
 
 def render_compare_panel(ds: DecisionSet) -> str:
     compare_items = ds.compare
-    wait_items = ds.wait  # old watch + confirm both map to wait
+    wait_items = ds.wait
 
     if not compare_items and not wait_items:
         return (
-            "<div class='stat-card' style='text-align:left;margin-bottom:12px;'>"
-            "<h3>Compare / Market Signals</h3>"
-            "<div style='color:var(--text-dim);'>No comparison signals available.</div>"
-            "</div>"
+            f"{_CARD_OPEN}<h3>Compare / Market Signals</h3>"
+            "<div style='color:var(--text-dim);'>No comparison signals available.</div></div>"
         )
 
     rows = []
@@ -158,23 +142,16 @@ def render_compare_panel(ds: DecisionSet) -> str:
         rows.append(
             f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
             f"<strong style='color:var(--decision-compare);'>Compare</strong> {escape(d.display_name)}"
-            f"<div style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}{price}</div>"
-            f"</div>"
+            f"<div style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}{price}</div></div>"
         )
     for d in wait_items[:4]:
         rows.append(
             f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
             f"<strong style='color:var(--decision-watch);'>Watch</strong> {escape(d.display_name)}"
-            f"<div style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}</div>"
-            f"</div>"
+            f"<div style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}</div></div>"
         )
 
-    return (
-        "<div class='stat-card' style='text-align:left;margin-bottom:12px;'>"
-        "<h3>Compare / Market Signals</h3>"
-        f"{''.join(rows)}"
-        "</div>"
-    )
+    return f"{_CARD_OPEN}<h3>Compare / Market Signals</h3>{''.join(rows)}</div>"
 
 
 def render_decision_panel(ds: DecisionSet) -> str:
@@ -184,10 +161,8 @@ def render_decision_panel(ds: DecisionSet) -> str:
 
     if not buy and not skip and not use_soon:
         return (
-            "<div class='stat-card' style='text-align:left;margin-bottom:12px;'>"
-            "<h3>Today's Decisions</h3>"
-            "<div style='color:var(--text-dim);'>No decisions yet. Add inventory or a shopping list to get started.</div>"
-            "</div>"
+            f"{_CARD_OPEN}<h3>Today's Decisions</h3>"
+            "<div style='color:var(--text-dim);'>No decisions yet. Add inventory or a shopping list to get started.</div></div>"
         )
 
     sections: list[str] = []
@@ -199,8 +174,7 @@ def render_decision_panel(ds: DecisionSet) -> str:
             buy_rows.append(
                 f"<div style='padding:5px 0;border-bottom:1px solid var(--border);'>"
                 f"<strong style='color:var(--decision-buy);'>Buy</strong> {escape(d.display_name)} "
-                f"<span style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}{price}</span>"
-                f"</div>"
+                f"<span style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}{price}</span></div>"
             )
         sections.append("".join(buy_rows))
 
@@ -210,8 +184,7 @@ def render_decision_panel(ds: DecisionSet) -> str:
             us_rows.append(
                 f"<div style='padding:5px 0;border-bottom:1px solid var(--border);'>"
                 f"<strong style='color:var(--decision-use-soon);'>Use Soon</strong> {escape(d.display_name)} "
-                f"<span style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}</span>"
-                f"</div>"
+                f"<span style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}</span></div>"
             )
         sections.append("".join(us_rows))
 
@@ -221,17 +194,11 @@ def render_decision_panel(ds: DecisionSet) -> str:
             skip_rows.append(
                 f"<div style='padding:5px 0;border-bottom:1px solid var(--border);'>"
                 f"<strong style='color:var(--text-dim);'>Skip</strong> {escape(d.display_name)} "
-                f"<span style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}</span>"
-                f"</div>"
+                f"<span style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}</span></div>"
             )
         sections.append("".join(skip_rows))
 
-    return (
-        f"<div class='stat-card' style='text-align:left;margin-bottom:12px;'>"
-        f"<h3>Today's Decisions</h3>"
-        f"{''.join(sections)}"
-        f"</div>"
-    )
+    return f"{_CARD_OPEN}<h3>Today's Decisions</h3>{''.join(sections)}</div>"
 
 
 def render_what_changed(purchases: list[Any], traces: list[Any]) -> str:
@@ -260,16 +227,10 @@ def render_what_changed(purchases: list[Any], traces: list[Any]) -> str:
         rows.append(
             f"<div style='display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);'>"
             f"<span style='font-size:11px;color:var(--text-dim);min-width:50px;'>{escape(date_str)}</span>"
-            f"<span>{icon} {escape(desc)}</span>"
-            f"</div>"
+            f"<span>{icon} {escape(desc)}</span></div>"
         )
 
-    return (
-        f"<div class='stat-card' style='text-align:left;margin-bottom:12px;'>"
-        f"<h3>What Changed</h3>"
-        f"{''.join(rows)}"
-        f"</div>"
-    )
+    return f"{_CARD_OPEN}<h3>What Changed</h3>{''.join(rows)}</div>"
 
 
 def render_cadence_insights(cadence: dict[str, dict[str, Any]], today: date | None = None) -> str:
@@ -300,16 +261,10 @@ def render_cadence_insights(cadence: dict[str, dict[str, Any]], today: date | No
         rows.append(
             f"<div style='display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);'>"
             f"<span style='font-weight:600;'>{escape(display)}</span>"
-            f"<span style='font-size:11px;color:var(--text-dim);'>{escape(label)} {escape(cadence_note)}</span>"
-            f"</div>"
+            f"<span style='font-size:11px;color:var(--text-dim);'>{escape(label)} {escape(cadence_note)}</span></div>"
         )
 
-    return (
-        f"<div class='stat-card' style='text-align:left;margin-bottom:12px;'>"
-        f"<h3>Purchase Rhythm</h3>"
-        f"{''.join(rows)}"
-        f"</div>"
-    )
+    return f"{_CARD_OPEN}<h3>Purchase Rhythm</h3>{''.join(rows)}</div>"
 
 
 def render_waste_warnings(signals: list[dict[str, Any]]) -> str:
@@ -321,16 +276,10 @@ def render_waste_warnings(signals: list[dict[str, Any]]) -> str:
         rows.append(
             f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'>"
             f"<strong style='color:var(--red);'>&#x26A0; {escape(s['display_name'])}</strong> "
-            f"<span style='font-size:11px;color:var(--text-dim);'>{escape(s['reason'])}</span>"
-            f"</div>"
+            f"<span style='font-size:11px;color:var(--text-dim);'>{escape(s['reason'])}</span></div>"
         )
 
-    return (
-        f"<div class='stat-card' style='text-align:left;margin-bottom:12px;border-left:3px solid var(--red);'>"
-        f"<h3>Waste Prevention</h3>"
-        f"{''.join(rows)}"
-        f"</div>"
-    )
+    return f"{_CARD_ALERT_OPEN}<h3>Waste Prevention</h3>{''.join(rows)}</div>"
 
 
 def render_swiggy_soldout_warning(availability: dict[str, dict[str, Any]]) -> str:
@@ -344,16 +293,10 @@ def render_swiggy_soldout_warning(availability: dict[str, dict[str, Any]]) -> st
         rows.append(
             f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'>"
             f"<strong style='color:var(--red);'>&#x26A0; {escape(display)}</strong> "
-            f"<span style='font-size:11px;color:var(--text-dim);'>Sold out on Swiggy Instamart</span>"
-            f"</div>"
+            f"<span style='font-size:11px;color:var(--text-dim);'>Sold out on Swiggy Instamart</span></div>"
         )
 
-    return (
-        f"<div class='stat-card' style='text-align:left;margin-bottom:12px;border-left:3px solid var(--red);'>"
-        f"<h3>Availability Alert</h3>"
-        f"{''.join(rows)}"
-        f"</div>"
-    )
+    return f"{_CARD_ALERT_OPEN}<h3>Availability Alert</h3>{''.join(rows)}</div>"
 
 
 def render_needs_confirmation(uncertain: list[Any]) -> str:
@@ -370,13 +313,7 @@ def render_needs_confirmation(uncertain: list[Any]) -> str:
         rows.append(
             f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'>"
             f"<strong>{escape(lot.display_name)}</strong> "
-            f"<span style='font-size:11px;color:var(--text-dim);'>{escape(reason)}</span>"
-            f"</div>"
+            f"<span style='font-size:11px;color:var(--text-dim);'>{escape(reason)}</span></div>"
         )
 
-    return (
-        f"<div class='stat-card' style='text-align:left;margin-bottom:12px;border-left:3px solid var(--red);'>"
-        f"<h3>Needs Confirmation</h3>"
-        f"{''.join(rows)}"
-        f"</div>"
-    )
+    return f"{_CARD_ALERT_OPEN}<h3>Needs Confirmation</h3>{''.join(rows)}</div>"
