@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from datetime import date
 
+import gradio as gr
 import pytest
 
 from shopstack.schemas.models import InventoryLot, Trace
@@ -22,9 +23,8 @@ def app(_app_session):
     app_mod = _app_session
     # Clear all data tables so each test sees a clean state
     conn = app_mod.db.conn
-    for table in ["app_config", "household_locations", "inventory_lots",
+    for table in ["inventory_lots", "shopping_list_items", "shopping_lists",
                   "movement_events", "price_observations", "purchase_events",
-                  "shopping_list_items", "shopping_lists", "stores",
                   "traces"]:
         conn.execute(f"DELETE FROM {table}")
     conn.commit()

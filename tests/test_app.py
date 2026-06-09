@@ -10,6 +10,7 @@ import pytest
 @pytest.fixture(scope="module")
 def fresh_app():
     os.environ["SHOPSTACK_DB_PATH"] = ":memory:"
+    import importlib
     import sys
     _preserved = {"shopstack.schemas", "shopstack.schemas.models"}
     for mod in list(sys.modules.keys()):

@@ -12,6 +12,7 @@ from shopstack.module_registry import (
     SHOPSTOCK,
     RUNTIME,
     SOURCES,
+    ModuleMetadata,
     get_all,
     get_by_slug,
     get_by_tab_id,
