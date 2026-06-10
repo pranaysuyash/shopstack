@@ -8,8 +8,8 @@ from html import escape
 from typing import Any, Callable
 
 from shopstack.market.normalization import normalize_item_name
-from shopstack.ui import card as ui_card
-from shopstack.ui.components import render_workflow_rail
+from shopstack.ui.components.cards import card as ui_card
+from shopstack.ui.components.cards import render_workflow_rail
 
 logger = logging.getLogger(__name__)
 

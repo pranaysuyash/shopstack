@@ -9,7 +9,7 @@ import pandas as pd
 
 from shopstack.app_context import db
 from shopstack.schemas.models import PriceObservation
-from shopstack.ui import build_price_memory_view
+from shopstack.ui.views import build_price_memory_view  # noqa: E402 — deferred to avoid circular import via shopstack.ui.screens.__init__
 from shopstack.ui.screens._utils import safe_render
 
 

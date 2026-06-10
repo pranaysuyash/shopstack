@@ -88,7 +88,7 @@ def snapshot():
         _record("mint", price=10, ppk=100, size="100 g", norm_qty=100),
         _record("curry_leaves", price=5, ppk=50, size="100 g", norm_qty=100),
         _record("beetroot", price=30, ppk=60, size="500 g", norm_qty=500),
-        _record("broccoli", price=50, ppk=100, size="500 g", norm_qty=500, available=False),
+        _record("broccoli", price=50, ppk=100, size="500 g", norm_qty=500),
         _record("cauliflower", price=30, ppk=60, size="500 g", norm_qty=500),
         _record("ladys_finger", price=25, ppk=50, size="500 g", norm_qty=500),
         _record("cabbage", price=20, ppk=40, size="500 g", norm_qty=500),

@@ -69,11 +69,13 @@ class PlannerEngine:
                     outcomes = self._execute_tool_calls(result)
                     return self._format_outcomes(outcomes, question)
                 raw_text = str(result.get("text", ""))
+                self._record_provider_cost(result)
             else:
                 complete_fn = getattr(provider, "complete", None)
                 plan_result = complete_fn(prompt) if callable(complete_fn) else {"text": ""}
                 if isinstance(plan_result, dict):
                     raw_text = str(plan_result.get("text", ""))
+                    self._record_provider_cost(plan_result)
                 else:
                     raw_text = str(plan_result) if plan_result else ""
         except Exception as e:
@@ -92,6 +94,20 @@ class PlannerEngine:
         """Return the current session cost summary."""
         return self._cost_tracker.summary()
 
+    def _record_provider_cost(self, result: dict[str, Any]) -> None:
+        """Extract usage/cost from a provider result dict and record it."""
+        model_key = str(result.get("model") or result.get("model_key") or "unknown")
+        usage = result.get("usage") or {}
+        input_tokens = int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0)
+        output_tokens = int(usage.get("completion_tokens") or usage.get("output_tokens") or 0)
+        latency_ms = result.get("latency_ms")
+        if isinstance(latency_ms, (int, float)):
+            latency_ms = float(latency_ms)
+        elif isinstance(result.get("cost"), dict):
+            latency_ms = result["cost"].get("latency_ms")
+        if input_tokens or output_tokens:
+            self._record_cost(model_key, input_tokens, output_tokens, latency_ms)
+
     def _record_cost(self, model_key: str, input_tokens: int, output_tokens: int, latency_ms: float | None = None) -> None:
         """Record a cost entry from a provider call."""
         cost = estimate_cost_usd(model_key, input_tokens, output_tokens)
@@ -106,6 +122,28 @@ class PlannerEngine:
         )
         self._cost_tracker = self._cost_tracker.add(record)
 
+    # Patterns that indicate potential injection or path traversal in tool args
+    _SUSPICIOUS_ARG_PATTERNS = (
+        "../", "..\\", "/etc/", "C:\\", "|", ";", "&&", "||", "`", "$(",
+        "__import__", "eval(", "exec(", "open(", "os.", "subprocess",
+    )
+
+    def _validate_args(self, tool: str, args: dict[str, Any]) -> str | None:
+        """Validate tool arguments for injection / path traversal / abuse.
+        Returns an error message string if validation fails, or None if clean.
+        """
+        for key, value in args.items():
+            if not isinstance(value, str):
+                continue
+            lower_val = value.lower()
+            for pattern in self._SUSPICIOUS_ARG_PATTERNS:
+                if pattern.lower() in lower_val:
+                    return (
+                        f"Rejected tool '{tool}' arg '{key}': "
+                        f"value contains suspicious pattern '{pattern}'"
+                    )
+        return None
+
     def _execute_tool_calls(
         self, tool_calls: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
@@ -119,6 +157,16 @@ class PlannerEngine:
                     "tool": "respond",
                     "success": True,
                     "message": msg,
+                })
+                continue
+            # Validate args before execution
+            validation_error = self._validate_args(tool, args)
+            if validation_error is not None:
+                logger.warning("Tool arg validation failed: %s", validation_error)
+                results.append({
+                    "tool": tool,
+                    "success": False,
+                    "error": validation_error,
                 })
                 continue
             outcome = self._tools.execute(tool, **args)

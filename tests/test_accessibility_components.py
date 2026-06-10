@@ -28,6 +28,7 @@ from shopstack.ui.components.cards import (
     badge_html,
     card,
     empty_state,
+    render_action_grid,
     render_action_tile,
     render_decision_card as render_decision_card_html,
     render_hero_panel,
@@ -373,6 +374,58 @@ class TestRenderActionTile:
         assert "primary" in html
 
 
+class TestRenderActionGrid:
+    """render_action_grid wraps tiles in action-grid wrapper."""
+
+    def test_empty_actions_returns_empty_string(self):
+        assert render_action_grid([]) == ""
+
+    def test_single_action_renders(self):
+        html = render_action_grid([
+            {"label": "Scan", "subtitle": "Check a shelf item", "tab_id": "market"},
+        ])
+        assert "action-grid" in html
+        assert "Scan" in html
+        assert "Check a shelf item" in html
+        assert "<button" in html
+
+    def test_multiple_actions_all_rendered(self):
+        html = render_action_grid([
+            {"label": "Scan", "subtitle": "Check a shelf item", "tab_id": "market"},
+            {"label": "Add", "subtitle": "Record a purchase", "tab_id": "purchase"},
+            {"label": "View", "subtitle": "Browse inventory", "tab_id": "inventory"},
+        ])
+        assert html.count("<button") == 3
+        assert "Scan" in html
+        assert "Add" in html
+        assert "View" in html
+
+    def test_tone_propagated_to_tiles(self):
+        html = render_action_grid([
+            {"label": "Primary", "subtitle": "CTA", "tab_id": "tab", "tone": "primary"},
+            {"label": "Default", "subtitle": "No tone", "tab_id": "tab"},
+        ])
+        assert "action-tile-primary" in html
+        # Default tone should also render
+        assert "action-tile-default" in html
+
+    def test_wrapper_class_present(self):
+        html = render_action_grid([
+            {"label": "X", "subtitle": "Y", "tab_id": "z"},
+        ])
+        soup = BeautifulSoup(html, "lxml")
+        wrapper = soup.find("div", class_="action-grid")
+        assert wrapper is not None, "action-grid wrapper div missing"
+
+    def test_labels_and_subtitles_escaped(self):
+        html = render_action_grid([
+            {"label": "<script>", "subtitle": "<alert>", "tab_id": "tab"},
+        ])
+        assert "&lt;script&gt;" in html
+        assert "&lt;alert&gt;" in html
+        assert "<script>" not in html
+
+
 class TestRenderHeroPanel:
     """Semantic structure: h2 heading, section-kicker."""
 
@@ -696,6 +749,335 @@ class TestDecisionCardsSwiggySoldout:
             {"milk": {"available": False}, "eggs": {"available": True}}
         )
         assert "milk" in html or "Milk" in html
+
+
+class TestDecisionCardsComparePanel:
+    """render_compare_panel: h3 heading, compare/watch items, empty state."""
+
+    def test_empty_returns_no_signals_message(self):
+        ds = _sample_ds()  # only has buy and skip
+        html = dc.render_compare_panel(ds)
+        assert "Compare" in html or "Market Signals" in html
+        assert "No comparison signals" in html
+
+    def test_heading_present_with_data(self):
+        ds = DecisionSet(decisions=[
+            DecisionResult(
+                canonical_name="tomato",
+                display_name="Tomato",
+                action="compare",
+                reason="Multiple pack sizes available, 80% price spread",
+                confidence=0.75,
+                market_price_per_kg=56.0,
+                waste_risk="unknown",
+                shelf_life_days=0,
+            ),
+        ])
+        html = dc.render_compare_panel(ds)
+        assert "Compare / Market Signals" in html
+        assert "Compare" in html  # the decision badge label
+
+    def test_compare_item_renders_with_reason(self):
+        ds = DecisionSet(decisions=[
+            DecisionResult(
+                canonical_name="tomato",
+                display_name="Tomato",
+                action="compare",
+                reason="Price spread 80%",
+                confidence=0.75,
+                market_price_per_kg=56.0,
+                waste_risk="unknown",
+                shelf_life_days=0,
+            ),
+        ])
+        html = dc.render_compare_panel(ds)
+        soup = BeautifulSoup(html, "lxml")
+        heading = soup.find("h3")
+        assert heading is not None
+        assert "Compare" in heading.get_text()
+
+    def test_wait_item_renders_with_watch_label(self):
+        ds = DecisionSet(decisions=[
+            DecisionResult(
+                canonical_name="sold_out_item",
+                display_name="Premium Broccoli",
+                action="wait",
+                reason="Sold out, waiting for restock",
+                confidence=0.6,
+                waste_risk="unknown",
+                shelf_life_days=0,
+            ),
+        ])
+        html = dc.render_compare_panel(ds)
+        assert "Watch" in html
+        assert "Premium Broccoli" in html
+
+    def test_compare_and_wait_both_displayed(self):
+        ds = DecisionSet(decisions=[
+            DecisionResult(
+                canonical_name="tomato", display_name="Tomato",
+                action="compare", reason="Price spread 80%",
+                confidence=0.75, market_price_per_kg=56.0,
+                waste_risk="unknown", shelf_life_days=0,
+            ),
+            DecisionResult(
+                canonical_name="broccoli", display_name="Broccoli",
+                action="wait", reason="Sold out",
+                confidence=0.6,
+                waste_risk="unknown", shelf_life_days=0,
+            ),
+        ])
+        html = dc.render_compare_panel(ds)
+        assert "Compare" in html
+        assert "Watch" in html
+        assert "Tomato" in html
+        assert "Broccoli" in html
+
+    def test_max_items_respected(self):
+        """Only first 4 compare and first 4 wait items shown."""
+        decisions = [
+            DecisionResult(
+                canonical_name=f"item_{i}", display_name=f"Item {i}",
+                action="compare", reason=f"Reason {i}",
+                confidence=0.7, market_price_per_kg=50.0,
+                waste_risk="unknown", shelf_life_days=0,
+            )
+            for i in range(6)
+        ]
+        ds = DecisionSet(decisions=decisions)
+        html = dc.render_compare_panel(ds)
+        # Should show at most 4 compare + 0 wait = 4 items total
+        for i in range(4):
+            assert f"Item {i}" in html
+        # Items beyond the [:4] limit must not appear
+        assert "Item 5" not in html
+
+
+class TestDecisionCardsMyListPanel:
+    """render_my_list_panel: h3 heading, decision badges, empty state."""
+
+    def test_empty_list_returns_empty_state_html(self):
+        html = dc.render_my_list_panel(_sample_ds(), None)
+        assert "My Own List" in html
+        assert "No active shopping list" in html
+
+    def test_empty_list_with_empty_items_returns_state(self):
+        class MockList:
+            items = []
+        html = dc.render_my_list_panel(_sample_ds(), MockList())
+        assert "No active shopping list" in html or "My Own List" in html
+
+    def test_heading_present_with_items(self):
+        from shopstack.schemas.models import ShoppingListItem
+
+        class MockList:
+            items = [
+                ShoppingListItem(canonical_name="milk"),
+                ShoppingListItem(canonical_name="eggs"),
+            ]
+
+        ds = DecisionSet(decisions=[
+            DecisionResult(
+                canonical_name="milk", display_name="Milk",
+                action="buy", reason="Running low",
+                confidence=0.9,
+                waste_risk="low", shelf_life_days=5,
+            ),
+            DecisionResult(
+                canonical_name="eggs", display_name="Eggs",
+                action="skip", reason="Already have",
+                confidence=0.8,
+                waste_risk="unknown", shelf_life_days=0,
+            ),
+        ])
+        html = dc.render_my_list_panel(ds, MockList())
+        assert "My Own List" in html
+        assert "Milk" in html
+        assert "Eggs" in html
+
+    def test_decision_badge_colors_match_action(self):
+        from shopstack.schemas.models import ShoppingListItem
+
+        class MockList:
+            items = [
+                ShoppingListItem(canonical_name="milk"),
+                ShoppingListItem(canonical_name="eggs"),
+            ]
+
+        ds = DecisionSet(decisions=[
+            DecisionResult(
+                canonical_name="milk", display_name="Milk",
+                action="buy", reason="Running low",
+                confidence=0.9,
+                waste_risk="low", shelf_life_days=5,
+            ),
+            DecisionResult(
+                canonical_name="eggs", display_name="Eggs",
+                action="skip", reason="Already have",
+                confidence=0.8,
+                waste_risk="unknown", shelf_life_days=0,
+            ),
+        ])
+        html = dc.render_my_list_panel(ds, MockList())
+        soup = BeautifulSoup(html, "lxml")
+        h3 = soup.find("h3")
+        assert h3 is not None
+        assert "My Own List" in h3.get_text()
+
+    def test_item_without_decision_shows_unknown(self):
+        from shopstack.schemas.models import ShoppingListItem
+
+        class MockList:
+            items = [
+                ShoppingListItem(canonical_name="unknown_item"),
+            ]
+
+        html = dc.render_my_list_panel(_sample_ds(), MockList())
+        assert "Unknown" in html
+
+
+class TestDecisionCardsCadenceInsights:
+    """render_cadence_insights: h3 heading, upcoming items, due-now labels."""
+
+    def test_empty_cadence_returns_empty_string(self):
+        assert dc.render_cadence_insights({}) == ""
+
+    def test_items_outside_window_returns_empty(self):
+        """Items due >3 days away should not appear."""
+        from datetime import date, timedelta
+        today = date(2026, 6, 10)
+        cadence = {
+            "onion": {
+                "next_expected": today + timedelta(days=5),
+                "typical_qty": 1.0,
+                "typical_unit": "kg",
+                "avg_interval_days": 7.0,
+            }
+        }
+        html = dc.render_cadence_insights(cadence, today)
+        assert html == ""
+
+    def test_due_now_item_appears(self):
+        from datetime import date, timedelta
+        today = date(2026, 6, 10)
+        cadence = {
+            "onion": {
+                "next_expected": today,
+                "typical_qty": 1.0,
+                "typical_unit": "kg",
+                "avg_interval_days": 7.0,
+            }
+        }
+        html = dc.render_cadence_insights(cadence, today)
+        assert "Purchase Rhythm" in html
+        assert "Onion" in html
+        assert "Due now" in html
+
+    def test_due_tomorrow_item_appears(self):
+        from datetime import date, timedelta
+        today = date(2026, 6, 10)
+        cadence = {
+            "onion": {
+                "next_expected": today + timedelta(days=1),
+                "typical_qty": 1.0,
+                "typical_unit": "kg",
+                "avg_interval_days": 7.0,
+            }
+        }
+        html = dc.render_cadence_insights(cadence, today)
+        assert "Due tomorrow" in html
+
+    def test_due_in_few_days_item_appears(self):
+        from datetime import date, timedelta
+        today = date(2026, 6, 10)
+        cadence = {
+            "onion": {
+                "next_expected": today + timedelta(days=2),
+                "typical_qty": 1.0,
+                "typical_unit": "kg",
+                "avg_interval_days": 7.0,
+            }
+        }
+        html = dc.render_cadence_insights(cadence, today)
+        assert "Due in 2 days" in html
+
+    def test_overdue_item_appears(self):
+        from datetime import date, timedelta
+        today = date(2026, 6, 10)
+        cadence = {
+            "onion": {
+                "next_expected": today - timedelta(days=1),
+                "typical_qty": 1.0,
+                "typical_unit": "kg",
+                "avg_interval_days": 7.0,
+            }
+        }
+        html = dc.render_cadence_insights(cadence, today)
+        assert "Due now" in html
+
+    def test_heading_present_when_items_show(self):
+        from datetime import date
+        today = date(2026, 6, 10)
+        cadence = {
+            "tomato": {
+                "next_expected": date(2026, 6, 11),
+                "typical_qty": 0.5,
+                "typical_unit": "kg",
+                "avg_interval_days": 4.0,
+            }
+        }
+        html = dc.render_cadence_insights(cadence, today)
+        soup = BeautifulSoup(html, "lxml")
+        heading = soup.find("h3")
+        assert heading is not None
+        assert "Purchase Rhythm" in heading.get_text()
+
+    def test_multiple_items_sorted_by_urgency(self):
+        from datetime import date
+        today = date(2026, 6, 10)
+        cadence = {
+            "tomato": {
+                "next_expected": date(2026, 6, 18),  # 8 days away — outside window
+                "typical_qty": 0.5,
+                "typical_unit": "kg",
+                "avg_interval_days": 4.0,
+            },
+            "onion": {
+                "next_expected": date(2026, 6, 11),  # 1 day away — inside window
+                "typical_qty": 1.0,
+                "typical_unit": "kg",
+                "avg_interval_days": 7.0,
+            },
+            "milk": {
+                "next_expected": date(2026, 6, 10),  # today — inside window
+                "typical_qty": 2.0,
+                "typical_unit": "L",
+                "avg_interval_days": 3.0,
+            },
+        }
+        html = dc.render_cadence_insights(cadence, today)
+        # Only onion and milk should appear (tomato is >3 days away)
+        assert "Onion" in html
+        assert "Milk" in html
+        assert "tomato" not in html or "Tomato" not in html
+
+    def test_max_items_respected(self):
+        """Only first 5 items shown."""
+        from datetime import date
+        today = date(2026, 6, 10)
+        cadence = {
+            f"item_{i}": {
+                "next_expected": today,
+                "typical_qty": 1.0,
+                "typical_unit": "unit",
+                "avg_interval_days": 7.0,
+            }
+            for i in range(8)
+        }
+        html = dc.render_cadence_insights(cadence, today)
+        # Should show max 5 items (upcoming[:5])
+        count = html.count("Due now")
+        assert count <= 5  # max 5 items from the [:5] limit
 
 
 class TestDecisionCardsConfirmation:

@@ -4,7 +4,8 @@ import logging
 
 from shopstack.app_context import APP_DESCRIPTION, APP_NAME, db, tools
 from shopstack.services.dashboard import build_dashboard_state
-from shopstack.ui import render_action_grid, render_hero_panel, render_metric
+from shopstack.ui.components.cards import render_action_grid, render_hero_panel
+from shopstack.ui.components.primitives import stat_card, item_row
 from shopstack.ui.renderers import render_cadence_insights, render_waste_warnings
 from shopstack.ui.renderers.image_cards import (
     cards_to_grid,
@@ -31,7 +32,7 @@ def today_dashboard():
         render_needs_confirmation,
     )
 
-    state = build_dashboard_state(db, tools)
+    state = build_dashboard_state(db, tools.inventory)
     ds = state.decision_set
 
     hero = render_hero_panel(
@@ -41,31 +42,37 @@ def today_dashboard():
     )
 
     quick_actions = (
-        "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:12px 0 16px 0;'>"
-        f"{render_metric('Active items', str(len(state.active_inventory)), tab_id='inventory')}"
-        f"{render_metric('Use soon', str(state.use_soon_count), tab_id='usesoon')}"
-        f"{render_metric('Low stock', str(len(state.low_items)), tab_id='usesoon')}"
-        f"{render_metric('Recent purchases', str(len(state.recent_purchases)), tab_id='purchase')}"
+        "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:12px 0 16px 0;'>"
+        f"{stat_card(str(len(state.active_inventory)), 'Active items', on_click_tab='reconcile')}"
+        f"{stat_card(str(state.use_soon_count), 'Use soon', variant='warning', on_click_tab='reconcile')}"
+        f"{stat_card(str(len(state.low_items)), 'Low stock', variant='danger', on_click_tab='reconcile')}"
+        f"{stat_card(str(len(state.recent_purchases)), 'Recent buys', on_click_tab='reconcile')}"
         "</div>"
     )
 
-    action_bar = render_action_grid([
+    loop_actions = render_action_grid([
         {
-            "label": "Market Lens",
-            "subtitle": "Check a shelf item before buying",
-            "tab_id": "market",
+            "label": "Basket",
+            "subtitle": "Plan what to buy, skip, or compare",
+            "tab_id": "basket",
             "tone": "primary",
         },
         {
-            "label": "Add Purchase",
-            "subtitle": "Teach the home what changed",
-            "tab_id": "purchase",
+            "label": "ShopLens",
+            "subtitle": "Check a shelf item before buying",
+            "tab_id": "market",
             "tone": "default",
         },
         {
-            "label": "Inventory",
-            "subtitle": "Find what is already at home",
-            "tab_id": "inventory",
+            "label": "Reconcile",
+            "subtitle": "Log purchases, update stock, check expiries",
+            "tab_id": "reconcile",
+            "tone": "default",
+        },
+        {
+            "label": "Memory",
+            "subtitle": "Notes, traces, nutrition, what we learned",
+            "tab_id": "memory",
             "tone": "default",
         },
     ])
@@ -113,14 +120,14 @@ def today_dashboard():
     long_grid = (
         f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px;margin-bottom:10px;'>{inventory_overview}{compare_panel}</div>"
         + f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;'>{fridge_html}{alert_html}{needs_confirm}{cadence_html}{waste_html}</div>"
+        + f"{what_changed}"
     )
 
     return [
-        f"{hero}{action_bar}{quick_actions}",
+        f"{hero}{loop_actions}{quick_actions}",
         decision_panel,
         svg_section,
         market_basket,
         list_panel,
         long_grid,
-        f"{what_changed}",
     ]

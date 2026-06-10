@@ -40,7 +40,7 @@ def test_build_app_title(fresh_app):
 
 def test_today_dashboard_returns_correct_shape(fresh_app):
     results = fresh_app.today_dashboard()
-    assert len(results) == 7
+    assert len(results) == 6
     for r in results:
         assert isinstance(r, str)
 

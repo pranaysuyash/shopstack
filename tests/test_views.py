@@ -34,7 +34,7 @@ def app(_app_session):
 class TestTodayDashboard:
     def test_returns_six_strings(self, app):
         results = app.today_dashboard()
-        assert len(results) == 7
+        assert len(results) == 6
         for r in results:
             assert isinstance(r, str)
 

@@ -244,13 +244,13 @@ class DecisionWarning(BaseModel):
 
 
 _ACTION_COLORS: dict[str, str] = {
-    "buy": "#22c55e",
-    "skip": "#6b7280",
-    "use_soon": "#f59e0b",
-    "optional": "#3b82f6",
-    "compare": "#8b5cf6",
-    "wait": "#9ca3af",
-    "substitute": "#ef4444",
+    "buy": "#1A9E4A",
+    "skip": "#595E66",
+    "use_soon": "#C47D0A",
+    "optional": "#2A6BC4",
+    "compare": "#7345D0",
+    "wait": "#7F8C8D",
+    "substitute": "#C53030",
 }
 
 _ACTION_ICONS: dict[str, str] = {

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from shopstack.app_context import db
-from shopstack.ui import load_field_notes, save_field_notes
+from shopstack.ui.views import load_field_notes, save_field_notes
 from shopstack.ui.screens._utils import safe_render
 
 

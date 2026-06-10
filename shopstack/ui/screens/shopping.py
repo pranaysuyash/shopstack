@@ -14,7 +14,7 @@ from shopstack.services.shopping import (
     complete_shopping_list_service,
     mark_items_purchased_service,
 )
-from shopstack.ui import list_to_table
+from shopstack.ui.components.cards import list_to_table
 from shopstack.ui.components.primitives import empty_state_enhanced, item_row, toast
 from shopstack.ui.renderers import render_mark_purchased, render_shopping_completion
 from shopstack.traces.export import create_trace
@@ -128,7 +128,7 @@ def _parse_shopping_items_from_text(goal: str, raw: str) -> tuple[list[dict[str,
 
 
 def _classify_shopping_items(items: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    plan = classify_shopping_items(items, tools)
+    plan = classify_shopping_items(items, tools.inventory)
     return plan.must_buy, plan.optional, plan.skipped, plan.use_soon
 
 
@@ -382,12 +382,12 @@ def mark_items_purchased(item_ids_json: str | list[str]) -> str:
         item_ids = item_ids_json
     else:
         item_ids = item_ids_json
-    result = mark_items_purchased_service(item_ids, tools, db)
+    result = mark_items_purchased_service(item_ids, tools.inventory, db)
     return render_mark_purchased(result)
 
 
 def complete_shopping_list(list_id: str) -> str:
-    result = complete_shopping_list_service(list_id, tools, db)
+    result = complete_shopping_list_service(list_id, tools.inventory, db)
     return render_shopping_completion(result)
 
 

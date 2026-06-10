@@ -11,7 +11,7 @@ from shopstack.model_registry import (
     total_loaded_params,
     validate_active_model_budget,
 )
-from shopstack.ui import badge_html, card as ui_card, render_metric
+from shopstack.ui.components.cards import badge_html, card as ui_card, render_metric
 from shopstack.ui.screens._utils import WORKFLOW_STEPS, workflow_header, rows_to_html
 
 

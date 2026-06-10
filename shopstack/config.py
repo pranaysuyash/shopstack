@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     debug: bool = True
 
+    ui_mode: str = "consumer"  # "consumer" | "developer" — gates developer-facing UI elements
+
     off_the_grid: bool = True
     default_household_user_id: str = "default_household"
     app_port: int = 7860

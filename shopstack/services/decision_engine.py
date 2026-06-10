@@ -322,7 +322,7 @@ def use_soon(
             message="Purchase date unknown — cannot verify freshness",
             severity="info",
         ))
-            confidence = 0.55
+        confidence = 0.55
     else:
         return None  # no use-soon signal
 

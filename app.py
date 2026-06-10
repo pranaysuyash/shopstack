@@ -771,10 +771,11 @@ document.addEventListener('keydown', function(e) {
                         )
                         app.load(nutrition_kitchen_view, outputs=kitchen_nutrition)
 
-                    # ── System Status ──
-                    with gr.Tab("System Status"):
-                        model_stack_html = gr.HTML("")
-                        app.load(model_budget_view, outputs=model_stack_html)
+                    # ── System Status (developer mode only) ──
+                    if settings.ui_mode == "developer":
+                        with gr.Tab("System Status"):
+                            model_stack_html = gr.HTML("")
+                            app.load(model_budget_view, outputs=model_stack_html)
 
                     # ── Data ──
                     with gr.Tab("Data"):

@@ -268,7 +268,7 @@ def build_optimized_basket(
         shelf_life = meta.shelf_life_days if meta else 0
 
         # Check for "use soon" signal from produce metadata
-        if owned > 0 and shelf_life > 0 and shelf_life <= 3:
+        if owned > 0 and shelf_life > 0 and shelf_life <= 5:
             results.append(OptimizedBasketItem(
                 requested_name=name,
                 canonical_name=canonical,

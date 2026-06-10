@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def market_lens_process(image_path: str | None, audio_path: str | None) -> tuple:
     result_html = "<div style='color:var(--text-dim);'>No input provided.</div>"
-    service_result = analyze_market_lens(image_path, audio_path, providers, tools)
+    service_result = analyze_market_lens(image_path, audio_path, providers, tools.inventory)
     analysis = service_result.analysis_json
 
     if image_path:

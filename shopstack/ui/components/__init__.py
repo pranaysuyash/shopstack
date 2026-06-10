@@ -12,7 +12,7 @@ from shopstack.ui.components.cards import (
     render_metric,
     render_workflow_rail,
 )
-from shopstack.ui.screens._utils import WORKFLOW_STEPS, workflow_header, workflow_title_bar
+from shopstack.ui.components.workflow import WORKFLOW_STEPS, WORKFLOW_ACTION_STEPS, workflow_header, workflow_title_bar
 from shopstack.ui.components.primitives import (
     confirm_dialog,
     data_table,
@@ -21,6 +21,13 @@ from shopstack.ui.components.primitives import (
     loading_skeleton,
     stat_card,
     toast,
+)
+from shopstack.ui.components.p2 import (
+    filter_bar,
+    location_card,
+    pagination_footer,
+    search_input,
+    timeline,
 )
 
 __all__ = [
@@ -46,4 +53,10 @@ __all__ = [
     "WORKFLOW_STEPS",
     "workflow_header",
     "workflow_title_bar",
+    # P2 components
+    "search_input",
+    "filter_bar",
+    "pagination_footer",
+    "timeline",
+    "location_card",
 ]

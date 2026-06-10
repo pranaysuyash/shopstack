@@ -115,7 +115,7 @@ def multi_source_price_view() -> str:
             f = registry.freshness_of(sid)
             label = f.get("label", "")
             is_stale = f.get("is_stale", False)
-            color = "#ef4444" if is_stale else "var(--text-dim)"
+            color = "var(--red)" if is_stale else "var(--text-dim)"
             freshness_html += (
                 f"<span style='font-size:10px;color:{color};margin-right:12px;'>"
                 f"{escape(source_labels.get(sid, sid))}: {escape(label)}</span>"

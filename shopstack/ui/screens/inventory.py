@@ -8,7 +8,7 @@ from typing import Any
 
 from shopstack.app_context import db, tools
 from shopstack.traces.export import create_trace
-from shopstack.ui import empty_state, list_to_table
+from shopstack.ui.components.cards import empty_state, list_to_table
 from shopstack.ui.components.primitives import item_row
 
 logger = logging.getLogger(__name__)

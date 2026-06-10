@@ -5,8 +5,8 @@ import re
 from html import escape
 
 from shopstack.app_context import APP_NAME, db, planner, providers, tools
-from shopstack.ui import card as ui_card
-from shopstack.ui.components import render_decision_card
+from shopstack.ui.components.cards import card as ui_card
+from shopstack.ui.components.cards import render_decision_card
 from shopstack.ui.components.primitives import empty_state_enhanced, item_row, toast
 from shopstack.traces.export import create_trace
 from shopstack.ui.screens._utils import (
@@ -191,8 +191,6 @@ def _render_planner_response(response: str) -> str:
     return ui_card(
         f"{APP_NAME} AI",
         rendered
-        + "<div style='margin-top:8px;font-size:11px;color:var(--text-dim);'>"
-        "Rendered through the same Ask ShopStack HTML boundary as heuristic answers.</div>",
     )
 
 
