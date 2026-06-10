@@ -5,6 +5,15 @@ import re
 from typing import Any
 
 
+_CARD_ID_COUNTER: int = 0
+
+
+def _next_card_id() -> str:
+    global _CARD_ID_COUNTER
+    _CARD_ID_COUNTER += 1
+    return f"card-{_CARD_ID_COUNTER}"
+
+
 def _safe_tab_id(tab_id: str) -> str:
     return re.sub(r"[^a-z0-9_-]", "-", str(tab_id).lower())
 
@@ -42,9 +51,13 @@ def badge_html(label: str, variant: str = "neutral") -> str:
 
 
 def card(title: str, body: str, *, compact: bool = True) -> str:
+    safe_title = escape(str(title))
+    card_id = _next_card_id()
     return (
-        f"<div class='home-card' style='text-align:left;{'' if compact else 'min-height:160px;'}'>"
-        f"<h3>{escape(str(title))}</h3><div>{body}</div></div>"
+        f"<div class='home-card' style='text-align:left;"
+        f"{'min-height:160px;' if not compact else ''}'"
+        f" role='region' aria-labelledby='{card_id}'>"
+        f"<h3 id='{card_id}'>{safe_title}</h3><div>{body}</div></div>"
     )
 
 
@@ -60,9 +73,11 @@ def render_hero_panel(title: str, subtitle: str, eyebrow: str = "Today") -> str:
 
 def render_action_tile(label: str, subtitle: str, tab_id: str, tone: str = "default") -> str:
     safe_tone = re.sub(r"[^a-z0-9_-]", "-", str(tone).lower()) or "default"
+    safe_label = escape(str(label))
     return (
-        f"<button type='button' class='action-tile action-tile-{safe_tone}'{_tab_click_attr(tab_id)}>"
-        f"<span class='action-tile-label'>{escape(str(label))}</span>"
+        f"<button type='button' class='action-tile action-tile-{safe_tone}'"
+        f" aria-label='{safe_label}: {escape(str(subtitle))}'{_tab_click_attr(tab_id)}>"
+        f"<span class='action-tile-label'>{safe_label}</span>"
         f"<span class='action-tile-subtitle'>{escape(str(subtitle))}</span>"
         "</button>"
     )
@@ -135,7 +150,7 @@ def render_decision_card(
     safe_item_name = escape(str(item_name))
     safe_reason = escape(str(reason))
     return (
-        "<div class='home-card item-card'>"
+        f"<div class='home-card item-card' role='article' aria-label='{safe_item_name}: {decision_upper}'>"
         f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;'>"
         f"<strong>{safe_item_name}</strong>{badge}</div>"
         f"<div class='muted' style='font-size:13px;'>{safe_reason}</div>"

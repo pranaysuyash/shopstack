@@ -112,9 +112,9 @@ TAB_ORDER: dict[str, int] = {
 TAB_LABELS: dict[str, str] = {
     "today":      "Today",
     "basket":     "Basket",
-    "market":     "ShopLens",
-    "reconcile":  "Reconcile",
-    "memory":     "Memory",
+    "market":     "Scan & Compare",
+    "reconcile":  "Pantry",
+    "memory":     "Insights",
 }
 
 

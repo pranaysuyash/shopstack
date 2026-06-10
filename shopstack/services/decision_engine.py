@@ -107,6 +107,21 @@ def should_buy(
         evidence.append(DecisionEvidence(source="shopping_list", value="on_list", confidence=0.9))
         reasons.append("On your shopping list")
 
+    # ── Ad/upgrade trust signal (§3.7): sponsored listings reduce confidence ──
+    if has_market:
+        record_is_ad = getattr(market_record, "is_ad", False)
+        record_is_upgrade = getattr(market_record, "is_upgrade", False)
+        tag = getattr(market_record, "tag", "") or ""
+        if record_is_ad or record_is_upgrade or "ad" in tag.lower():
+            warnings.append(DecisionWarning(
+                code="sponsored_listing",
+                message="This product is a sponsored/ad listing — verify price against other sources.",
+                severity="info",
+            ))
+            if record_is_ad:
+                reasons.append("Sponsored listing — verify price independently")
+                confidence *= 0.85  # reduce confidence for ads
+
     if quantity_at_home <= 0:
         reasons.append("Out of stock at home")
         confidence = 0.9
@@ -399,6 +414,22 @@ def compare_candidates(
         warnings.append(DecisionWarning(
             code="sold_out_variants",
             message=f"Some variants unavailable — comparison may be incomplete",
+            severity="info",
+        ))
+
+    # ── Ad/upgrade trust signal for comparison results ──
+    ad_records = [r for r in available_records if getattr(r, "is_ad", False)]
+    upgrade_records = [r for r in available_records if getattr(r, "is_upgrade", False)]
+    if ad_records:
+        warnings.append(DecisionWarning(
+            code="sponsored_comparison",
+            message=f"{len(ad_records)} option(s) are sponsored ads — prices may not reflect market baseline.",
+            severity="info",
+        ))
+    if upgrade_records:
+        warnings.append(DecisionWarning(
+            code="upgrade_variants",
+            message=f"{len(upgrade_records)} option(s) are premium/upgrade variants — compare against regular options.",
             severity="info",
         ))
 

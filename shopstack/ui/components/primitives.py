@@ -89,8 +89,9 @@ def item_row(
     # Lot ID
     lot_html = f"<span style='font-family:monospace;font-size:10px;color:var(--text-faint);'>{safe_lot[:12]}</span>" if safe_lot else ""
 
+    safe_aria_label = f"{safe_name}, {escape(qty_display)}"
     return (
-        "<div class='item-row'>"
+        f"<div class='item-row' role='group' aria-label='{safe_aria_label}'>"
         # Left side: name + metadata
         "<div>"
         f"<div style='font-weight:600;color:var(--text);'>{safe_name}</div>"
@@ -173,7 +174,7 @@ def stat_card(
         )
 
     return (
-        f"<div class='stat-card'{click_attr} style='{variant_style}'>"
+        f"<div class='stat-card' role='region' aria-label='{safe_label}: {safe_value}'{click_attr} style='{variant_style}'>"
         f"{icon_html}"
         f"<div class='stat-value'>{safe_value}</div>"
         f"<div class='stat-label'>{safe_label}</div>"
@@ -239,9 +240,11 @@ def data_table(
             "</div>"
         )
 
+    table_desc = escape(str(empty_message)) if empty_message != "No data" else "data table"
     return (
-        "<div class='home-card' style='text-align:left;padding:0;overflow:hidden;'>"
+        "<div class='home-card' style='text-align:left;padding:0;overflow:hidden;' role='region' aria-label='Table: " + table_desc + "'>"
         "<table style='border-collapse:collapse;width:100%;font-size:13px;'>"
+        f"<caption class='sr-only'>{table_desc}</caption>"
         f"<thead><tr>{head_html}</tr></thead>"
         f"<tbody>{body_html}</tbody>"
         "</table>"
@@ -273,9 +276,9 @@ def confirm_dialog(
     bg_tint = "rgba(166,63,49,0.06)" if variant == "danger" else "rgba(167,96,18,0.06)"
 
     return (
-        f"<div class='home-card' style='text-align:left;border-left:3px solid {border_color};background:{bg_tint};'>"
+        f"<div class='home-card' style='text-align:left;border-left:3px solid {border_color};background:{bg_tint};' role='alertdialog' aria-label='{safe_message}'>"
         "<div style='display:flex;align-items:flex-start;gap:10px;'>"
-        "<span style='font-size:20px;'>&#9888;</span>"
+        "<span style='font-size:20px;' aria-hidden='true'>&#9888;</span>"
         "<div>"
         f"<div style='font-weight:600;margin-bottom:4px;'>{safe_message}</div>"
         "<div style='font-size:11px;color:var(--text-dim);'>"
@@ -311,13 +314,15 @@ def toast(
     }
     color, icon = kind_config.get(kind, ("var(--text-dim)", "•"))
 
+    safe_kind = escape(kind)
     return (
-        f"<div class='toast toast-{escape(kind)}' role='status' aria-live='polite'"
+        f"<div class='toast toast-{safe_kind}' role='status' aria-live='polite'"
+        f" aria-label='{safe_kind}: {safe_message}'"
         f" style='display:flex;align-items:center;gap:8px;padding:10px 14px;"
         f"margin:6px 0;border-radius:var(--radius-sm);"
         f"background:var(--bg-card-strong);border:1px solid {color};"
         f"font-size:13px;color:var(--text);'>"
-        f"<span style='color:{color};font-weight:700;'>{icon}</span>"
+        f"<span style='color:{color};font-weight:700;' aria-hidden='true'>{icon}</span>"
         f"<span>{safe_message}</span>"
         "</div>"
     )
@@ -426,8 +431,8 @@ def empty_state_enhanced(
         secondary_html = f"<div style='font-size:12px;color:var(--text-dim);margin-top:6px;'>{safe_secondary}</div>"
 
     return (
-        "<div class='home-card' style='text-align:center;padding:40px 20px;'>"
-        f"<div style='font-size:40px;margin-bottom:12px;'>{safe_icon}</div>"
+        "<div class='home-card' style='text-align:center;padding:40px 20px;' role='status' aria-label='" + safe_message + "'>"
+        f"<div style='font-size:40px;margin-bottom:12px;' aria-hidden='true'>{safe_icon}</div>"
         f"<div class='muted' style='font-size:15px;'>{safe_message}</div>"
         f"{secondary_html}"
         f"{action_html}"

@@ -184,6 +184,10 @@ def build_optimized_basket(
     snapshot: MarketSnapshot,
     inventory_map: dict[str, float] | None = None,
     available_only: bool = True,
+    budget_inr: float | None = None,
+    household_size: int = 1,
+    days_to_plan: int = 3,
+    avoid_items: list[str] | None = None,
 ) -> OptimizedBasket:
     """Build a decision-aware basket from requested items and market snapshot.
 
@@ -195,11 +199,16 @@ def build_optimized_basket(
         snapshot: Market snapshot with normalized records.
         inventory_map: Map of canonical_name → total quantity owned (inventory subtraction).
         available_only: If True, only consider available items when recommending.
+        budget_inr: Optional budget cap in INR. If set, items beyond budget get ``over_budget`` reason_type.
+        household_size: Number of people. Adjusts recommended quantities.
+        days_to_plan: Number of days to plan for. Adjusts recommended quantities.
+        avoid_items: List of canonical names the household wants to avoid.
 
     Returns:
         An ``OptimizedBasket`` with per-item classifications.
     """
     inventory_map = inventory_map or {}
+    avoid_set = {a.lower().strip() for a in (avoid_items or [])}
     available = available_canonical_names(snapshot)
     snapshot_date = _parse_date(snapshot.captured_at) if snapshot.captured_at else date.today()
     age_days = (date.today() - snapshot_date).days if snapshot_date else 0
@@ -207,6 +216,7 @@ def build_optimized_basket(
     freshness_note = f"Snapshot {age_days}d old" if is_stale else "Today's data"
 
     results: list[OptimizedBasketItem] = []
+    running_total = 0.0
 
     for raw in requested_items:
         name = raw.get("canonical_name", "").strip()
@@ -314,6 +324,28 @@ def build_optimized_basket(
             ))
             continue
 
+        # Skip items the household avoids
+        if name.lower().strip() in avoid_set:
+            results.append(OptimizedBasketItem(
+                requested_name=name,
+                canonical_name=canonical,
+                decision="skip",
+                reason_type="household_avoids",
+                reason=f"{display_name} is on your household avoid list",
+                matched=True,
+                requested_quantity=qty,
+                unit=unit,
+                already_owned_quantity=owned,
+                net_quantity_to_buy=0,
+                waste_risk=waste_risk or "unknown",
+                freshness_note=freshness_note,
+            ))
+            continue
+
+        # Scale quantity by household size and days to plan
+        scaled_qty = qty * household_size * (days_to_plan / 3.0) if household_size > 0 else qty
+        net_needed = max(scaled_qty - owned, 0.0)
+
         # Find cheapest market option
         cheapest = find_cheapest_weight_option(snapshot, canonical, available_only)
         all_opts = find_all_options(snapshot, canonical, available_only)
@@ -321,6 +353,30 @@ def build_optimized_basket(
         if cheapest is not None:
             nq = cheapest.normalized_quantity
             _price = cheapest.price_inr * (net_needed / nq) if nq is not None and nq > 0 else cheapest.price_inr
+
+            # Budget cap check
+            if budget_inr is not None and running_total + _price > budget_inr:
+                results.append(OptimizedBasketItem(
+                    requested_name=name,
+                    canonical_name=canonical,
+                    decision="compare",
+                    reason_type="over_budget",
+                    reason=f"Exceeds remaining budget of ₹{budget_inr - running_total:.0f} (₹{_price:.0f} needed)",
+                    matched=True,
+                    requested_quantity=qty,
+                    unit=unit,
+                    already_owned_quantity=owned,
+                    net_quantity_to_buy=net_needed,
+                    recommended_record=cheapest,
+                    alternatives=[r for r in all_opts if r is not cheapest][:3],
+                    estimated_price_inr=cheapest.price_inr,
+                    estimated_price_per_kg=cheapest.price_per_kg,
+                    waste_risk=waste_risk,
+                    freshness_note=freshness_note,
+                ))
+                continue
+            running_total += _price
+
             results.append(OptimizedBasketItem(
                 requested_name=name,
                 canonical_name=canonical,

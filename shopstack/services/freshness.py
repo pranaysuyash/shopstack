@@ -188,3 +188,114 @@ def inventory_freshness_label(
         is_stale=status == "stale",
         warning=warning,
     )
+
+
+def inventory_confidence(
+    purchase_date: date | None,
+    shelf_life_days: int = 0,
+    last_confirmed: date | None = None,
+    today: date | None = None,
+) -> float:
+    """Compute inventory confidence score based on age and freshness.
+
+    The review (§4.1) identifies confidence as essential for reliable inventory:
+
+      | Source                       | Confidence    |
+      | ---------------------------- | ------------- |
+      | Manual user entry            | high          |
+      | Receipt extraction           | high/medium   |
+      | Image/fridge scan            | medium/low    |
+      | Old inferred inventory       | low           |
+      | Planned but unconfirmed cart | not inventory |
+
+    This function computes a confidence decay curve based on how long ago the
+    item was purchased or last confirmed, relative to its shelf life.
+
+    Returns 0.0–1.0 where:
+      - 1.0 = just purchased / manually confirmed
+      - 0.8+ = within shelf life, recently confirmed
+      - 0.5–0.8 = approaching expiry, needs confirmation
+      - 0.2–0.5 = past expected shelf life, likely spoiled
+      - <0.2 = very old, should prompt confirmation
+    """
+    current = today or date.today()
+
+    if purchase_date is None and last_confirmed is None:
+        return 0.3  # low confidence — entirely unknown provenance
+
+    # Use most recent of purchase_date and last_confirmed
+    ref_date = purchase_date or last_confirmed or current
+    if last_confirmed and purchase_date:
+        ref_date = max(last_confirmed, purchase_date)
+    elif last_confirmed:
+        ref_date = last_confirmed
+
+    age_days = (current - ref_date).days
+
+    if age_days < 0:
+        return 1.0  # future date? trust
+
+    if shelf_life_days <= 0:
+        # No shelf life info — use generic decay curve
+        if age_days <= 1:
+            return 0.95
+        if age_days <= 3:
+            return 0.85
+        if age_days <= 7:
+            return 0.7
+        if age_days <= 14:
+            return 0.5
+        if age_days <= 30:
+            return 0.3
+        return 0.15
+
+    # Shelf-life-based decay
+    fraction_consumed = age_days / shelf_life_days if shelf_life_days > 0 else 99
+
+    if fraction_consumed <= 0.2:
+        return 0.95
+    if fraction_consumed <= 0.5:
+        return 0.85
+    if fraction_consumed <= 0.8:
+        return 0.65
+    if fraction_consumed <= 1.0:
+        return 0.45
+    # Past shelf life
+    over_by = age_days - shelf_life_days
+    if over_by <= 3:
+        return 0.3
+    if over_by <= 7:
+        return 0.2
+    return 0.1
+
+
+def needs_confirmation(confidence: float, threshold: float = 0.4) -> bool:
+    """Returns True if an inventory item's confidence is below threshold and needs user confirmation.
+
+    The review: "You bought coriander 7 days ago. It may be gone or spoiled. Confirm?"
+    """
+    return confidence < threshold
+
+
+def confirmation_prompt(
+    canonical_name: str,
+    display_name: str,
+    confidence: float,
+    purchase_date: date | None = None,
+    quantity: float = 0.0,
+    unit: str = "unit",
+) -> str:
+    """Generate a human-readable confirmation prompt for low-confidence inventory."""
+    if confidence >= 0.4:
+        return ""
+
+    if purchase_date is None:
+        return f"Do you still have {display_name}? No purchase date recorded."
+
+    age_days = (date.today() - purchase_date).days
+    if age_days <= 1:
+        return ""  # too recent to need confirmation
+
+    if confidence < 0.2:
+        return f"Has {display_name} been used or discarded? It was purchased {age_days} days ago."
+    return f"Do you still have {display_name} ({quantity} {unit})? It was purchased {age_days} days ago."

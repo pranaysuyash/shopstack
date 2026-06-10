@@ -9,32 +9,32 @@ from typing import Any
 @dataclass
 class CardTheme:
     background: str = "#ffffff"
-    accent: str = "#22c55e"
+    accent: str = "#1A9E4A"
     text: str = "#1e293b"
     text_dim: str = "#64748b"
-    success: str = "#22c55e"
-    warning: str = "#f59e0b"
-    danger: str = "#ef4444"
+    success: str = "#1A9E4A"
+    warning: str = "#C47D0A"
+    danger: str = "#C53030"
 
 
 DEFAULT_THEME = CardTheme()
 
 _STATUS_COLORS: dict[str, str] = {
-    "active": "#22c55e",
-    "low": "#f59e0b",
-    "expired": "#ef4444",
-    "use_soon": "#f59e0b",
+    "active": "#1A9E4A",
+    "low": "#C47D0A",
+    "expired": "#C53030",
+    "use_soon": "#C47D0A",
     "unknown": "#64748b",
 }
 
 _DECISION_SVG_COLORS: dict[str, str] = {
-    "buy": "#22c55e",
-    "skip": "#6b7280",
-    "use_soon": "#f59e0b",
-    "optional": "#3b82f6",
-    "compare": "#8b5cf6",
-    "confirm": "#ef4444",
-    "watch": "#9ca3af",
+    "buy": "#1A9E4A",
+    "skip": "#595E66",
+    "use_soon": "#C47D0A",
+    "optional": "#2A6BC4",
+    "compare": "#7345D0",
+    "confirm": "#C53030",
+    "watch": "#7F8C8D",
 }
 
 _FONT = "system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"
@@ -60,7 +60,7 @@ def _wrap_text(text: str, max_chars: int = 20) -> list[str]:
         else:
             if current:
                 lines.append(current)
-            current = word if len(word) <= max_chars else word[: max_chars - 1] + "…"
+            current = word if len(word) <= max_chars else word[: max_chars - 1] + "\u2026"
     if current:
         lines.append(current)
     return lines[:3]
@@ -119,7 +119,7 @@ def _svg_confidence_bar(
 ) -> str:
     clamped = max(0.0, min(1.0, value))
     fill_w = clamped * width
-    color = "#22c55e" if clamped >= 0.7 else "#f59e0b" if clamped >= 0.4 else "#ef4444"
+    color = "#1A9E4A" if clamped >= 0.7 else "#C47D0A" if clamped >= 0.4 else "#C53030"
     return (
         f'<rect x="{x}" y="{y}" width="{width}" height="{height}" rx="2" fill="#e2e8f0"/>'
         f'<rect x="{x}" y="{y}" width="{fill_w:.1f}" height="{height}" rx="2" fill="{color}"/>'
@@ -138,9 +138,10 @@ def render_item_card(
     t = theme or DEFAULT_THEME
     accent = _STATUS_COLORS.get(status, t.text_dim)
     qty_str = f"{quantity:g} {escape(unit)}" if unit else f"{quantity:g}"
+    safe_name = escape(item_name)
     parts: list[str] = [
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 140" '
-        'width="220" height="140">',
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 140" '
+        f'width="220" height="140" role="img" aria-label="Item: {safe_name} ({status})">',
         f'<rect width="220" height="140" rx="8" fill="{t.background}"/>',
         f'<rect x="0" y="0" width="4" height="140" rx="2" fill="{accent}"/>',
     ]
@@ -160,7 +161,7 @@ def render_item_card(
         parts.append(
             f'<text x="204" y="122" text-anchor="end" font-size="14" '
             f'fill="{t.success}" font-family="{_FONT}" '
-            f'font-weight="600">&#8377;{price:.0f}</text>'
+            f'font-weight="600">\u20b9{price:.0f}</text>'
         )
     parts.append("</svg>")
     return "".join(parts)
@@ -175,16 +176,17 @@ def render_use_soon_card(
     header_h = 36
     max_items = min(len(items), 5)
     total_h = header_h + max(max_items, 1) * row_h + 16
+    item_count = len(items)
     parts: list[str] = [
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 {total_h}" '
-        f'width="220" height="{total_h}">',
+        f'width="220" height="{total_h}" role="img" aria-label="Use soon: {item_count} items">',
         f'<rect width="220" height="{total_h}" rx="8" fill="#fffbeb"/>',
         f'<rect x="0" y="0" width="4" height="{total_h}" rx="2" fill="{t.warning}"/>',
         f'<text x="16" y="24" font-size="13" fill="{t.warning}" '
         f'font-family="{_FONT}" font-weight="600">Use Soon</text>',
         f'<text x="204" y="24" text-anchor="end" font-size="11" fill="{t.text_dim}" '
         f'font-family="{_FONT}">'
-        f'{len(items)} item{"s" if len(items) != 1 else ""}</text>',
+        f'{item_count} item{"s" if item_count != 1 else ""}</text>',
     ]
     if not items:
         parts.append(
@@ -220,9 +222,11 @@ def render_decision_card(
     t = theme or DEFAULT_THEME
     color = _DECISION_SVG_COLORS.get(decision, t.text_dim)
     clamped_conf = max(0.0, min(1.0, confidence))
+    safe_item = escape(item_name)
     parts: list[str] = [
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 160" '
-        'width="220" height="220" style="max-width:100%;">',
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 160" '
+        f'width="220" height="220" style="max-width:100%;" role="img" '
+        f'aria-label="Decision: {safe_item} - {decision}">',
         f'<rect width="220" height="160" rx="8" fill="{t.background}"/>',
         f'<rect x="0" y="0" width="4" height="160" rx="2" fill="{color}"/>',
         _svg_badge(decision, 12, 10, color, "#ffffff", 9),
@@ -250,7 +254,8 @@ def render_shopping_summary_card(
     col_w = 64
     parts: list[str] = [
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 130" '
-        'width="220" height="130">',
+        'width="220" height="130" role="img" aria-label="Shopping summary: '
+        f'{items_bought} bought, {items_skipped} skipped, {total_saved:.0f} saved">',
         f'<rect width="220" height="130" rx="8" fill="{t.background}"/>',
         f'<rect x="0" y="0" width="4" height="130" rx="2" fill="{t.success}"/>',
         f'<text x="16" y="24" font-size="13" fill="{t.text}" '
@@ -260,7 +265,7 @@ def render_shopping_summary_card(
         [
             (str(items_bought), "Bought", t.success),
             (str(items_skipped), "Skipped", t.text_dim),
-            (f"&#8377;{total_saved:.0f}", "Saved", t.success),
+            (f"\u20b9{total_saved:.0f}", "Saved", t.success),
         ]
     ):
         cx = 16 + i * col_w + col_w // 2
@@ -294,11 +299,12 @@ def render_price_comparison_card(
     row_h = 26
     header_h = 40
     total_h = header_h + max(max_items, 1) * row_h + 12
+    safe_item = escape(item_name)
     parts: list[str] = [
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 {total_h}" '
-        f'width="220" height="{total_h}">',
+        f'width="220" height="{total_h}" role="img" aria-label="Price compare: {safe_item}">',
         f'<rect width="220" height="{total_h}" rx="8" fill="{t.background}"/>',
-        f'<rect x="0" y="0" width="4" height="{total_h}" rx="2" fill="#8b5cf6"/>',
+        f'<rect x="0" y="0" width="4" height="{total_h}" rx="2" fill="#7345D0"/>',
         _svg_text_block(
             item_name, 16, 28, max_chars=22, font_size=13, color=t.text, bold=True
         ),
@@ -317,7 +323,7 @@ def render_price_comparison_card(
                 f'fill="#f0fdf4"/>'
             )
         price_color = t.success if is_best else t.text
-        star = " ★" if is_best else ""
+        star = " \u2605" if is_best else ""
         parts.append(
             f'<text x="16" y="{y}" font-size="11" fill="{t.text}" '
             f'font-family="{_FONT}">{escape(store[:20])}{star}</text>'
@@ -325,7 +331,7 @@ def render_price_comparison_card(
         parts.append(
             f'<text x="204" y="{y}" text-anchor="end" font-size="12" '
             f'fill="{price_color}" font-family="{_FONT}" '
-            f'font-weight="600">&#8377;{price:.0f}</text>'
+            f'font-weight="600">\u20b9{price:.0f}</text>'
         )
         y += row_h
     parts.append("</svg>")
@@ -372,7 +378,8 @@ def cards_to_grid(cards: list[str], columns: int = 3) -> str:
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" '
         f'viewBox="0 0 {grid_w:.0f} {total_h:.0f}" '
-        f'width="100%" style="max-width:{grid_w:.0f}px;">'
+        f'width="100%" style="max-width:{grid_w:.0f}px;" '
+        f'role="img" aria-label="Card grid: {len(cards)} cards">'
         f'{"".join(rows_markup)}'
         f"</svg>"
     )

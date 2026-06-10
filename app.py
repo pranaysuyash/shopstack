@@ -127,7 +127,7 @@ def build_app() -> gr.Blocks:
   <div>
     <div class=\"env-badge\">{runtime_label}</div>
     {_model_download_status()}
-    <button onclick=\"toggleTheme()\" style=\"margin-top:4px;background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 10px;cursor:pointer;font-size:11px;color:var(--text-muted);\">🌓</button>
+    <button onclick=\"toggleTheme()\" aria-label=\"Toggle light/dark theme\" title=\"Toggle theme\" style=\"margin-top:4px;background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 10px;cursor:pointer;font-size:11px;color:var(--text-muted);\">🌓</button>
   </div>
 </div>"""
         header_script = """
