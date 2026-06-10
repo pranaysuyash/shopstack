@@ -94,6 +94,7 @@ def classify_all(
         if market:
             evidence_list.append(DecisionEvidence(source="market_snapshot", value=market.price_inr, confidence=0.7, captured_at=market.captured_at, is_stale=getattr(market, 'is_stale', False)))
 
+        data_freshness, data_freshness_label = _freshness_for(cname, market_evidence_map)
         decisions.append(DecisionResult(
             canonical_name=cname,
             display_name=lot.display_name,
@@ -112,6 +113,8 @@ def classify_all(
             shelf_life_days=meta.shelf_life_days if meta else 0,
             last_purchase_date=lot.purchase_date,
             location=lot.storage_location_id or "",
+            data_freshness=data_freshness,
+            data_freshness_label=data_freshness_label,
         ))
 
     if active_list and active_list.items:
@@ -145,6 +148,7 @@ def classify_all(
                     waste_risk=meta.waste_risk if meta else "unknown",
                 )
 
+            data_freshness, data_freshness_label = _freshness_for(item.canonical_name, market_evidence_map)
             decisions.append(DecisionResult(
                 canonical_name=item.canonical_name,
                 display_name=item.canonical_name.replace("_", " ").title(),
@@ -162,6 +166,8 @@ def classify_all(
                 shelf_life_days=meta.shelf_life_days if meta else 0,
                 last_purchase_date=inv_match.purchase_date if inv_match else None,
                 location=inv_match.storage_location_id if inv_match else "",
+                data_freshness=data_freshness,
+                data_freshness_label=data_freshness_label,
             ))
 
     if market_snapshot is not None:
@@ -195,6 +201,7 @@ def classify_all(
                 reason_str = f"Available at \u20b9{price_ppk:.0f}/kg on {market_source_name}"
                 confidence = 0.5
 
+            data_freshness, data_freshness_label = _freshness_for(cname, market_evidence_map)
             decisions.append(DecisionResult(
                 canonical_name=cname,
                 display_name=cname.replace("_", " ").title(),
@@ -209,6 +216,8 @@ def classify_all(
                 market_raw_size=r.raw_size,
                 waste_risk=meta.waste_risk if meta else "unknown",
                 shelf_life_days=meta.shelf_life_days if meta else 0,
+                data_freshness=data_freshness,
+                data_freshness_label=data_freshness_label,
             ))
 
     return DecisionSet(decisions=decisions)
@@ -261,6 +270,51 @@ def _get_produce_meta(canonical_name: str):
         return get_produce_metadata(canonical_name)
     except Exception:
         return None
+
+
+def _freshness_for(cname: str, evidence_map: dict[str, Any]) -> tuple[str, str]:
+    """Derive (data_freshness, data_freshness_label) from market evidence."""
+    ev = evidence_map.get(cname)
+    if not ev:
+        return "unknown", ""
+    age = ev.get("age_days", 0)
+    is_stale = ev.get("is_stale", False)
+    freshness = "stale" if is_stale else "fresh"
+    captured = ev.get("captured_at")
+    if captured:
+        try:
+            from datetime import datetime
+            if isinstance(captured, str):
+                captured = datetime.fromisoformat(captured)
+            label = f"Snapshot from {captured.strftime('%-d %b %Y')}"
+        except Exception:
+            label = ""
+    else:
+        label = ""
+    return freshness, label
+
+
+def classify_inventory_comparison(
+    total_have: float, requested_qty: float, unit: str, is_use_soon: bool
+) -> tuple[str, str]:
+    """Return (decision, reason) from raw inventory comparison facts.
+
+    Thresholds:
+      >= 2x requested → skip (already plenty)
+      >= 1x requested → optional (have enough, buy only if needed)
+      < 1x requested  → buy (need more)
+    """
+    if total_have <= 0:
+        return "buy", f"Not found in inventory."
+
+    shortfall = max(requested_qty - total_have, 0)
+    surplus_ratio = total_have / requested_qty if requested_qty > 0 else float("inf")
+
+    if surplus_ratio >= 2:
+        return "skip", f"Already have {total_have} {unit} at home."
+    if surplus_ratio >= 1:
+        return "optional", f"Have {total_have} {unit}. Only buy if needed."
+    return "buy", f"Have only {total_have} {unit}. Buy {shortfall} {unit}."
 
 
 def _multi_source_market_data(

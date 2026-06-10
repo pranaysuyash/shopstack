@@ -151,7 +151,7 @@ def build_tool_specs() -> list[ToolSpec]:
         ),
         ToolSpec(
             name="compare_visible_item_to_inventory",
-            description="Check if an item the user sees (in a store) is already available at home. Returns buy/skip/maybe decision.",
+            description="Check if an item the user sees (in a store) is already available at home. Returns inventory quantity and shortfall data.",
             args=[
                 ArgSpec("canonical_name", "Item name. Required."),
                 ArgSpec("quantity", "Amount being considered. Optional, defaults to 1.0.", required=False, default="1.0"),

@@ -72,6 +72,18 @@ def test_enrich_market_prices_multiple_items():
     for item in decisions:
         assert "swiggy_price" in item
         assert "swiggy_available" in item
+        assert "swiggy_size" in item
+
+
+def test_enrich_market_prices_unknown_item_gets_explicit_none_fields():
+    decisions = [{"canonical_name": "Unobtainium"}]
+
+    enrich_market_prices(decisions)
+
+    assert decisions[0]["swiggy_price"] is None
+    assert decisions[0]["swiggy_price_per_kg"] is None
+    assert decisions[0]["swiggy_available"] is None
+    assert decisions[0]["swiggy_size"] == ""
 
 
 def test_analyze_market_lens_no_input(providers, tool_registry):

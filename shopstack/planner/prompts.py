@@ -5,6 +5,9 @@ from typing import Any
 from shopstack.config import settings
 from shopstack.tools.registry import ToolRegistry
 
+# Cap inventory items sent to the LLM to keep prompt size bounded
+_PLANNER_INVENTORY_LIMIT = 20
+
 SYSTEM_PROMPT = f"""## IDENTITY
 
 You are {settings.app_name}'s household inventory assistant. Your purpose is to help users manage kitchen and home inventory, shopping lists, purchases, and price tracking. You operate strictly within the tool-based boundaries defined below.
@@ -171,19 +174,19 @@ def _format_tool_descriptions(tools: ToolRegistry | None = None) -> str:
     return "\n".join(lines)
 
 
-def format_inventory_context(db: Any) -> str:
+def format_inventory_context(db: Any, limit: int = _PLANNER_INVENTORY_LIMIT) -> str:
     lots = db.get_inventory(status="active") if hasattr(db, "get_inventory") else []
     if not lots:
         return "Inventory is empty."
     lines: list[str] = []
-    for lot in lots[:20]:
+    for lot in lots[:limit]:
         loc = getattr(lot, "storage_location_id", "unknown")
         qty = getattr(lot, "quantity", 0)
         unit = getattr(lot, "unit", "unit")
         name = getattr(lot, "canonical_name", getattr(lot, "display_name", "unknown"))
         lines.append(f"  - {name}: {qty} {unit} (in {loc})")
-    if len(lots) > 20:
-        lines.append(f"  ... and {len(lots) - 20} more items")
+    if len(lots) > limit:
+        lines.append(f"  ... and {len(lots) - limit} more items")
     return "\n".join(lines)
 
 

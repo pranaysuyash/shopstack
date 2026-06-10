@@ -15,6 +15,7 @@ from shopstack.services.shopping import (
     mark_items_purchased_service,
 )
 from shopstack.ui import list_to_table
+from shopstack.ui.components.primitives import empty_state_enhanced, item_row, toast
 from shopstack.ui.renderers import render_mark_purchased, render_shopping_completion
 from shopstack.traces.export import create_trace
 from shopstack.ui.screens._utils import (
@@ -44,7 +45,7 @@ def shopping_list_view():
 def shopping_list_create(goal: str, items_json: str) -> str:
     if not items_json:
         items = []
-        plan_note = "No items specified yet."
+        plan_note = empty_state_enhanced("No items specified yet.", icon="📝")
     else:
         try:
             parsed_json = json.loads(items_json)
@@ -55,16 +56,16 @@ def shopping_list_create(goal: str, items_json: str) -> str:
                 items = [parsed_json]
                 plan_note = None
             else:
-                return "<div style='color:var(--red);'>Input must be a list (or one item).</div>"
+                return toast("Input must be a list (or one item).", kind="error")
         except json.JSONDecodeError:
             stripped = items_json.strip()
             if stripped.startswith("{") or stripped.startswith("["):
-                return "<div style='color:var(--red);'>Invalid JSON input.</div>"
+                return toast("Invalid JSON input.", kind="error")
             items, plan_note = _parse_shopping_items_from_text(goal, items_json)
             if not items:
-                return f"<div style='color:var(--amber);'>{plan_note}</div>"
+                return toast(plan_note, kind="warning")
         except TypeError:
-            return "<div style='color:var(--red);'>Unable to parse input.</div>"
+            return toast("Unable to parse input.", kind="error")
 
     if not items:
         items = []
@@ -87,13 +88,10 @@ def shopping_list_create(goal: str, items_json: str) -> str:
         plan_note = _render_shopping_plan_html(must_buy, optional, skipped, use_soon)
         _record_shopping_trace(goal, items_json, items, must_buy, optional, skipped, use_soon, plan_note)
     else:
-        plan_note = "<div style='color:var(--text-dim);'>Created an empty active list. Add more items anytime.</div>"
+        plan_note = empty_state_enhanced("Created an empty active list. Add more items anytime.", icon="📋")
     result = tools.create_or_update_shopping_list(items=items, goal=goal)
     safe_list_id = escape(str(result.get("list", {}).get("list_id", "")))
-    return (
-        f"<div style='color:var(--green);'>Created list: {safe_list_id} with {len(items)} items</div>"
-        f"{plan_note}"
-    )
+    return toast(f"Created list: {safe_list_id} with {len(items)} items", kind="success") + plan_note
 
 
 def _parse_shopping_items_from_text(goal: str, raw: str) -> tuple[list[dict[str, Any]], str]:
@@ -163,31 +161,28 @@ def _render_shopping_plan_html(
     def _card_with_badge(group_name: str, items: list[dict[str, Any]]) -> str:
         if not items:
             return ""
-        rows = []
-        for item in items[:8]:
-            name = escape(str(item.get("canonical_name", "")))
-            qty = item.get("requested_quantity", 1.0)
-            unit = item.get("unit", "unit")
-            reason = item.get("reason", "")
-            badge = _swiggy_badge(item)
-            reason_html = f"<div style='font-size:11px;color:var(--text-dim);'>{escape(str(reason))}{badge}</div>" if reason or badge else ""
-            rows.append(
-                f"<div style='padding:5px 0;border-bottom:1px solid var(--border);'>"
-                f"<div style='font-weight:600;'>{name} <span style='font-size:11px;color:var(--text-dim);'>{qty} {unit}</span></div>"
-                f"{reason_html}"
-                f"</div>"
-            )
         color_map = {
             "Must buy": "#22c55e", "Optional": "#3b82f6",
             "Use Soon": "#f59e0b", "Skip": "#6b7280",
         }
         color = color_map.get(group_name, "var(--text-dim)")
-        return (
-            f"<div class='stat-card' style='text-align:left;'>"
-            f"<h4 style='color:{color};'>{group_name} ({len(items)})</h4>"
-            f"{''.join(rows)}"
-            f"</div>"
-        )
+        rows = []
+        for item in items[:8]:
+            name = str(item.get("canonical_name", ""))
+            qty = item.get("requested_quantity", 1.0)
+            unit = item.get("unit", "unit")
+            reason = item.get("reason", "")
+            badge_html_str = _swiggy_badge(item)
+            extra = f"{escape(str(reason))}{badge_html_str}" if reason or badge_html_str else ""
+            rows.append(item_row(
+                name=name.replace("_", " ").title(),
+                quantity=qty,
+                unit=unit,
+                status="active",
+                extra=extra,
+            ))
+        heading = f"<h4 style='color:{color};margin-bottom:4px;'>{escape(group_name)} ({len(items)})</h4>"
+        return f"<div style='text-align:left;margin-bottom:8px;'>{heading}{''.join(rows)}</div>"
 
     cards = "".join(
         _card_with_badge(name, items)
@@ -195,6 +190,7 @@ def _render_shopping_plan_html(
         if items
     )
     return f"<div style='margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;'>{cards}</div>" if cards else ""
+
 
 
 def _record_shopping_trace(
@@ -301,7 +297,7 @@ def _shopping_list_payload() -> tuple[str, list[list[str]], str, str, str, str]:
     sl = db.get_active_shopping_list()
     if not sl:
         return (
-            "<div class='stat-card' style='text-align:left;margin-bottom:12px;'><h3>Shopping List</h3><div style='color:var(--text-dim);'>No active shopping list. Create one with your goal or rough text.</div></div>",
+            empty_state_enhanced("No active shopping list. Create one with your goal or rough text.", icon="🛒", action_label="Create List", on_click_tab="shopping"),
             [["No items"]],
             "",
             "",
@@ -352,7 +348,7 @@ def _shopping_list_payload() -> tuple[str, list[list[str]], str, str, str, str]:
         table_rows,
         ["item", "qty", "unit", "priority", "swiggy", "reason"],
     )
-    goal_html = f"<div style='margin-bottom:12px;'><strong>Goal:</strong> {escape(str(sl.goal))}</div>" if sl.goal else ""
+    goal_html = f"<div class='stat-card' style='text-align:left;margin-bottom:8px;'><strong>Goal:</strong> {escape(str(sl.goal))}</div>" if sl.goal else ""
     share_text = _shopping_list_share_text(rows)
     share_html = _shopping_list_share_html(share_text)
     return goal_html, tbl, sl.list_id, sl.goal or "", cards, share_html
@@ -361,7 +357,7 @@ def _shopping_list_payload() -> tuple[str, list[list[str]], str, str, str, str]:
 def _shopping_list_view_with_cards() -> tuple[str, str, list[list[str]], str, str, str]:
     goal_html, tbl, list_id, list_goal, cards, share = _shopping_list_payload()
     empty_cards = "<div style='color:var(--text-dim);'>No items classified for display yet.</div>"
-    card_wrap = "<div class='home-card' style='text-align:left;'>" + "<h3>Shopping List</h3>" + (cards or empty_cards) + "</div>"
+    card_wrap = "<div class='home-card' style='text-align:left;'><h3>Shopping List</h3>" + (cards or empty_cards) + "</div>"
     return card_wrap, goal_html, tbl, list_id, list_goal, share
 
 

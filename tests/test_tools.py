@@ -105,14 +105,15 @@ class TestMoveItem:
 class TestCompareVisibleItem:
     def test_compare_empty_inventory(self, tool_registry):
         result = tool_registry.execute("compare_visible_item_to_inventory", canonical_name="milk", quantity=1.0, unit="L")
-        assert result["result"]["decision"] == "buy"
         assert result["result"]["in_home_inventory"] is False
+        assert result["result"]["total_quantity_at_home"] == 0
+        assert result["result"]["shortfall"] == 1.0
 
     def test_compare_sufficient(self, tool_registry):
         tool_registry.execute("add_inventory_item", canonical_name="rice", quantity=10.0, unit="kg")
         result = tool_registry.execute("compare_visible_item_to_inventory", canonical_name="rice", quantity=1.0, unit="kg")
         assert result["result"]["in_home_inventory"] is True
-        assert result["result"]["decision"] == "skip"
+        assert result["result"]["surplus_ratio"] >= 2
 
 
 class TestUseSoon:

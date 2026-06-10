@@ -7,6 +7,7 @@ from typing import Any
 
 from shopstack.app_context import db, providers
 from shopstack.services.receipt import ReceiptResult, confirm_receipt, parse_receipt_text
+from shopstack.ui.components.primitives import data_table
 from shopstack.ui.screens._utils import safe_render
 
 logger = logging.getLogger(__name__)
@@ -43,33 +44,32 @@ def _render_receipt_review(result: ReceiptResult | None) -> str:
     if not result or not result.lines:
         return "<div style='color:var(--text-dim);'>No receipt parsed yet.</div>"
 
-    rows = "".join(
-        f"<tr>"
-        f"<td style='padding:4px 8px;border-bottom:1px solid var(--border);'>{escape(str(line.display_name))}</td>"
-        f"<td style='padding:4px 8px;border-bottom:1px solid var(--border);'>{line.quantity}</td>"
-        f"<td style='padding:4px 8px;border-bottom:1px solid var(--border);'>{escape(line.unit)}</td>"
-        f"<td style='padding:4px 8px;border-bottom:1px solid var(--border);text-align:right;'>&#8377;{line.price:.2f}</td>"
-        f"</tr>"
+    rows = [
+        {
+            "Item": line.display_name,
+            "Qty": str(line.quantity),
+            "Unit": line.unit,
+            "Price": f"\u20b9{line.price:.2f}",
+        }
         for line in result.lines
+    ]
+
+    table_html = data_table(
+        rows,
+        columns=["Item", "Qty", "Unit", "Price"],
+        empty_message="No receipt lines parsed.",
     )
 
+    # Replace the outer card wrapper's id so the data_table's inner card
+    # is the only card, avoiding nested card borders.
     return (
-        "<div class='stat-card' style='text-align:left;'>"
-        f"<h3>Receipt from {escape(result.merchant)}</h3>"
-        f"<div style='font-size:12px;color:var(--text-dim);'>{result.purchase_date}</div>"
-        f"<table style='width:100%;border-collapse:collapse;margin-top:8px;font-size:13px;'>"
-        f"<tr style='font-weight:600;'>"
-        f"<th style='padding:4px 8px;text-align:left;border-bottom:2px solid var(--border);'>Item</th>"
-        f"<th style='padding:4px 8px;text-align:left;border-bottom:2px solid var(--border);'>Qty</th>"
-        f"<th style='padding:4px 8px;text-align:left;border-bottom:2px solid var(--border);'>Unit</th>"
-        f"<th style='padding:4px 8px;text-align:right;border-bottom:2px solid var(--border);'>Price</th>"
-        f"</tr>"
-        f"{rows}"
-        f"<tr style='font-weight:600;'>"
-        f"<td style='padding:4px 8px;border-top:2px solid var(--border);' colspan='3'>Total</td>"
-        f"<td style='padding:4px 8px;border-top:2px solid var(--border);text-align:right;'>&#8377;{result.total:.2f}</td>"
-        f"</tr>"
-        f"</table>"
+        f"<div role='region' aria-label='Receipt from {escape(result.merchant)}' style='text-align:left;'>"
+        f"<h3 id='receipt-heading'>Receipt from {escape(result.merchant)}</h3>"
+        f"<div style='font-size:12px;color:var(--text-dim);' aria-label='Purchase date'>{result.purchase_date}</div>"
+        f"<div style='margin-top:8px;' aria-labelledby='receipt-heading'>{table_html}</div>"
+        f"<div style='margin-top:8px;padding-top:8px;border-top:2px solid var(--border);font-weight:600;text-align:right;font-size:14px;'>"
+        f"Total: \u20b9{result.total:.2f}"
+        f"</div>"
         f"</div>"
     )
 

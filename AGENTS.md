@@ -293,3 +293,11 @@ This file remains a guidance snapshot; code/runtime/tests at the time of work re
 - Evaluation: PaddleOCR-VL-1.5 (0.9B, Apache 2.0, 109 languages) — blocked on Python 3.14 (PaddlePaddle wheels max cp313). Documented in exploration doc with multi-venv architecture proposal.
 - Multi-venv architecture documented as an Active Decision: `.venv-py312` secondary env via subprocess gateway pattern for Python-3.14-blocked C-extension models.
 - Exploration doc updated: PaddleOCR status, Tesseract+hin 0/15 result, multi-venv architecture section, updated practical path forward.
+
+## Status Update (2026-06-10) — Stale Test Count
+
+| Doc Claim | Actual |
+|-----------|--------|
+| "Current verified: **837 tests**" | **974 tests** collected (`uv run pytest tests/ --collect-only -q`) — +137 tests since this claim was written |
+
+Note: The test inventory table at the top of this file is also likely stale for many entries. Run `uv run pytest tests/ --collect-only -q` to get the actual current count.

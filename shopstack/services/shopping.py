@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from shopstack.market.normalization import normalize_item_name
+from shopstack.decisions.rules import classify_inventory_comparison
 from shopstack.services.results import (
     CompletionItem,
     MarkPurchasedResult,
@@ -28,6 +29,10 @@ _CONF_USE_SOON = 0.85
 _CONF_OPTIONAL = 0.72
 _CONF_PARTIAL_STOCK = 0.62
 _CONF_NO_STOCK = 0.52
+
+# Optional items get halved quantity to reduce waste on "nice to have" purchases
+_OPTIONAL_QTY_FRACTION = 0.5
+_OPTIONAL_QTY_FLOOR = 0.5
 
 
 @dataclass
@@ -64,10 +69,12 @@ def classify_shopping_items(items: list[dict[str, Any]], tools: ToolRegistry) ->
             qty = 1.0
         unit = item.get("unit", "unit") or "unit"
         comparison = tools.compare_visible_item_to_inventory(name, qty, unit)
-        decision = comparison.get("decision", "maybe")
         total_have = comparison.get("total_quantity_at_home", 0)
+        is_use_soon = comparison.get("is_use_soon", False)
 
-        if comparison.get("is_use_soon", False) and decision != "skip":
+        decision, reason = classify_inventory_comparison(total_have, qty, unit, is_use_soon)
+
+        if is_use_soon and decision != "skip":
             decision = "use_soon"
 
         if decision == "skip":
@@ -85,7 +92,7 @@ def classify_shopping_items(items: list[dict[str, Any]], tools: ToolRegistry) ->
             "canonical_name": normalized.title(),
             "decision": decision,
             "smart_decision": decision,
-            "reason": comparison.get("reason", ""),
+            "reason": reason,
             "confidence": round(conf, 2),
             "requested_quantity": qty,
             "unit": unit,
@@ -177,7 +184,7 @@ def complete_shopping_list_service(
             continue
         qty = item.requested_quantity or 1.0
         if priority == "optional":
-            qty = max(qty * 0.5, 0.5)
+            qty = max(qty * _OPTIONAL_QTY_FRACTION, _OPTIONAL_QTY_FLOOR)
         result = tools.add_inventory_item(
             canonical_name=item.canonical_name.lower().strip(),
             display_name=item.canonical_name.strip(),

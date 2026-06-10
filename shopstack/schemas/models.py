@@ -52,11 +52,11 @@ def new_id() -> str:
 
 class ItemCatalog(BaseModel):
     canonical_name: str
-    aliases: list[str] = []
+    aliases: list[str] = Field(default_factory=list)
     category: str = ""
     default_unit: str = "unit"
-    typical_storage: list[str] = []
-    typical_shelf_life_days: dict[str, int] = {}
+    typical_storage: list[str] = Field(default_factory=list)
+    typical_shelf_life_days: dict[str, int] = Field(default_factory=dict)
     is_perishable: bool = False
     nutrition_reference: dict | None = None
     notes: str | None = None
@@ -412,4 +412,3 @@ class PreferenceSignal(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.now)
 
 
-# TripWeatherContext removed — unrelated schema remnant (see audit 2026-06-08)

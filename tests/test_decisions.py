@@ -258,3 +258,32 @@ class TestDecisionWithSwiggy:
         )
         ds = classify_all(ctx.db, ctx.tools, snap)
         assert ds.estimated_basket_total > 0
+
+
+class TestClassifyInventoryComparison:
+    """Unit tests for the shared classification helper."""
+
+    def test_zero_stock(self):
+        from shopstack.decisions.rules import classify_inventory_comparison
+        decision, reason = classify_inventory_comparison(0, 1.0, "kg", False)
+        assert decision == "buy"
+
+    def test_double_stock_skip(self):
+        from shopstack.decisions.rules import classify_inventory_comparison
+        decision, reason = classify_inventory_comparison(2.0, 1.0, "kg", False)
+        assert decision == "skip"
+
+    def test_exact_stock_optional(self):
+        from shopstack.decisions.rules import classify_inventory_comparison
+        decision, reason = classify_inventory_comparison(1.0, 1.0, "kg", False)
+        assert decision == "optional"
+
+    def test_partial_stock_buy(self):
+        from shopstack.decisions.rules import classify_inventory_comparison
+        decision, reason = classify_inventory_comparison(0.5, 1.0, "kg", False)
+        assert decision == "buy"
+
+    def test_reason_contains_quantity(self):
+        from shopstack.decisions.rules import classify_inventory_comparison
+        _, reason = classify_inventory_comparison(0.5, 1.0, "kg", False)
+        assert "0.5" in reason

@@ -75,15 +75,11 @@ Imported observations are tagged with `source_event_id = swiggy_fresh_vegetables
 ## Tests
 
 ```bash
-uv run pytest tests/ -v          # 879 passed, 2 warnings in 48.06s
-uv run pytest benchmarks/ -v -m benchmark  # 9 passed
+uv run pytest tests/ -v
+uv run pytest benchmarks/ -v -m benchmark
 ```
 
-Test counts are generated at runtime. Run `pytest tests/ --collect-only | grep collected` for the current total.
-
-> **Note:** Previous documentation claimed specific test counts (483, 559, etc.) but they were not regenerated on every change, causing conflicting numbers. Run the tests to see the actual current status.
->
-> Current count: **837 tests** (`pytest tests/ --collect-only -q`).
+Run `pytest tests/ --collect-only -q` for the current test count.
 
 ## Project Structure
 
@@ -110,7 +106,7 @@ shopstack/
   configs/                  # (reserved)
 
 app.py                      # Gradio Blocks UI entry point (workflow-first tabs, custom warm CSS)
-tests/                      # pytest test suite (837 tests — run `pytest tests/ --collect-only -q` for current count)
+tests/                      # pytest test suite (run `pytest tests/ --collect-only -q` for current count)
 benchmarks/                 # pytest benchmark suite (9 latency markers)
 ```
 

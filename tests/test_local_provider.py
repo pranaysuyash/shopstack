@@ -231,6 +231,22 @@ class TestLocalProviderProperties:
         provider = _provider_without_model()
         assert provider.last_token_count is None
 
+    def test_model_id_empty_when_unavailable(self):
+        provider = _provider_without_model()
+        assert provider.model_id == ""
+
+    def test_runtime_report_unavailable_is_operator_readable(self):
+        provider = _provider_without_model()
+        report = provider.runtime_report()
+        assert report["provider"] == "local"
+        assert report["available"] is False
+        assert report["backend"] == "unavailable"
+        assert report["model_id"] == ""
+        assert report["model_dir"] == _NONEXISTENT_MODEL_DIR
+        assert "error" in report and report["error"]
+        assert report["last_latency_ms"] is None
+        assert report["last_token_count"] is None
+
     def test_last_latency_set_after_complete(self):
         """last_latency_ms is set after a successful completion."""
         if not _has_downloaded_model():

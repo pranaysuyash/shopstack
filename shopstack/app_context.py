@@ -28,7 +28,11 @@ NAV_ENTRIES: list[tuple[str, str, str]] = _build_navigation()
 # ── Core singletons ─────────────────────────────────────────────────
 db = Database(settings.db_path)
 providers = ProviderRegistry(settings)
-tools = ToolRegistry(db)
+# Wire embeddings provider into ToolRegistry for semantic search fallback.
+# The embedding provider is lazy-resolved from ProviderRegistry; if BGE-M3
+# or sentence-transformers is unavailable, semantic_find_item falls back to
+# prefix search automatically.
+tools = ToolRegistry(db, embedding_provider=providers.embeddings)
 planner = PlannerEngine(db, tools, providers)
 model_registry = get_registry()
 

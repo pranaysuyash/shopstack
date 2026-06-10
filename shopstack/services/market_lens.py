@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from shopstack.scanner import decode_barcode, infer_product_from_code
+from shopstack.decisions.rules import classify_inventory_comparison
 from shopstack.services.shopping import enrich_items_with_swiggy, normalize_item_name
 from shopstack.tools.registry import ToolRegistry
 
@@ -94,10 +95,16 @@ def analyze_visible_items(image_path: str, providers: Any, tools: ToolRegistry) 
         item_name = normalize_item_name(str(detection.get("label", "")))
         quantity = detection.get("quantity", 1.0)
         comparison = tools.compare_visible_item_to_inventory(item_name, quantity, "unit")
+        decision, reason = classify_inventory_comparison(
+            comparison.get("total_quantity_at_home", 0),
+            quantity,
+            "unit",
+            comparison.get("is_use_soon", False),
+        )
         decisions.append({
             "canonical_name": item_name.title(),
-            "decision": comparison.get("decision", "maybe"),
-            "reason": comparison.get("reason", ""),
+            "decision": decision,
+            "reason": reason,
             "confidence": float(detection.get("confidence", 0.0)),
             "unit": "unit",
             "quantity": quantity,

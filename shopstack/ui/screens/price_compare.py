@@ -16,6 +16,7 @@ from shopstack.market.sources import (
     compare_across_sources,
     format_cross_source_html,
 )
+from shopstack.ui.components.primitives import empty_state_enhanced, stat_card, toast
 
 logger = logging.getLogger(__name__)
 
@@ -52,31 +53,21 @@ def multi_source_price_view() -> str:
     """
     registry = _get_registry()
     if registry is None:
-        return (
-            "<div class='home-card' style='text-align:left;'>"
-            "<h3>Multi-Source Price Comparison</h3>"
-            "<div class='muted'>Source registry could not be initialised. "
-            "Market data files may be missing.</div>"
-            "</div>"
+        return empty_state_enhanced(
+            "Source registry could not be initialised. Market data files may be missing.",
+            icon="🔌",
         )
 
     if not _all_snapshots_loaded(registry):
         registered = registry.registered()
         if not registered:
-            return (
-                "<div class='home-card' style='text-align:left;'>"
-                "<h3>Multi-Source Price Comparison</h3>"
-                "<div class='muted'>No market sources registered. "
-                "Add Swiggy, Blinkit, Zepto, or DMart data to get started.</div>"
-                "</div>"
+            return empty_state_enhanced(
+                "No market sources registered. Add Swiggy, Blinkit, Zepto, or DMart data to get started.",
+                icon="📊",
             )
-        return (
-            "<div class='home-card' style='text-align:left;'>"
-            "<h3>Multi-Source Price Comparison</h3>"
-            "<div class='muted'>Loading snapshots for "
-            f"{', '.join(escape(s) for s in registered)}... "
-            "Check that data files are present.</div>"
-            "</div>"
+        return empty_state_enhanced(
+            f"Loading snapshots for {', '.join(escape(s) for s in registered)}... Check that data files are present.",
+            icon="⏳",
         )
 
     # Build a set of all canonical names across all sources
@@ -89,12 +80,7 @@ def multi_source_price_view() -> str:
                     all_names.add(rec.canonical_name)
 
     if not all_names:
-        return (
-            "<div class='home-card' style='text-align:left;'>"
-            "<h3>Multi-Source Price Comparison</h3>"
-            "<div class='muted'>No items found in market snapshots.</div>"
-            "</div>"
-        )
+        return empty_state_enhanced("No items found in market snapshots.", icon="🔍")
 
     # Compare each item across sources
     comparisons = []
@@ -104,12 +90,9 @@ def multi_source_price_view() -> str:
             comparisons.append(comp)
 
     if not comparisons:
-        return (
-            "<div class='home-card' style='text-align:left;'>"
-            "<h3>Multi-Source Price Comparison</h3>"
-            "<div class='muted'>Not enough items with prices across multiple sources to compare. "
-            "Try adding more market data.</div>"
-            "</div>"
+        return empty_state_enhanced(
+            "Not enough items with prices across multiple sources to compare. Try adding more market data.",
+            icon="📉",
         )
 
     # Sources header
@@ -147,25 +130,18 @@ def multi_source_price_view() -> str:
         )
 
     savings_count = sum(1 for c in comparisons if c.savings_pct > 5)
-    total = sum(c.savings_pct for c in comparisons if c.savings_pct > 0)
-
-    summary_bar = (
-        f"<div style='display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap;'>"
-        f"<span style='font-size:12px;color:var(--text-dim);'>Items compared: {len(comparisons)}</span>"
-        f"<span style='font-size:12px;color:var(--green);'>Sources: {len(sorted_sources)} ({', '.join(escape(source_labels.get(s, s)) for s in sorted_sources)})</span>"
-        f"<span style='font-size:12px;color:var(--amber);'>Best deals found: {savings_count} items with 5%+ savings</span>"
-        f"</div>"
+    summary_cards = (
+        stat_card(value=str(len(comparisons)), label="Items Compared", icon="📦")
+        + stat_card(value=str(len(sorted_sources)), label="Sources", icon="🏪")
+        + stat_card(value=str(savings_count), label="Best Deals (5%+)", icon="💰", variant="success")
     )
 
     body = format_cross_source_html(comparisons)
 
     return (
-        f"<div class='home-card' style='text-align:left;margin-bottom:12px;'>"
-        f"<h3>Multi-Source Price Comparison</h3>"
-        f"{summary_bar}"
+        f"<div style='display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;'>{summary_cards}</div>"
         f"{freshness_section}"
         f"{body}"
-        f"</div>"
     )
 
 
@@ -180,9 +156,7 @@ def single_item_compare(item_name: str) -> str:
     """
     registry = _get_registry()
     if registry is None:
-        return (
-            "<div class='muted'>Source registry not available.</div>"
-        )
+        return empty_state_enhanced("Source registry not available.", icon="🔌")
 
     try:
         from shopstack.market.normalization import canonicalize_name
@@ -192,18 +166,13 @@ def single_item_compare(item_name: str) -> str:
 
     comp = compare_across_sources(registry, canonical)
     if comp is None:
-        display = escape(canonical.replace("_", " ").title())
-        return (
-            "<div class='muted'>"
-            f"No multi-source pricing available for <strong>{display}</strong>. "
-            "Try a different item name or check market data.</div>"
+        display = canonical.replace("_", " ").title()
+        return empty_state_enhanced(
+            f"No multi-source pricing available for {display}. Try a different item name or check market data.",
+            icon="🔍",
         )
 
-    result = format_cross_source_html([comp])
-
-    return (
-        f"<div style='text-align:left;margin-bottom:12px;'>{result}</div>"
-    )
+    return format_cross_source_html([comp])
 
 
 def refresh_source_registry() -> str:
@@ -218,15 +187,9 @@ def refresh_source_registry() -> str:
         registered = _registry.registered()
         snapshots = _registry.all_snapshots()
         loaded = len([s for s in snapshots.values() if s and s.normalized_records])
-        return (
-            "<div style='color:var(--green);font-size:13px;'>"
-            f"Registry refreshed: {len(registered)} sources registered, "
-            f"{loaded} snapshots loaded."
-            "</div>"
+        return toast(
+            f"Registry refreshed: {len(registered)} sources registered, {loaded} snapshots loaded.",
+            kind="success",
         )
     except Exception as exc:
-        return (
-            "<div style='color:var(--red);font-size:13px;'>"
-            f"Failed to refresh registry: {escape(str(exc))}"
-            "</div>"
-        )
+        return toast(f"Failed to refresh registry: {escape(str(exc))}", kind="error")

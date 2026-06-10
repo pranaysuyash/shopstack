@@ -5,8 +5,9 @@ import re
 from html import escape
 
 from shopstack.app_context import APP_NAME, db, planner, providers, tools
-from shopstack.ui import card as ui_card, empty_state
+from shopstack.ui import card as ui_card
 from shopstack.ui.components import render_decision_card
+from shopstack.ui.components.primitives import empty_state_enhanced, item_row, toast
 from shopstack.traces.export import create_trace
 from shopstack.ui.screens._utils import (
     extract_query_for_action,
@@ -21,7 +22,10 @@ logger = logging.getLogger(__name__)
 def ask_shopstack(question: str) -> str:
     question = (question or "").strip()
     if not question:
-        return "<div style='color:var(--text-dim);'>Ask ShopStack anything \u2014 e.g. \u201cDo we have milk?\u201d or \u201cWhat should I buy today?\u201d</div>"
+        return empty_state_enhanced(
+            "Ask ShopStack anything \u2014 e.g. \u201cDo we have milk?\u201d or \u201cWhat should I buy today?\u201d",
+            icon="💬",
+        )
 
     lowered = question.lower()
 
@@ -49,45 +53,58 @@ def ask_shopstack(question: str) -> str:
             for r in results
         ]
         if lines:
-            cards = "".join(render_decision_card(r["lot"].get("display_name", ""), "buy", "Found in inventory", 1.0, r["lot"].get("quantity"), r["lot"].get("unit")) for r in results)
-            response = ui_card("Location match", cards)
+            rows = "".join(
+                item_row(
+                    name=r["lot"].get("display_name", ""),
+                    quantity=r["lot"].get("quantity", 0),
+                    unit=r["lot"].get("unit", "unit"),
+                    location=r.get("location_name", "Unknown"),
+                )
+                for r in results
+            )
+            response = ui_card("Location match", rows)
         else:
-            response = empty_state(f"We looked for {query} but found nothing. Add it to your next list if needed.")
+            response = empty_state_enhanced(f"We looked for {query} but found nothing. Add it to your next list if needed.", icon="🔍")
 
     elif any(keyword in lowered for keyword in ["skip", "what can i skip", "can i skip"]):
         lots = db.get_inventory()
         stock = [lot for lot in lots if lot.quantity > 0 and lot.status == "active"]
         if not stock:
-            response = empty_state("No obvious skip candidates right now.")
+            response = empty_state_enhanced("No obvious skip candidates right now.", icon="✅")
         else:
             ranked = sorted(stock, key=lambda lot: lot.quantity, reverse=True)[:8]
-            cards = "".join(
-                render_decision_card(
-                    lot.display_name,
-                    "skip",
-                    f"You already have {lot.quantity} {lot.unit}.",
-                    0.85,
-                    lot.quantity,
-                    lot.unit,
-                    False,
+            rows = "".join(
+                item_row(
+                    name=lot.display_name,
+                    quantity=lot.quantity,
+                    unit=lot.unit,
+                    status="active",
+                    decision="skip",
                 )
                 for lot in ranked
             )
-            if not cards:
-                response = empty_state("No obvious skip candidates right now.")
+            if not rows:
+                response = empty_state_enhanced("No obvious skip candidates right now.", icon="✅")
             else:
-                response = ui_card("Likely skip today", cards)
+                response = ui_card("Likely skip today", rows)
 
     elif any(k in lowered for k in ["expiring", "expires", "use soon", "urgent"]):
         soon = tools.get_use_soon_items(days=7).get("items", [])
         if not soon:
-            response = empty_state("No urgent expiry items. You can hold steady today.")
+            response = empty_state_enhanced("No urgent expiry items. You can hold steady today.", icon="🧊")
         else:
-            body = "".join(
-                f"{render_decision_card(item.get('display_name', item.get('canonical_name', '')), 'use_soon', item.get('reason', 'Use soon'), 0.92, item.get('quantity'), item.get('unit', 'unit'), False)}"
+            rows = "".join(
+                item_row(
+                    name=item.get("display_name", item.get("canonical_name", "")),
+                    quantity=item.get("quantity", 0),
+                    unit=item.get("unit", "unit"),
+                    status="active",
+                    decision="use_soon",
+                    extra=escape(str(item.get("reason", "Use soon"))),
+                )
                 for item in soon[:6]
             )
-            response = ui_card("Use-Soon Items", body)
+            response = ui_card("Use-Soon Items", rows)
 
     elif _is_add_command(lowered):
         response = _handle_add_command(question)
@@ -95,7 +112,7 @@ def ask_shopstack(question: str) -> str:
     elif "should i buy" in lowered or "what should i buy" in lowered or "what do i need" in lowered:
         suggestions = tools.get_next_buy_suggestions().get("suggestions", [])
         if not suggestions:
-            response = empty_state("No clear buy suggestions right now.")
+            response = empty_state_enhanced("No clear buy suggestions right now.", icon="🛍️")
         else:
             items = [
                 {
@@ -114,8 +131,11 @@ def ask_shopstack(question: str) -> str:
     else:
         response = ui_card(
             "Quick answer",
-            f"{empty_state(f'Question understood: {question}')}"
-            "<div style='margin-top:8px;color:var(--text-dim);'>Try: \u201cDo we have milk?\u201d, \u201cWhat should I buy today?\u201d, or \u201cWhere is toothpaste?\u201d</div>",
+            empty_state_enhanced(
+                f"Question understood: {question}",
+                icon="🤔",
+                secondary_text="Try: \u201cDo we have milk?\u201d, \u201cWhat should I buy today?\u201d, or \u201cWhere is toothpaste?\u201d",
+            ),
         )
 
     _record_ask_trace(question, response, "ask_shopstack")
@@ -132,7 +152,7 @@ def ask_shopstack_from_audio(audio_path: str | None) -> str:
         else:
             text = str(transcript).strip()
     except Exception as exc:
-        return f"<div style='color:var(--red);'>Could not transcribe audio: {escape(str(exc))}</div>"
+        return toast(f"Could not transcribe audio: {escape(str(exc))}", kind="error")
 
     if not text:
         return ask_shopstack("")
@@ -293,9 +313,8 @@ def _handle_add_command(question: str) -> str:
                 )
             except Exception:
                 logger.debug("Failed to record voice add trace", exc_info=True)
-            return (
-                f"<div style='color:var(--green);'>Added <strong>{escape(name)}</strong> "
-                f"({escape(str(qty))} {escape(unit)}) to inventory. "
-                f"<span style='font-size:11px;color:var(--text-dim);'>Lot: {escape(lot_id[:12])}</span></div>"
+            return toast(
+                f"Added {escape(name)} ({escape(str(qty))} {escape(unit)}) to inventory. Lot: {escape(lot_id[:12])}",
+                kind="success",
             )
-    return "<div style='color:var(--amber);'>Could not understand what to add. Try: 'add milk' or 'add 2 kg rice'</div>"
+    return toast("Could not understand what to add. Try: 'add milk' or 'add 2 kg rice'", kind="warning")

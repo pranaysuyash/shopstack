@@ -191,11 +191,11 @@ class ToolRegistry:
     def update_inventory_item(self, lot_id: str, updates: dict) -> dict[str, Any]:
         resolved_id, resolve_error = self._resolve_lot_id(lot_id)
         if resolve_error:
-            return {"error": resolve_error}
+            return {"success": False, "error": resolve_error}
         assert resolved_id is not None
         lot = self.db.update_inventory_lot(resolved_id, updates)
         if not lot:
-            return {"error": f"Lot {lot_id} not found"}
+            return {"success": False, "error": f"Lot {lot_id} not found"}
         return {"lot": lot.model_dump()}
 
     def consume_inventory_item(
@@ -203,18 +203,18 @@ class ToolRegistry:
     ) -> dict[str, Any]:
         resolved_id, resolve_error = self._resolve_lot_id(lot_id)
         if resolve_error:
-            return {"error": resolve_error}
+            return {"success": False, "error": resolve_error}
         assert resolved_id is not None
         lot = self.db.get_inventory_lot(resolved_id)
         if not lot:
-            return {"error": f"Lot {lot_id} not found"}
+            return {"success": False, "error": f"Lot {lot_id} not found"}
         if quantity <= 0:
-            return {"error": "Quantity to consume must be a positive number"}
+            return {"success": False, "error": "Quantity to consume must be a positive number"}
         if lot.quantity < quantity:
             quantity = lot.quantity
         updated = self.db.consume_inventory(resolved_id, quantity)
         if not updated:
-            return {"error": "Consumption failed"}
+            return {"success": False, "error": "Consumption failed"}
         return {
             "lot": updated.model_dump(),
             "consumed_quantity": quantity,
@@ -227,14 +227,14 @@ class ToolRegistry:
     ) -> dict[str, Any]:
         resolved_id, resolve_error = self._resolve_lot_id(lot_id)
         if resolve_error:
-            return {"error": resolve_error}
+            return {"success": False, "error": resolve_error}
         assert resolved_id is not None
         lot = self.db.get_inventory_lot(resolved_id)
         if not lot:
-            return {"error": f"Lot {lot_id} not found"}
+            return {"success": False, "error": f"Lot {lot_id} not found"}
         location = self.db.get_location(to_location_id)
         if not location:
-            return {"error": f"Location {to_location_id} not found"}
+            return {"success": False, "error": f"Location {to_location_id} not found"}
         movement = MovementEvent(
             lot_id=resolved_id,
             from_location_id=lot.storage_location_id or None,
@@ -340,27 +340,14 @@ class ToolRegistry:
             for s in soon.get("items", [])
         )
 
-        decision = "buy"
-        reason = f"No {canonical_name} found in inventory."
-        if total_have > 0:
-            if total_have >= quantity * 2:
-                decision = "skip"
-                reason = f"You already have {total_have} {unit} of {canonical_name} at home."
-            elif total_have >= quantity:
-                decision = "optional"
-                reason = f"You have {total_have} {unit}. Only buy if needed."
-            else:
-                decision = "buy"
-                reason = f"You have only {total_have} {unit}. Buy {max(quantity - total_have, 0)} {unit}."
-
         return {
             "canonical_name": canonical_name,
             "in_home_inventory": total_have > 0,
             "total_quantity_at_home": total_have,
             "active_lots": len(active_lots),
             "is_use_soon": is_use_soon,
-            "decision": decision,
-            "reason": reason,
+            "shortfall": max(quantity - total_have, 0),
+            "surplus_ratio": total_have / quantity if quantity > 0 else float("inf"),
         }
 
     def record_price_observation(
@@ -455,7 +442,7 @@ class ToolRegistry:
         for t in traces:
             if t.trace_id == trace_id:
                 return {"trace": _redact_trace(t.model_dump())}
-        return {"error": f"Trace {trace_id} not found"}
+        return {"success": False, "error": f"Trace {trace_id} not found"}
 
 
 def _redact_trace(t: dict) -> dict:

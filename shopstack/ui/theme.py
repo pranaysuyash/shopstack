@@ -245,9 +245,85 @@ label, .gr-form-label {
 
 /* ── Focus states (Vercel WIG) ───────────────────────────────────── */
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACCESSIBILITY — WCAG 2.1 AA
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Skip-to-content link (hidden until focused) */
+.skip-link {
+  position: fixed;
+  top: var(--space-sm);
+  left: var(--space-sm);
+  z-index: var(--z-tooltip);
+  background: var(--accent);
+  color: #fff;
+  padding: var(--space-sm) var(--space-lg);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-base);
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-120%);
+  transition: transform var(--transition-fast) var(--ease-out);
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+/* Focus-visible: WCAG 2.4.7 Focus Visible (AA) */
 *:focus-visible {
-  outline: 3px solid rgba(46, 125, 255, 0.22) !important;
+  outline: 3px solid rgba(46, 125, 255, 0.55) !important;
   outline-offset: 2px !important;
+}
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Ensure sufficient contrast for all text (WCAG 1.4.3 Contrast Minimum) */
+.gradio-container {
+  color: #1F1812;  /* Fallback for CSS variable; var(--text) on light bg has ~9:1 contrast */
+}
+
+/* Screen-reader only utility (WCAG 1.1.1 Non-text Content) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Live region for dynamic content announcements (WCAG 4.1.3 Status Messages).
+   Uses the `.sr-only` class instead of matching on `[role="status"]` to
+   avoid hiding visible toast notifications which also use role="status". */
+.sr-only-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Ensure tab panels are keyboard-accessible (WCAG 2.1.1 Keyboard) */
+[role="tabpanel"]:focus {
+  outline: none;
+}
+[role="tab"]:focus-visible {
+  outline: 3px solid rgba(46, 125, 255, 0.55) !important;
+  outline-offset: -2px !important;
+  border-radius: var(--radius-sm);
+}
+
+/* Touch targets: minimum 44x44px for mobile (WCAG 2.5.8 Target Size) */
+button, .gr-button, [role="button"], .action-tile {
+  min-height: 44px;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
