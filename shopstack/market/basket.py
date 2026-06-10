@@ -179,6 +179,21 @@ class OptimizedBasket:
         }
 
 
+def _normalize_unit_to_grams(qty: float, unit: str) -> float:
+    """Convert a quantity in user-facing units to grams for price calculation."""
+    u = unit.lower().strip()
+    if u in ("kg", "kilo", "kilos", "kilogram", "kilograms"):
+        return qty * 1000
+    if u in ("g", "gram", "grams"):
+        return qty
+    if u in ("l", "litre", "liter", "litres", "liters"):
+        return qty * 1000
+    if u in ("ml", "milliliter", "millilitre"):
+        return qty
+    # For piece-based items, return as-is (matched against piece records)
+    return qty
+
+
 def build_optimized_basket(
     requested_items: list[dict[str, Any]],
     snapshot: MarketSnapshot,
@@ -197,7 +212,7 @@ def build_optimized_basket(
     Args:
         requested_items: List of dicts with ``canonical_name``, ``requested_quantity``, ``unit``.
         snapshot: Market snapshot with normalized records.
-        inventory_map: Map of canonical_name → total quantity owned (inventory subtraction).
+        inventory_map: Map of canonical_name -> total quantity owned (inventory subtraction).
         available_only: If True, only consider available items when recommending.
         budget_inr: Optional budget cap in INR. If set, items beyond budget get ``over_budget`` reason_type.
         household_size: Number of people. Adjusts recommended quantities.
@@ -331,7 +346,7 @@ def build_optimized_basket(
                 canonical_name=canonical,
                 decision="skip",
                 reason_type="household_avoids",
-                reason=f"{display_name} is on your household avoid list",
+                reason=f"{name.title().replace('_', ' ')} is on your household avoid list",
                 matched=True,
                 requested_quantity=qty,
                 unit=unit,
@@ -351,8 +366,13 @@ def build_optimized_basket(
         all_opts = find_all_options(snapshot, canonical, available_only)
 
         if cheapest is not None:
+            # Convert net_needed to grams to match normalized_quantity (always in grams)
+            net_needed_grams = _normalize_unit_to_grams(net_needed, unit)
             nq = cheapest.normalized_quantity
-            _price = cheapest.price_inr * (net_needed / nq) if nq is not None and nq > 0 else cheapest.price_inr
+            if nq is not None and nq > 0 and net_needed_grams > 0:
+                _price = cheapest.price_inr * (net_needed_grams / nq)
+            else:
+                _price = cheapest.price_inr
 
             # Budget cap check
             if budget_inr is not None and running_total + _price > budget_inr:
@@ -361,7 +381,7 @@ def build_optimized_basket(
                     canonical_name=canonical,
                     decision="compare",
                     reason_type="over_budget",
-                    reason=f"Exceeds remaining budget of ₹{budget_inr - running_total:.0f} (₹{_price:.0f} needed)",
+                    reason=f"Exceeds remaining budget of \u20b9{budget_inr - running_total:.0f} (\u20b9{_price:.0f} needed)",
                     matched=True,
                     requested_quantity=qty,
                     unit=unit,
@@ -382,7 +402,7 @@ def build_optimized_basket(
                 canonical_name=canonical,
                 decision="buy",
                 reason_type="price_low",
-                reason=f"Buy {net_needed:.1f} {unit} at ₹{cheapest.price_inr:.0f} (₹{cheapest.price_per_kg:.0f}/kg)",
+                reason=f"Buy {net_needed:.1f} {unit} at \u20b9{cheapest.price_inr:.0f} (\u20b9{cheapest.price_per_kg:.0f}/kg)",
                 matched=True,
                 requested_quantity=qty,
                 unit=unit,
@@ -408,7 +428,7 @@ def build_optimized_basket(
                     canonical_name=canonical,
                     decision="buy",
                     reason_type="price_low",
-                    reason=f"Buy {net_needed:.1f} {unit} — piece-based at ₹{rec.price_inr:.0f}",
+                    reason=f"Buy {net_needed:.1f} {unit} — piece-based at \u20b9{rec.price_inr:.0f}",
                     matched=True,
                     requested_quantity=qty,
                     unit=unit,

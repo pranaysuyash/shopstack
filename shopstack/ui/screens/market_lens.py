@@ -99,7 +99,7 @@ def _render_swiggy_section(decisions: list[dict[str, Any]]) -> str:
         if d.get("swiggy_available") is False:
             swiggy_rows.append(
                 f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'>"
-                f"<strong>{name}</strong> <span style='color:#ef4444;font-size:11px;'>Sold out on Swiggy</span>"
+                f"<strong>{name}</strong> <span style='color:var(--red);font-size:11px;'>Sold out on Swiggy</span>"
                 f"</div>"
             )
         elif d.get("swiggy_price"):
@@ -107,7 +107,7 @@ def _render_swiggy_section(decisions: list[dict[str, Any]]) -> str:
             ppk_str = f" ({ppk:.0f}/kg)" if ppk else ""
             swiggy_rows.append(
                 f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'>"
-                f"<strong>{name}</strong> <span style='color:#22c55e;'>&#8377;{d['swiggy_price']:.0f}{ppk_str}</span>"
+                f"<strong>{name}</strong> <span style='color:var(--green);'>&#8377;{d['swiggy_price']:.0f}{ppk_str}</span>"
                 f"</div>"
             )
     return (

@@ -12,6 +12,7 @@ from shopstack.ui.components.cards import (
     render_metric,
     render_workflow_rail,
 )
+from shopstack.ui.screens._utils import WORKFLOW_STEPS, workflow_header, workflow_title_bar
 from shopstack.ui.components.primitives import (
     confirm_dialog,
     data_table,
@@ -42,4 +43,7 @@ __all__ = [
     "confirm_dialog",
     "toast",
     "loading_skeleton",
+    "WORKFLOW_STEPS",
+    "workflow_header",
+    "workflow_title_bar",
 ]

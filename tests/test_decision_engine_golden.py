@@ -163,6 +163,97 @@ class TestShouldBuy:
         assert result.action == "buy"
         assert any("shopping list" in r.lower() for r in result.reasons)
 
+    def test_ad_listing_reduces_confidence(self):
+        """Ad-tagged market records should reduce buy confidence."""
+        from shopstack.services.decision_engine import should_buy
+        from shopstack.services.freshness import FreshnessReport
+
+        class MockAdRecord:
+            is_available = True
+            price_inr = 35.0
+            price_per_kg = 70.0
+            raw_size = "500 g"
+            is_ad = True
+            is_upgrade = False
+            tag = "Ad"
+
+        result = should_buy(
+            canonical_name="ridge_gourd",
+            display_name="Ridge Gourd",
+            quantity_at_home=0.0,
+            unit="kg",
+            market_record=MockAdRecord(),
+            freshness=FreshnessReport("live", 0, "Today", "2026-06-09", False, ""),
+        )
+        assert result is not None
+        assert result.action == "buy"
+        # Confidence should be lower than non-ad because of 0.85 multiplier
+        assert result.confidence < 0.92
+        assert any(w.code == "sponsored_listing" for w in result.warnings)
+
+    def test_ad_listing_confidence_reduction(self):
+        """Non-ad record with same params should have higher confidence than ad."""
+        from shopstack.services.decision_engine import should_buy
+        from shopstack.services.freshness import FreshnessReport
+
+        class MockNormalRecord:
+            is_available = True
+            price_inr = 35.0
+            price_per_kg = 70.0
+            raw_size = "500 g"
+            is_ad = False
+            is_upgrade = False
+            tag = ""
+
+        result = should_buy(
+            canonical_name="ridge_gourd",
+            display_name="Ridge Gourd",
+            quantity_at_home=0.0,
+            unit="kg",
+            market_record=MockNormalRecord(),
+            freshness=FreshnessReport("live", 0, "Today", "2026-06-09", False, ""),
+        )
+        assert result is not None
+        assert result.confidence > 0.9  # non-ad should have full confidence
+
+    def test_stale_data_lowers_market_confidence(self):
+        """Stale freshness should reduce evidence confidence for market data."""
+        from shopstack.services.decision_engine import should_buy
+        from shopstack.services.freshness import FreshnessReport
+
+        class MockRecord:
+            is_available = True
+            price_inr = 35.0
+            price_per_kg = 70.0
+            raw_size = "500 g"
+
+        stale = FreshnessReport("stale", 5, "5 days old", "2026-06-04", True, "Data old")
+        result = should_buy(
+            canonical_name="tomato",
+            display_name="Tomato",
+            quantity_at_home=0.0,
+            unit="kg",
+            market_record=MockRecord(),
+            freshness=stale,
+        )
+        assert result is not None
+        assert any(w.code == "stale_data" for w in result.warnings)
+        assert "stale" in result.data_freshness
+
+    def test_waste_risk_warning(self):
+        """High waste risk with some stock should generate a warning."""
+        from shopstack.services.decision_engine import should_buy
+        result = should_buy(
+            canonical_name="coriander",
+            display_name="Coriander",
+            quantity_at_home=0.5,
+            unit="bunch",
+            waste_risk="high",
+        )
+        assert result is not None
+        assert result.action == "buy"
+        assert any(w.code == "waste_risk" for w in result.warnings)
+
 
 class TestShouldSkip:
     """Tests for shopstack.services.decision_engine.should_skip."""

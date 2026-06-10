@@ -27,7 +27,8 @@ from shopstack.schemas.models import (
     ReconciliationEvent,
     new_id,
 )
-from shopstack.tools.registry import DEFAULT_STORAGE_LOCATION
+from shopstack.repos.inventory import InventoryRepo
+from shopstack.tools.spec import DEFAULT_STORAGE_LOCATION
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +98,7 @@ def reconcile_shopping_trip(
     Args:
         planned_items: Items from the decision engine / shopping plan.
         actual_items: What the user actually did after shopping.
-        tools: ToolRegistry for inventory mutations.
+        tools: InventoryRepo or ToolRegistry for inventory mutations.
         database: Database for persistence.
 
     Returns:

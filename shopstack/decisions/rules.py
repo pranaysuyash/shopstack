@@ -21,7 +21,7 @@ from shopstack.schemas.models import (
 )
 from shopstack.decisions.types import Decision, ACTION_MAP
 from shopstack.persistence.database import Database
-from shopstack.tools.registry import ToolRegistry
+from shopstack.repos.inventory import InventoryRepo
 
 logger = logging.getLogger(__name__)
 
@@ -32,12 +32,12 @@ _RECENT_PURCHASE_DAYS = 2
 
 def classify_all(
     db: Database,
-    tools: ToolRegistry,
+    inventory: InventoryRepo,
     market_snapshot=None,
     source_registry: Any = None,
 ) -> DecisionSet:
     active_inv = [lot for lot in db.get_inventory() if lot.status == "active"]
-    use_soon_items = tools.get_use_soon_items(days=_USE_SOON_DAYS).get("items", [])
+    use_soon_items = inventory.get_use_soon(days=_USE_SOON_DAYS).get("items", [])
     active_list = db.get_active_shopping_list()
     purchases = db.get_purchase_events(limit=50)
     recent_dates: set[date] = set()

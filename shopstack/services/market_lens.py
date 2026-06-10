@@ -7,8 +7,8 @@ from typing import Any
 
 from shopstack.scanner import decode_barcode, infer_product_from_code
 from shopstack.decisions.rules import classify_inventory_comparison
+from shopstack.repos.inventory import InventoryRepo
 from shopstack.services.shopping import enrich_items_with_swiggy, normalize_item_name
-from shopstack.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -42,14 +42,14 @@ def analyze_market_lens(
     image_path: str | None,
     audio_path: str | None,
     providers: Any,
-    tools: ToolRegistry,
+    inventory: InventoryRepo,
 ) -> MarketLensResult:
     """Analyze Market Lens inputs without rendering UI or writing traces."""
     result = MarketLensResult()
 
     if image_path:
         result.barcode_info = detect_barcodes(image_path)
-        result.decisions = analyze_visible_items(image_path, providers, tools)
+        result.decisions = analyze_visible_items(image_path, providers, inventory)
         result.items_found = [d["canonical_name"] for d in result.decisions]
         if result.decisions:
             result.tool_calls.append({
@@ -85,7 +85,7 @@ def detect_barcodes(image_path: str) -> list[dict[str, Any]]:
     return barcode_info
 
 
-def analyze_visible_items(image_path: str, providers: Any, tools: ToolRegistry) -> list[dict[str, Any]]:
+def analyze_visible_items(image_path: str, providers: Any, inventory: InventoryRepo) -> list[dict[str, Any]]:
     detections = providers.object_detection.detect(image_path)
     ocr_result = providers.ocr.extract(image_path)
     raw_product = ocr_result.get("product_name", "") if isinstance(ocr_result, dict) else ""
@@ -94,7 +94,7 @@ def analyze_visible_items(image_path: str, providers: Any, tools: ToolRegistry) 
     for detection in detections[:8]:
         item_name = normalize_item_name(str(detection.get("label", "")))
         quantity = detection.get("quantity", 1.0)
-        comparison = tools.compare_visible_item_to_inventory(item_name, quantity, "unit")
+        comparison = inventory.compare_visible(item_name, quantity, "unit")
         decision, reason = classify_inventory_comparison(
             comparison.get("total_quantity_at_home", 0),
             quantity,

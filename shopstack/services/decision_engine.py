@@ -107,21 +107,6 @@ def should_buy(
         evidence.append(DecisionEvidence(source="shopping_list", value="on_list", confidence=0.9))
         reasons.append("On your shopping list")
 
-    # ── Ad/upgrade trust signal (§3.7): sponsored listings reduce confidence ──
-    if has_market:
-        record_is_ad = getattr(market_record, "is_ad", False)
-        record_is_upgrade = getattr(market_record, "is_upgrade", False)
-        tag = getattr(market_record, "tag", "") or ""
-        if record_is_ad or record_is_upgrade or "ad" in tag.lower():
-            warnings.append(DecisionWarning(
-                code="sponsored_listing",
-                message="This product is a sponsored/ad listing — verify price against other sources.",
-                severity="info",
-            ))
-            if record_is_ad:
-                reasons.append("Sponsored listing — verify price independently")
-                confidence *= 0.85  # reduce confidence for ads
-
     if quantity_at_home <= 0:
         reasons.append("Out of stock at home")
         confidence = 0.9
@@ -164,6 +149,21 @@ def should_buy(
     # ── Price signal ──
     if market_ppk is not None and market_ppk > 0:
         reasons.append(f"Market price: ₹{market_price:.0f} (₹{market_ppk:.0f}/kg)")
+
+    # ── Ad/upgrade trust signal (§3.7): sponsored listings reduce confidence ──
+    if has_market:
+        record_is_ad = getattr(market_record, "is_ad", False)
+        record_is_upgrade = getattr(market_record, "is_upgrade", False)
+        tag = getattr(market_record, "tag", "") or ""
+        if record_is_ad or record_is_upgrade or "ad" in tag.lower():
+            warnings.append(DecisionWarning(
+                code="sponsored_listing",
+                message="This product is a sponsored/ad listing — verify price against other sources.",
+                severity="info",
+            ))
+            if record_is_ad:
+                reasons.append("Sponsored listing — verify price independently")
+                confidence *= 0.85  # reduce confidence for ads
 
     confidence = min(confidence, 0.95)
 
@@ -285,7 +285,6 @@ def use_soon(
     evidence: list[DecisionEvidence] = []
     warnings: list[DecisionWarning] = []
     confidence = 0.0
-    urgency = ""
 
     # ── Shelf life based ──
     if shelf_life_days > 0 and purchase_date is not None:
@@ -301,15 +300,12 @@ def use_soon(
         if remaining <= 0:
             reasons.append(f"Past expected shelf life ({abs(remaining)} days overdue)")
             confidence = 0.95
-            urgency = "critical"
         elif remaining <= 1:
             reasons.append("Use today — at end of expected shelf life")
             confidence = 0.90
-            urgency = "high"
         elif remaining <= _USE_SOON_DAYS:
             reasons.append(f"Use within {remaining} days for best freshness")
             confidence = 0.80
-            urgency = "medium"
         else:
             return None  # still fresh, no urgency
     elif waste_risk == "high" and quantity_at_home > 0:
@@ -317,7 +313,6 @@ def use_soon(
         reasons.append(f"High waste-risk item — use existing {quantity_at_home} {unit} before buying more")
         evidence.append(DecisionEvidence(source="produce_metadata", value="high_waste_risk", confidence=0.7))
         confidence = 0.72
-        urgency = "medium"
     elif shelf_life_days > 0 and purchase_date is None and quantity_at_home > 0:
         # ── Known shelf life but no purchase date — cannot verify freshness ──
         reasons.append(f"Item has {shelf_life_days}-day shelf life but no purchase date recorded")
@@ -327,8 +322,7 @@ def use_soon(
             message="Purchase date unknown — cannot verify freshness",
             severity="info",
         ))
-        confidence = 0.55
-        urgency = "low"
+            confidence = 0.55
     else:
         return None  # no use-soon signal
 

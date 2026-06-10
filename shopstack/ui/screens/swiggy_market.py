@@ -34,8 +34,8 @@ def swiggy_market_view() -> str:
         f"{_market_freshness_html(snapshot)}"
         f"<div style='display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;'>"
         f"<div><strong>{analytics['total']}</strong> items</div>"
-        f"<div style='color:#22c55e;'><strong>{analytics['available']}</strong> available</div>"
-        f"<div style='color:#ef4444;'><strong>{analytics['sold_out']}</strong> sold out</div>"
+        f"<div style='color:var(--green);'><strong>{analytics['available']}</strong> available</div>"
+        f"<div style='color:var(--red);'><strong>{analytics['sold_out']}</strong> sold out</div>"
         f"<div><strong>{analytics['combos']}</strong> combos</div>"
         f"<div>Avg: <strong>&#8377;{analytics['avg_price']}</strong></div>"
         f"<div>Median: <strong>&#8377;{analytics['median_price']}</strong></div>"
@@ -56,11 +56,11 @@ def swiggy_market_view() -> str:
 
         rows: list[str] = []
         for r in sorted_by_ppkg[:20]:
-            avail_badge = "<span style='color:#22c55e;'>&#10003;</span>" if r.is_available else "<span style='color:#ef4444;'>&#10007;</span>"
+            avail_badge = "<span style='color:var(--green);'>&#10003;</span>" if r.is_available else "<span style='color:var(--red);'>&#10007;</span>"
             meta = get_produce_meta_inline(r.canonical_name)
             risk_badge = ""
             if meta and meta.waste_risk == "high":
-                risk_badge = " <span style='color:#f59e0b;font-size:10px;'>&#9888; high waste risk</span>"
+                risk_badge = " <span style='color:var(--amber);font-size:10px;'>&#9888; high waste risk</span>"
             rows.append(
                 f"<tr>"
                 f"<td>{escape(r.canonical_name.replace('_', ' ').title())}{risk_badge}</td>"
@@ -137,7 +137,7 @@ def swiggy_basket_estimate(items_text: str) -> str:
             meta = get_produce_metadata(r.canonical_name)
             shelf = f"{meta.shelf_life_days}d" if meta else "?"
             risk = meta.waste_risk if meta else ""
-            risk_color = {"high": "#ef4444", "medium": "#f59e0b", "low": "#22c55e"}.get(risk, "var(--text-dim)")
+            risk_color = {"high": "var(--red)", "medium": "var(--amber)", "low": "var(--green)"}.get(risk, "var(--text-dim)")
             pkgkg = f"&#8377;{r.price_per_kg:.0f}/kg" if r.price_per_kg else f"&#8377;{r.price_per_piece:.0f}/pc" if r.price_per_piece else ""
             rows.append(
                 f"<tr>"
@@ -159,7 +159,7 @@ def swiggy_basket_estimate(items_text: str) -> str:
             )
         else:
             rows.append(
-                f"<tr style='color:#ef4444;'>"
+                f"<tr style='color:var(--red);'>"
                 f"<td>{escape(item.requested_name)}</td>"
                 f"<td colspan='5'>Not found in market data</td>"
                 f"</tr>"
@@ -182,7 +182,7 @@ def swiggy_basket_estimate(items_text: str) -> str:
     unmatched = summary.get("unmatched_items", [])
     if unmatched:
         parts.append(
-            f"<div style='margin-top:8px;color:#ef4444;font-size:11px;'>"
+            f"<div style='margin-top:8px;color:var(--red);font-size:11px;'>"
             f"Not found: {', '.join(escape(u) for u in unmatched)}"
             f"</div>"
         )

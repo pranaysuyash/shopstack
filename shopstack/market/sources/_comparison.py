@@ -91,7 +91,7 @@ def format_cross_source_html(comparisons: list[CrossSourcePrice]) -> str:
             if price is None:
                 price_cells += "<td style='text-align:right;padding:4px;color:var(--text-dim);'>--</td>"
             elif sid == c.best_source:
-                price_cells += f"<td style='text-align:right;padding:4px;color:#22c55e;font-weight:600;'>&#8377;{price:.0f}</td>"
+                price_cells += f"<td style='text-align:right;padding:4px;color:var(--green);font-weight:600;'>&#8377;{price:.0f}</td>"
             else:
                 price_cells += f"<td style='text-align:right;padding:4px;'>&#8377;{price:.0f}</td>"
 
@@ -100,7 +100,7 @@ def format_cross_source_html(comparisons: list[CrossSourcePrice]) -> str:
             f"<tr>"
             f"<td style='padding:4px;'><strong>{name_label}</strong></td>"
             f"{price_cells}"
-            f"<td style='padding:4px;color:#22c55e;'>{savings_label}</td>"
+            f"<td style='padding:4px;color:var(--green);'>{savings_label}</td>"
             f"</tr>"
         )
 

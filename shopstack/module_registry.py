@@ -136,7 +136,7 @@ SHOPSTOCK = _register(ModuleMetadata(
     label="My Stock",
     description="Inventory, pantry, fridge, expiry, low-stock, use-soon, and household storage.",
     tab_ids=("reconcile",),
-    tab_labels={"reconcile": "Reconcile"},
+    tab_labels={"reconcile": "Pantry"},
     order=TAB_ORDER.get("reconcile", 999),
     service_modules=(
         "shopstack.ui.screens.inventory",
@@ -179,10 +179,10 @@ SHOPCOMPARE = _register(ModuleMetadata(
 SHOPLENS = _register(ModuleMetadata(
     slug="lens",
     name="ShopLens",
-    label="Market Lens",
+    label="Scan & Compare",
     description="Scanning and import: barcode, photo, receipt, object detection, OCR, and voice input.",
     tab_ids=("market",),
-    tab_labels={"market": "Market Lens"},
+    tab_labels={"market": "Scan & Compare"},
     order=TAB_ORDER.get("market", 999),
     service_modules=(
         "shopstack.services.market_lens",
@@ -200,7 +200,7 @@ SHOPMEMORY = _register(ModuleMetadata(
     tab_ids=("basket", "memory"),
     tab_labels={
         "basket": "Basket",
-        "memory": "Memory",
+        "memory": "Insights",
     },
     order=TAB_ORDER.get("memory", 999),
     service_modules=(
@@ -217,7 +217,7 @@ SHOPAGENT = _register(ModuleMetadata(
     tab_ids=("today", "memory"),
     tab_labels={
         "today": "Today",
-        "memory": "Memory",
+        "memory": "Insights",
     },
     order=TAB_ORDER.get("today", 999),
     service_modules=(
@@ -247,10 +247,10 @@ SOURCES = _register(ModuleMetadata(
 RUNTIME = _register(ModuleMetadata(
     slug="runtime",
     name="Runtime",
-    label="Model Stack",
-    description="Provider/model runtime diagnostics, budget status, and candidate model catalog.",
+    label="System Status",
+    description="Provider/model runtime diagnostics, budget status, and candidate model catalog. Developer-facing.",
     tab_ids=("memory",),
-    tab_labels={"memory": "Memory"},
+    tab_labels={"memory": "Insights"},
     order=TAB_ORDER.get("memory", 999),
     service_modules=(
         "shopstack.ui.screens.model_stack",
@@ -265,7 +265,7 @@ SHOPNUTRITION = _register(ModuleMetadata(
     label="Nutrition",
     description="Nutrition lookup for common Indian household items and kitchen macro breakdown from inventory.",
     tab_ids=("memory",),
-    tab_labels={"memory": "Memory"},
+    tab_labels={"memory": "Insights"},
     order=TAB_ORDER.get("memory", 999),
     service_modules=(
         "shopstack.services.nutrition",

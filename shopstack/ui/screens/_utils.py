@@ -29,7 +29,7 @@ def source_freshness_html(source_id: str = "swiggy") -> str:
             freshness = registry.freshness_of(source_id)
     except Exception:
         return ""
-    color = "#ef4444" if freshness.get("is_stale") else "var(--text-dim)"
+    color = "var(--red)" if freshness.get("is_stale") else "var(--text-dim)"
     label = freshness.get("label", "")
     prefix = "Market data may be stale" if freshness.get("is_stale") else "Market snapshot"
     return (

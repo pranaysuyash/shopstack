@@ -148,22 +148,22 @@ def _render_shopping_plan_html(
         if price is None and avail is None:
             return ""
         if avail is False:
-            return " <span style='font-size:10px;color:#ef4444;font-weight:600;'>SOLD OUT</span>"
+            return " <span style='font-size:10px;color:var(--red);font-weight:600;'>SOLD OUT</span>"
         parts = []
         if price:
             parts.append(f"&#8377;{price:.0f}")
         if ppk:
             parts.append(f"({ppk:.0f}/kg)")
         if parts:
-            return f" <span style='font-size:10px;color:#22c55e;font-weight:600;'>Swiggy: {' '.join(parts)}</span>"
+            return f" <span style='font-size:10px;color:var(--green);font-weight:600;'>Swiggy: {' '.join(parts)}</span>"
         return ""
 
     def _card_with_badge(group_name: str, items: list[dict[str, Any]]) -> str:
         if not items:
             return ""
         color_map = {
-            "Must buy": "#22c55e", "Optional": "#3b82f6",
-            "Use Soon": "#f59e0b", "Skip": "#6b7280",
+            "Must buy": "var(--green)", "Optional": "var(--blue)",
+            "Use Soon": "var(--amber)", "Skip": "var(--text-dim)",
         }
         color = color_map.get(group_name, "var(--text-dim)")
         rows = []

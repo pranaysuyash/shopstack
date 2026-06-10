@@ -157,7 +157,7 @@ def find_substitutions(
             original_display=canonical_name.replace("_", " ").title(),
         )
 
-    display_name = canonical_name.replace("_", " "").title()
+    display_name = canonical_name.replace("_", " ").title()
     suggestions: list[SubstitutionSuggestion] = []
 
     # 1. Premium-to-basic: if the sold-out item has an upgrade tag,

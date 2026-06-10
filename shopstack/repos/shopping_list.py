@@ -1,0 +1,48 @@
+"""Domain operations for shopping list management."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from shopstack.persistence.database import Database
+from shopstack.schemas.models import ShoppingListItem
+
+
+class ShoppingListRepo:
+    def __init__(self, db: Database):
+        self.db = db
+
+    def create_or_update(
+        self,
+        items: list[dict[str, Any]] | None = None,
+        goal: str = "",
+    ) -> dict[str, Any]:
+        existing = self.db.get_active_shopping_list()
+        if existing:
+            sl = existing
+            sl.goal = goal or sl.goal
+        else:
+            sl = self.db.create_shopping_list(goal=goal)
+
+        if items:
+            for item_data in items:
+                sl_item = ShoppingListItem(
+                    canonical_name=item_data.get("canonical_name", ""),
+                    requested_quantity=item_data.get("requested_quantity"),
+                    unit=item_data.get("unit"),
+                    priority=item_data.get("priority", "optional"),
+                    reason=item_data.get("reason", ""),
+                )
+                self.db.add_list_item(sl.list_id, sl_item)
+
+        return {"list": self._load_list(sl.list_id)}
+
+    def _load_list(self, list_id: str) -> dict[str, Any]:
+        row = self.db.conn.execute(
+            "SELECT * FROM shopping_lists WHERE list_id = ?", (list_id,)
+        ).fetchone()
+        if not row:
+            return {}
+        from shopstack.persistence.database import _row_to_list
+        sl = _row_to_list(row, self.db.conn)
+        return sl.model_dump()

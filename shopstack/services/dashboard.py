@@ -6,8 +6,8 @@ from typing import Any
 
 from shopstack.decisions import DecisionSet, classify_all, detect_purchase_cadence, detect_waste_patterns
 from shopstack.persistence.database import Database
+from shopstack.repos.inventory import InventoryRepo
 from shopstack.services.weather import WeatherState, get_weather
-from shopstack.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -35,13 +35,13 @@ class DashboardState:
         return list(self.use_soon.get("items", []))
 
 
-def build_dashboard_state(db: Database, tools: ToolRegistry, city: str = "mumbai") -> DashboardState:
+def build_dashboard_state(db: Database, inventory: InventoryRepo, city: str = "mumbai") -> DashboardState:
     """Assemble the Today dashboard state from inventory, decisions, market data, and weather."""
     market_input = _load_market_snapshot()
     # _load_market_snapshot returns (snapshot, registry) or (None, None)
     market_snapshot, source_registry = market_input if isinstance(market_input, tuple) else (market_input, None)
-    decision_set = classify_all(db, tools, market_snapshot=market_snapshot, source_registry=source_registry)
-    use_soon = tools.get_use_soon_items(days=3)
+    decision_set = classify_all(db, inventory, market_snapshot=market_snapshot, source_registry=source_registry)
+    use_soon = inventory.get_use_soon(days=3)
     active_list = db.get_active_shopping_list()
     all_inventory = db.get_inventory()
     active_inventory = [lot for lot in all_inventory if lot.status == "active"]

@@ -45,7 +45,6 @@ from shopstack.ui.screens import (
     shopping_list_create,
     _shopping_list_view_with_cards,
     _build_shopping_list_and_refresh,
-    agent_trace_detail,
 )
 from shopstack.ui.screens.other import move_inventory_to_location
 from shopstack.ui.screens.receipt import (
@@ -60,7 +59,7 @@ from shopstack.ui.screens.price_compare import (
     single_item_compare,
     refresh_source_registry,
 )
-from shopstack.ui.screens._utils import WORKFLOW_STEPS, workflow_header, workflow_title_bar
+from shopstack.ui.components import WORKFLOW_STEPS, workflow_header, workflow_title_bar
 from shopstack.ui.theme import CSS
 
 from pathlib import Path
@@ -169,7 +168,6 @@ document.addEventListener('keydown', function(e) {
             # Tab 1: Today — what matters now?
             # ═══════════════════════════════════════════════════════════════
             with gr.Tab(_tab_label("today"), id="today"):
-                gr.HTML(workflow_header(WORKFLOW_STEPS))
                 today_stats = gr.HTML("")
                 today_soon = gr.HTML("")
                 today_list = gr.HTML("")
@@ -207,7 +205,6 @@ document.addEventListener('keydown', function(e) {
             # Tab 2: Basket — what should I buy / skip / compare?
             # ═══════════════════════════════════════════════════════════════
             with gr.Tab(_tab_label("basket"), id="basket"):
-                gr.HTML(workflow_header(WORKFLOW_STEPS, current_step=3))
                 with gr.Tabs():
                     # ── Shopping List ──
                     with gr.Tab("Shopping List"):
@@ -220,7 +217,7 @@ document.addEventListener('keydown', function(e) {
                             goal_input = gr.Textbox(label="List Goal (e.g. Weekly Groceries)", placeholder="What's this list for?")
                             items_input = gr.Textbox(
                                 label="Shopping list",
-                                placeholder="milk, bread, tomato, onion  (or JSON for power users)",
+                                placeholder="milk, bread, tomato, onion",
                                 lines=3,
                             )
                         sl_share = gr.HTML("")
@@ -419,7 +416,6 @@ document.addEventListener('keydown', function(e) {
             # Tab 3: ShopLens — check while shopping
             # ═══════════════════════════════════════════════════════════════
             with gr.Tab(_tab_label("market"), id="market"):
-                gr.HTML(workflow_header(WORKFLOW_STEPS, current_step=2))
                 gr.Markdown("### Point your camera or upload a photo \u2014 or speak what you see")
                 with gr.Row():
                     image_input = gr.Image(type="filepath", label="Camera / Photo")
@@ -477,7 +473,6 @@ document.addEventListener('keydown', function(e) {
             # Tab 4: Reconcile — what actually happened?
             # ═══════════════════════════════════════════════════════════════
             with gr.Tab(_tab_label("reconcile"), id="reconcile"):
-                gr.HTML(workflow_header(WORKFLOW_STEPS, current_step=5))
                 with gr.Tabs():
                     # ── Add Purchase ──
                     with gr.Tab("Add Purchase"):
@@ -509,9 +504,9 @@ document.addEventListener('keydown', function(e) {
                             api_name="add_purchase",
                             api_description="Record a new purchase with lot details",
                         )
-                        gr.Markdown("### Batch Add Purchases")
+                        gr.Markdown("### Quick Add Purchases")
                         gr.Markdown(
-                            "One item per line: `name, qty, unit, price, store, location, category`  \nOr paste JSON array.")
+                            "One item per line: `name, qty, unit, price, store, location, category`")
                         p_batch_input = gr.Textbox(
                             label="Batch Purchases",
                             lines=5,
@@ -573,9 +568,9 @@ document.addEventListener('keydown', function(e) {
                             api_description="Consume quantity from a lot",
                         )
                         gr.Markdown(
-                            "**Batch Consume** (one per line: `lot_id: qty`, or just `lot_id` for qty 1)")
+                            "**Quick Consume** (one per line: `lot_id: qty`, or just `lot_id` for qty 1)")
                         batch_consume_input = gr.Textbox(
-                            label="Batch Consume", lines=4,
+                            label="Quick Consume", lines=4,
                             placeholder="abc123: 0.5\ndef456: 1\nghi789")
                         batch_consume_btn = gr.Button("Consume Batch")
                         batch_consume_result = gr.HTML("")
@@ -629,7 +624,6 @@ document.addEventListener('keydown', function(e) {
             # Tab 5: Memory — what did we learn?
             # ═══════════════════════════════════════════════════════════════
             with gr.Tab(_tab_label("memory"), id="memory"):
-                gr.HTML(workflow_header(WORKFLOW_STEPS, current_step=6))
                 with gr.Tabs():
                     # ── Field Notes ──
                     with gr.Tab("Field Notes"):
@@ -666,11 +660,11 @@ document.addEventListener('keydown', function(e) {
                         )
                         app.load(field_notes_view, outputs=[notes_editor, notes_preview, notes_status])
 
-                    # ── Traces ──
-                    with gr.Tab("Traces"):
+                    # ── Activity Log ──
+                    with gr.Tab("Activity Log"):
                         gr.HTML(workflow_title_bar(
-                            "Export Redacted Trace",
-                            "Pick a workflow run, inspect the timeline, then download a redacted trace artifact.",
+                            "Activity Log",
+                            "Browse your household activity history, inspect details, and export your data.",
                         ))
                         with gr.Row():
                             trace_search = gr.Textbox(
@@ -777,8 +771,8 @@ document.addEventListener('keydown', function(e) {
                         )
                         app.load(nutrition_kitchen_view, outputs=kitchen_nutrition)
 
-                    # ── Model Stack ──
-                    with gr.Tab("Model Stack"):
+                    # ── System Status ──
+                    with gr.Tab("System Status"):
                         model_stack_html = gr.HTML("")
                         app.load(model_budget_view, outputs=model_stack_html)
 

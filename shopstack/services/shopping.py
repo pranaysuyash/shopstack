@@ -7,13 +7,14 @@ from typing import TYPE_CHECKING, Any
 
 from shopstack.market.normalization import normalize_item_name
 from shopstack.decisions.rules import classify_inventory_comparison
+from shopstack.repos.inventory import InventoryRepo
 from shopstack.services.results import (
     CompletionItem,
     MarkPurchasedResult,
     PurchaseResultItem,
     ShoppingCompletionResult,
 )
-from shopstack.tools.registry import DEFAULT_STORAGE_LOCATION, ToolRegistry
+from shopstack.tools.spec import DEFAULT_STORAGE_LOCATION
 
 if TYPE_CHECKING:
     from shopstack.persistence.database import Database
@@ -47,7 +48,7 @@ class ShoppingPlan:
         return self.must_buy + self.optional + self.skipped + self.use_soon
 
 
-def classify_shopping_items(items: list[dict[str, Any]], tools: ToolRegistry) -> ShoppingPlan:
+def classify_shopping_items(items: list[dict[str, Any]], inventory: InventoryRepo) -> ShoppingPlan:
     """Classify shopping-list items against household memory and market signals.
 
     Mutates the passed item dictionaries with `reason`, `priority`, and
@@ -68,7 +69,7 @@ def classify_shopping_items(items: list[dict[str, Any]], tools: ToolRegistry) ->
         except (TypeError, ValueError):
             qty = 1.0
         unit = item.get("unit", "unit") or "unit"
-        comparison = tools.compare_visible_item_to_inventory(name, qty, unit)
+        comparison = inventory.compare_visible(name, qty, unit)
         total_have = comparison.get("total_quantity_at_home", 0)
         is_use_soon = comparison.get("is_use_soon", False)
 
@@ -150,7 +151,7 @@ from shopstack.traces.export import create_trace
 
 def complete_shopping_list_service(
     list_id: str,
-    tools: ToolRegistry,
+    inventory: InventoryRepo,
     database: Database,
 ) -> ShoppingCompletionResult:
     """Complete a shopping list: convert items to inventory and mark list complete.
@@ -185,7 +186,7 @@ def complete_shopping_list_service(
         qty = item.requested_quantity or 1.0
         if priority == "optional":
             qty = max(qty * _OPTIONAL_QTY_FRACTION, _OPTIONAL_QTY_FLOOR)
-        result = tools.add_inventory_item(
+        result = inventory.add_item(
             canonical_name=item.canonical_name.lower().strip(),
             display_name=item.canonical_name.strip(),
             quantity=qty,
@@ -232,7 +233,7 @@ def complete_shopping_list_service(
 
 def mark_items_purchased_service(
     item_ids_json: str | list[str],
-    tools: ToolRegistry,
+    inventory: InventoryRepo,
     database: Database,
 ) -> MarkPurchasedResult:
     """Mark selected shopping list items as purchased and add to inventory.
@@ -263,7 +264,7 @@ def mark_items_purchased_service(
     for item in sl.items:
         if item.list_item_id in matched_ids:
             qty = item.requested_quantity or 1.0
-            result = tools.add_inventory_item(
+            result = inventory.add_item(
                 canonical_name=item.canonical_name.lower().strip(),
                 display_name=item.canonical_name.strip(),
                 quantity=qty,
