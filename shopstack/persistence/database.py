@@ -8,6 +8,7 @@ from typing import Any
 
 from shopstack.config import settings
 from shopstack.schemas.models import (
+    InventoryEvent,
     InventoryLot,
     HouseholdLocation,
     MovementEvent,
@@ -248,6 +249,31 @@ class Database:
                 user_id TEXT DEFAULT ''
             );
 
+            CREATE TABLE IF NOT EXISTS inventory_events (
+                event_id TEXT PRIMARY KEY,
+                timestamp TEXT NOT NULL,
+                lot_id TEXT DEFAULT '',
+                canonical_name TEXT DEFAULT '',
+                action TEXT NOT NULL,
+                quantity_before REAL,
+                quantity_after REAL,
+                quantity_delta REAL,
+                unit TEXT DEFAULT '',
+                location_from TEXT,
+                location_to TEXT,
+                source TEXT DEFAULT 'manual',
+                notes TEXT,
+                user_id TEXT DEFAULT ''
+            );
+
+            CREATE TABLE IF NOT EXISTS households (
+                household_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                notes TEXT DEFAULT ''
+            );
+
             CREATE VIEW IF NOT EXISTS price_history AS
                 SELECT * FROM price_observations;
 
@@ -269,6 +295,7 @@ class Database:
         self._migrate_market_snapshot_schema()
         self._migrate_add_user_scoping()
         self._seed_locations()
+        self._seed_default_household()
         self._apply_trace_retention_policy()
         self.conn.commit()
 
@@ -295,6 +322,83 @@ class Database:
                 if "duplicate column name" in message or "already exists" in message:
                     continue
                 raise
+
+    # ── Active household tracking ────────────────────────────────
+
+    @property
+    def active_household_id(self) -> str:
+        """Get the currently active household ID, or default if none set.
+
+        Returns ``""`` when explicitly set to empty (disabling user_id
+        filtering), or ``settings.default_household_user_id`` when no
+        household has ever been selected.
+        """
+        stored = self.get_config_value("active_household_id", "")
+        # If the config key exists at all (including with empty value), return its value.
+        # This allows callers to opt out of household scoping by setting to "".
+        has_key = self.conn.execute(
+            "SELECT COUNT(*) FROM app_config WHERE key = 'active_household_id'"
+        ).fetchone()[0]
+        if has_key:
+            return stored
+        return settings.default_household_user_id
+
+    @active_household_id.setter
+    def active_household_id(self, household_id: str) -> None:
+        self.set_config_value("active_household_id", household_id)
+
+    # ── Household CRUD ────────────────────────────────────────────
+
+    def list_households(self) -> list[dict[str, str]]:
+        """List all registered households with their IDs and names."""
+        rows = self.conn.execute(
+            "SELECT household_id, name, created_at, notes FROM households ORDER BY created_at ASC"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def add_household(self, household_id: str, name: str, notes: str = "") -> bool:
+        """Register a new household. Returns True if created, False if already exists."""
+        from datetime import datetime
+        now = datetime.now().isoformat()
+        try:
+            self.conn.execute(
+                "INSERT INTO households (household_id, name, created_at, updated_at, notes) VALUES (?, ?, ?, ?, ?)",
+                (household_id, name, now, now, notes),
+            )
+            self.conn.commit()
+            return True
+        except Exception:
+            return False
+
+    def remove_household(self, household_id: str) -> bool:
+        """Remove a household registration."""
+        try:
+            self.conn.execute(
+                "DELETE FROM households WHERE household_id = ?", (household_id,)
+            )
+            self.conn.commit()
+            return True
+        except Exception:
+            return False
+
+    def _seed_default_household(self) -> None:
+        """Ensure the default household exists in the households table."""
+        household_id = settings.default_household_user_id
+        existing = self.conn.execute(
+            "SELECT COUNT(*) FROM households WHERE household_id = ?", (household_id,)
+        ).fetchone()[0]
+        if existing > 0:
+            return
+        from datetime import datetime
+        now = datetime.now().isoformat()
+        self.conn.execute(
+            "INSERT INTO households (household_id, name, created_at, updated_at, notes) VALUES (?, ?, ?, ?, ?)",
+            (household_id, "Default Household", now, now,
+             "Default household created automatically. Use the household switcher to add more."),
+        )
+        # Also mark it as active
+        self.set_config_value("active_household_id", household_id)
+        self.conn.commit()
 
     def _seed_locations(self) -> None:
         existing = self.conn.execute("SELECT COUNT(*) FROM household_locations").fetchone()[0]
@@ -731,6 +835,44 @@ class Database:
         params.append(limit)
         rows = self.conn.execute(query, params).fetchall()
         return [_row_to_reconciliation(r) for r in rows]
+
+    # --- Inventory Events (audit trail) ---
+
+    def record_inventory_event(self, event: InventoryEvent, user_id: str = "") -> InventoryEvent:
+        self.conn.execute(
+            """INSERT INTO inventory_events
+               (event_id, timestamp, lot_id, canonical_name, action,
+                quantity_before, quantity_after, quantity_delta, unit,
+                location_from, location_to, source, notes, user_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (event.event_id, event.timestamp.isoformat(),
+             event.lot_id, event.canonical_name, event.action,
+             event.quantity_before, event.quantity_after, event.quantity_delta,
+             event.unit, event.location_from, event.location_to,
+             event.source, event.notes, user_id),
+        )
+        self.conn.commit()
+        return event
+
+    def get_inventory_events(self, canonical_name: str = "", lot_id: str = "", limit: int = 50) -> list[InventoryEvent]:
+        query = "SELECT * FROM inventory_events"
+        params: list[Any] = []
+        conditions = []
+        if canonical_name:
+            conditions.append("canonical_name = ?")
+            params.append(canonical_name.lower())
+        if lot_id:
+            conditions.append("lot_id = ?")
+            params.append(lot_id)
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+        rows = self.conn.execute(query, params).fetchall()
+        return [_row_to_inventory_event(r) for r in rows]
+
+    def get_inventory_timeline(self, canonical_name: str, limit: int = 20) -> list[InventoryEvent]:
+        return self.get_inventory_events(canonical_name=canonical_name, limit=limit)
 
     # --- Preference Signals ---
 
@@ -1182,6 +1324,24 @@ def _row_to_preference(row: sqlite3.Row) -> PreferenceSignal:
         source=row["source"],
         created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else datetime.now(),
         updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else datetime.now(),
+    )
+
+
+def _row_to_inventory_event(row: sqlite3.Row) -> InventoryEvent:
+    return InventoryEvent(
+        event_id=row["event_id"],
+        timestamp=datetime.fromisoformat(row["timestamp"]) if row["timestamp"] else datetime.now(),
+        lot_id=row["lot_id"] or "",
+        canonical_name=row["canonical_name"] or "",
+        action=row["action"],
+        quantity_before=row["quantity_before"] if row["quantity_before"] is not None else None,
+        quantity_after=row["quantity_after"] if row["quantity_after"] is not None else None,
+        quantity_delta=row["quantity_delta"] if row["quantity_delta"] is not None else None,
+        unit=row["unit"] or "",
+        location_from=row["location_from"],
+        location_to=row["location_to"],
+        source=row["source"] or "manual",
+        notes=row["notes"],
     )
 
 

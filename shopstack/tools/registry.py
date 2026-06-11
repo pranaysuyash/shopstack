@@ -104,9 +104,14 @@ class ToolRegistry:
                 ))
         return specs
 
-    def format_tool_descriptions(self) -> str:
-        from shopstack.tools.spec import format_tool_descriptions
-        return format_tool_descriptions(self.tool_specs())
+    def format_tool_descriptions(self, compact: bool = False) -> str:
+        """Generate planner-readable tool descriptions from ToolSpec objects.
+
+        Args:
+            compact: If True, use compact type-shorthand format (~90% accuracy).
+        """
+        from shopstack.tools.spec import format_tool_descriptions as _format
+        return _format(self.tool_specs(), compact=compact)
 
     def execute(self, tool_name: str, **kwargs) -> dict[str, Any]:
         entry = self._tools.get(tool_name)

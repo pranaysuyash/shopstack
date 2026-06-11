@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 @safe_render
 def today_dashboard():
+    uid = db.active_household_id
     from shopstack.decisions import (
         render_decision_panel,
         render_market_basket,
@@ -32,7 +33,7 @@ def today_dashboard():
         render_needs_confirmation,
     )
 
-    state = build_dashboard_state(db, tools.inventory)
+    state = build_dashboard_state(db, tools.inventory, user_id=uid)
     ds = state.decision_set
 
     hero = render_hero_panel(

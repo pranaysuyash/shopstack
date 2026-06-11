@@ -17,5 +17,5 @@ def nutrition_lookup_view(query: str) -> str:
 
 @safe_render
 def nutrition_kitchen_view() -> str:
-    summary = get_inventory_nutrition_summary(db)
+    summary = get_inventory_nutrition_summary(db, user_id=db.active_household_id)
     return format_nutrition_html(summary)

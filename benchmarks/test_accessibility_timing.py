@@ -37,15 +37,21 @@ _PYTEST_ARGS = [
 def _parse_pytest_summary(stdout: str) -> dict[str, int]:
     """Parse the summary line from ``pytest -q`` output.
 
-    Example input line::
+    Handles both execution format (
 
         147 passed, 2 warnings in 18.61s
+
+    ) and ``--collect-only`` format (
+
+        147 tests collected in 16.53s
+    ).
 
     Returns ``{"passed": …, "failed": …}``.  If no summary line is
     found, ``failed`` is set to ``-1`` to distinguish from a clean
     zero-failure run.
     """
     for line in stdout.splitlines():
+        # Execution format: "147 passed, 2 failed, 5 warnings in 18.61s"
         m = re.search(r"(\d+)\s+passed", line)
         if m:
             passed = int(m.group(1))
@@ -54,6 +60,11 @@ def _parse_pytest_summary(stdout: str) -> dict[str, int]:
             if fm:
                 failed = int(fm.group(1))
             return {"passed": passed, "failed": failed}
+        # Collect-only format: "147 tests collected in 16.53s"
+        m = re.search(r"(\d+)\s+tests?\s+collected", line)
+        if m:
+            count = int(m.group(1))
+            return {"passed": count, "failed": 0}
     return {"passed": 0, "failed": -1}
 
 

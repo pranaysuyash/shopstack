@@ -30,18 +30,39 @@ def _set_test_env():
     yield
 
 
-@pytest.fixture
-def app():
-    """Import app module fresh for each test, giving a clean :memory: DB."""
-    import sys
+@pytest.fixture(scope="session")
+def _app_session():
+    """Import app module once per session with an in-memory database.
 
-    _preserved = {"shopstack.schemas", "shopstack.schemas.models"}
-    for mod in list(sys.modules.keys()):
-        if mod in ("app",) or (mod.startswith("shopstack") and mod not in _preserved):
-            del sys.modules[mod]
-
+    Importing ``app`` triggers ``shopstack.app_context`` which bootstraps
+    the ``ProviderRegistry`` — an expensive operation (~10s per invocation).
+    Caching it at session scope avoids the 5-10 second cost on every test.
+    """
     import app as _app
     return _app
+
+
+@pytest.fixture
+def app(_app_session):
+    """Return the session-scoped app, clearing all data tables between tests."""
+    """Return the session-scoped app, clearing all data tables between tests."""
+    app_mod = _app_session
+    conn = app_mod.db.conn
+    # Disable foreign keys so we can clear tables in any order
+    conn.execute("PRAGMA foreign_keys = OFF")
+    for table in ["inventory_lots", "shopping_list_items", "shopping_lists",
+                  "movement_events", "price_observations", "purchase_events",
+                  "traces", "household_locations"]:
+        conn.execute(f"DELETE FROM {table}")
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.commit()
+    # Re-seed locations so tests that depend on seeded locations still work
+    app_mod.db._seed_locations()
+    # Clear any active household so screen builder queries return all data
+    # (matching the pre-scoping test behavior). Tests that need household
+    # scoping can set app_mod.db.active_household_id explicitly.
+    app_mod.db.set_config_value("active_household_id", "")
+    return app_mod
 
 
 # ══════════════════════════════════════════════════════════════════════════

@@ -139,7 +139,7 @@ def market_lens_confirm_buy(ml_analysis_json: str, ml_trace_id: str) -> str:
             "priority": "must_buy",
             "reason": item.get("reason", ""),
         })
-    tools.create_or_update_shopping_list(items=list_items)
+    tools.create_or_update_shopping_list(items=list_items, user_id=db.active_household_id)
     if ml_trace_id:
         update_trace_confirmation(db, ml_trace_id, "confirmed-buy")
     names = ", ".join(i.get("canonical_name", "") for i in buy_items)
@@ -180,6 +180,7 @@ def market_lens_barcode_add(barcode_json: str) -> str:
             quantity=1.0,
             unit="unit",
             storage_location_id="pantry",
+            user_id=db.active_household_id,
         )
         lot_id = result.get("lot_id", "")
         added.append(f"{label} (lot {lot_id})")

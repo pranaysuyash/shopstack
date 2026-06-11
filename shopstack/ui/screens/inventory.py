@@ -16,6 +16,11 @@ logger = logging.getLogger(__name__)
 from shopstack.data.seed_demo import DEMO_SEED_INVENTORY  # noqa: E402 — data module, must follow logger
 
 
+def _user_id() -> str:
+    from shopstack.app_context import current_user_id
+    return current_user_id()
+
+
 def add_purchase_form(
     name: str, qty: float, unit: str, price: float, store: str, location: str, purchase_date_str: str, category: str
 ) -> str:
@@ -28,6 +33,7 @@ def add_purchase_form(
         return "<div style='color:var(--red);'>Quantity must be 0 or more.</div>"
     if price < 0:
         return "<div style='color:var(--red);'>Price must be 0 or more.</div>"
+    uid = _user_id()
     add_result = tools.add_inventory_item(
         canonical_name=item_name.lower(),
         display_name=item_name,
@@ -36,6 +42,7 @@ def add_purchase_form(
         storage_location_id=location or "kitchen",
         purchase_date=purchase_date_str or date.today().isoformat(),
         category=category,
+        user_id=uid,
     )
     lot_id = add_result.get("lot_id", "")
     if price > 0 and store:
@@ -69,6 +76,7 @@ def add_purchase_form(
 
 
 def add_purchase_batch(raw_batch: str) -> str:
+    uid = _user_id()
     if not raw_batch or not str(raw_batch).strip():
         return "<div style='color:var(--text-dim);'>Add at least one row: name, quantity, unit, price, store, location, category.</div>"
 
@@ -132,6 +140,7 @@ def add_purchase_batch(raw_batch: str) -> str:
             category=category,
             price_paid=price,
             source_event_id="batch_add",
+            user_id=uid,
         )
         lot_id = result.get("lot_id", "")
         if price > 0 and store:
@@ -150,7 +159,8 @@ def add_purchase_batch(raw_batch: str) -> str:
 
 
 def seed_demo_inventory() -> str:
-    existing = db.get_inventory()
+    uid = _user_id()
+    existing = db.get_inventory(user_id=uid)
     if existing:
         return "<div style='color:var(--text-dim);'>Demo seed already loaded.</div>"
 
@@ -166,6 +176,7 @@ def seed_demo_inventory() -> str:
             category=str(item.get("category", "")),
             price_paid=float(item.get("price", 0.0) or 0.0),
             source_event_id="demo_seed",
+            user_id=uid,
         )
         lot_id = result.get("lot_id", "")
         if item.get("price") and item.get("store"):
@@ -185,7 +196,7 @@ def seed_demo_inventory() -> str:
 
 
 def inventory_view(search: str = "") -> list[list[str]]:
-    items = db.get_inventory()
+    items = db.get_inventory(user_id=_user_id())
     if search:
         q = search.lower()
         items = [lot for lot in items if q in lot.canonical_name.lower() or q in lot.display_name.lower()]
@@ -210,7 +221,7 @@ def inventory_view(search: str = "") -> list[list[str]]:
 
 
 def inventory_cards_view(search: str = "") -> str:
-    items = db.get_inventory()
+    items = db.get_inventory(user_id=_user_id())
     if search:
         q = search.lower()
         items = [lot for lot in items if q in lot.canonical_name.lower() or q in lot.display_name.lower()]
@@ -251,7 +262,7 @@ def inventory_cards_view(search: str = "") -> str:
 
 
 def consume_item(lot_id: str, qty: float) -> str:
-    result = tools.consume_inventory_item(lot_id, qty)
+    result = tools.consume_inventory_item(lot_id, qty, user_id=_user_id())
     if "error" in result:
         return f"<div style='color:var(--red);'>Error: {escape(str(result['error']))}</div>"
     return f"<div style='color:var(--green);'>Consumed {escape(str(qty))}. Remaining: {escape(str(result.get('remaining', 0)))}</div>"
@@ -264,6 +275,7 @@ def consume_items_batch(lines_text: str) -> str:
     if not entries:
         return "<div style='color:var(--text-dim);'>No valid lines to parse.</div>"
 
+    uid = _user_id()
     summary = []
     for entry in entries:
         lot_id, _, qty_text = entry.partition(":")
@@ -275,7 +287,7 @@ def consume_items_batch(lines_text: str) -> str:
             qty = 1.0
         if not lot_id.strip():
             continue
-        outcome = tools.consume_inventory_item(lot_id.strip(), qty)
+        outcome = tools.consume_inventory_item(lot_id.strip(), qty, user_id=uid)
         if "error" in outcome:
             summary.append(f"{escape(lot_id)}: ❌ {escape(str(outcome['error']))}")
         else:
@@ -287,7 +299,7 @@ def consume_items_batch(lines_text: str) -> str:
 
 
 def use_soon_view(days: int = 3) -> list[list[str]]:
-    data = tools.get_use_soon_items(days=days)
+    data = tools.get_use_soon_items(days=days, user_id=_user_id())
     items = data.get("items", [])
     tbl = list_to_table(
         [

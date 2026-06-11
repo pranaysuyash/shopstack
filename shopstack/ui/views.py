@@ -87,7 +87,7 @@ def _unit_label(unit: str) -> str:
     return f"/{unit}"
 
 
-def build_price_memory_view(database: Database, item_name: str | None) -> PriceMemoryView:
+def build_price_memory_view(database: Database, item_name: str | None, user_id: str = "") -> PriceMemoryView:
     cleaned_name = (item_name or "").strip()
     if not cleaned_name:
         return PriceMemoryView(
@@ -99,7 +99,7 @@ def build_price_memory_view(database: Database, item_name: str | None) -> PriceM
     safe_name = escape(cleaned_name)
 
     try:
-        history = database.get_price_history(cleaned_name)
+        history = database.get_price_history(cleaned_name, user_id=user_id)
     except Exception:
         return PriceMemoryView(
             summary_html=ERROR_HTML,
@@ -289,18 +289,19 @@ def _field_notes_template(
     database: Database,
     today: date | None = None,
     mode: str = "household",
+    user_id: str = "",
 ) -> str:
     today = today or date.today()
     try:
-        recent_traces = database.get_traces(limit=5)
+        recent_traces = database.get_traces(limit=5, user_id=user_id)
     except Exception:
         recent_traces = []
     try:
-        recent_purchases = database.get_purchase_events(limit=5)
+        recent_purchases = database.get_purchase_events(limit=5, user_id=user_id)
     except Exception:
         recent_purchases = []
     try:
-        active_inventory = database.get_inventory(status="active")
+        active_inventory = database.get_inventory(status="active", user_id=user_id)
     except Exception:
         active_inventory = []
     low_stock = [lot for lot in active_inventory if lot.quantity <= 0.5 or lot.status == "low"]
@@ -384,10 +385,11 @@ def _field_notes_template(
 def load_field_notes(
     database: Database,
     today: date | None = None,
+    user_id: str = "",
 ) -> FieldNotesView:
     saved = database.get_config_value(FIELD_NOTES_CONFIG_KEY, "")
     if not saved.strip():
-        draft = _field_notes_template(database, today=today)
+        draft = _field_notes_template(database, today=today, user_id=user_id)
         status = (
             "<div style='color:var(--amber);'>"
             "No saved notes yet. A draft is generated from recent activity below. "

@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 @safe_render
 def price_memory_view(item_name: str = ""):
     """Price memory view — shows price history, unit prices, and chart data for a given item."""
-    view = build_price_memory_view(db, item_name)
+    view = build_price_memory_view(db, item_name, user_id=db.active_household_id)
     has_data = view.observation_count > 0
     unit_plot_df = view.df[["date", "unit_price"]].dropna() if has_data else pd.DataFrame(columns=["date", "unit_price"])
     return (
@@ -32,78 +32,83 @@ def price_memory_view(item_name: str = ""):
 
 @safe_render
 def price_intelligence_view() -> str:
-    """Price intelligence view — compares stores, detects price drops, finds best value."""
-    latest_by_item: dict[str, dict] = {}
+    """Price intelligence view — store comparisons, deal scoring, price drops, best store."""
+    from shopstack.services.price_memory import PriceMemoryService
+
+    service = PriceMemoryService(db)
+
+    # Collect all canonical names with observations
+    all_names: set[str] = set()
     for row in db.conn.execute(
-        "SELECT canonical_name, store_name, price, quantity, unit, observation_date "
-        "FROM price_observations ORDER BY observation_date DESC"
+        "SELECT DISTINCT canonical_name FROM price_observations"
     ).fetchall():
         name = row["canonical_name"]
-        if name not in latest_by_item:
-            latest_by_item[name] = {
-                "best_price": float(row["price"]),
-                "best_store": row["store_name"] or "Unknown",
-                "best_qty": float(row["quantity"]),
-                "best_unit": row["unit"],
-                "best_date": row["observation_date"],
-                "all_prices": [(float(row["price"]), row["store_name"] or "Unknown", float(row["quantity"]), row["unit"])],
-            }
-        else:
-            latest_by_item[name]["all_prices"].append(
-                (float(row["price"]), row["store_name"] or "Unknown", float(row["quantity"]), row["unit"])
-            )
+        if name:
+            all_names.add(name)
 
     alerts: list[str] = []
     comparisons: list[str] = []
+    deal_scores: list[str] = []
 
-    for name, info in sorted(latest_by_item.items()):
-        all_prices = info["all_prices"]
-        if len(all_prices) < 2:
-            continue
-
-        unit_prices = []
-        for price, store, qty, unit in all_prices:
-            if qty > 0:
-                up = price / qty
-                if unit and unit.lower() in ("g", "gram", "grams", "gm"):
-                    up = price / (qty / 1000)
-                elif unit and unit.lower() in ("ml", "milliliter"):
-                    up = price / (qty / 1000)
-                unit_prices.append((round(up, 2), store, price))
-        if len(unit_prices) < 2:
-            continue
-
-        unit_prices.sort()
-        best_up, best_store, best_price = unit_prices[0]
-        worst_up, worst_store, worst_price = unit_prices[-1]
-        if best_up > 0 and worst_up > best_up:
-            savings_pct = round((worst_up - best_up) / worst_up * 100)
-            if savings_pct >= 5:
+    for name in sorted(all_names):
+        # Store comparison via service
+        ranking = service.get_store_comparison(name)
+        if ranking.store_prices and len(ranking.store_prices) >= 2:
+            best = ranking.store_prices[0]
+            worst = ranking.store_prices[-1]
+            if ranking.spread_pct and ranking.spread_pct >= 5:
+                ppk_label = ""
+                if best.get("median_per_kg"):
+                    ppk_label = f" (&#8377;{best['median_per_kg']:.0f}/kg)"
                 comparisons.append(
                     f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
-                    f"<strong>{escape(name)}</strong>: Best at {escape(best_store)} "
-                    f"(\u20b9{best_up:.2f}/unit) vs {escape(worst_store)} (\u20b9{worst_up:.2f}) "
-                    f"\u2014 save {savings_pct}%"
+                    f"<strong>{escape(name)}</strong>: Best at {escape(best['store'])} "
+                    f"(&#8377;{best['median_price']:.0f}{ppk_label}) vs "
+                    f"{escape(worst['store'])} (&#8377;{worst['median_price']:.0f}) "
+                    f"&mdash; save {ranking.spread_pct}%"
                     f"</div>"
                 )
 
-        history = db.get_price_history(name)
-        if len(history) >= 2:
-            sorted_hist = sorted(history, key=lambda o: o.observation_date)
-            recent = sorted_hist[-1]
-            older = sorted_hist[-2] if len(sorted_hist) >= 2 else None
-            if older and recent.price < older.price:
-                drop_pct = round((older.price - recent.price) / older.price * 100)
+        # Price drop detection from history
+        history = service.get_history(name)
+        if history.recent_prices and len(history.recent_prices) >= 2:
+            sorted_prices = sorted(history.recent_prices, key=lambda p: p.get("date", ""))
+            older = sorted_prices[0]
+            recent = sorted_prices[-1]
+            older_p = older.get("price_per_kg") or older.get("price", 0)
+            recent_p = recent.get("price_per_kg") or recent.get("price", 0)
+            if older_p > 0 and recent_p < older_p:
+                drop_pct = round((older_p - recent_p) / older_p * 100)
                 if drop_pct >= 5:
                     alerts.append(
                         f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
                         f"<strong>{escape(name)}</strong> price dropped {drop_pct}% "
-                        f"(\u20b9{older.price:.0f} \u2192 \u20b9{recent.price:.0f}) "
-                        f"\u2014 good time to buy"
+                        f"(&#8377;{older_p:.0f} &#8594; &#8377;{recent_p:.0f}) "
+                        f"&mdash; good time to buy"
                         f"</div>"
                     )
 
+        # Deal scoring against historical data
+        summary = service.get_summary(name)
+        if summary.last_price and summary.median_price and summary.observations >= 3:
+            deal = service.score_deal(name, summary.last_price, per_kg=summary.normalized_per_kg)
+            if deal.is_good_deal:
+                deal_scores.append(
+                    f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
+                    f"<strong>{escape(name)}</strong>: {escape(deal.reason)} "
+                    f"<span style='color:var(--green);font-weight:600;'>[{deal.score.upper()}]</span>"
+                    f"</div>"
+                )
+
     html_parts: list[str] = []
+
+    if deal_scores:
+        html_parts.append(
+            "<div class='home-card' style='text-align:left;margin-bottom:12px;'>"
+            "<h3>Top Deals Right Now</h3>"
+            + "".join(deal_scores[:8])
+            + "</div>"
+        )
     if alerts:
         html_parts.append(
             "<div class='home-card' style='text-align:left;margin-bottom:12px;'>"
@@ -118,6 +123,24 @@ def price_intelligence_view() -> str:
             + "".join(comparisons[:8])
             + "</div>"
         )
+
+    # Best store recommendation across all tracked items
+    if len(all_names) >= 2:
+        best_store = service.get_best_store(list(all_names))
+        if best_store.store:
+            coverage = f"{best_store.coverage_pct:.0f}%" if best_store.total_items_compared > 0 else "N/A"
+            savings = f"&#8377;{best_store.estimated_savings_vs_worst:.0f}" if best_store.estimated_savings_vs_worst > 0 else "N/A"
+            html_parts.append(
+                "<div class='home-card' style='text-align:left;margin-bottom:12px;'>"
+                f"<h3>Best Store Overall</h3>"
+                f"<div style='padding:8px;font-size:14px;'>"
+                f"<strong>{escape(best_store.store)}</strong> has the best price for "
+                f"{best_store.items_with_best_price}/{best_store.total_items_compared} items "
+                f"({coverage} coverage). Estimated savings vs worst store: {savings}."
+                f"</div></div>"
+            )
+
+    # Cross-source comparison from market snapshots
     try:
         from shopstack.market.sources import (
             build_registry,
@@ -130,14 +153,14 @@ def price_intelligence_view() -> str:
         _reg = build_registry(repository=MarketSnapshotRepository())
         snapshots = _reg.all_snapshots()
         if len(snapshots) >= 2:
-            all_names: set[str] = set()
+            snap_names: set[str] = set()
             for snap in snapshots.values():
                 for r in snap.normalized_records:
                     if r.is_available and not r.is_combo:
-                        all_names.add(r.canonical_name)
+                        snap_names.add(r.canonical_name)
             cross_source: list[CrossSourcePrice] = []
-            for name in sorted(all_names):
-                c = compare_across_sources(_reg, name)
+            for snap_name in sorted(snap_names):
+                c = compare_across_sources(_reg, snap_name)
                 if c is not None:
                     cross_source.append(c)
             if cross_source:
@@ -190,5 +213,3 @@ def seed_swiggy_prices() -> str:
         f"from Swiggy Instamart ({snapshot.captured_at}). "
         f"Price Memory and Price Intelligence now have real data.</div>"
     )
-
-

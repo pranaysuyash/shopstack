@@ -69,6 +69,7 @@ from shopstack.ui.theme import CSS
 
 from pathlib import Path
 from shopstack.app_context import APP_DESCRIPTION, APP_NAME, db, providers, tools, planner, model_registry
+from shopstack.app_context import current_user_id, list_households, switch_household
 from shopstack.config import settings
 from shopstack.module_registry import tab_label as _tab_label
 
@@ -165,6 +166,40 @@ document.addEventListener('keydown', function(e) {
 });
 </script>"""
         gr.HTML(header_html + header_script, padding=True)
+
+        # ── Household switcher (inline row below header) ──
+        def _household_choices() -> list[tuple[str, str]]:
+            households = list_households()
+            choices = [(h["name"], h["household_id"]) for h in households]
+            return choices
+
+        def _switch_and_refresh(household_id: str) -> tuple:
+            """Switch household, return updated dropdown value + refresh dashboard."""
+            if not household_id:
+                return gr.update(), *today_dashboard()
+            switch_household(household_id)
+            return gr.update(value=household_id), *today_dashboard()
+
+        with gr.Row(variant="compact", elem_classes="household-bar"):
+            household_dropdown = gr.Dropdown(
+                label="Household",
+                choices=_household_choices(),
+                value=current_user_id(),
+                interactive=True,
+                allow_custom_value=True,
+                scale=1,
+            )
+            gr.HTML(
+                "<div style='display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-dim);'>"
+                "Switch between households to see their inventory, lists, and traces.</div>",
+                scale=3,
+            )
+
+        # Refresh dropdown choices on initial load
+        app.load(
+            lambda: gr.update(choices=_household_choices(), value=current_user_id()),
+            outputs=household_dropdown,
+        )
 
         # ── 5-tab daily loop: Today → Basket → ShopLens → Reconcile → Memory ──
         with gr.Tabs(elem_classes="tabs") as tabs:
@@ -891,6 +926,15 @@ document.addEventListener('keydown', function(e) {
                                 api_name="import_data",
                                 api_description="Import inventory from JSON or CSV file",
                             )
+
+    # Wire household dropdown change after all output components are defined
+    household_dropdown.change(
+        _switch_and_refresh,
+        household_dropdown,
+        [household_dropdown, today_stats, today_soon, today_list, today_low, today_recent, today_changed],
+        api_name="switch_household",
+        api_description="Switch active household and refresh dashboard",
+    )
 
     return app
 

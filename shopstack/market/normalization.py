@@ -356,6 +356,8 @@ def canonicalize_name(raw_name: str) -> tuple[str, str, list[str]]:
 def _clean_name(name: str) -> str:
     cleaned = re.sub(r"\s*-\s*.*$", "", name)
     cleaned = re.sub(r"\s*\([^)]*\)\s*", " ", cleaned).strip()
+    # Strip apostrophes so "Lady's Finger" normalises to "ladys finger" (matches canonical map)
+    cleaned = cleaned.replace("'", "")
     cleaned = re.sub(r"\s+", " ", cleaned)
     prefixes = ("nectr ", "pluckk ozone washed ", "pluckk ", "freshcon cooked ", "urban harvest ")
     for prefix in prefixes:

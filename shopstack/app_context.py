@@ -27,6 +27,11 @@ NAV_ENTRIES: list[tuple[str, str, str]] = _build_navigation()
 
 # ── Core singletons ─────────────────────────────────────────────────
 db = Database(settings.db_path)
+
+# Resolve active household from stored config, so every DB operation
+# is scoped to the current household automatically.
+_household_id = db.active_household_id
+
 providers = ProviderRegistry(settings)
 # Wire embeddings provider into ToolRegistry for semantic search fallback.
 # The embedding provider is lazy-resolved from ProviderRegistry; if BGE-M3
@@ -35,6 +40,52 @@ providers = ProviderRegistry(settings)
 tools = ToolRegistry(db, embedding_provider=providers.embeddings)
 planner = PlannerEngine(db, tools, providers)
 model_registry = get_registry()
+
+
+# ── Service singletons (wired from app_context) ────────────────────
+from shopstack.services.trace import TraceService
+
+_trace_service: TraceService | None = None
+
+
+def get_trace_service() -> TraceService:
+    global _trace_service
+    if _trace_service is None:
+        _trace_service = TraceService(db)
+    return _trace_service
+
+
+def current_user_id() -> str:
+    """Return the currently active household/user ID for DB scoping.
+
+    Screen builders should call this and pass the result as ``user_id``
+    to every ``db.*()`` call that accepts the parameter. This ensures
+    all inventory, shopping list, and trace queries are scoped to the
+    active household.
+    """
+    return db.active_household_id
+
+
+def switch_household(household_id: str) -> bool:
+    """Switch the active household. Returns True if successful."""
+    if not household_id:
+        return False
+    # Verify the household exists
+    households = db.list_households()
+    if not any(h["household_id"] == household_id for h in households):
+        return False
+    db.active_household_id = household_id
+    return True
+
+
+def list_households() -> list[dict[str, str]]:
+    """List all registered households."""
+    return db.list_households()
+
+
+def add_household(household_id: str, name: str) -> bool:
+    """Register a new household."""
+    return db.add_household(household_id, name)
 
 
 def runtime_label() -> str:

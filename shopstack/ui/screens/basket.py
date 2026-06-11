@@ -1,22 +1,19 @@
 from __future__ import annotations
 
 import gradio as gr
-from typing import Any
 
 from shopstack.basket.service import optimize_baskets
-from shopstack.schemas.models import DecisionSet
 from shopstack.app_context import db, tools
 from shopstack.services.dashboard import build_dashboard_state
 
 def get_basket_ui_html() -> str:
-    state = build_dashboard_state(db, tools.inventory)
+    state = build_dashboard_state(db, tools.inventory, user_id=db.active_household_id)
     decision_set = state.decision_set
-    
-    # We need a source registry for multiple sources. Since we don't have direct access
-    # to all snapshots here easily, we will simulate if none exist, or we can use provider_registry if we added it.
-    from shopstack.market import swiggy, adapter_zepto, adapter_dmart
-    
-    candidates = optimize_baskets(decision_set, None)  # Mocked or use actual source registry
+
+    from shopstack.services.market_sources import load_market_registry
+    registry, _ = load_market_registry(db=db, force=False)
+
+    candidates = optimize_baskets(decision_set, registry)
     
     if not candidates:
         return "<div class='home-card' style='text-align:center;padding:40px;color:var(--text-dim);'>No items to buy today.</div>"

@@ -39,7 +39,7 @@ def get_intelligence_dashboard():
         
     # 2. Preferences
     try:
-        prefs = db.get_preference_signals()
+        prefs = db.get_preference_signals(user_id=db.active_household_id)
         if prefs:
             pref_items = []
             for p in prefs:

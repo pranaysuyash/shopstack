@@ -12,6 +12,7 @@ from typing import Any, cast
 
 from shopstack.persistence.database import Database
 from shopstack.schemas.models import (
+    InventoryEvent,
     InventoryLot,
     MovementEvent,
     MovementSource,
@@ -52,6 +53,7 @@ class InventoryRepo:
         source_event_id: str = "",
         confidence: float = 1.0,
         category: str = "",
+        user_id: str = "",
     ) -> dict[str, Any]:
         lot = InventoryLot(
             canonical_name=canonical_name,
@@ -67,7 +69,18 @@ class InventoryRepo:
             confidence=confidence,
             category=category,
         )
-        self.db.add_inventory_lot(lot)
+        self.db.add_inventory_lot(lot, user_id=user_id)
+        self.db.record_inventory_event(InventoryEvent(
+            lot_id=lot.lot_id,
+            canonical_name=canonical_name,
+            action="added",
+            quantity_before=0,
+            quantity_after=quantity,
+            quantity_delta=quantity,
+            unit=unit,
+            location_to=storage_location_id,
+            source=source_event_id or "manual",
+        ), user_id=user_id)
         return {"lot": lot.model_dump(), "lot_id": lot.lot_id}
 
     def update_item(self, lot_id: str, updates: dict) -> dict[str, Any]:
@@ -81,7 +94,7 @@ class InventoryRepo:
         return {"lot": lot.model_dump()}
 
     def consume_item(
-        self, lot_id: str, quantity: float = 1.0, reason: str | None = None
+        self, lot_id: str, quantity: float = 1.0, reason: str | None = None, user_id: str = ""
     ) -> dict[str, Any]:
         resolved_id, resolve_error = self.resolve_lot_id(lot_id)
         if resolve_error:
@@ -94,9 +107,21 @@ class InventoryRepo:
             return {"success": False, "error": "Quantity to consume must be a positive number"}
         if lot.quantity < quantity:
             quantity = lot.quantity
+        qty_before = lot.quantity
         updated = self.db.consume_inventory(resolved_id, quantity)
         if not updated:
             return {"success": False, "error": "Consumption failed"}
+        self.db.record_inventory_event(InventoryEvent(
+            lot_id=resolved_id,
+            canonical_name=lot.canonical_name,
+            action="consumed",
+            quantity_before=qty_before,
+            quantity_after=updated.quantity,
+            quantity_delta=-quantity,
+            unit=lot.unit,
+            source="manual",
+            notes=reason,
+        ))
         return {
             "lot": updated.model_dump(),
             "consumed_quantity": quantity,
@@ -124,6 +149,15 @@ class InventoryRepo:
             source=cast(MovementSource, source),
         )
         self.db.record_movement(movement)
+        self.db.record_inventory_event(InventoryEvent(
+            lot_id=resolved_id,
+            canonical_name=lot.canonical_name,
+            action="moved",
+            unit=lot.unit,
+            location_from=lot.storage_location_id,
+            location_to=to_location_id,
+            source=source,
+        ))
         return {
             "movement": movement.model_dump(),
             "from": lot.storage_location_id,
@@ -132,9 +166,9 @@ class InventoryRepo:
 
     # --- Search / query ---
 
-    def find(self, query: str) -> dict[str, Any]:
+    def find(self, query: str, user_id: str = "") -> dict[str, Any]:
         q = query.lower()
-        all_inventory = self.db.get_inventory()
+        all_inventory = self.db.get_inventory(user_id=user_id)
         results = []
         for lot in all_inventory:
             if q in lot.canonical_name.lower() or q in lot.display_name.lower():
@@ -146,7 +180,7 @@ class InventoryRepo:
                 })
         return {"results": results, "count": len(results)}
 
-    def semantic_find(self, query: str) -> dict[str, Any]:
+    def semantic_find(self, query: str, user_id: str = "") -> dict[str, Any]:
         q = query.strip()
         if not q:
             return {"results": [], "count": 0, "match_type": "none"}
@@ -157,7 +191,7 @@ class InventoryRepo:
             threshold=0.6,
             embedding_provider=getattr(self, "_embedding_provider", None),
         )
-        all_inventory = self.db.get_inventory()
+        all_inventory = self.db.get_inventory(user_id=user_id)
         lot_results = []
         for sr in search_results:
             matching_lots = [
@@ -179,13 +213,13 @@ class InventoryRepo:
     # --- Inventory comparison (returns raw data, no classification) ---
 
     def compare_visible(
-        self, canonical_name: str, quantity: float = 1.0, unit: str = "unit"
+        self, canonical_name: str, quantity: float = 1.0, unit: str = "unit", user_id: str = ""
     ) -> dict[str, Any]:
-        all_inventory = self.db.get_inventory()
+        all_inventory = self.db.get_inventory(user_id=user_id)
         matching = [lot for lot in all_inventory if lot.canonical_name.lower() == canonical_name.lower()]
         total_have = sum(lot.quantity for lot in matching)
         active_lots = [lot for lot in matching if lot.status == "active"]
-        soon = self.get_use_soon(days=3)
+        soon = self.get_use_soon(days=3, user_id=user_id)
         is_use_soon = any(
             canonical_name.lower() in s.get("canonical_name", "").lower()
             for s in soon.get("items", [])
@@ -202,8 +236,8 @@ class InventoryRepo:
 
     # --- Use-soon / buy suggestions ---
 
-    def get_use_soon(self, days: int = 3) -> dict[str, Any]:
-        all_inventory = self.db.get_inventory(status="active")
+    def get_use_soon(self, days: int = 3, user_id: str = "") -> dict[str, Any]:
+        all_inventory = self.db.get_inventory(status="active", user_id=user_id)
         soon = []
         today = date.today()
         for lot in all_inventory:
@@ -233,8 +267,8 @@ class InventoryRepo:
         soon.sort(key=lambda x: x.get("days_remaining", 999))
         return {"items": soon[:20], "count": len(soon)}
 
-    def get_buy_suggestions(self) -> dict[str, Any]:
-        all_inventory = self.db.get_inventory()
+    def get_buy_suggestions(self, user_id: str = "") -> dict[str, Any]:
+        all_inventory = self.db.get_inventory(user_id=user_id)
         suggestions = []
         for lot in all_inventory:
             if lot.quantity <= 0 or lot.status == "used" or lot.status == "expired":

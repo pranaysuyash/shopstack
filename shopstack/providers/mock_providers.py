@@ -197,13 +197,28 @@ class MockPlannerProvider(PlannerProvider):
     available = True
     capabilities: set[str] = {"text", "planning"}
 
+    def __init__(self):
+        self._mock_response: str | None = None
+
     def load(self) -> None:
         pass
 
     def healthcheck(self) -> bool:
         return True
 
+    def set_mock_response(self, response: str) -> None:
+        """Inject a mock JSON response for the next ``plan()`` call."""
+        self._mock_response = response
+
     def plan(self, context: dict[str, Any]) -> list[dict[str, Any]]:
+        if self._mock_response is not None:
+            import json
+            try:
+                parsed = json.loads(self._mock_response)
+                self._mock_response = None
+                return parsed
+            except json.JSONDecodeError:
+                pass
         return [
             {
                 "tool": "add_inventory_item",

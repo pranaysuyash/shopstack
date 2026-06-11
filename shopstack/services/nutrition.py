@@ -121,11 +121,11 @@ def get_nutrition_info(name: str) -> NutritionInfo | None:
     )
 
 
-def get_inventory_nutrition_summary(database: Any) -> NutritionSummary:
+def get_inventory_nutrition_summary(database: Any, user_id: str = "") -> NutritionSummary:
     _ensure_loaded()
     assert _cache is not None
 
-    inventory = database.get_inventory(status="active")
+    inventory = database.get_inventory(status="active", user_id=user_id)
 
     items: list[dict[str, Any]] = []
     missing: list[str] = []

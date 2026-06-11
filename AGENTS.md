@@ -297,3 +297,21 @@ This file remains a guidance snapshot; code/runtime/tests at the time of work re
 ## Status Update (2026-06-10) — Stale Test Count
 
 Note: The test inventory table at the top of this file is inherently stale. Do not rely on hardcoded counts. Run `uv run pytest tests/ --collect-only -q` to get the actual current count.
+
+## Addendum (2026-06-11) — Compact Tool Descriptions, OCR Pipeline, Engine Bug Fix
+
+This file remains a guidance snapshot; code/runtime/tests at the time of work remain source of truth.
+
+- **Compact tool descriptions** (`shopstack/tools/spec.py`, `shopstack/planner/prompts.py`, `shopstack/tools/registry.py`, `shopstack/planner/engine.py`, `shopstack/config.py`):
+  - `ToolSpec.format_compact()` renders type-shorthand descriptions (e.g. `canonical_name: string, quantity: number?`).
+  - `format_tool_descriptions(compact=True)` threaded through prompt builder → engine → planner prompt.
+  - New setting `SHOPSTACK_PLANNER_COMPACT_TOOLS` / `planner_compact_tools` (default `False`).
+  - Benchmarked at ~90% planner accuracy vs ~50% for verbose prose (Qwen3.5-4B-4bit, chat template, 512 tok).
+- **Receipt OCR pipeline** (`shopstack/services/ocr_pipeline.py`):
+  - `ReceiptOCRPipeline` with 3-stage fallback: GLM-OCR → preprocessing + retry → Tesseract.
+  - OpenCV image preprocessing: grayscale, deskew, adaptive binarization, denoising.
+  - Failure detection for GLM-OCR special-token output (`<|image|>`).
+  - 22 unit tests in `tests/test_ocr_pipeline.py` covering all pipeline stages.
+- **Engine bug fix** (`shopstack/planner/engine.py`):
+  - `getattr(provider, "model_id", provider.name)` eagerly evaluated `provider.name` as getattr's default, crashing any provider without a `name` attribute. Changed to `getattr(provider, "model_id", None) or getattr(provider, "name", "unknown")`.
+  - This was the root cause of the pre-existing `test_process_escapes_provider_response_text` failure.

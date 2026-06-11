@@ -409,6 +409,23 @@ class ReconciliationEvent(BaseModel):
     source: str = "manual"  # manual / receipt / scan / voice
 
 
+class InventoryEvent(BaseModel):
+    """Audit trail for every inventory mutation — add, consume, move, adjust, discard."""
+    event_id: str = Field(default_factory=new_id)
+    timestamp: datetime = Field(default_factory=datetime.now)
+    lot_id: str = ""
+    canonical_name: str = ""
+    action: str  # "added" | "consumed" | "moved" | "adjusted" | "discarded" | "status_changed"
+    quantity_before: float | None = None
+    quantity_after: float | None = None
+    quantity_delta: float | None = None
+    unit: str = ""
+    location_from: str | None = None
+    location_to: str | None = None
+    source: str = "manual"  # manual / shopping_list / reconciliation / scan / system
+    notes: str | None = None
+
+
 class PreferenceSignal(BaseModel):
     """A household preference learned from user corrections or behavior."""
     signal_id: str = Field(default_factory=new_id)

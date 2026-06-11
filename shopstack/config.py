@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     image_gen_backend: str = "svg"
     embeddings_backend: str = "bge_m3"
     tool_call_parser_backend: str = "minicpm5"
+    planner_compact_tools: bool = False  # Use compact type-shorthand tool descriptions (~90% accuracy vs ~50%)
 
     model_config = {"env_file": ".env", "env_prefix": "SHOPSTACK_", "extra": "ignore"}
 

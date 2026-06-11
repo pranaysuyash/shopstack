@@ -24,6 +24,8 @@ class DashboardState:
     cadence_data: dict[str, dict[str, Any]] = field(default_factory=dict)
     waste_data: list[dict[str, Any]] = field(default_factory=list)
     weather: WeatherState | None = None
+    price_deals: list[dict[str, Any]] = field(default_factory=list)
+    best_store: dict[str, Any] = field(default_factory=dict)
 
     @property
     def use_soon_count(self) -> int:
@@ -34,18 +36,18 @@ class DashboardState:
         return list(self.use_soon.get("items", []))
 
 
-def build_dashboard_state(db: Database, inventory, city: str = "mumbai") -> DashboardState:
+def build_dashboard_state(db: Database, inventory, city: str = "mumbai", user_id: str = "") -> DashboardState:
     """Assemble the Today dashboard state from inventory, decisions, market data, and weather."""
     market_input = _load_market_snapshot(db)
     # _load_market_snapshot returns (snapshot, registry) or (None, None)
     market_snapshot, source_registry = market_input if isinstance(market_input, tuple) else (market_input, None)
     decision_set = classify_all(db, inventory, market_snapshot=market_snapshot, source_registry=source_registry)
-    use_soon = inventory.get_use_soon(days=3) if hasattr(inventory, "get_use_soon") else inventory.get_use_soon_items(days=3)
-    active_list = db.get_active_shopping_list()
-    all_inventory = db.get_inventory()
+    use_soon = inventory.get_use_soon(days=3, user_id=user_id) if hasattr(inventory, "get_use_soon") else inventory.get_use_soon_items(days=3)
+    active_list = db.get_active_shopping_list(user_id=user_id)
+    all_inventory = db.get_inventory(user_id=user_id)
     active_inventory = [lot for lot in all_inventory if lot.status == "active"]
     low_items = [lot for lot in active_inventory if lot.quantity <= 0.5 or lot.status == "low"]
-    recent_purchases = db.get_purchase_events(limit=5)
+    recent_purchases = db.get_purchase_events(limit=5, user_id=user_id)
 
     cadence_data = detect_purchase_cadence(db)
     waste_data = detect_waste_patterns(db)
@@ -55,6 +57,24 @@ def build_dashboard_state(db: Database, inventory, city: str = "mumbai") -> Dash
         weather = get_weather(city)
     except Exception as exc:
         logger.info("Weather unavailable for dashboard: %s", exc)
+
+    # Price memory enrichment — deal scores for buy items
+    price_deals: list[dict[str, Any]] = []
+    best_store: dict[str, Any] = {}
+    try:
+        from shopstack.services.price_memory import PriceMemoryService
+        pm = PriceMemoryService(db)
+        buy_names = [d.canonical_name for d in decision_set.buy]
+        for name in buy_names:
+            summary = pm.get_summary(name)
+            if summary.last_price and summary.median_price and summary.observations >= 2:
+                deal = pm.score_deal(name, summary.last_price, per_kg=summary.normalized_per_kg)
+                price_deals.append(deal.__dict__ if hasattr(deal, '__dict__') else {"product": name, "score": deal.score, "reason": deal.reason})
+        if len(buy_names) >= 2:
+            bs = pm.get_best_store(buy_names)
+            best_store = bs.__dict__ if hasattr(bs, '__dict__') else {}
+    except Exception as exc:
+        logger.debug("Price memory enrichment failed: %s", exc)
 
     return DashboardState(
         decision_set=decision_set,
@@ -68,6 +88,8 @@ def build_dashboard_state(db: Database, inventory, city: str = "mumbai") -> Dash
         cadence_data=cadence_data,
         waste_data=waste_data,
         weather=weather,
+        price_deals=price_deals,
+        best_store=best_store,
     )
 
 

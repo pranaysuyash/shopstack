@@ -51,7 +51,7 @@ class PlannerEngine:
             return False
         return getattr(provider, "available", False)
 
-    def process(self, question: str) -> str:
+    def process(self, question: str, compact_tools: bool | None = None) -> str:
         from shopstack.planner.prompts import build_planner_prompt, build_system_prompt
 
         provider = self._providers.planner
@@ -64,8 +64,10 @@ class PlannerEngine:
                 "or SHOPSTACK_PLANNER_BACKEND=openai for OpenAI.</div>"
             )
 
-        prompt = build_planner_prompt(question, self._db, tool_registry=self._tools)
-        system_prompt = build_system_prompt(self._db, tool_registry=self._tools)
+        if compact_tools is None:
+            compact_tools = settings.planner_compact_tools
+        prompt = build_planner_prompt(question, self._db, tool_registry=self._tools, compact_tools=compact_tools)
+        system_prompt = build_system_prompt(self._db, tool_registry=self._tools, compact_tools=compact_tools)
         provider_meta: dict[str, Any] = {}
         parser_meta: dict[str, Any] = {}
 
@@ -129,7 +131,7 @@ class PlannerEngine:
         # kept intentionally for UI/debug surfacing through raw trace consumers
         return self._format_outcomes(outcomes, question)
 
-    def process_structured(self, question: str) -> dict[str, Any]:
+    def process_structured(self, question: str, compact_tools: bool | None = None) -> dict[str, Any]:
         """Process a question and return a structured dictionary instead of HTML prose."""
         from shopstack.planner.prompts import build_planner_prompt, build_system_prompt
 
@@ -137,8 +139,10 @@ class PlannerEngine:
         if provider is None or not getattr(provider, "available", False):
             return {"error": "Planner not available", "type": "error"}
 
-        prompt = build_planner_prompt(question, self._db, tool_registry=self._tools)
-        system_prompt = build_system_prompt(self._db, tool_registry=self._tools)
+        if compact_tools is None:
+            compact_tools = settings.planner_compact_tools
+        prompt = build_planner_prompt(question, self._db, tool_registry=self._tools, compact_tools=compact_tools)
+        system_prompt = build_system_prompt(self._db, tool_registry=self._tools, compact_tools=compact_tools)
         parser_meta: dict[str, Any] = {}
         provider_meta: dict[str, Any] = {}
 
@@ -273,7 +277,7 @@ class PlannerEngine:
         if not model_key:
             model_key = getattr(provider, "_model_name", None)
         if not model_key:
-            model_key = getattr(provider, "model_id", provider.name)
+            model_key = getattr(provider, "model_id", None) or getattr(provider, "name", "unknown")
 
         latency_ms = call_latency_ms
         if isinstance(cost_payload, dict) and isinstance(cost_payload.get("latency_ms"), (int, float)):

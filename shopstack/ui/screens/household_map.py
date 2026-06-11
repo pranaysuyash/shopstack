@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 @safe_render
 def household_map_view() -> str:
     locations = db.get_locations()
-    inventory = db.get_inventory()
+    inventory = db.get_inventory(user_id=db.active_household_id)
     loc_counts: dict[str, int] = {}
     loc_items: dict[str, list[str]] = {}
     for lot in inventory:
@@ -96,7 +96,7 @@ def what_is_in_fridge_now() -> str:
         if loc.location_id == "fridge" or loc.parent_location_id == "fridge" or loc.location_id.startswith("fridge_")
     }
     items = [
-        i for i in db.get_inventory()
+        i for i in db.get_inventory(user_id=db.active_household_id)
         if (i.storage_location_id in fridge_nodes)
     ]
     if not items:
@@ -111,21 +111,22 @@ def what_is_in_fridge_now() -> str:
 
 
 def inventory_alerts(days_since_purchase: int = 3) -> str:
+    uid = db.active_household_id
     if days_since_purchase <= 0:
         days_since_purchase = 3
     low = [
-        lot for lot in db.get_inventory()
+        lot for lot in db.get_inventory(user_id=uid)
         if lot.quantity <= 0.5 or lot.status == "low"
     ]
     stale = [
-        lot for lot in db.get_inventory()
+        lot for lot in db.get_inventory(user_id=uid)
         if lot.purchase_date and (date.today() - lot.purchase_date).days >= days_since_purchase and lot.quantity > 0
     ]
 
     today = date.today()
     expiring_today = []
     expiring_tomorrow = []
-    for lot in db.get_inventory(status="active"):
+    for lot in db.get_inventory(status="active", user_id=uid):
         ref = lot.label_expiry_date or lot.estimated_use_by_date
         if not ref:
             continue

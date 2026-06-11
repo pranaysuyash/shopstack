@@ -3,14 +3,16 @@ from __future__ import annotations
 import gradio as gr
 import json
 import logging
-import os
-import tempfile
 from html import escape
 from typing import Any
 import sys
 
-from shopstack.traces.export import export_trace_by_id, trace_payload_for_export, create_trace
 from shopstack.config import settings
+
+# Use TraceService from app_context for all trace CRUD operations.
+# The service wraps shopstack.traces.export with a clean class interface
+# following the service boundary pattern.
+from shopstack.app_context import get_trace_service
 
 logger = logging.getLogger(__name__)
 
@@ -45,16 +47,20 @@ def _safe_trace_id(trace_id: str) -> str:
 
 def _find_trace_by_id(trace_id: str):
     db = _current_db()
+    from shopstack.app_context import current_user_id
+    user_id = current_user_id()
     if not trace_id:
-        traces = db.get_traces(limit=1)
+        traces = db.get_traces(limit=1, user_id=user_id)
         return traces[0] if traces else None
     target = _safe_trace_id(trace_id)
-    return db.get_trace_by_id(target)
+    return db.get_trace_by_id(target, user_id=user_id)
 
 
 def _filter_traces(search: str = "", input_type_filter: str = "") -> list:
     db = _current_db()
-    traces = db.get_traces(limit=max(1, min(settings.trace_max_rows, 500)))
+    from shopstack.app_context import current_user_id
+    user_id = current_user_id()
+    traces = db.get_traces(limit=max(1, min(settings.trace_max_rows, 500)), user_id=user_id)
     needle = (search or "").strip().lower()
     selected = (input_type_filter or "").strip().lower()
     if selected:
@@ -139,7 +145,8 @@ def _trace_bundle(trace_id: str) -> tuple[str, str]:
         no_trace = "<div style='color:var(--text-dim);'>No activity selected yet.</div>"
         return no_trace, no_trace
     timeline_html = _trace_timeline_html(trace)
-    raw_json = json.dumps(trace_payload_for_export(trace), indent=2, default=str)
+    service = get_trace_service()
+    raw_json = json.dumps(service.trace_payload(trace), indent=2, default=str)
     return timeline_html, f"<pre style='font-size:12px;overflow:auto;max-height:400px;background:var(--bg-input);padding:12px;border-radius:var(--radius-sm);'>{raw_json}</pre>"
 
 
@@ -181,7 +188,8 @@ def agent_trace_detail(trace_id: str) -> str:
     if not trace:
         return "<div style='color:var(--text-dim);'>Activity not found.</div>"
     timeline = _trace_timeline_html(trace)
-    raw = json.dumps(trace_payload_for_export(trace), indent=2, default=str)
+    service = get_trace_service()
+    raw = json.dumps(service.trace_payload(trace), indent=2, default=str)
     return timeline + (
         "<div class='home-card' style='text-align:left;margin-top:12px;'>"
         "<h3>Raw activity record</h3>"
@@ -194,14 +202,9 @@ def agent_trace_export_file(trace_id: str) -> str:
     trace = _find_trace_by_id(trace_id)
     if not trace:
         return ""
-    fd, out_path = tempfile.mkstemp(suffix=".jsonl")
-    try:
-        wrote = export_trace_by_id(_current_db(), trace.trace_id, out_path, redact=True)
-    finally:
-        os.close(fd)
-    if not wrote:
-        return ""
-    return out_path
+    service = get_trace_service()
+    return service.export_trace_to_jsonl(trace.trace_id, redact=True)
+
 
 
 def record_workflow_trace(
@@ -216,8 +219,8 @@ def record_workflow_trace(
     human_confirmation: str | None = None,
 ) -> str:
     try:
-        trace = create_trace(
-            _current_db(),
+        service = get_trace_service()
+        trace = service.create_trace(
             input_type=input_type,
             user_goal=user_goal,
             redacted_user_request=redacted_user_request,

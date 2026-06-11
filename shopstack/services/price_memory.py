@@ -28,6 +28,8 @@ __all__ = [
     "PriceHistory",
     "PriceSummary",
     "DealScore",
+    "StorePriceRanking",
+    "BestStoreResult",
     "PriceMemoryService",
     "build_price_memory_service",
 ]
@@ -115,21 +117,80 @@ class DealScore:
         return self.score in ("great", "good")
 
 
+@dataclass
+class StorePriceRanking:
+    """Price comparison across stores for a single product."""
+    canonical_name: str
+    store_prices: list[dict[str, Any]] = field(default_factory=list)
+    best_store: str = ""
+    best_price: float | None = None
+    best_per_kg: float | None = None
+    worst_store: str = ""
+    worst_price: float | None = None
+    spread_pct: float | None = None
+    observations: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "canonical_name": self.canonical_name,
+            "best_store": self.best_store,
+            "best_price": self.best_price,
+            "best_per_kg": self.best_per_kg,
+            "worst_store": self.worst_store,
+            "worst_price": self.worst_price,
+            "spread_pct": self.spread_pct,
+            "observations": self.observations,
+            "store_prices": self.store_prices,
+        }
+
+
+@dataclass
+class BestStoreResult:
+    """Best store recommendation across multiple items."""
+    store: str
+    items_with_best_price: int = 0
+    total_items_compared: int = 0
+    estimated_savings_vs_worst: float = 0.0
+    avg_position: float = 0.0
+    item_details: list[dict[str, Any]] = field(default_factory=list)
+
+    @property
+    def coverage_pct(self) -> float:
+        if self.total_items_compared <= 0:
+            return 0.0
+        return round(self.items_with_best_price / self.total_items_compared * 100, 1)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "store": self.store,
+            "items_with_best_price": self.items_with_best_price,
+            "total_items_compared": self.total_items_compared,
+            "estimated_savings_vs_worst": round(self.estimated_savings_vs_worst, 2),
+            "avg_position": round(self.avg_position, 2),
+            "coverage_pct": self.coverage_pct,
+            "item_details": self.item_details,
+        }
+
+
 class PriceMemoryService:
     """Query price observations and compute price intelligence.
 
     This service reads from the database and returns structured price
-    summaries, trends, and deal quality assessments.
+    summaries, trends, deal quality assessments, and store-specific
+    comparisons.
 
     Usage::
 
         service = PriceMemoryService(database)
         summary = service.get_summary("tomato")
         deal = service.score_deal("tomato", current_price=35, per_kg=70)
+        best = service.get_best_store(["tomato", "onion", "rice"])
     """
 
     def __init__(self, db: Any):
         self._db = db
+
+    # ── Single-product queries ──────────────────────────────────────
 
     def get_summary(self, canonical_name: str, days: int = _FULL_WINDOW_DAYS) -> PriceSummary:
         """Get price summary for a canonical product over the given window."""
@@ -266,6 +327,147 @@ class PriceMemoryService:
             reason=reason,
         )
 
+    # ── Store intelligence ──────────────────────────────────────────
+
+    def get_store_comparison(self, canonical_name: str, days: int = _RECENT_WINDOW_DAYS) -> StorePriceRanking:
+        """Compare prices across stores for a single product.
+
+        Groups observations by store and computes per-store median
+        prices, then ranks stores from cheapest to most expensive.
+        """
+        observations = self._query_observations(canonical_name, days)
+        if not observations:
+            return StorePriceRanking(canonical_name=canonical_name)
+
+        store_data: dict[str, list[float]] = {}
+        store_ppk: dict[str, list[float]] = {}
+        for o in observations:
+            store = o.store_name or "unknown"
+            if o.price > 0:
+                store_data.setdefault(store, []).append(o.price)
+                ppk = self._price_per_kg(o)
+                if ppk is not None and ppk > 0:
+                    store_ppk.setdefault(store, []).append(ppk)
+
+        if not store_data:
+            return StorePriceRanking(canonical_name=canonical_name)
+
+        store_prices = []
+        for store, prices in sorted(store_data.items()):
+            sorted_p = sorted(prices)
+            median_p = sorted_p[len(sorted_p) // 2]
+            ppks = store_ppk.get(store, [])
+            median_ppk = sorted(ppks)[len(ppks) // 2] if ppks else None
+            store_prices.append({
+                "store": store,
+                "median_price": round(median_p, 2),
+                "min_price": round(min(prices), 2),
+                "observations": len(prices),
+                "median_per_kg": round(median_ppk, 2) if median_ppk else None,
+            })
+
+        # Rank by per-kg if available, otherwise by absolute price
+        def _sort_key(entry: dict) -> float:
+            ppk = entry.get("median_per_kg")
+            if ppk is not None and ppk > 0:
+                return ppk
+            return entry["median_price"]
+
+        store_prices.sort(key=_sort_key)
+
+        best = store_prices[0]
+        worst = store_prices[-1]
+        best_price = best["median_price"]
+        worst_price = worst["median_price"]
+        spread = None
+        if worst_price and worst_price > 0 and best_price != worst_price:
+            spread = round((worst_price - best_price) / worst_price * 100, 1)
+
+        return StorePriceRanking(
+            canonical_name=canonical_name,
+            store_prices=store_prices,
+            best_store=best["store"],
+            best_price=best_price,
+            best_per_kg=best.get("median_per_kg"),
+            worst_store=worst["store"],
+            worst_price=worst_price,
+            spread_pct=spread,
+            observations=sum(s["observations"] for s in store_prices),
+        )
+
+    def get_best_store(self, canonical_names: list[str], days: int = _RECENT_WINDOW_DAYS) -> BestStoreResult:
+        """Find the best store across multiple products.
+
+        For each product, ranks stores by price. Then computes an overall
+        ranking based on how often each store has the best price and the
+        average price position across all items.
+        """
+        if not canonical_names:
+            return BestStoreResult(store="")
+
+        # Collect per-product store rankings
+        product_rankings: dict[str, StorePriceRanking] = {}
+        for name in canonical_names:
+            ranking = self.get_store_comparison(name, days)
+            if ranking.store_prices:
+                product_rankings[name] = ranking
+
+        if not product_rankings:
+            return BestStoreResult(store="", total_items_compared=len(canonical_names))
+
+        # Aggregate store performance across products
+        store_scores: dict[str, dict[str, float]] = {}
+        for name, ranking in product_rankings.items():
+            for rank_idx, entry in enumerate(ranking.store_prices):
+                store = entry["store"]
+                scores = store_scores.setdefault(store, {
+                    "best_count": 0, "total_positions": 0, "items_ranked": 0,
+                    "savings_vs_worst": 0.0,
+                })
+                scores["items_ranked"] += 1
+                scores["total_positions"] += rank_idx + 1
+                if rank_idx == 0:
+                    scores["best_count"] += 1
+                # Compute savings vs worst store for this product
+                worst_entry = ranking.store_prices[-1]
+                savings = (worst_entry.get("median_per_kg") or worst_entry["median_price"]) - \
+                          (entry.get("median_per_kg") or entry["median_price"])
+                if savings > 0:
+                    scores["savings_vs_worst"] += savings
+
+        # Build item-level details for the top stores
+        item_details = []
+        for name, ranking in product_rankings.items():
+            if ranking.store_prices:
+                best = ranking.store_prices[0]
+                item_details.append({
+                    "canonical_name": name,
+                    "best_store": best["store"],
+                    "best_price": best["median_price"],
+                    "best_per_kg": best.get("median_per_kg"),
+                    "stores_compared": len(ranking.store_prices),
+                    "spread_pct": ranking.spread_pct,
+                })
+
+        # Pick the overall best store
+        def _store_sort(name: str) -> tuple[float, float]:
+            s = store_scores[name]
+            avg_pos = s["total_positions"] / max(s["items_ranked"], 1)
+            return (-s["best_count"], avg_pos)
+
+        ranked_stores = sorted(store_scores, key=_store_sort)
+        winner = ranked_stores[0]
+        winner_data = store_scores[winner]
+
+        return BestStoreResult(
+            store=winner,
+            items_with_best_price=int(winner_data["best_count"]),
+            total_items_compared=len(canonical_names),
+            estimated_savings_vs_worst=round(winner_data["savings_vs_worst"], 2),
+            avg_position=round(winner_data["total_positions"] / max(winner_data["items_ranked"], 1), 2),
+            item_details=item_details,
+        )
+
     def get_top_deals(self, market_snapshot: Any, limit: int = 5) -> list[DealScore]:
         """Score all available items in a market snapshot and return top deals.
 
@@ -293,11 +495,13 @@ class PriceMemoryService:
         scored.sort(key=lambda d: d.savings_vs_median_pct or 0, reverse=True)
         return scored[:limit]
 
+    # ── Internal ────────────────────────────────────────────────────
+
     def _query_observations(self, canonical_name: str, days: int) -> list[Any]:
         """Query price observations from the database."""
         try:
             cutoff = date.today() - timedelta(days=days)
-            all_obs = self._db.get_price_observations(name=canonical_name) if hasattr(self._db, "get_price_observations") else []
+            all_obs = self._db.get_price_history(canonical_name)
             return [
                 o for o in all_obs
                 if o.observation_date and o.observation_date >= cutoff

@@ -25,6 +25,12 @@ from shopstack.ui.screens._utils import (
 
 logger = logging.getLogger(__name__)
 
+
+def _user_id() -> str:
+    from shopstack.app_context import current_user_id
+    return current_user_id()
+
+
 _ITEM_ALIASES_LOCAL: dict[str, list[str]] = {
     "tomato": ["tamatar", "tomatoes"],
     "coriander": ["dhania", "cilantro"],
@@ -294,7 +300,7 @@ def _shopping_list_share_html(share_text: str) -> str:
 
 
 def _shopping_list_payload() -> tuple[str, list[list[str]], str, str, str, str]:
-    sl = db.get_active_shopping_list()
+    sl = db.get_active_shopping_list(user_id=_user_id())
     if not sl:
         return (
             empty_state_enhanced("No active shopping list. Create one with your goal or rough text.", icon="🛒", action_label="Create List", on_click_tab="shopping"),
@@ -362,7 +368,7 @@ def _shopping_list_view_with_cards() -> tuple[str, str, list[list[str]], str, st
 
 
 def shopping_list_item_choices() -> list[tuple[str, str]]:
-    sl = db.get_active_shopping_list()
+    sl = db.get_active_shopping_list(user_id=_user_id())
     if not sl or not sl.items:
         return []
     items = [i for i in sl.items if i.status != "bought" and i.status != "skipped"]
@@ -400,7 +406,7 @@ def _build_shopping_list_and_refresh(
 
 
 def get_reconciliation_draft() -> tuple[list[list[Any]], str, str]:
-    sl = db.get_active_shopping_list()
+    sl = db.get_active_shopping_list(user_id=_user_id())
     if not sl or not sl.items:
         return [], "", "<div class='muted'>No active shopping list.</div>"
     
@@ -433,6 +439,8 @@ def confirm_reconciliation(df_data: Any, list_id: str) -> str:
     if not list_id:
         return "<div style='color:var(--red);'>No active list ID.</div>"
         
+    uid = _user_id()
+
     if hasattr(df_data, "values"):
         df_list = df_data.values.tolist()
     else:
@@ -473,7 +481,7 @@ def confirm_reconciliation(df_data: Any, list_id: str) -> str:
                 source="manual",
                 notes=note_val if action != "substituted" else None
             )
-            db.add_reconciliation_event(re)
+            db.add_reconciliation_event(re, user_id=uid)
             
             actual_items.append({
                 "canonical_name": name.lower(),
@@ -492,6 +500,7 @@ def confirm_reconciliation(df_data: Any, list_id: str) -> str:
                     quantity=qty,
                     unit=str(unit),
                     storage_location_id="kitchen",
+                    user_id=uid,
                 )
                 added_count += 1
                 
@@ -505,7 +514,7 @@ def confirm_reconciliation(df_data: Any, list_id: str) -> str:
                         store_name="Unknown",
                         source_event_id="reconciliation"
                     )
-                    db.record_price(po)
+                    db.record_price(po, user_id=uid)
             else:
                 skipped_count += 1
         except Exception as e:

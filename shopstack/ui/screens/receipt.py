@@ -6,6 +6,7 @@ from typing import Any
 
 
 from shopstack.app_context import db, providers
+from shopstack.services.ocr_pipeline import run_ocr_pipeline
 from shopstack.services.receipt import (
     ReceiptResult,
     canonicalize_receipt_name,
@@ -114,10 +115,9 @@ def receipt_scan_ocr(file_input: Any) -> tuple[list[list[Any]], str, str, str, s
             return [], "", "", "", f"<div style='color:var(--red);'>Failed to read file: {escape(str(e))}</div>"
     elif file_lower.endswith((".png", ".jpg", ".jpeg", ".webp", ".bmp")):
         try:
-            ocr_provider = providers.get("ocr")
-            if not ocr_provider:
-                return [], "", "", "", "<div style='color:var(--red);'>No OCR provider available.</div>"
-            ocr_result = ocr_provider.extract(file_path)
+            ocr_result = run_ocr_pipeline(file_path, providers, enable_preprocessing=True)
+            if "error" in ocr_result:
+                return [], "", "", "", f"<div style='color:var(--red);'>{escape(ocr_result['error'])}</div>"
             raw_text = ocr_result.get("text", ocr_result.get("raw_text", ""))
             if not raw_text:
                 raw_text = ocr_result.get("product_name", "") or ""
@@ -201,5 +201,5 @@ def receipt_confirm(df_data: Any, merchant: str, date_str: str, raw_text: str) -
         raw_text=raw_text,
     )
     
-    ir = confirm_receipt(db, result)
+    ir = confirm_receipt(db, result, user_id=db.active_household_id)
     return ir.summary_html

@@ -16,13 +16,14 @@ class ShoppingListRepo:
         self,
         items: list[dict[str, Any]] | None = None,
         goal: str = "",
+        user_id: str = "",
     ) -> dict[str, Any]:
-        existing = self.db.get_active_shopping_list()
+        existing = self.db.get_active_shopping_list(user_id=user_id)
         if existing:
             sl = existing
             sl.goal = goal or sl.goal
         else:
-            sl = self.db.create_shopping_list(goal=goal)
+            sl = self.db.create_shopping_list(goal=goal, user_id=user_id)
 
         if items:
             for item_data in items:

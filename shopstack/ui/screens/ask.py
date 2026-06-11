@@ -26,6 +26,8 @@ def ask_shopstack(question: str) -> dict[str, Any]:
             "message": "Ask ShopStack anything \u2014 e.g. 'Do we have milk?' or 'What should I buy today?'"
         }
 
+    uid = db.active_household_id
+
     lowered = question.lower()
 
     if _is_add_command(lowered):
@@ -56,7 +58,7 @@ def ask_shopstack(question: str) -> dict[str, Any]:
 
     if any(k in lowered for k in ["do we have", "kya", "hai kya", "where is", "where's", "where"]):
         query = extract_query_for_action(question, "item")
-        result = tools.find_item(query)
+        result = tools.find_item(query, user_id=uid)
         response = {
             "intent": "find_item",
             "query": query,
@@ -64,7 +66,7 @@ def ask_shopstack(question: str) -> dict[str, Any]:
         }
 
     elif any(keyword in lowered for keyword in ["skip", "what can i skip", "can i skip"]):
-        lots = db.get_inventory()
+        lots = db.get_inventory(user_id=uid)
         stock = [lot for lot in lots if lot.quantity > 0 and lot.status == "active"]
         ranked = sorted(stock, key=lambda lot: lot.quantity, reverse=True)[:8]
         from shopstack.schemas.models import DecisionSet, DecisionResult
@@ -80,7 +82,7 @@ def ask_shopstack(question: str) -> dict[str, Any]:
         response = ds.model_dump()
 
     elif any(k in lowered for k in ["expiring", "expires", "use soon", "urgent"]):
-        soon = tools.get_use_soon_items(days=7).get("items", [])
+        soon = tools.get_use_soon_items(days=7, user_id=uid).get("items", [])
         from shopstack.schemas.models import DecisionSet, DecisionResult
         ds = DecisionSet(decisions=[])
         for item in soon[:6]:
@@ -98,7 +100,7 @@ def ask_shopstack(question: str) -> dict[str, Any]:
         response = {"intent": "add_command", "html": _response_html}
 
     elif "should i buy" in lowered or "what should i buy" in lowered or "what do i need" in lowered:
-        suggestions = tools.get_next_buy_suggestions().get("suggestions", [])
+        suggestions = tools.get_next_buy_suggestions(user_id=uid).get("suggestions", [])
         from shopstack.schemas.models import DecisionSet, DecisionResult
         ds = DecisionSet(decisions=[])
         for s in suggestions[:8]:
@@ -308,6 +310,7 @@ def _parse_add_payload(raw: str) -> tuple[str, float, str] | None:
 
 
 def _handle_add_command(question: str) -> str:
+    uid = db.active_household_id
     for pat in _ADD_PATTERNS:
         m = pat.match(question.strip())
         if m:
@@ -325,6 +328,7 @@ def _handle_add_command(question: str) -> str:
                 quantity=qty,
                 unit=unit,
                 storage_location_id=location,
+                user_id=uid,
             )
             lot_id = result.get("lot_id", "")
             try:
