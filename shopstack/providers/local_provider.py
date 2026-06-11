@@ -258,16 +258,77 @@ class LocalProvider:
             return False
 
     def _maybe_unload_model(self) -> None:
-        if not self._auto_unload or self._llm is None:
+        if not self._auto_unload:
+            return
+        self.unload()
+
+    def unload(self) -> None:
+        if self._llm is None:
             return
         try:
             close = getattr(self._llm, "close", None)
             if callable(close):
                 close()
+            if self._backend == "mlx":
+                import gc
+                del self._llm
+                del self._tokenizer
+                gc.collect()
+                try:
+                    import mlx.core as mx
+                    mx.metal.clear_cache()
+                except ImportError:
+                    pass
         except Exception:
             logger.debug("Failed to close local LLM instance cleanly", exc_info=True)
         self._llm = None
         self._tokenizer = None
+
+    @property
+    def model_id(self) -> str:
+        return self._mlx_model if self._backend == "mlx" else f"{self._model_repo}/{self._model_file}"
+
+    @property
+    def local_path(self) -> str:
+        return self._model_path or ""
+
+    @property
+    def backend(self) -> str:
+        return self._backend
+
+    @property
+    def quantization(self) -> str:
+        if self._backend == "llama.cpp":
+            if "Q4" in self._model_file: return "Q4"
+            if "Q8" in self._model_file: return "Q8"
+        return "unknown"
+
+    @property
+    def parameter_count(self) -> float:
+        name = self.model_id.lower()
+        if "3.5-4b" in name or "3.2-3b" in name:
+            return 3.0
+        if "8b" in name:
+            return 8.0
+        if "7b" in name:
+            return 7.0
+        return 0.0
+
+    @property
+    def status(self) -> str:
+        if not self._available:
+            return f"Error: {self._error}" if self._error else "Unavailable"
+        if self._llm is not None:
+            return "Loaded in memory"
+        if self._backend == "mlx":
+            hf_home = os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
+            hf_model_dir = Path(hf_home) / "hub" / ("models--" + self._mlx_model.replace("/", "--"))
+            if not hf_model_dir.is_dir() and not (Path(self._model_dir) / self._mlx_model.split("/")[-1]).is_dir():
+                return "Pending Download (MLX)"
+        elif self._backend == "llama.cpp":
+            if not self._model_path or not Path(self._model_path).is_file():
+                return "Pending Download (GGUF)"
+        return "Ready to load"
 
     def complete(self, prompt: str, **kwargs: Any) -> dict[str, Any]:
         from shopstack.tracing import trace_call

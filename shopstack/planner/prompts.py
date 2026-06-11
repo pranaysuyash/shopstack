@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any
 
 from shopstack.config import settings
@@ -174,6 +176,21 @@ def _format_tool_descriptions(tools: ToolRegistry | None = None) -> str:
     return "\n".join(lines)
 
 
+def _tool_contract_block(tools: ToolRegistry | None = None) -> str:
+    specs = [spec.to_dict() for spec in (tools.tool_specs() if tools else [])]
+    contract = {
+        "tool_schema_version": "1.1",
+        "tools": specs,
+    }
+    return json.dumps(contract, sort_keys=True, default=str, indent=2)
+
+
+def _tool_set_signature(tools: ToolRegistry | None = None) -> str:
+    spec_payload = [spec.to_dict() for spec in (tools.tool_specs() if tools else [])]
+    normalized = json.dumps(spec_payload, sort_keys=True, default=str)
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:12]
+
+
 def format_inventory_context(db: Any, limit: int = _PLANNER_INVENTORY_LIMIT) -> str:
     lots = db.get_inventory(status="active") if hasattr(db, "get_inventory") else []
     if not lots:
@@ -190,7 +207,7 @@ def format_inventory_context(db: Any, limit: int = _PLANNER_INVENTORY_LIMIT) -> 
     return "\n".join(lines)
 
 
-def build_system_prompt(db: Any) -> str:
+def build_system_prompt(db: Any, tool_registry: ToolRegistry | None = None) -> str:
     """Build just the system prompt (tool descriptions + inventory context).
 
     Separated from build_planner_prompt so chat-oriented providers
@@ -198,15 +215,24 @@ def build_system_prompt(db: Any) -> str:
     message instead of concatenating it with the user request.
     """
     inventory_context = format_inventory_context(db)
-    tool_descriptions = _format_tool_descriptions()
-    return SYSTEM_PROMPT.replace("{{tool_descriptions}}", tool_descriptions).replace(
+    tool_registry = tool_registry or ToolRegistry(db)
+    tool_descriptions = _format_tool_descriptions(tool_registry)
+    contract_signature = _tool_set_signature(tool_registry)
+    contract_block = _tool_contract_block(tool_registry)
+    prompt = SYSTEM_PROMPT.replace("{{tool_descriptions}}", tool_descriptions).replace(
         "{{inventory_context}}", inventory_context
+    )
+    return (
+        f"{prompt}\n\n"
+        f"Tool contract version: {contract_signature}\n"
+        "Tool contract (canonical):\n"
+        f"{contract_block}"
     )
 
 
-def build_planner_prompt(question: str, db: Any) -> str:
+def build_planner_prompt(question: str, db: Any, tool_registry: ToolRegistry | None = None) -> str:
     """Build the full planner prompt by populating the SYSTEM_PROMPT template."""
-    system = build_system_prompt(db)
+    system = build_system_prompt(db, tool_registry=tool_registry)
     prompt = (
         f"{system}\n\n"
         f"USER REQUEST: {question}\n\n"

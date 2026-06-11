@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from copy import deepcopy
+import json
 from typing import Any, Callable
 
 from shopstack.persistence.database import Database
@@ -31,6 +33,7 @@ class ToolRegistry:
         self.shopping_list = ShoppingListRepo(db)
         self._embedding_provider = embedding_provider
         self._tools: dict[str, tuple[ToolFunc, str, list[str]]] = {}
+        self._tool_specs = {s.name: s for s in build_tool_specs()}
         self._register_all()
 
     # ── Tool registration / execution ──────────────────────────────
@@ -88,11 +91,11 @@ class ToolRegistry:
         ]
 
     def tool_specs(self) -> list[ToolSpec]:
-        canonical = {s.name: s for s in build_tool_specs()}
         specs: list[ToolSpec] = []
         for name, (_, desc, arg_names) in self._tools.items():
-            if name in canonical:
-                specs.append(canonical[name])
+            canonical_spec = self._tool_specs.get(name)
+            if canonical_spec is not None:
+                specs.append(canonical_spec)
             else:
                 specs.append(ToolSpec(
                     name=name,
@@ -111,10 +114,136 @@ class ToolRegistry:
             return {"success": False, "error": f"Unknown tool: {tool_name}"}
         fn, _, _ = entry
         try:
-            result = fn(**kwargs)
+            spec = self._find_tool_spec(tool_name)
+            if spec is None:
+                normalized_kwargs = kwargs
+            else:
+                normalized_kwargs, validation_error = self._normalize_tool_args(spec, kwargs)
+                if validation_error is not None:
+                    return {
+                        "success": False,
+                        "error": validation_error,
+                        "tool": tool_name,
+                    }
+            result = fn(**normalized_kwargs)
             return {"success": True, "result": result, "tool": tool_name}
+        except TypeError as exc:
+            return {
+                "success": False,
+                "error": f"Invalid tool signature for '{tool_name}': {exc}",
+                "tool": tool_name,
+            }
         except Exception as e:
             return {"success": False, "error": str(e), "tool": tool_name}
+
+    def _find_tool_spec(self, tool_name: str) -> ToolSpec | None:
+        """Return canonical ToolSpec for tool name, if defined."""
+        return self._tool_specs.get(tool_name)
+
+    def _normalize_tool_args(
+        self, spec: ToolSpec, kwargs: dict[str, Any]
+    ) -> tuple[dict[str, Any], str | None]:
+        """Validate and coerce caller args against ToolSpec.
+
+        Returns:
+            normalized args, and an error message if validation fails.
+        """
+        arg_specs = {a.name: a for a in spec.args}
+        normalized: dict[str, Any] = {}
+
+        unknown_args = [name for name in kwargs if name not in arg_specs]
+        if unknown_args:
+            return {}, f"Tool '{spec.name}' received unexpected args: {', '.join(sorted(unknown_args))}"
+
+        for arg in spec.args:
+            if arg.name not in kwargs:
+                if arg.required:
+                    return {}, f"Missing required argument '{arg.name}' for tool '{spec.name}'"
+                if arg.default is not None or arg.type_name in {"string", "number", "array", "object", "boolean", "bool"}:
+                    value = deepcopy(arg.default)
+                else:
+                    value = None
+            else:
+                value = kwargs[arg.name]
+                if arg.required and value is None:
+                    return {}, f"Required argument '{arg.name}' for tool '{spec.name}' cannot be null"
+
+            if value is None and not arg.required:
+                normalized[arg.name] = None
+                continue
+
+            normalized_value, err = self._coerce_arg_value(arg, value)
+            if err is not None:
+                return {}, err
+            normalized[arg.name] = normalized_value
+
+        return normalized, None
+
+    @staticmethod
+    def _coerce_arg_value(arg: ArgSpec, value: Any) -> tuple[Any, str | None]:
+        """Convert incoming tool args into expected ToolSpec runtime types."""
+        type_name = arg.type_name.lower()
+        name = arg.name
+
+        if type_name == "string":
+            if isinstance(value, str):
+                return value, None
+            return str(value), None
+
+        if type_name == "number":
+            if isinstance(value, bool):
+                return None, (
+                    f"Argument '{name}' must be a number, not a boolean"
+                )
+            if isinstance(value, (int, float)):
+                return float(value), None
+            if isinstance(value, str):
+                try:
+                    return float(value), None
+                except ValueError:
+                    return None, f"Argument '{name}' must be a number, got {value!r}"
+            return None, f"Argument '{name}' must be a number, got {type(value).__name__}"
+
+        if type_name in {"array", "list"}:
+            if isinstance(value, list):
+                return list(value), None
+            if isinstance(value, str):
+                try:
+                    parsed = json.loads(value)
+                except json.JSONDecodeError:
+                    return None, f"Argument '{name}' must be a JSON array string or array"
+                if isinstance(parsed, list):
+                    return parsed, None
+                return None, f"Argument '{name}' must be a JSON array, got {type(parsed).__name__}"
+
+            return None, f"Argument '{name}' must be an array, got {type(value).__name__}"
+
+        if type_name in {"object", "dict"}:
+            if isinstance(value, dict):
+                return dict(value), None
+            if isinstance(value, str):
+                try:
+                    parsed = json.loads(value)
+                except json.JSONDecodeError:
+                    return None, f"Argument '{name}' must be a JSON object string or object"
+                if isinstance(parsed, dict):
+                    return parsed, None
+                return None, f"Argument '{name}' must be a JSON object, got {type(parsed).__name__}"
+
+            return None, f"Argument '{name}' must be an object, got {type(value).__name__}"
+
+        if type_name in {"boolean", "bool"}:
+            if isinstance(value, bool):
+                return value, None
+            if isinstance(value, str):
+                lowered = value.strip().lower()
+                if lowered in {"1", "true", "yes", "y"}:
+                    return True, None
+                if lowered in {"0", "false", "no", "n"}:
+                    return False, None
+            return None, f"Argument '{name}' must be a boolean"
+
+        return value, None
 
     # ── Price observation (single method, stays here) ──────────────
 

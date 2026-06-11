@@ -62,6 +62,31 @@ class SourceRegistry:
         self._repository.store(snapshot)
         return snapshot
 
+    def load_all(self, force: bool = False) -> list[tuple[str, MarketSnapshot]]:
+        """Load snapshots for all registered adapters.
+
+        - `force=False`: load only when cache / DB has no entry for source.
+        - `force=True`: always refresh each source.
+        """
+        loaded: list[tuple[str, MarketSnapshot]] = []
+        for source_id, adapter in list(self._adapters.items()):
+            try:
+                snapshot = self._repository.latest(source_id) if not force else None
+                if snapshot is None:
+                    snapshot = self.load(source_id)
+                if snapshot is not None:
+                    loaded.append((source_id, snapshot))
+            except Exception as exc:
+                logger.warning("Failed to load market source %s: %s", source_id, exc)
+                continue
+        return loaded
+
+    def latest(self, source: str) -> MarketSnapshot | None:
+        return self._repository.latest(source)
+
+    def all_sources_latest(self) -> dict[str, MarketSnapshot]:
+        return self.all_snapshots()
+
     def for_category(self, category: str) -> list[MarketSourceAdapter]:
         return [a for a in self._adapters.values() if a.source_category == category]
 

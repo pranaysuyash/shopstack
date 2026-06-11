@@ -1,19 +1,25 @@
+import argparse
+from pathlib import Path
+
 from shopstack.config import settings
-from shopstack.data_sources.swiggy import import_swiggy_fresh_vegetables_snapshot
+from shopstack.market.sources.swiggy import load_snapshot
 from shopstack.persistence.database import Database
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data-dir", type=str, help="Path to data dir")
+    args = parser.parse_args()
+
     db = Database(settings.db_path)
-    summary = import_swiggy_fresh_vegetables_snapshot(db)
+    data_dir = Path(args.data_dir) if args.data_dir else None
+    snapshot = load_snapshot(data_dir=data_dir)
+
+    db.save_market_snapshot(snapshot)
+
     print("Imported Swiggy snapshot into ShopStack database.")
-    print(f"Source file: {summary['source_file']}")
-    print(f"Imported records: {summary['imported_records']}")
-    print(f"Skipped records: {summary['skipped_records']}")
-    print(f"Unique items: {summary['unique_items']}")
-    print("Top discounts:")
-    for item in summary["top_discounts"]:
-        print(f" - {item['name']} ({item['canonical_name']}): {item['price_inr']} INR, {item['discount_percent']}%")
+    print(f"Snapshot ID: {snapshot.snapshot_id}")
+    print(f"Imported records: {len(snapshot.normalized_records)}")
 
 
 if __name__ == "__main__":

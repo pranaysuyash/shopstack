@@ -19,6 +19,13 @@ from shopstack.tools.spec import DEFAULT_STORAGE_LOCATION
 if TYPE_CHECKING:
     from shopstack.persistence.database import Database
 
+
+def _add_item(inventory: Any, **kw) -> dict[str, Any]:
+    """Call add_item (InventoryRepo) or add_inventory_item (ToolRegistry)."""
+    if hasattr(inventory, "add_inventory_item"):
+        return inventory.add_inventory_item(**kw)
+    return inventory.add_item(**kw)
+
 logger = logging.getLogger(__name__)
 
 # Decision confidence scores — higher = more confident in the classification.
@@ -34,6 +41,41 @@ _CONF_NO_STOCK = 0.52
 # Optional items get halved quantity to reduce waste on "nice to have" purchases
 _OPTIONAL_QTY_FRACTION = 0.5
 _OPTIONAL_QTY_FLOOR = 0.5
+
+
+@dataclass
+class MarketEnrichment:
+    """Typed market price + availability data for a single item."""
+    swiggy_price: float | None = None
+    swiggy_price_per_kg: float | None = None
+    swiggy_available: bool | None = None
+    swiggy_size: str = ""
+
+    def apply_to(self, item: dict[str, Any]) -> None:
+        """Write enrichment fields into a shopping-list item dict."""
+        item["swiggy_price"] = self.swiggy_price
+        item["swiggy_price_per_kg"] = self.swiggy_price_per_kg
+        item["swiggy_available"] = self.swiggy_available
+        item["swiggy_size"] = self.swiggy_size
+
+
+def fetch_market_enrichments(names: list[str]) -> dict[str, MarketEnrichment]:
+    """Fetch market data for the given canonical names. Returns a name→enrichment map."""
+    try:
+        from shopstack.decisions import check_swiggy_availability
+        availability = check_swiggy_availability(names)
+    except Exception:
+        logger.warning("Swiggy enrichment fetch failed", exc_info=True)
+        return {}
+    result: dict[str, MarketEnrichment] = {}
+    for name, info in availability.items():
+        result[name] = MarketEnrichment(
+            swiggy_price=info.get("price"),
+            swiggy_price_per_kg=info.get("price_per_kg"),
+            swiggy_available=info.get("available"),
+            swiggy_size=info.get("raw_size", ""),
+        )
+    return result
 
 
 @dataclass
@@ -69,7 +111,8 @@ def classify_shopping_items(items: list[dict[str, Any]], inventory: InventoryRep
         except (TypeError, ValueError):
             qty = 1.0
         unit = item.get("unit", "unit") or "unit"
-        comparison = inventory.compare_visible(name, qty, unit)
+        _compare = inventory.compare_visible if hasattr(inventory, "compare_visible") else inventory.compare_visible_item_to_inventory
+        comparison = _compare(name, qty, unit)
         total_have = comparison.get("total_quantity_at_home", 0)
         is_use_soon = comparison.get("is_use_soon", False)
 
@@ -122,26 +165,13 @@ def classify_shopping_items(items: list[dict[str, Any]], inventory: InventoryRep
 
 def enrich_items_with_swiggy(items: list[dict[str, Any]]) -> None:
     """Attach Swiggy market price + availability data to shopping-list items in-place."""
-    try:
-        from shopstack.decisions import check_swiggy_availability
-        names = [item["canonical_name"].lower() for item in items]
-        availability = check_swiggy_availability(names)
-    except Exception:
-        logger.warning("Swiggy enrichment failed, prices will be empty", exc_info=True)
-        availability = {}
-
+    names = [item["canonical_name"].lower() for item in items]
+    enrichments = fetch_market_enrichments(names)
+    empty = MarketEnrichment()
     for item in items:
-        info = availability.get(item["canonical_name"].lower())
-        if info:
-            item["swiggy_price"] = info["price"]
-            item["swiggy_price_per_kg"] = info["price_per_kg"]
-            item["swiggy_available"] = info["available"]
-            item["swiggy_size"] = info["raw_size"]
-        else:
-            item["swiggy_price"] = None
-            item["swiggy_price_per_kg"] = None
-            item["swiggy_available"] = None
-            item["swiggy_size"] = ""
+        key = item["canonical_name"].lower()
+        enrichment = enrichments.get(key, empty)
+        enrichment.apply_to(item)
 
 
 # ─── Shopping Completion Services ───
@@ -186,7 +216,7 @@ def complete_shopping_list_service(
         qty = item.requested_quantity or 1.0
         if priority == "optional":
             qty = max(qty * _OPTIONAL_QTY_FRACTION, _OPTIONAL_QTY_FLOOR)
-        result = inventory.add_item(
+        result = _add_item(inventory,
             canonical_name=item.canonical_name.lower().strip(),
             display_name=item.canonical_name.strip(),
             quantity=qty,
@@ -264,7 +294,7 @@ def mark_items_purchased_service(
     for item in sl.items:
         if item.list_item_id in matched_ids:
             qty = item.requested_quantity or 1.0
-            result = inventory.add_item(
+            result = _add_item(inventory,
                 canonical_name=item.canonical_name.lower().strip(),
                 display_name=item.canonical_name.strip(),
                 quantity=qty,

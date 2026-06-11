@@ -98,6 +98,20 @@ class TestSizeParser:
         assert r.is_piece_based is True
         assert r.normalized_quantity == 6
 
+    def test_250g_x_2(self):
+        r = parse_size("250 g x 2")
+        assert r.is_weight_based is True
+        assert r.normalized_quantity == 500
+        assert r.normalized_unit == "g"
+        assert r.package_count == 2
+
+    def test_2_pieces_x_2(self):
+        r = parse_size("2 Pieces x 2")
+        assert r.is_piece_based is True
+        assert r.normalized_quantity == 4
+        assert r.normalized_unit == "pieces"
+        assert r.package_count == 2
+
 
 # ---------- Unit price computation ----------
 
@@ -169,6 +183,69 @@ class TestCanonicalize:
     def test_unknown_falls_back(self):
         canonical, _, _ = canonicalize_name("Dragon Fruit")
         assert canonical == "dragon_fruit"
+
+    def test_golden_indian_tomato(self):
+        canonical, variety, components = canonicalize_name("Indian Tomato")
+        assert canonical == "tomato"
+        assert components == []
+
+    def test_golden_pluckk_tomato(self):
+        canonical, variety, components = canonicalize_name("Pluckk Ozone Washed Hybrid Tomato")
+        assert canonical == "tomato"
+        assert components == []
+
+    def test_golden_onion_potato_tomato(self):
+        canonical, variety, components = canonicalize_name("Onion, Potato & Desi Tomato")
+        assert "combo" in canonical
+        assert set(components) == {"onion", "potato", "tomato"}
+
+    def test_golden_curry_coriander(self):
+        canonical, variety, components = canonicalize_name("Curry Leaves & Coriander Leaves")
+        assert "combo" in canonical
+        assert set(components) == {"curry_leaves", "coriander"}
+
+    def test_golden_mint_coriander(self):
+        canonical, variety, components = canonicalize_name("Mint Leaves & Coriander Leaves")
+        assert "combo" in canonical
+        assert set(components) == {"mint", "coriander"}
+
+    def test_golden_garlic_ginger(self):
+        canonical, variety, components = canonicalize_name("Garlic & Ginger")
+        assert "combo" in canonical
+        assert set(components) == {"garlic", "ginger"}
+
+    def test_golden_sambar_veg_combo(self):
+        canonical, variety, components = canonicalize_name("Sambar Veg Combo")
+        assert "combo" in canonical
+        assert "drumstick" in components
+        assert "radish" in components
+        assert "cluster_beans" in components
+        assert "ladys_finger" in components
+
+    def test_golden_ooty_carrot(self):
+        canonical, variety, components = canonicalize_name("Ooty Carrot")
+        assert canonical == "carrot"
+        assert components == []
+
+    def test_golden_kateri_brinjal(self):
+        canonical, variety, components = canonicalize_name("Kateri Brinjal")
+        assert canonical == "brinjal"
+        assert components == []
+
+    def test_golden_ladys_finger(self):
+        canonical, variety, components = canonicalize_name("Lady's Finger")
+        assert canonical == "ladys_finger"
+        assert components == []
+
+    def test_golden_drumstick(self):
+        canonical, variety, components = canonicalize_name("Drumstick")
+        assert canonical == "drumstick"
+        assert components == []
+
+    def test_golden_coccinia(self):
+        canonical, variety, components = canonicalize_name("Coccinia")
+        assert canonical == "coccinia"
+        assert components == []
 
 
 # ---------- Swiggy loader ----------

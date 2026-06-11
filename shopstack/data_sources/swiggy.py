@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+import warnings
+warnings.warn(
+    "shopstack.data_sources.swiggy is deprecated and will be removed in a future version. "
+    "Use shopstack.market.sources.swiggy instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 import csv
 import json
 import re
@@ -9,47 +16,16 @@ from pathlib import Path
 from typing import Any
 
 from shopstack.config import settings
-from shopstack.market.normalization import normalize_item_name
+from shopstack.market.normalization import canonicalize_name, parse_size
 from shopstack.persistence.database import Database
 from shopstack.schemas.models import PriceObservation
+from shopstack.market.sources import swiggy as swiggy_source
 
 SWIGGY_SOURCE_ID = "swiggy_fresh_vegetables_20260606"
 SWIGGY_STORE_NAME = "Swiggy Instamart"
 SWIGGY_SNAPSHOT_DATE = date(2026, 6, 6)
 SWIGGY_JSON_NAME = "swiggy_fresh_vegetables_cards_6jun26.json"
 SWIGGY_CSV_NAME = "swiggy_fresh_vegetables_cards_6jun26.csv"
-
-_GENERIC_ITEM_KEYWORDS = [
-    "bottle gourd",
-    "ridge gourd",
-    "bitter gourd",
-    "pointed gourd",
-    "snake gourd",
-    "tomato",
-    "potato",
-    "onion",
-    "cauliflower",
-    "cabbage",
-    "cucumber",
-    "capsicum",
-    "brinjal",
-    "eggplant",
-    "beans",
-    "drumstick",
-    "coriander",
-    "cilantro",
-    "garlic",
-    "ginger",
-    "spinach",
-    "mint",
-    "lemon",
-    "carrot",
-    "beetroot",
-    "pumpkin",
-    "sweet potato",
-    "broad beans",
-    "chickpeas",
-]
 
 
 @dataclass
@@ -101,73 +77,41 @@ def _parse_numeric(value: Any) -> float | None:
 
 
 def _normalize_swiggy_name(raw_name: str) -> str:
-    cleaned = re.sub(r"\s*\(.*?\)", "", raw_name or "").strip().lower()
-    cleaned = re.sub(r"[^\w\s]", " ", cleaned)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-
-    found = []
-    for keyword in sorted(_GENERIC_ITEM_KEYWORDS, key=len, reverse=True):
-        if re.search(rf"\b{re.escape(keyword)}\b", cleaned):
-            found.append(keyword)
-    if len(found) == 1:
-        return normalize_item_name(found[0])
-    return normalize_item_name(cleaned)
+    canonical, _, _ = canonicalize_name(raw_name or "")
+    return canonical or "unknown_item"
 
 
 def _parse_size(size: str | None) -> tuple[float, str]:
     if not size:
         return 1.0, "unit"
     raw = str(size).strip().lower()
-    raw = re.sub(r"[()]", "", raw)
-    raw = raw.replace("each", "unit").replace("pcs", "piece").replace("pc", "piece")
-    raw = raw.replace("kgs", "kg").replace("litres", "l").replace("liters", "l")
-    raw = raw.replace("mls", "ml").replace("grams", "g").replace("kilograms", "kg")
-    raw = re.sub(r"[^\w\d\.\s/-]", " ", raw)
-    raw = re.sub(r"\s+", " ", raw).strip()
 
-    if not raw:
+    # Preserve legacy tuple semantics expected by existing callers/tests.
+    legacy_multiplier_patterns = {
+        r"^(\d+(?:[\.,]\d+)?)\s*kg$": "kg",
+        r"^(\d+(?:[\.,]\d+)?)\s*(g|gram|grams)$": "g",
+        r"^(\d+(?:[\.,]\d+)?)\s*(ml|millilitre|milliliter|millil)$": "ml",
+        r"^(\d+(?:[\.,]\d+)?)\s*(l|litre|liter)$": "l",
+    }
+    for pattern, unit in legacy_multiplier_patterns.items():
+        match = re.match(pattern, raw)
+        if match:
+            return float(match.group(1).replace(",", ".")), unit
+
+    legacy_pattern = re.match(r"^(\d+(?:[\.,]\d+)?)\s*(medium|small|large)$", raw)
+    if legacy_pattern:
+        return float(legacy_pattern.group(1).replace(",", ".")), "unit"
+
+    size_result = parse_size(raw)
+    if not size_result.normalized_quantity or not size_result.normalized_unit:
         return 1.0, "unit"
 
-    if raw in ("medium", "small", "large", "unit", "piece", "piece ", "packet", "pack", "bunch"):
-        return 1.0, "unit"
-
-    if m := re.match(r"^(\d+(?:[\.,]\d+)?)(?:\s*)(medium|small|large|piece|unit|bunch|pack|packet)$", raw):
-        quantity = float(m.group(1).replace(",", "."))
-        return quantity, "unit"
-
-    match = re.match(r"^(\d+(?:[\.,]\d+)?)(?:\s*)(kg|g|l|ml|piece|unit|bunch|pack|packet)$", raw)
-    if match:
-        quantity = float(match.group(1).replace(",", "."))
-        unit = match.group(2)
-        if unit == "piece":
-            unit = "unit"
-        return quantity, unit
-
-    split = raw.split()
-    if len(split) == 2 and split[0].replace(".", "", 1).isdigit():
-        try:
-            quantity = float(split[0].replace(",", "."))
-            return quantity, split[1]
-        except ValueError:
-            pass
-
-    digits = re.findall(r"[\d\.]+", raw)
-    if digits:
-        try:
-            quantity = float(digits[0])
-            if "kg" in raw:
-                return quantity, "kg"
-            if "g" in raw:
-                return quantity, "g"
-            if "l" in raw:
-                return quantity, "l"
-            if "ml" in raw:
-                return quantity, "ml"
-            return quantity, "unit"
-        except ValueError:
-            pass
-
-    return 1.0, "unit"
+    unit = size_result.normalized_unit
+    if unit == "pieces":
+        unit = "unit"
+    if unit == "mL":
+        unit = "ml"
+    return float(size_result.normalized_quantity), unit
 
 
 def _load_records_from_json(path: Path) -> list[SwiggyVegetableRecord]:
@@ -183,31 +127,34 @@ def _load_records_from_csv(path: Path) -> list[SwiggyVegetableRecord]:
 
 
 def _record_from_row(row: dict[str, Any]) -> SwiggyVegetableRecord:
-    name = str(row.get("name", ""))
-    size = str(row.get("size", ""))
-    price_inr = _parse_numeric(row.get("price_inr")) or 0.0
-    mrp_inr = _parse_numeric(row.get("mrp_inr"))
-    discount_percent = _parse_numeric(row.get("discount_percent"))
-    quantity, unit = _parse_size(size)
-    canonical_name = _normalize_swiggy_name(name)
+    normalized = swiggy_source.normalize_record(
+        row,
+        snapshot_id=SWIGGY_SOURCE_ID,
+        captured_at=SWIGGY_SNAPSHOT_DATE.isoformat(),
+    )
+    discount_percent = normalized.discount_percent_displayed
+    quantity = normalized.normalized_quantity if normalized.normalized_quantity else 1.0
+    unit = "unit" if not normalized.normalized_unit or normalized.normalized_unit == "pieces" else normalized.normalized_unit
     notes_components = [
-        f"raw={name}",
-        f"size={size}" if size else None,
+        f"canonical={normalized.canonical_name}",
+        f"raw={normalized.raw_name}",
+        f"size={normalized.raw_size}" if normalized.raw_size else None,
+        f"source={normalized.source}",
+        f"source_id={normalized.snapshot_id}",
         f"category={row.get('category', '')}" if row.get("category") else None,
-        f"availability={row.get('availability', '')}" if row.get("availability") else None,
-        f"discount={discount_percent:.0f}%" if discount_percent is not None else None,
+        f"availability={normalized.availability}" if normalized.availability else None,
     ]
-    notes = ", ".join([part for part in notes_components if part])
+    notes = ", ".join(part for part in notes_components if part)
     return SwiggyVegetableRecord(
-        canonical_name=canonical_name,
-        display_name=name.strip(),
+        canonical_name=normalized.canonical_name,
+        display_name=normalized.raw_name.strip(),
         quantity=quantity,
         unit=unit,
-        price_inr=price_inr,
-        category=str(row.get("category", "")).strip(),
-        availability=str(row.get("availability", "")).strip(),
+        price_inr=normalized.price_inr,
+        category=str(row.get("category", normalized.source_category)).strip(),
+        availability=normalized.availability,
         discount_percent=discount_percent,
-        mrp_inr=mrp_inr,
+        mrp_inr=normalized.mrp_inr,
         notes=notes,
     )
 

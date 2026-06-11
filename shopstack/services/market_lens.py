@@ -94,7 +94,8 @@ def analyze_visible_items(image_path: str, providers: Any, inventory: InventoryR
     for detection in detections[:8]:
         item_name = normalize_item_name(str(detection.get("label", "")))
         quantity = detection.get("quantity", 1.0)
-        comparison = inventory.compare_visible(item_name, quantity, "unit")
+        _compare = inventory.compare_visible if hasattr(inventory, "compare_visible") else inventory.compare_visible_item_to_inventory
+        comparison = _compare(item_name, quantity, "unit")
         decision, reason = classify_inventory_comparison(
             comparison.get("total_quantity_at_home", 0),
             quantity,

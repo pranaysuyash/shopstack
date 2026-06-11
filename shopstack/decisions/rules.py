@@ -21,7 +21,6 @@ from shopstack.schemas.models import (
 )
 from shopstack.decisions.types import Decision, ACTION_MAP
 from shopstack.persistence.database import Database
-from shopstack.repos.inventory import InventoryRepo
 
 logger = logging.getLogger(__name__)
 
@@ -30,14 +29,21 @@ _USE_SOON_DAYS = 3
 _RECENT_PURCHASE_DAYS = 2
 
 
+def _get_use_soon(inventory: Any, days: int) -> dict[str, Any]:
+    """Call get_use_soon (InventoryRepo) or get_use_soon_items (ToolRegistry)."""
+    if hasattr(inventory, "get_use_soon"):
+        return inventory.get_use_soon(days=days)
+    return inventory.get_use_soon_items(days=days)
+
+
 def classify_all(
     db: Database,
-    inventory: InventoryRepo,
+    inventory: Any,
     market_snapshot=None,
     source_registry: Any = None,
 ) -> DecisionSet:
     active_inv = [lot for lot in db.get_inventory() if lot.status == "active"]
-    use_soon_items = inventory.get_use_soon(days=_USE_SOON_DAYS).get("items", [])
+    use_soon_items = _get_use_soon(inventory, _USE_SOON_DAYS).get("items", [])
     active_list = db.get_active_shopping_list()
     purchases = db.get_purchase_events(limit=50)
     recent_dates: set[date] = set()
@@ -92,7 +98,19 @@ def classify_all(
         if recently_bought:
             evidence_list.append(DecisionEvidence(source="purchase_history", value=lot.purchase_date.isoformat() if lot.purchase_date else "", confidence=0.9))
         if market:
-            evidence_list.append(DecisionEvidence(source="market_snapshot", value=market.price_inr, confidence=0.7, captured_at=market.captured_at, is_stale=getattr(market, 'is_stale', False)))
+            evidence_list.append(DecisionEvidence(source="market", value=f"\u20b9{market.price_inr} at {market_evidence_map.get(cname, {}).get('source', 'unknown')}", confidence=0.7, captured_at=market.captured_at, is_stale=getattr(market, 'is_stale', False)))
+        
+        inventory_val = f"{lot.quantity} {lot.unit}"
+        evidence_list.append(DecisionEvidence(source="inventory", value=inventory_val, confidence=1.0))
+        
+        if on_list:
+            evidence_list.append(DecisionEvidence(source="preference", value="On shopping list", confidence=0.9))
+            
+        warnings_list: list[DecisionWarning] = []
+        if meta and meta.waste_risk == "high" and action == "buy":
+            warnings_list.append(DecisionWarning(code="waste_risk", message="High waste risk for this item", severity="warning"))
+        if market and getattr(market, 'is_stale', False):
+            warnings_list.append(DecisionWarning(code="stale_data", message="Market data is stale", severity="warning"))
 
         data_freshness, data_freshness_label = _freshness_for(cname, market_evidence_map)
         decisions.append(DecisionResult(
@@ -102,6 +120,8 @@ def classify_all(
             confidence=confidence,
             reasons=[reason_str],
             evidence=evidence_list,
+            warnings=warnings_list,
+            source_trace="rule:classify_all:inventory_loop",
             quantity_at_home=lot.quantity,
             unit=lot.unit,
             market_price=market.price_inr if market else None,
@@ -155,6 +175,8 @@ def classify_all(
                 action=action,
                 confidence=confidence,
                 reasons=[reason_str],
+                evidence=[DecisionEvidence(source="preference", value="On shopping list", confidence=1.0)],
+                source_trace="rule:classify_all:list_loop",
                 quantity_at_home=qty,
                 unit=inv_match.unit if inv_match else "unit",
                 market_price=market.price_inr if market else None,
@@ -208,6 +230,8 @@ def classify_all(
                 action=ACTION_MAP.get(action, "wait"),
                 confidence=confidence,
                 reasons=[reason_str],
+                evidence=[DecisionEvidence(source="market", value=f"\u20b9{r.price_inr} at {market_source_name}", confidence=1.0)],
+                source_trace="rule:classify_all:market_loop",
                 quantity_at_home=0,
                 unit="",
                 market_price=r.price_inr,
@@ -220,7 +244,31 @@ def classify_all(
                 data_freshness_label=data_freshness_label,
             ))
 
-    return DecisionSet(decisions=decisions)
+    # Populate snapshot-level metadata from market evidence
+    snap_source = ""
+    snap_captured = ""
+    snap_freshness = "unknown"
+    if market_evidence_map:
+        first_ev = next(iter(market_evidence_map.values()))
+        snap_source = first_ev.get("source", "")
+        captured = first_ev.get("captured_at")
+        if captured:
+            try:
+                from datetime import datetime as _dt
+                if isinstance(captured, str):
+                    captured = _dt.fromisoformat(captured)
+                snap_captured = captured.isoformat()
+            except Exception:
+                snap_captured = str(captured)
+        any_stale = any(ev.get("is_stale", False) for ev in market_evidence_map.values())
+        snap_freshness = "stale" if any_stale else "fresh"
+
+    return DecisionSet(
+        decisions=decisions,
+        snapshot_source=snap_source,
+        snapshot_captured_at=snap_captured,
+        snapshot_freshness=snap_freshness,
+    )
 
 
 def _classify(
@@ -323,7 +371,10 @@ def _multi_source_market_data(
     market_by_canonical: dict,
     market_evidence_map: dict,
 ) -> None:
-    """Populate market_by_canonical and market_evidence_map from single snapshot or multi-source registry."""
+    """Populate market_by_canonical and market_evidence_map from single snapshot or multi-source registry.
+
+    Logs warnings on partial failures instead of silently degrading.
+    """
     if source_registry is not None:
         try:
             all_snapshots = source_registry.all_snapshots()
@@ -342,8 +393,6 @@ def _multi_source_market_data(
                     records = [r for r in snap.normalized_records if r.canonical_name == cname]
                     if not records:
                         continue
-                    available = [r for r in records if r.is_available]
-                    sold_out = [r for r in records if not r.is_available]
                     best = market_by_canonical.get(cname)
                     existing_evidence = market_evidence_map.get(cname)
                     price_per_kg = best.price_per_kg if best else None
@@ -354,11 +403,7 @@ def _multi_source_market_data(
                                 existing_evidence["best_value_price"] = best.price_inr if best else None
                                 existing_evidence["best_value_per_kg"] = price_per_kg
                     else:
-                        try:
-                            from shopstack.market.sources._repository import snapshot_freshness
-                            freshness = snapshot_freshness(snap)
-                        except Exception:
-                            freshness = {"age_days": 0, "is_stale": False}
+                        freshness = _build_freshness(snap)
                         market_evidence_map[cname] = {
                             "source": source_id,
                             "captured_at": snap.captured_at,
@@ -368,8 +413,7 @@ def _multi_source_market_data(
                             "best_value_per_kg": price_per_kg,
                         }
         except Exception:
-            logger.info("Multi-source market data unavailable, falling back to single snapshot", exc_info=True)
-            pass
+            logger.warning("Multi-source market data failed, falling back to single snapshot", exc_info=True)
 
     # Fallback: single snapshot path
     if market_snapshot is not None and not market_by_canonical:
@@ -399,6 +443,7 @@ def _build_freshness(market_snapshot) -> dict[str, Any]:
         from shopstack.market.sources.swiggy import snapshot_freshness
         return snapshot_freshness(market_snapshot)
     except Exception:
+        logger.debug("Market snapshot freshness check unavailable", exc_info=True)
         return {"age_days": 0, "is_stale": False, "label": "unknown"}
 
 

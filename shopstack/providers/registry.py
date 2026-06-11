@@ -309,6 +309,8 @@ class ProviderRegistry:
         self._settings = settings
         self._providers: dict[str, Any] = {}
         self._pending: dict[str, str] = {}
+        self._backend_requests: dict[str, str] = {}
+        self._fallback_backends: dict[str, str] = {}
         self._unified: Any | None = None
         self._init_lazy()
 
@@ -322,16 +324,27 @@ class ProviderRegistry:
                 self._pending[name] = "mock"
             else:
                 self._pending[name] = backends.get(name, "mock")
+            self._backend_requests[name] = self._pending[name]
         self._unified = MockUnifiedProvider()
 
-    def _resolve(self, name: str) -> Any:
+    def _resolve(self, name: str, expected_cap: str) -> Any:
         backend = self._pending.pop(name, "mock")
-        if backend in {"mock", "mocked", ""}:
+        self._backend_requests[name] = backend
+        self._fallback_backends.pop(name, None)
+        if not backend or backend in {"mock", "mocked"}:
             return self._mock_for(name)
         real = _try_real_provider(backend, self._settings)
         if real:
-            return real
-        return self._mock_for(name)
+            caps = getattr(real, "capabilities", set())
+            if expected_cap in caps:
+                return real
+            else:
+                logger.warning(f"Provider {backend} does not support '{expected_cap}', falling back")
+        mock = self._mock_for(name)
+        if mock is not None and backend not in {"", "mock", "mocked"}:
+            self._fallback_backends[name] = backend
+            setattr(mock, "backend", backend)
+        return mock
 
     def _mock_for(self, name: str) -> Any:
         mocks = {
@@ -350,16 +363,44 @@ class ProviderRegistry:
     def register(self, name: str, provider: Any) -> None:
         self._providers[name] = provider
         self._pending.pop(name, None)
+        self._fallback_backends.pop(name, None)
+        if provider is not None:
+            self._backend_requests[name] = getattr(provider, "backend", provider.name if hasattr(provider, "name") else "registered")
 
     def get(self, name: str) -> Any:
+        expected_cap = "planning" if name == "planner" else name
         if name not in self._providers and name in self._pending:
-            self._providers[name] = self._resolve(name)
+            self._providers[name] = self._resolve(name, expected_cap)
+            
+        provider = self._providers.get(name)
+        
+        # Dynamic capability routing: if current resolved provider is mock, check others
+        if provider is None or getattr(provider, "name", "mock").startswith("mock"):
+            # Eagerly resolve any other explicitly configured backend to check its capabilities
+            pending_tasks = list(self._pending.keys())
+            for other_task in pending_tasks:
+                b_name = self._pending.get(other_task)
+                if b_name and b_name not in {"mock", "mocked"}:
+                    # Instantiate it by getting it
+                    self.get(other_task)
+            
+            # Now check all instantiated providers for the expected capability
+            for other_name, other_provider in self._providers.items():
+                if not getattr(other_provider, "name", "mock").startswith("mock"):
+                    if expected_cap in getattr(other_provider, "capabilities", set()):
+                        self._providers[name] = other_provider
+                        return other_provider
+
         return self._providers.get(name)
 
     def supports(self, capability: str) -> bool:
         for provider in self._providers.values():
             caps = getattr(provider, "capabilities", set())
             if capability in caps:
+                return True
+        for name in self._pending.keys():
+            provider = self._mock_for(name)
+            if provider and capability in getattr(provider, "capabilities", set()):
                 return True
         if self._unified and capability in self._unified.capabilities:
             return True
@@ -418,15 +459,50 @@ class ProviderRegistry:
         return self._unified
 
     def list_providers(self) -> list[dict[str, Any]]:
+        names = set(self._providers.keys()) | set(self._pending.keys())
         return [
-            {
-                "name": name,
-                "type": type(provider).__name__,
-                "available": getattr(provider, "available", True),
-                "capabilities": ", ".join(sorted(getattr(provider, "capabilities", set()))),
-            }
-            for name, provider in self._providers.items()
+            self._provider_summary(name, provider)
+            for name, provider in sorted(
+                [(name, self._providers.get(name)) for name in names],
+                key=lambda pair: pair[0],
+            )
         ]
+
+    def _provider_summary(self, name: str, provider: Any) -> dict[str, Any]:
+        pending_backend = self._pending.get(name, self._backend_requests.get(name, "mock"))
+        normalized_backend = pending_backend.lower() if pending_backend else ""
+        is_mock_backend = normalized_backend in {"mock", "mocked", ""}
+        if provider is None:
+            mock = self._mock_for(name)
+            requested_backend = pending_backend or "mock"
+            row_type = requested_backend if not is_mock_backend else (type(mock).__name__ if mock else "mock")
+            return {
+                "name": name,
+                "type": row_type,
+                "backend": requested_backend,
+                "available": bool(mock) if is_mock_backend else False,
+                "pending": True,
+                "capabilities": ", ".join(sorted(getattr(mock, "capabilities", set()))) if mock else "",
+            }
+
+        requested_backend = pending_backend or self._backend_requests.get(name, "mock")
+        normalized_requested = requested_backend.lower() if requested_backend else ""
+        is_real_request_for_mock_provider = (
+            not is_mock_backend
+            and self._fallback_backends.get(name) == requested_backend
+            and type(provider).__name__.lower().startswith("mock")
+        )
+        is_available_default = getattr(provider, "available", True)
+        available = False if is_real_request_for_mock_provider else is_available_default
+        return {
+            "name": name,
+            "type": type(provider).__name__,
+            "backend": getattr(provider, "backend", pending_backend),
+            "available": available,
+            "pending": bool(is_real_request_for_mock_provider),
+            "capabilities": ", ".join(sorted(getattr(provider, "capabilities", set()))),
+            "status": ("fallback" if is_real_request_for_mock_provider else getattr(provider, "status", "resolved")),
+        }
 
     def get_runtime_diagnostics(self) -> Any:
         from shopstack.providers.runtime import collect_runtime_diagnostics

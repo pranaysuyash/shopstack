@@ -399,6 +399,129 @@ def _build_shopping_list_and_refresh(
     return create_result, cards, goal_html, tbl, list_id, list_goal, share
 
 
+def get_reconciliation_draft() -> tuple[list[list[Any]], str, str]:
+    sl = db.get_active_shopping_list()
+    if not sl or not sl.items:
+        return [], "", "<div class='muted'>No active shopping list.</div>"
+    
+    rows = []
+    for item in sl.items:
+        if item.status == "bought" or item.status == "skipped":
+            continue
+            
+        qty = item.requested_quantity or 1.0
+        default_action = "bought"
+        if item.priority == "avoid_buying":
+            default_action = "skipped"
+            
+        rows.append([
+            item.canonical_name,
+            qty,
+            item.unit or "unit",
+            default_action,
+            0.0,
+            ""
+        ])
+    
+    if not rows:
+        return [], "", "<div class='muted'>All items are already bought or skipped.</div>"
+        
+    return rows, sl.list_id, ""
+
+
+def confirm_reconciliation(df_data: Any, list_id: str) -> str:
+    if not list_id:
+        return "<div style='color:var(--red);'>No active list ID.</div>"
+        
+    if hasattr(df_data, "values"):
+        df_list = df_data.values.tolist()
+    else:
+        df_list = df_data
+
+    if not df_list:
+        return "<div style='color:var(--red);'>No data in reconciliation table.</div>"
+
+    from shopstack.schemas.models import ReconciliationEvent, PriceObservation
+    from shopstack.services.preferences import learn_preferences_from_reconciliation
+    
+    added_count = 0
+    skipped_count = 0
+    actual_items = []
+
+    for row in df_list:
+        try:
+            if len(row) < 6:
+                continue
+            name, qty_str, unit, action, price_str, note = row
+            name = str(name).strip()
+            if not name:
+                continue
+                
+            qty = float(qty_str) if qty_str else 1.0
+            price = float(price_str) if price_str else 0.0
+            action = str(action).strip().lower()
+            note_val = note.strip() if note else None
+            
+            re = ReconciliationEvent(
+                canonical_name=name.lower(),
+                planned_action="planned",
+                actual_action=action,
+                quantity=qty,
+                unit=str(unit),
+                price_paid=price,
+                substituted_with=note_val if action == "substituted" else None,
+                source="manual",
+                notes=note_val if action != "substituted" else None
+            )
+            db.add_reconciliation_event(re)
+            
+            actual_items.append({
+                "canonical_name": name.lower(),
+                "action": action,
+                "substituted_with": note_val,
+            })
+
+            if action in ("bought", "substituted"):
+                lot_name = name
+                if action == "substituted" and note:
+                    lot_name = note.strip()
+                    
+                tools.inventory.add_item(
+                    canonical_name=lot_name.lower(),
+                    display_name=lot_name,
+                    quantity=qty,
+                    unit=str(unit),
+                    storage_location_id="kitchen",
+                )
+                added_count += 1
+                
+                if price > 0:
+                    po = PriceObservation(
+                        canonical_name=lot_name.lower(),
+                        quantity=qty,
+                        unit=str(unit),
+                        price=price,
+                        currency="INR",
+                        store_name="Unknown",
+                        source_event_id="reconciliation"
+                    )
+                    db.record_price(po)
+            else:
+                skipped_count += 1
+        except Exception as e:
+            logger.warning("Reconciliation row error: %s", e)
+
+    try:
+        learned = learn_preferences_from_reconciliation(db, actual_items)
+        learned_msg = f" Learned {learned} new preferences." if learned > 0 else ""
+    except Exception as e:
+        logger.warning("Failed to learn preferences: %s", e)
+        learned_msg = ""
+
+    db.mark_list_complete(list_id)
+    return f"<div class='home-card' style='color:var(--green);font-weight:600;'>Reconciliation complete. Added {added_count} items. Skipped {skipped_count}.{learned_msg}</div>"
+
+
 # Public handlers for Gradio composition layer
 def shopping_list_view_with_cards() -> tuple[str, str, list[list[str]], str, str, str]:
     """Public handler for refreshing shopping list view with cards."""

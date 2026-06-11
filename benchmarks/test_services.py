@@ -19,12 +19,12 @@ pytestmark = pytest.mark.benchmark(group="services")
 
 
 def test_build_dashboard_state(benchmark, bench_db, bench_tools):
-    result = benchmark(build_dashboard_state, bench_db, bench_tools)
+    result = benchmark(build_dashboard_state, bench_db, bench_tools.inventory)
     assert result.decision_set is not None
 
 
 def test_classify_all(benchmark, bench_db, bench_tools):
-    result = benchmark(classify_all, bench_db, bench_tools)
+    result = benchmark(classify_all, bench_db, bench_tools.inventory)
     assert len(result.decisions) >= 10
 
 
@@ -67,5 +67,5 @@ def test_classify_shopping_items(benchmark, bench_tools):
         {"canonical_name": "egg", "requested_quantity": 1.0, "unit": "dozen"},
     ]
 
-    result = benchmark(classify_shopping_items, items, bench_tools)
+    result = benchmark(classify_shopping_items, items, bench_tools.inventory)
     assert len(result.all_items) >= 3

@@ -35,6 +35,8 @@ class DecisionAction(str, Enum):
     COMPARE = "compare"
     WAIT = "wait"
     SUBSTITUTE = "substitute"
+    CONFIRM = "confirm"
+    OPTIONAL = "optional"
 
 
 class ReconciliationAction(str, Enum):
@@ -251,6 +253,7 @@ _ACTION_COLORS: dict[str, str] = {
     "compare": "#7345D0",
     "wait": "#7F8C8D",
     "substitute": "#C53030",
+    "confirm": "#009688",
 }
 
 _ACTION_ICONS: dict[str, str] = {
@@ -261,6 +264,7 @@ _ACTION_ICONS: dict[str, str] = {
     "compare": "\u2696",
     "wait": "\U0001f441",
     "substitute": "\u2753",
+    "confirm": "\u2705",
 }
 
 
@@ -294,6 +298,7 @@ class DecisionResult(BaseModel):
     shelf_life_days: int = 0
     last_purchase_date: date | None = None
     location: str = ""
+    source_trace: str = ""
     created_at: datetime = Field(default_factory=datetime.now)
 
     @property
@@ -373,6 +378,10 @@ class DecisionSet(BaseModel):
         return [d for d in self.decisions if d.action == "substitute"]
 
     @property
+    def confirm(self) -> list[DecisionResult]:
+        return [d for d in self.decisions if d.action == "confirm"]
+
+    @property
     def estimated_basket_total(self) -> float:
         return round(sum(d.market_price or 0 for d in self.buy), 2)
 
@@ -410,5 +419,52 @@ class PreferenceSignal(BaseModel):
     source: str = "observed"  # observed / corrected / explicit
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+
+class MarketSnapshotModel(BaseModel):
+    snapshot_id: str = Field(default_factory=new_id)
+    source: str
+    source_category: str
+    captured_at: str
+    freshness_context: str = "unknown"
+
+class MarketRecordModel(BaseModel):
+    record_id: str = Field(default_factory=new_id)
+    snapshot_id: str
+    raw_name: str
+    canonical_name: str
+    description: str = ""
+    raw_size: str = ""
+    normalized_quantity: float | None = None
+    normalized_unit: str | None = None
+    package_count: int = 1
+    is_combo: bool = False
+    is_weight_based: bool = False
+    is_piece_based: bool = False
+    is_size_class: bool = False
+    size_class: str = ""
+    price_inr: float = 0.0
+    mrp_inr: float = 0.0
+    discount_percent_displayed: float = 0.0
+    discount_amount_inr: float = 0.0
+    computed_discount_percent: float = 0.0
+    availability: str = ""
+    is_available: bool = True
+    tag: str = ""
+    is_ad: bool = False
+    is_upgrade: bool = False
+    card_index: int = 0
+    delivery_time: str = ""
+    price_per_kg: float | None = None
+    price_per_100g: float | None = None
+    price_per_piece: float | None = None
+    normalization_warnings: str = ""  # Can store as JSON list of strings
+    variety: str = ""
+    brand: str = ""
+
+class MarketRecordComponentModel(BaseModel):
+    component_id: str = Field(default_factory=new_id)
+    record_id: str
+    component_name: str
 
 

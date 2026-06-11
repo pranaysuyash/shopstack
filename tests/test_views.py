@@ -250,7 +250,7 @@ class TestAskShopStack:
         result = app.ask_shopstack("Do we have tomato?")
         # With mock planner available, response comes from the AI planner path,
         # which executes the canned mock tool call (add_inventory_item).
-        assert isinstance(result, str)
+        assert isinstance(result, dict)
         assert len(result) > 0
 
     def test_ask_for_skip_candidates(self, app):
@@ -265,7 +265,7 @@ class TestAskShopStack:
         )
         result = app.ask_shopstack("What can I skip today?")
         # With mock planner available, response comes from the AI planner path.
-        assert isinstance(result, str)
+        assert isinstance(result, dict)
         assert len(result) > 0
 
 
@@ -315,7 +315,7 @@ class TestHouseholdMap:
 class TestAgentTrace:
     def test_empty(self, app):
         tbl, trace_id = app.agent_trace_view()
-        assert "No traces yet" in str(tbl)
+        assert "No activity yet" in str(tbl)
 
     def test_with_data(self, app):
         app.db.save_trace(Trace(input_type="voice", user_goal="check inventory", final_response="ok"))

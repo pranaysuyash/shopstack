@@ -6,7 +6,12 @@ from typing import Any
 
 
 from shopstack.app_context import db, providers
-from shopstack.services.receipt import ReceiptResult, confirm_receipt, parse_receipt_text
+from shopstack.services.receipt import (
+    ReceiptResult,
+    canonicalize_receipt_name,
+    confirm_receipt,
+    parse_receipt_text,
+)
 from shopstack.ui.components.primitives import data_table
 from shopstack.ui.screens._utils import safe_render
 
@@ -74,6 +79,15 @@ def _render_receipt_review(result: ReceiptResult | None) -> str:
     )
 
 
+def _build_receipt_rows(lines: list) -> list[list[Any]]:
+    return [[
+        line.display_name,
+        line.quantity,
+        line.unit,
+        line.price,
+    ] for line in lines]
+
+
 def _resolve_path(file_input: Any) -> str:
     if file_input is None:
         return ""
@@ -85,10 +99,11 @@ def _resolve_path(file_input: Any) -> str:
 
 
 @safe_render
-def receipt_scan_ocr(file_input: Any) -> tuple[str, str]:
+def receipt_scan_ocr(file_input: Any) -> tuple[list[list[Any]], str, str, str, str]:
+    # Returns [dataframe_data, merchant, date, raw_text, status_html]
     file_path = _resolve_path(file_input)
     if not file_path:
-        return "<div style='color:var(--text-dim);'>Upload an image or text file first.</div>", ""
+        return [], "", "", "", "<div style='color:var(--text-dim);'>Upload an image or text file first.</div>"
 
     file_lower = file_path.lower()
     if file_lower.endswith((".txt", ".csv")):
@@ -96,12 +111,12 @@ def receipt_scan_ocr(file_input: Any) -> tuple[str, str]:
             with open(file_path, "r") as f:
                 raw_text = f.read()
         except Exception as e:
-            return f"<div style='color:var(--red);'>Failed to read file: {escape(str(e))}</div>", ""
+            return [], "", "", "", f"<div style='color:var(--red);'>Failed to read file: {escape(str(e))}</div>"
     elif file_lower.endswith((".png", ".jpg", ".jpeg", ".webp", ".bmp")):
         try:
             ocr_provider = providers.get("ocr")
             if not ocr_provider:
-                return "<div style='color:var(--red);'>No OCR provider available.</div>", ""
+                return [], "", "", "", "<div style='color:var(--red);'>No OCR provider available.</div>"
             ocr_result = ocr_provider.extract(file_path)
             raw_text = ocr_result.get("text", ocr_result.get("raw_text", ""))
             if not raw_text:
@@ -110,32 +125,81 @@ def receipt_scan_ocr(file_input: Any) -> tuple[str, str]:
                 if brand:
                     raw_text = f"{brand}\n{raw_text}"
         except Exception as e:
-            return f"<div style='color:var(--red);'>OCR failed: {escape(str(e))}</div>", ""
+            return [], "", "", "", f"<div style='color:var(--red);'>OCR failed: {escape(str(e))}</div>"
     else:
-        return "<div style='color:var(--text-dim);'>Unsupported file type. Use .txt, .png, or .jpg</div>", ""
+        return [], "", "", "", "<div style='color:var(--text-dim);'>Unsupported file type. Use .txt, .png, or .jpg</div>"
 
     if not raw_text.strip():
-        return "<div style='color:var(--text-dim);'>No text found in the uploaded file.</div>", ""
+        return [], "", "", raw_text, "<div style='color:var(--text-dim);'>No text found in the uploaded file.</div>"
 
     result = parse_receipt_text(raw_text)
-    html = _render_receipt_review(result)
-    return html, raw_text
+    rows = _build_receipt_rows(result.lines)
+    return rows, result.merchant, result.purchase_date.isoformat(), raw_text, ""
 
 
 @safe_render
-def receipt_parse_text(raw_text: str) -> str:
+def receipt_parse_text(raw_text: str) -> tuple[list[list[Any]], str, str]:
     if not raw_text.strip():
-        return "<div style='color:var(--text-dim);'>Enter receipt text to parse.</div>"
+        return [], "", ""
 
     result = parse_receipt_text(raw_text)
-    return _render_receipt_review(result)
+    rows = _build_receipt_rows(result.lines)
+    return rows, result.merchant, result.purchase_date.isoformat()
 
 
 @safe_render
-def receipt_confirm(raw_text: str) -> str:
-    if not raw_text.strip():
-        return "<div style='color:var(--red);'>No receipt text to confirm. Scan or paste a receipt first.</div>"
+def receipt_confirm(df_data: Any, merchant: str, date_str: str, raw_text: str) -> str:
+    # df_data is a pandas DataFrame or list of lists
+    if hasattr(df_data, "values"):
+        # pandas DataFrame
+        df_list = df_data.values.tolist()
+    else:
+        df_list = df_data
 
-    result = parse_receipt_text(raw_text)
+    if not df_list:
+        return "<div style='color:var(--red);'>No receipt lines to confirm. Scan or paste a receipt first.</div>"
+    
+    try:
+        from datetime import date
+        purchase_date = date.fromisoformat(date_str)
+    except Exception:
+        purchase_date = date.today()
+
+    from shopstack.services.receipt import ReceiptResult, ReceiptLine
+    lines = []
+    for row in df_list:
+        try:
+            if len(row) < 4:
+                continue
+            name = str(row[0]).strip()
+            if not name:
+                continue
+            canonical_name = canonicalize_receipt_name(name)
+            if not canonical_name:
+                continue
+            qty_str = row[1]
+            unit = row[2]
+            price_str = row[3]
+
+            qty = float(qty_str) if qty_str else 1.0
+            price = float(price_str) if price_str else 0.0
+            lines.append(ReceiptLine(
+                canonical_name=canonical_name,
+                display_name=name,
+                quantity=qty,
+                unit=str(unit),
+                price=price,
+            ))
+        except Exception:
+            continue
+
+    result = ReceiptResult(
+        merchant=merchant,
+        purchase_date=purchase_date,
+        lines=lines,
+        total=sum(l.price for l in lines),
+        raw_text=raw_text,
+    )
+    
     ir = confirm_receipt(db, result)
     return ir.summary_html

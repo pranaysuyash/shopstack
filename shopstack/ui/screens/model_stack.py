@@ -8,9 +8,9 @@ from shopstack.model_registry import (
     MAX_ACTIVE_MODEL_PARAMS_B,
     get_registry,
     total_candidate_params,
-    total_loaded_params,
     validate_active_model_budget,
 )
+from shopstack.providers.runtime import collect_runtime_diagnostics, diagnostics_to_rows
 from shopstack.ui.components.cards import badge_html, card as ui_card, render_metric
 from shopstack.ui.screens._utils import WORKFLOW_STEPS, workflow_header, rows_to_html
 
@@ -57,6 +57,9 @@ def _candidate_model_rows() -> list[dict[str, Any]]:
 
 
 def _provider_is_mock(provider_info: dict[str, Any]) -> bool:
+    backend = str(provider_info.get("backend", "")).lower()
+    if backend and backend not in {"", "mock", "mocked"}:
+        return False
     provider_type = str(provider_info.get("type", "")).lower()
     return provider_type.startswith("mock") or provider_type == ""
 
@@ -92,14 +95,10 @@ def provider_status_badge() -> str:
 
 def model_budget_view() -> str:
     provider_badge = provider_status_badge()
-    try:
-        validate_active_model_budget()
-        budget_ok = True
-        budget_message = "Active runtime stack is within the 32B cap."
-    except ValueError as exc:
-        budget_ok = False
-        budget_message = str(exc)
-
+    
+    diag = collect_runtime_diagnostics(providers)
+    diag_rows = diagnostics_to_rows(diag)
+    
     active_rows = _active_model_rows()
     candidate_rows = _candidate_model_rows()
     if not candidate_rows:
@@ -110,19 +109,42 @@ def model_budget_view() -> str:
             ["Provider Group", "Model", "Runtime", "Params (B)", "License", "Status"],
         )
 
-    status_badge = badge_html("Under budget", "green") if budget_ok else badge_html("Over budget", "red")
+    status_badge = badge_html("Under budget", "green") if diag.within_budget else badge_html("Over budget", "red")
+    
+    if not diag_rows:
+        diag_html = "<div style='color:var(--text-dim);'>No runtime diagnostics available.</div>"
+    else:
+        diag_html = rows_to_html(
+            diag_rows,
+            ["provider", "backend", "model", "loaded", "status", "params_b", "latency_ms", "tokens"]
+        )
+
+    budget_pct = min(100.0, max(0.0, (diag.active_total_params_b / diag.budget_limit_b) * 100)) if diag.budget_limit_b > 0 else 0
+    budget_color = "var(--green)" if diag.within_budget else "var(--red)"
+    progress_bar = (
+        f"<div style='width:100%;height:8px;background:var(--border);border-radius:4px;margin-top:8px;overflow:hidden;'>"
+        f"<div style='width:{budget_pct:.1f}%;height:100%;background:{budget_color};'></div>"
+        f"</div>"
+        f"<div style='font-size:11px;color:var(--text-dim);margin-top:4px;text-align:right;'>{budget_pct:.1f}% of {diag.budget_limit_b:.1f} B budget used</div>"
+    )
+
     return (
         f"{workflow_header(WORKFLOW_STEPS)}"
         + "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:12px 0;'>"
-        f"{render_metric('Active / Loaded', f'{total_loaded_params():.2f} B')}"
+        f"{render_metric('Active / Loaded', f'{diag.active_total_params_b:.2f} B')}"
         f"{render_metric('Candidate Pool', f'{total_candidate_params():.2f} B')}"
-        f"{render_metric('Max Budget', f'{MAX_ACTIVE_MODEL_PARAMS_B:.2f} B')}"
+        f"{render_metric('Max Budget', f'{diag.budget_limit_b:.2f} B')}"
         "</div>"
         + ui_card(
-            "Selected Runtime Stack",
+            "Runtime Diagnostics",
             f"<div style='margin-bottom:8px;display:flex;gap:8px;align-items:center;'>{status_badge}"
-            f"<span style='font-size:12px;color:var(--text-dim);'>{budget_message}</span></div>"
-            + rows_to_html(
+            f"<span style='font-size:12px;color:var(--text-dim);'>Live memory stack tracker</span></div>"
+            + progress_bar
+            + diag_html,
+        )
+        + ui_card(
+            "Selected Runtime Stack",
+            rows_to_html(
                 active_rows,
                 ["Provider Group", "Model", "Runtime", "Params (B)", "License", "Status"],
             ),

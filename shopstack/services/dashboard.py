@@ -6,7 +6,6 @@ from typing import Any
 
 from shopstack.decisions import DecisionSet, classify_all, detect_purchase_cadence, detect_waste_patterns
 from shopstack.persistence.database import Database
-from shopstack.repos.inventory import InventoryRepo
 from shopstack.services.weather import WeatherState, get_weather
 
 logger = logging.getLogger(__name__)
@@ -35,13 +34,13 @@ class DashboardState:
         return list(self.use_soon.get("items", []))
 
 
-def build_dashboard_state(db: Database, inventory: InventoryRepo, city: str = "mumbai") -> DashboardState:
+def build_dashboard_state(db: Database, inventory, city: str = "mumbai") -> DashboardState:
     """Assemble the Today dashboard state from inventory, decisions, market data, and weather."""
-    market_input = _load_market_snapshot()
+    market_input = _load_market_snapshot(db)
     # _load_market_snapshot returns (snapshot, registry) or (None, None)
     market_snapshot, source_registry = market_input if isinstance(market_input, tuple) else (market_input, None)
     decision_set = classify_all(db, inventory, market_snapshot=market_snapshot, source_registry=source_registry)
-    use_soon = inventory.get_use_soon(days=3)
+    use_soon = inventory.get_use_soon(days=3) if hasattr(inventory, "get_use_soon") else inventory.get_use_soon_items(days=3)
     active_list = db.get_active_shopping_list()
     all_inventory = db.get_inventory()
     active_inventory = [lot for lot in all_inventory if lot.status == "active"]
@@ -72,22 +71,19 @@ def build_dashboard_state(db: Database, inventory: InventoryRepo, city: str = "m
     )
 
 
-def _load_market_snapshot():
+def _load_market_snapshot(db: Database):
     """Load market snapshot(s) — prefers multi-source registry, falls back to Swiggy-only."""
+    from shopstack.services.market_sources import load_market_registry
+
     try:
-        from shopstack.market.sources import build_registry
-        registry = build_registry()
+        registry, _ = load_market_registry(db=db, force=False)
         snapshots = registry.all_snapshots()
         if snapshots:
-            # Return first available snapshot + registry for multi-source
-            return (list(snapshots.values())[0], registry)
+            latest = max(snapshots.values(), key=lambda snap: snap.captured_at)
+            return (latest, registry)
+        if registry.registered():
+            return (None, registry)
     except Exception as exc:
-        logger.debug("Multi-source registry not available: %s", exc)
+        logger.debug("Market registry load failed: %s", exc)
 
-    # Fallback: single Swiggy snapshot
-    try:
-        from shopstack.market.sources.swiggy import load_snapshot
-        return (load_snapshot(), None)
-    except Exception as exc:
-        logger.info("Swiggy market data unavailable: %s", exc)
-        return None, None
+    return None, None

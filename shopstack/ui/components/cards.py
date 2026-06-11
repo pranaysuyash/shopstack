@@ -3,6 +3,7 @@ from __future__ import annotations
 from html import escape
 import re
 from typing import Any
+from shopstack.schemas.models import DecisionResult, _ACTION_COLORS, _ACTION_ICONS
 
 
 _CARD_ID_COUNTER: int = 0
@@ -160,22 +161,80 @@ def render_decision_card(
         "</div>"
     )
 
+def render_unified_decision_card(d: DecisionResult) -> str:
+    color = _ACTION_COLORS.get(d.action, "var(--text-dim)")
+    icon = _ACTION_ICONS.get(d.action, "")
+    badge = (
+        f"<span style='background:{color}20;color:{color};"
+        f"padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;'>"
+        f"{icon} {d.action.upper()}</span>"
+    )
+    
+    price_info = f" \u20b9{d.market_price_per_kg:.0f}/kg" if d.market_price_per_kg else ""
+    reason = escape(d.reason) if d.reason else "No reason"
+    
+    warnings_html = ""
+    for w in d.warnings:
+        warnings_html += f"<div style='font-size:11px;color:var(--red);margin-top:4px;'>\u26A0 {escape(w.message)}</div>"
+        
+    stale_html = ""
+    if d.data_freshness == "stale":
+        stale_html = (
+            f"<div style='font-size:12px;color:var(--red);font-weight:bold;margin-top:6px;"
+            f"padding:4px;background-color:rgba(255,0,0,0.1);border-radius:4px;'>"
+            f"&#9888; WARNING: {escape(d.data_freshness_label or 'Stale Market Data (Older than 24h)')}"
+            f"</div>"
+        )
+        
+    evidence_html = ""
+    if d.evidence:
+        ev_list = ", ".join(f"{escape(str(e.source))}: {escape(str(e.value))}" for e in d.evidence[:2])
+        evidence_html = f"<div style='font-size:11px;color:var(--text-dim);margin-top:4px;'>Evidence: {ev_list}</div>"
+
+    action_btn = ""
+    if d.action in ("buy", "optional", "compare", "use_soon"):
+        # For a "one-click action" we might just render a dummy button since Gradio HTML can't easily hook into Python callbacks without custom JS.
+        # But we'll add a visual button.
+        action_btn = (
+            f"<div style='margin-top:8px;'>"
+            f"<button type='button' class='action-tile action-tile-default' style='padding:4px 8px;font-size:11px;' "
+            f"onclick=\"alert('Action triggered for {escape(d.canonical_name)}')\">"
+            f"Process Action</button></div>"
+        )
+
+    return (
+        f"<div class='home-card' style='margin-bottom:10px;border-left:4px solid {color};'>"
+        f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
+        f"<strong style='font-size:14px;'>{escape(d.display_name)}</strong>{badge}</div>"
+        f"<div style='font-size:13px;margin-top:4px;'>{reason}{price_info}</div>"
+        f"{evidence_html}{warnings_html}{stale_html}{action_btn}"
+        f"</div>"
+    )
+
 
 def render_grouped_cards(title: str, items: list[dict[str, Any]]) -> str:
     if not items:
         return ""
-    rows = "".join(
-        render_decision_card(
-            item_name=item.get("canonical_name") or item.get("item_name", ""),
-            decision=item.get("decision", "maybe"),
-            reason=item.get("reason", ""),
+    from shopstack.schemas.models import DecisionResult
+    
+    rows = ""
+    for item in items:
+        dr = DecisionResult(
+            canonical_name=item.get("canonical_name") or item.get("item_name", ""),
+            display_name=item.get("display_name") or item.get("canonical_name") or item.get("item_name", ""),
+            action=item.get("decision", "maybe"),
             confidence=float(item.get("confidence", 0.0)),
-            quantity=item.get("quantity", None),
-            unit=item.get("unit", "unit"),
-            show_actions=False,
+            reasons=[item.get("reason", "")],
+            unit=item.get("unit", "unit")
         )
-        for item in items
-    )
+        # If there are any stale warnings or evidence in the dict, map them if possible
+        if item.get("data_freshness"):
+            dr.data_freshness = item["data_freshness"]
+        if item.get("data_freshness_label"):
+            dr.data_freshness_label = item["data_freshness_label"]
+            
+        rows += render_unified_decision_card(dr)
+
     return card(title, rows)
 
 

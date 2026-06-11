@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +17,8 @@ from shopstack.schemas.models import (
     ShoppingListItem,
     Store,
     Trace,
+    ReconciliationEvent,
+    PreferenceSignal,
 )
 
 
@@ -164,6 +166,88 @@ class Database:
                 value TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS market_snapshots (
+                snapshot_id TEXT PRIMARY KEY,
+                source TEXT NOT NULL,
+                source_category TEXT NOT NULL,
+                captured_at TEXT NOT NULL,
+                record_count INTEGER DEFAULT 0,
+                analytics TEXT DEFAULT '{}',
+                freshness_context TEXT DEFAULT 'unknown',
+                stored_at TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS market_records (
+                record_id TEXT PRIMARY KEY,
+                snapshot_id TEXT NOT NULL,
+                raw_name TEXT NOT NULL,
+                canonical_name TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                raw_size TEXT DEFAULT '',
+                normalized_quantity REAL,
+                normalized_unit TEXT,
+                package_count INTEGER DEFAULT 1,
+                is_combo INTEGER DEFAULT 0,
+                is_weight_based INTEGER DEFAULT 0,
+                is_piece_based INTEGER DEFAULT 0,
+                is_size_class INTEGER DEFAULT 0,
+                size_class TEXT DEFAULT '',
+                price_inr REAL DEFAULT 0.0,
+                mrp_inr REAL DEFAULT 0.0,
+                discount_percent_displayed REAL DEFAULT 0.0,
+                discount_amount_inr REAL DEFAULT 0.0,
+                computed_discount_percent REAL DEFAULT 0.0,
+                availability TEXT DEFAULT '',
+                is_available INTEGER DEFAULT 1,
+                tag TEXT DEFAULT '',
+                is_ad INTEGER DEFAULT 0,
+                is_upgrade INTEGER DEFAULT 0,
+                card_index INTEGER DEFAULT 0,
+                delivery_time TEXT DEFAULT '',
+                price_per_kg REAL,
+                price_per_100g REAL,
+                price_per_piece REAL,
+                normalization_warnings TEXT DEFAULT '',
+                variety TEXT DEFAULT '',
+                brand TEXT DEFAULT '',
+                FOREIGN KEY (snapshot_id) REFERENCES market_snapshots(snapshot_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS market_record_components (
+                component_id TEXT PRIMARY KEY,
+                record_id TEXT NOT NULL,
+                component_name TEXT NOT NULL,
+                FOREIGN KEY (record_id) REFERENCES market_records(record_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS reconciliation_events (
+                event_id TEXT PRIMARY KEY,
+                timestamp TEXT,
+                canonical_name TEXT NOT NULL,
+                planned_action TEXT NOT NULL,
+                actual_action TEXT NOT NULL,
+                quantity REAL DEFAULT 0.0,
+                unit TEXT DEFAULT 'unit',
+                price_paid REAL,
+                planned_price REAL,
+                substituted_with TEXT,
+                notes TEXT,
+                source TEXT DEFAULT 'manual',
+                user_id TEXT DEFAULT ''
+            );
+
+            CREATE TABLE IF NOT EXISTS preference_signals (
+                signal_id TEXT PRIMARY KEY,
+                canonical_name TEXT NOT NULL,
+                signal_type TEXT NOT NULL,
+                value TEXT NOT NULL,
+                confidence REAL DEFAULT 0.5,
+                source TEXT DEFAULT 'observed',
+                created_at TEXT,
+                updated_at TEXT,
+                user_id TEXT DEFAULT ''
+            );
+
             CREATE VIEW IF NOT EXISTS price_history AS
                 SELECT * FROM price_observations;
 
@@ -182,18 +266,35 @@ class Database:
                 DELETE FROM traces WHERE trace_id = OLD.trace_id;
             END;
         """)
+        self._migrate_market_snapshot_schema()
         self._migrate_add_user_scoping()
         self._seed_locations()
         self._apply_trace_retention_policy()
         self.conn.commit()
+
+    def _migrate_market_snapshot_schema(self) -> None:
+        rows = self.conn.execute("PRAGMA table_info(market_snapshots)").fetchall()
+        existing_cols = {r["name"] for r in rows}
+        migrations: list[tuple[str, str]] = [
+            ("record_count", "INTEGER DEFAULT 0"),
+            ("analytics", "TEXT DEFAULT '{}'"),
+            ("freshness_context", "TEXT DEFAULT 'unknown'"),
+            ("stored_at", "TEXT"),
+        ]
+        for col_name, decl in migrations:
+            if col_name not in existing_cols:
+                self.conn.execute(f"ALTER TABLE market_snapshots ADD COLUMN {col_name} {decl}")
 
     def _migrate_add_user_scoping(self) -> None:
         tables = ["inventory_lots", "purchase_events", "shopping_lists", "traces", "price_observations"]
         for table in tables:
             try:
                 self.conn.execute(f"ALTER TABLE {table} ADD COLUMN user_id TEXT DEFAULT ''")
-            except Exception:
-                pass
+            except sqlite3.OperationalError as exc:
+                message = str(exc).lower()
+                if "duplicate column name" in message or "already exists" in message:
+                    continue
+                raise
 
     def _seed_locations(self) -> None:
         existing = self.conn.execute("SELECT COUNT(*) FROM household_locations").fetchone()[0]
@@ -607,6 +708,306 @@ class Database:
     def get_purchases(self, limit: int = 20) -> list[PurchaseEvent]:
         return self.get_purchase_events(limit=limit)
 
+    # --- Reconciliation Events ---
+
+    def add_reconciliation_event(self, event: ReconciliationEvent, user_id: str = "") -> ReconciliationEvent:
+        self.conn.execute(
+            "INSERT INTO reconciliation_events (event_id, timestamp, canonical_name, planned_action, actual_action, quantity, unit, price_paid, planned_price, substituted_with, notes, source, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (event.event_id, event.timestamp.isoformat(),
+             event.canonical_name, event.planned_action, event.actual_action,
+             event.quantity, event.unit, event.price_paid, event.planned_price,
+             event.substituted_with, event.notes, event.source, user_id),
+        )
+        self.conn.commit()
+        return event
+
+    def get_reconciliation_events(self, limit: int = 20, user_id: str = "") -> list[ReconciliationEvent]:
+        query = "SELECT * FROM reconciliation_events"
+        params: list[str | int] = []
+        if user_id:
+            query += " WHERE user_id = ?"
+            params.append(user_id)
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+        rows = self.conn.execute(query, params).fetchall()
+        return [_row_to_reconciliation(r) for r in rows]
+
+    # --- Preference Signals ---
+
+    def add_preference_signal(self, signal: PreferenceSignal, user_id: str = "") -> PreferenceSignal:
+        self.conn.execute(
+            "INSERT INTO preference_signals (signal_id, canonical_name, signal_type, value, confidence, source, created_at, updated_at, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (signal.signal_id, signal.canonical_name, signal.signal_type,
+             signal.value, signal.confidence, signal.source,
+             signal.created_at.isoformat(), signal.updated_at.isoformat(), user_id),
+        )
+        self.conn.commit()
+        return signal
+
+    def get_preference_signals(self, canonical_name: str | None = None, user_id: str = "") -> list[PreferenceSignal]:
+        query = "SELECT * FROM preference_signals WHERE 1=1"
+        params: list[str] = []
+        if canonical_name:
+            query += " AND canonical_name = ?"
+            params.append(canonical_name)
+        if user_id:
+            query += " AND user_id = ?"
+            params.append(user_id)
+        query += " ORDER BY updated_at DESC"
+        rows = self.conn.execute(query, params).fetchall()
+        return [_row_to_preference(r) for r in rows]
+
+    # --- Market Snapshot Records ---
+
+    def save_market_snapshot(self, snapshot) -> bool:
+        from shopstack.market.schema import NormalizedMarketRecord, MarketSnapshot
+        if not isinstance(snapshot, MarketSnapshot):
+            return False
+
+        self.conn.execute(
+            """
+            INSERT OR REPLACE INTO market_snapshots
+            (snapshot_id, source, source_category, captured_at, record_count, analytics, freshness_context, stored_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                snapshot.snapshot_id,
+                snapshot.source,
+                snapshot.source_category,
+                snapshot.captured_at,
+                len(snapshot.normalized_records),
+                json.dumps(snapshot.analytics or {}, sort_keys=True),
+                snapshot.analytics.get("freshness", "unknown") if isinstance(snapshot.analytics, dict) else "unknown",
+                datetime.now(timezone.utc).isoformat(),
+            ),
+        )
+        self.conn.execute("DELETE FROM market_records WHERE snapshot_id = ?", (snapshot.snapshot_id,))
+        self.conn.execute("DELETE FROM market_record_components WHERE record_id IN (SELECT record_id FROM market_records WHERE snapshot_id = ?)", (snapshot.snapshot_id,))
+
+        for idx, record in enumerate(snapshot.normalized_records):
+            if not isinstance(record, NormalizedMarketRecord):
+                continue
+            record_id = f"{snapshot.snapshot_id}::{idx:05d}"
+            self.conn.execute(
+                """
+                INSERT OR REPLACE INTO market_records (
+                    record_id, snapshot_id, raw_name, canonical_name, description, raw_size, normalized_quantity,
+                    normalized_unit, package_count, is_combo, is_weight_based, is_piece_based, is_size_class,
+                    size_class, price_inr, mrp_inr, discount_percent_displayed, discount_amount_inr,
+                    computed_discount_percent, availability, is_available, tag, is_ad, is_upgrade, card_index,
+                    delivery_time, price_per_kg, price_per_100g, price_per_piece, normalization_warnings, variety, brand
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    record_id,
+                    snapshot.snapshot_id,
+                    record.raw_name,
+                    record.canonical_name,
+                    record.description,
+                    record.raw_size,
+                    record.normalized_quantity,
+                    record.normalized_unit,
+                    record.package_count,
+                    int(record.is_combo),
+                    int(record.is_weight_based),
+                    int(record.is_piece_based),
+                    int(record.is_size_class),
+                    record.size_class,
+                    record.price_inr,
+                    record.mrp_inr,
+                    record.discount_percent_displayed,
+                    record.discount_amount_inr,
+                    record.computed_discount_percent,
+                    record.availability,
+                    int(record.is_available),
+                    record.tag,
+                    int(record.is_ad),
+                    int(record.is_upgrade),
+                    record.card_index,
+                    record.delivery_time,
+                    record.price_per_kg,
+                    record.price_per_100g,
+                    record.price_per_piece,
+                    json.dumps(record.normalization_warnings or []),
+                    record.variety,
+                    record.brand,
+                ),
+            )
+            self.conn.execute("DELETE FROM market_record_components WHERE record_id = ?", (record_id,))
+            for component_name in record.component_names:
+                component_id = f"{record_id}::{component_name}"
+                self.conn.execute(
+                    "INSERT OR IGNORE INTO market_record_components (component_id, record_id, component_name) VALUES (?, ?, ?)",
+                    (component_id, record_id, component_name),
+                )
+
+        self.conn.commit()
+        return True
+
+    def get_market_snapshot(self, snapshot_id: str):
+        from shopstack.market.schema import MarketSnapshot
+        row = self.conn.execute(
+            "SELECT snapshot_id, source, source_category, captured_at, analytics FROM market_snapshots WHERE snapshot_id = ?",
+            (snapshot_id,),
+        ).fetchone()
+        if not row:
+            return None
+
+        return MarketSnapshot(
+            snapshot_id=row["snapshot_id"],
+            source=row["source"],
+            source_category=row["source_category"],
+            captured_at=row["captured_at"],
+            raw_records=[],
+            normalized_records=self.get_market_records(snapshot_id),
+            analytics=json.loads(row["analytics"] or "{}"),
+        )
+
+    def get_latest_market_snapshot(self, source: str):
+        row = self.conn.execute(
+            "SELECT snapshot_id FROM market_snapshots WHERE source = ? ORDER BY captured_at DESC LIMIT 1",
+            (source,),
+        ).fetchone()
+        if not row:
+            return None
+        return self.get_market_snapshot(row["snapshot_id"])
+
+    def get_market_records(self, snapshot_id: str) -> list:
+        from shopstack.market.schema import NormalizedMarketRecord
+        rows = self.conn.execute(
+            "SELECT * FROM market_records WHERE snapshot_id = ? ORDER BY card_index ASC, raw_name ASC",
+            (snapshot_id,),
+        ).fetchall()
+
+        snapshot = self.get_market_snapshot(snapshot_id)
+        records: list[NormalizedMarketRecord] = []
+        for row in rows:
+            comp_rows = self.conn.execute(
+                "SELECT component_name FROM market_record_components WHERE record_id = ? ORDER BY component_name ASC",
+                (row["record_id"],),
+            ).fetchall()
+            components = [r["component_name"] for r in comp_rows]
+            raw_warnings = row["normalization_warnings"]
+            if isinstance(raw_warnings, str):
+                try:
+                    warnings = json.loads(raw_warnings)
+                except json.JSONDecodeError:
+                    warnings = []
+            else:
+                warnings = []
+            records.append(
+                NormalizedMarketRecord(
+                    source=snapshot.source if snapshot else "",
+                    source_category=snapshot.source_category if snapshot else "",
+                    raw_name=row["raw_name"],
+                    canonical_name=row["canonical_name"],
+                    description=row["description"],
+                    raw_size=row["raw_size"],
+                    normalized_quantity=row["normalized_quantity"],
+                    normalized_unit=row["normalized_unit"],
+                    package_count=row["package_count"],
+                    is_combo=bool(row["is_combo"]),
+                    is_weight_based=bool(row["is_weight_based"]),
+                    is_piece_based=bool(row["is_piece_based"]),
+                    is_size_class=bool(row["is_size_class"]),
+                    size_class=row["size_class"],
+                    price_inr=row["price_inr"],
+                    mrp_inr=row["mrp_inr"],
+                    discount_percent_displayed=row["discount_percent_displayed"],
+                    discount_amount_inr=row["discount_amount_inr"],
+                    computed_discount_percent=row["computed_discount_percent"],
+                    availability=row["availability"],
+                    is_available=bool(row["is_available"]),
+                    tag=row["tag"],
+                    is_ad=bool(row["is_ad"]),
+                    is_upgrade=bool(row["is_upgrade"]),
+                    card_index=row["card_index"],
+                    delivery_time=row["delivery_time"],
+                    captured_at=snapshot.captured_at if snapshot else "",
+                    snapshot_id=row["snapshot_id"],
+                    price_per_kg=row["price_per_kg"],
+                    price_per_100g=row["price_per_100g"],
+                    price_per_piece=row["price_per_piece"],
+                    normalization_warnings=warnings,
+                    component_names=components,
+                    variety=row["variety"],
+                    brand=row["brand"],
+                )
+            )
+        return records
+
+    def get_records_by_canonical(self, canonical_name: str) -> list:
+        from shopstack.market.schema import NormalizedMarketRecord
+        # If normalized rows are requested without full context, use snapshot join in SQL.
+        rows_with_snap = self.conn.execute(
+            """
+            SELECT mr.*, ms.source, ms.source_category, ms.captured_at
+            FROM market_records AS mr
+            JOIN market_snapshots AS ms ON ms.snapshot_id = mr.snapshot_id
+            WHERE mr.canonical_name = ?
+            ORDER BY ms.captured_at DESC
+            """,
+            (canonical_name,),
+        ).fetchall()
+        records: list[NormalizedMarketRecord] = []
+        for row in rows_with_snap:
+            raw_warnings = row["normalization_warnings"]
+            if isinstance(raw_warnings, str):
+                try:
+                    warnings = json.loads(raw_warnings)
+                except json.JSONDecodeError:
+                    warnings = []
+            else:
+                warnings = []
+
+            comp_rows = self.conn.execute(
+                "SELECT component_name FROM market_record_components WHERE record_id = ? ORDER BY component_name ASC",
+                (row["record_id"],),
+            ).fetchall()
+            records.append(
+                NormalizedMarketRecord(
+                    source=row["source"],
+                    source_category=row["source_category"],
+                    raw_name=row["raw_name"],
+                    canonical_name=row["canonical_name"],
+                    description=row["description"],
+                    raw_size=row["raw_size"],
+                    normalized_quantity=row["normalized_quantity"],
+                    normalized_unit=row["normalized_unit"],
+                    package_count=row["package_count"],
+                    is_combo=bool(row["is_combo"]),
+                    is_weight_based=bool(row["is_weight_based"]),
+                    is_piece_based=bool(row["is_piece_based"]),
+                    is_size_class=bool(row["is_size_class"]),
+                    size_class=row["size_class"],
+                    price_inr=row["price_inr"],
+                    mrp_inr=row["mrp_inr"],
+                    discount_percent_displayed=row["discount_percent_displayed"],
+                    discount_amount_inr=row["discount_amount_inr"],
+                    computed_discount_percent=row["computed_discount_percent"],
+                    availability=row["availability"],
+                    is_available=bool(row["is_available"]),
+                    tag=row["tag"],
+                    is_ad=bool(row["is_ad"]),
+                    is_upgrade=bool(row["is_upgrade"]),
+                    card_index=row["card_index"],
+                    delivery_time=row["delivery_time"],
+                    captured_at=row["captured_at"],
+                    snapshot_id=row["snapshot_id"],
+                    price_per_kg=row["price_per_kg"],
+                    price_per_100g=row["price_per_100g"],
+                    price_per_piece=row["price_per_piece"],
+                    normalization_warnings=warnings,
+                    component_names=[r2["component_name"] for r2 in self.conn.execute(
+                        "SELECT component_name FROM market_record_components WHERE record_id = ? ORDER BY component_name ASC",
+                        (row["record_id"],),
+                    ).fetchall()],
+                    variety=row["variety"],
+                    brand=row["brand"],
+                )
+            )
+        return records
+
     def close(self) -> None:
         if self._conn:
             self._conn.close()
@@ -754,8 +1155,75 @@ def _row_to_purchase(row: sqlite3.Row) -> PurchaseEvent:
     )
 
 
+def _row_to_reconciliation(row: sqlite3.Row) -> ReconciliationEvent:
+    return ReconciliationEvent(
+        event_id=row["event_id"],
+        timestamp=datetime.fromisoformat(row["timestamp"]) if row["timestamp"] else datetime.now(),
+        canonical_name=row["canonical_name"],
+        planned_action=row["planned_action"],
+        actual_action=row["actual_action"],
+        quantity=row["quantity"],
+        unit=row["unit"],
+        price_paid=row["price_paid"],
+        planned_price=row["planned_price"],
+        substituted_with=row["substituted_with"],
+        notes=row["notes"],
+        source=row["source"],
+    )
+
+
+def _row_to_preference(row: sqlite3.Row) -> PreferenceSignal:
+    return PreferenceSignal(
+        signal_id=row["signal_id"],
+        canonical_name=row["canonical_name"],
+        signal_type=row["signal_type"],
+        value=row["value"],
+        confidence=row["confidence"],
+        source=row["source"],
+        created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else datetime.now(),
+        updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else datetime.now(),
+    )
+
+
 from shopstack.schemas.models import ToolCall as _ToolCall  # noqa: E402 — circular import
 
 
+def _coerce_tool_call_payload(d: dict) -> dict:
+    if not isinstance(d, dict):
+        return {
+            "tool_name": "respond",
+            "args": {"message": str(d)},
+            "success": False,
+            "error": "Invalid tool call payload",
+        }
+
+    tool_name = d.get("tool_name") or d.get("tool")
+    if not tool_name:
+        return {
+            "tool_name": "respond",
+            "args": {"message": "Missing tool"},
+            "success": False,
+            "error": "Missing tool name",
+        }
+
+    args = d.get("args")
+    if not isinstance(args, dict):
+        args = {}
+
+    result = d.get("result")
+    if result is not None and not isinstance(result, dict):
+        result = {"value": result}
+
+    return {
+        "tool_name": str(tool_name),
+        "args": args,
+        "result": result,
+        "success": bool(d.get("success", False)),
+        "error": d.get("error"),
+        "requires_confirmation": bool(d.get("requires_confirmation", True)),
+        "confirmed": bool(d.get("confirmed", False)),
+    }
+
+
 def _dict_to_tc(d: dict) -> _ToolCall:
-    return _ToolCall(**d)
+    return _ToolCall(**_coerce_tool_call_payload(d))

@@ -11,6 +11,9 @@ from shopstack.ui.screens import (
     complete_shopping_list,
     shopping_list_item_choices,
     mark_items_purchased,
+    get_reconciliation_draft,
+    confirm_reconciliation,
+    get_intelligence_dashboard,
     market_lens_process,
     market_lens_confirm_buy,
     market_lens_skip,
@@ -30,6 +33,7 @@ from shopstack.ui.screens import (
     price_intelligence_view,
     household_map_view,
     agent_trace_view,
+    agent_trace_detail,
     agent_trace_bootstrap,
     agent_trace_export_file,
     agent_trace_refresh,
@@ -59,6 +63,7 @@ from shopstack.ui.screens.price_compare import (
     single_item_compare,
     refresh_source_registry,
 )
+from shopstack.ui.screens.basket import build_basket_screen
 from shopstack.ui.components import WORKFLOW_STEPS, workflow_header, workflow_title_bar
 from shopstack.ui.theme import CSS
 
@@ -185,7 +190,7 @@ document.addEventListener('keydown', function(e) {
                     lines=2,
                 )
                 ask_btn = gr.Button("Ask")
-                ask_output = gr.HTML("")
+                ask_output = gr.JSON(label="Structured Response")
                 ask_btn.click(
                     ask_shopstack,
                     ask_input,
@@ -206,6 +211,10 @@ document.addEventListener('keydown', function(e) {
             # ═══════════════════════════════════════════════════════════════
             with gr.Tab(_tab_label("basket"), id="basket"):
                 with gr.Tabs():
+                    # ── Optimizer ──
+                    with gr.Tab("Optimizer"):
+                        build_basket_screen()
+
                     # ── Shopping List ──
                     with gr.Tab("Shopping List"):
                         sl_cards = gr.HTML("")
@@ -221,8 +230,25 @@ document.addEventListener('keydown', function(e) {
                                 lines=3,
                             )
                         sl_share = gr.HTML("")
-                        sl_complete_result = gr.HTML("")
-
+                        
+                        # --- Reconciliation UI ---
+                        with gr.Accordion("List Reconciliation (Review & Add to Inventory)", open=False):
+                            sl_reconciliation_table = gr.Dataframe(
+                                headers=["Item", "Qty", "Unit", "Action (bought/skipped/substituted)", "Price Paid", "Substitution Note"],
+                                datatype=["str", "number", "str", "str", "number", "str"],
+                                col_count=(6, "fixed"),
+                                interactive=True,
+                                label="Reconciliation Draft (Edit before confirming)"
+                            )
+                            with gr.Row():
+                                sl_reconcile_load_btn = gr.Button("Load Active List", elem_classes="secondary")
+                                sl_reconcile_confirm_btn = gr.Button("Confirm & Complete List", variant="primary")
+                            sl_reconcile_result = gr.HTML("")
+                            
+                        # Keep complete_btn for fast one-click without edit, or remove it.
+                        # The task said "Upgrade Shopping List Completion v2: Do not blindly add items." 
+                        # So we might want to just keep the old one but encourage the new one.
+                        
                         with gr.Row():
                             sl_item_dropdown = gr.Dropdown(
                                 label="Select items to mark as purchased",
@@ -278,10 +304,29 @@ document.addEventListener('keydown', function(e) {
                             api_name="refresh_shopping_list",
                             api_description="Refresh shopping list cards, table, and state",
                         )
+                        
+                        sl_reconcile_load_btn.click(
+                            get_reconciliation_draft,
+                            None,
+                            [sl_reconciliation_table, sl_list_id, sl_reconcile_result],
+                        )
+                        
+                        sl_reconcile_confirm_btn.click(
+                            confirm_reconciliation,
+                            [sl_reconciliation_table, sl_list_id],
+                            sl_reconcile_result,
+                        ).then(
+                            shopping_list_view_with_cards,
+                            outputs=[sl_cards, sl_display, sl_table, sl_list_id, sl_goal, sl_share]
+                        ).then(
+                            shopping_list_item_choices,
+                            outputs=sl_item_dropdown
+                        )
+                        
                         complete_btn.click(
                             complete_shopping_list,
                             sl_list_id,
-                            sl_complete_result,
+                            sl_reconcile_result,
                             api_name="complete_list",
                             api_description="Complete active shopping list and add purchased items to inventory",
                         ).then(
@@ -386,26 +431,37 @@ document.addEventListener('keydown', function(e) {
                             lines=6,
                             placeholder="Paste receipt text here, or upload a file above and click Scan & Parse...",
                         )
-                        receipt_review = gr.HTML("")
+                        
+                        receipt_df = gr.Dataframe(
+                            headers=["Item", "Quantity", "Unit", "Price"],
+                            datatype=["str", "number", "str", "number"],
+                            col_count=(4, "fixed"),
+                            interactive=True,
+                            label="Editable Receipt Draft",
+                        )
+                        with gr.Row():
+                            receipt_merchant = gr.Textbox(label="Store Name", interactive=True)
+                            receipt_date = gr.Textbox(label="Purchase Date (YYYY-MM-DD)", interactive=True)
+                            
                         receipt_confirm_btn = gr.Button("Confirm & Add to Inventory", variant="primary")
                         receipt_result = gr.HTML("")
                         receipt_scan_btn.click(
                             receipt_scan_ocr,
                             receipt_file,
-                            [receipt_review, receipt_raw_text],
+                            [receipt_df, receipt_merchant, receipt_date, receipt_raw_text, receipt_status],
                             api_name="receipt_scan",
                             api_description="Extract receipt text from uploaded file",
                         )
                         receipt_raw_text.change(
                             receipt_parse_text,
                             receipt_raw_text,
-                            receipt_review,
+                            [receipt_df, receipt_merchant, receipt_date],
                             api_name="receipt_parse",
                             api_description="Parse pasted or OCR'd receipt text into item suggestions",
                         )
                         receipt_confirm_btn.click(
                             receipt_confirm,
-                            receipt_raw_text,
+                            [receipt_df, receipt_merchant, receipt_date, receipt_raw_text],
                             receipt_result,
                             api_name="receipt_confirm",
                             api_description="Confirm parsed receipt lines and add items to inventory",
@@ -625,6 +681,27 @@ document.addEventListener('keydown', function(e) {
             # ═══════════════════════════════════════════════════════════════
             with gr.Tab(_tab_label("memory"), id="memory"):
                 with gr.Tabs():
+                    # ── Intelligence & Insights ──
+                    with gr.Tab("Intelligence"):
+                        gr.Markdown("### Price & Preference Intelligence")
+                        gr.Markdown("Waste patterns, inferred preferences, and price memory analysis.")
+                        with gr.Row():
+                            intel_refresh_btn = gr.Button("Refresh Intelligence", elem_classes="secondary")
+                        intel_waste_html = gr.HTML("<div class='home-card'>Loading waste insights...</div>")
+                        intel_pref_html = gr.HTML("<div class='home-card'>Loading preference signals...</div>")
+                        intel_price_html = gr.HTML("<div class='home-card'>Loading price intelligence...</div>")
+                        
+                        intel_refresh_btn.click(
+                            get_intelligence_dashboard,
+                            None,
+                            [intel_waste_html, intel_pref_html, intel_price_html]
+                        )
+                        app.load(
+                            get_intelligence_dashboard,
+                            None,
+                            [intel_waste_html, intel_pref_html, intel_price_html]
+                        )
+
                     # ── Field Notes ──
                     with gr.Tab("Field Notes"):
                         gr.Markdown("### Field Notes")

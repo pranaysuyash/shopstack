@@ -5,8 +5,7 @@ import logging
 import time
 from typing import Any
 
-from shopstack.cost_tracker import estimate_cost_usd, estimate_model_tier
-
+from shopstack.cost_tracker import estimate_cost_usd
 logger = logging.getLogger(__name__)
 
 
@@ -22,7 +21,12 @@ class OpenAIProvider:
     name = "openai"
     capabilities: set[str] = {"text", "vision", "embeddings"}
 
-    def __init__(self, api_key: str = "", model: str = "gpt-4o", embedding_model: str = "text-embedding-3-small"):
+    def __init__(
+        self,
+        api_key: str = "",
+        model: str = "gpt-4o",
+        embedding_model: str = "text-embedding-3-small",
+    ):
         self._api_key = api_key
         self._model = model
         self._embedding_model = embedding_model
@@ -77,8 +81,8 @@ class OpenAIProvider:
                 )
                 elapsed_ms = round((time.monotonic() - t0) * 1000, 1)
                 usage = dict(resp.usage) if resp.usage else {}
-                in_tok = usage.get("prompt_tokens", 0)
-                out_tok = usage.get("completion_tokens", 0)
+                in_tok = int(usage.get("prompt_tokens", 0) or 0)
+                out_tok = int(usage.get("completion_tokens", 0) or 0)
                 cost = estimate_cost_usd(model, in_tok, out_tok)
                 span.set_attribute("input_tokens", in_tok)
                 span.set_attribute("output_tokens", out_tok)
@@ -96,42 +100,78 @@ class OpenAIProvider:
                 return {"error": str(e), "model": self.name}
 
     def analyze_image(self, image_path: str, prompt: str = "") -> dict[str, Any]:
+        from shopstack.tracing import trace_call
+
         if not self._available:
             return {"error": self._error or "OpenAI not available"}
-        try:
-            with open(image_path, "rb") as f:
-                b64 = base64.b64encode(f.read()).decode("utf-8")
-            data_url = f"data:image/jpeg;base64,{b64}"
-            resp = self._client.chat.completions.create(
-                model=self._model,
-                messages=[{
+        model = self._model
+        with trace_call("llm.analyze_image", attributes={
+            "provider": self.name,
+            "model": model,
+            "prompt_length": len(prompt),
+        }) as span:
+            try:
+                t0 = time.monotonic()
+                with open(image_path, "rb") as f:
+                    b64 = base64.b64encode(f.read()).decode("utf-8")
+                data_url = f"data:image/jpeg;base64,{b64}"
+                messages = [{
                     "role": "user",
                     "content": [
                         {"type": "text", "text": prompt or "Describe what you see in this image in detail. List any food items, products, or text you can identify."},
                         {"type": "image_url", "image_url": {"url": data_url}},
                     ],
-                }],
-                max_tokens=512,
-            )
-            text = resp.choices[0].message.content
-            return {
-                "description": text,
-                "detected_items": [],
-                "model": self._model,
-            }
-        except Exception as e:
-            logger.warning("OpenAI vision analysis failed", exc_info=True)
-            return {"error": str(e), "model": self.name}
+                }]
+                resp = self._client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    max_tokens=512,
+                )
+                elapsed_ms = round((time.monotonic() - t0) * 1000, 1)
+                usage = dict(resp.usage) if resp.usage else {}
+                in_tok = int(usage.get("prompt_tokens", 0) or 0)
+                out_tok = int(usage.get("completion_tokens", 0) or 0)
+                cost = estimate_cost_usd(model, in_tok, out_tok)
+                span.set_attribute("input_tokens", in_tok)
+                span.set_attribute("output_tokens", out_tok)
+                span.set_attribute("cost_usd", cost)
+                span.set_attribute("latency_ms", elapsed_ms)
+                return {
+                    "description": resp.choices[0].message.content,
+                    "detected_items": [],
+                    "model": model,
+                    "usage": usage,
+                    "cost": {"usd": cost, "latency_ms": elapsed_ms},
+                }
+            except Exception as e:
+                logger.warning("OpenAI vision analysis failed", exc_info=True)
+                span.record_exception(e)
+                return {"error": str(e), "model": self.name}
 
     def embed(self, texts: list[str]) -> list[list[float]]:
+        from shopstack.tracing import trace_call
+
         if not self._available:
             return [[0.0] * 128 for _ in texts]
-        try:
-            resp = self._client.embeddings.create(model=self._embedding_model, input=texts)
-            return [d.embedding for d in resp.data]
-        except Exception:
-            logger.warning("OpenAI embedding failed", exc_info=True)
-            return [[0.0] * 128 for _ in texts]
+        with trace_call("llm.embed", attributes={
+            "provider": self.name,
+            "model": self._embedding_model,
+            "input_count": len(texts),
+        }) as span:
+            try:
+                t0 = time.monotonic()
+                resp = self._client.embeddings.create(model=self._embedding_model, input=texts)
+                elapsed_ms = round((time.monotonic() - t0) * 1000, 1)
+                result = [d.embedding for d in resp.data]
+                span.set_attribute("latency_ms", elapsed_ms)
+                span.set_attribute("output_count", len(result))
+                if result:
+                    span.set_attribute("vector_dim", len(result[0]))
+                return result
+            except Exception as e:
+                logger.warning("OpenAI embedding failed", exc_info=True)
+                span.record_exception(e)
+                return [[0.0] * 128 for _ in texts]
 
     @property
     def available(self) -> bool:

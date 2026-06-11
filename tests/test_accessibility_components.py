@@ -30,6 +30,7 @@ from shopstack.ui.components.cards import (
     empty_state,
     render_action_grid,
     render_action_tile,
+    render_grouped_cards,
     render_decision_card as render_decision_card_html,
     render_hero_panel,
     render_metric,
@@ -48,6 +49,12 @@ from shopstack.services.results import (
     ShoppingCompletionResult,
 )
 from shopstack.schemas.models import DecisionSet, DecisionResult
+from shopstack.ui.screens._utils import (
+    render_home_advice,
+    render_list_summary,
+    render_low_stock,
+    render_recent_purchases,
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -450,6 +457,49 @@ class TestRenderMetric:
         assert "3 expiring soon" in html
 
 
+class TestRenderGroupedCards:
+    """render_grouped_cards wraps items in decision cards inside a card."""
+
+    def test_empty_items_returns_empty_string(self):
+        assert render_grouped_cards("Title", []) == ""
+
+    def test_single_item_renders(self):
+        html = render_grouped_cards("Category", [
+            {"canonical_name": "milk", "decision": "buy", "reason": "Running low", "confidence": 0.9},
+        ])
+        assert "Category" in html
+        assert "MILK" in html or "milk" in html
+        assert "Running low" in html
+
+    def test_multiple_items_all_rendered(self):
+        html = render_grouped_cards("Produce", [
+            {"canonical_name": "tomato", "decision": "buy", "reason": "Need for curry", "confidence": 0.85},
+            {"canonical_name": "onion", "decision": "buy", "reason": "Running out", "confidence": 0.80},
+            {"canonical_name": "coriander", "decision": "skip", "reason": "Already have", "confidence": 0.75},
+        ])
+        assert "Produce" in html
+        assert "tomato" in html or "Tomato" in html
+        assert "onion" in html or "Onion" in html
+        assert "coriander" in html or "Coriander" in html
+        assert "BUY" in html
+        assert "SKIP" in html
+
+    def test_item_with_missing_fields_defaults(self):
+        """Items missing optional fields should render with defaults."""
+        html = render_grouped_cards("Test", [
+            {},
+        ])
+        # Should not crash, should render something
+        assert html.strip()
+
+    def test_html_escaped(self):
+        html = render_grouped_cards("<hack>", [
+            {"canonical_name": "<script>", "decision": "buy", "reason": "<alert>", "confidence": 0.9},
+        ])
+        assert "&lt;" in html
+        assert "<script>" not in html
+
+
 class TestRenderWorkflowRail:
     """Semantic structure — steps are uppercased for styling."""
 
@@ -796,7 +846,7 @@ class TestDecisionCardsComparePanel:
         assert heading is not None
         assert "Compare" in heading.get_text()
 
-    def test_wait_item_renders_with_watch_label(self):
+    def test_wait_item_renders_with_wait_badge(self):
         ds = DecisionSet(decisions=[
             DecisionResult(
                 canonical_name="sold_out_item",
@@ -809,7 +859,7 @@ class TestDecisionCardsComparePanel:
             ),
         ])
         html = dc.render_compare_panel(ds)
-        assert "Watch" in html
+        assert "WAIT" in html
         assert "Premium Broccoli" in html
 
     def test_compare_and_wait_both_displayed(self):
@@ -829,7 +879,7 @@ class TestDecisionCardsComparePanel:
         ])
         html = dc.render_compare_panel(ds)
         assert "Compare" in html
-        assert "Watch" in html
+        assert "WAIT" in html
         assert "Tomato" in html
         assert "Broccoli" in html
 
@@ -1083,6 +1133,362 @@ class TestDecisionCardsCadenceInsights:
 class TestDecisionCardsConfirmation:
     def test_returns_empty_string_for_no_lots(self):
         assert dc.render_needs_confirmation([]) == ""
+
+    def test_heading_present_with_items(self):
+        from datetime import date
+
+        class MockLot:
+            display_name = "Milk"
+            purchase_date = date(2026, 6, 5)
+
+        html = dc.render_needs_confirmation([MockLot()])
+        assert "Needs Confirmation" in html
+        assert "Milk" in html
+        assert "Last verified" in html
+
+    def test_item_without_purchase_date(self):
+        class MockLot:
+            display_name = "Mystery Eggs"
+            purchase_date = None
+
+        html = dc.render_needs_confirmation([MockLot()])
+        assert "Mystery Eggs" in html
+        assert "No purchase date recorded" in html
+
+    def test_max_items_respected(self):
+        from datetime import date
+        today = date(2026, 6, 10)
+
+        class MockLot:
+            display_name = ""
+            purchase_date = today
+
+        lots = []
+        for i in range(8):
+            lot = MockLot()
+            lot.display_name = f"Item {i}"
+            lots.append(lot)
+
+        html = dc.render_needs_confirmation(lots)
+        # Should have max 5 items
+        assert "Item 0" in html
+        assert "Item 4" in html
+        assert "Item 5" not in html
+        assert "Item 7" not in html
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# shopstack.ui.screens._utils (screen utility renderers)
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestRenderHomeAdvice:
+    """render_home_advice: healthy pantry, buy/skip sections, max items."""
+
+    def test_empty_inventory_shows_healthy_pantry(self):
+        html = render_home_advice([], [], [])
+        assert "Today" in html or "healthy" in html or "No immediate action" in html
+
+    def test_low_stock_item_appears_in_buy_section(self):
+        class MockLot:
+            status = "low"
+            quantity = 0.3
+            display_name = "Milk"
+            canonical_name = "milk"
+
+        html = render_home_advice([MockLot()], [], [])
+        assert "Buy" in html
+        assert "Milk" in html
+
+    def test_high_quantity_skips_item(self):
+        class MockLot:
+            status = "active"
+            quantity = 5.0
+            display_name = "Rice"
+            canonical_name = "rice"
+
+        html = render_home_advice([MockLot()], [], [])
+        assert "Skip" in html
+        assert "Rice" in html
+
+    def test_use_soon_item_appears_in_buy(self):
+        class MockLot:
+            status = "active"
+            quantity = 0.8
+            display_name = "Milk"
+            canonical_name = "milk"
+
+        html = render_home_advice([MockLot()], [], [{"canonical_name": "milk", "display_name": "Milk"}])
+        # Milk has quantity > 0.7 but is in use_soon → no skip
+        assert "Use Milk before buying more" in html or "Use" in html
+
+    def test_use_soon_excludes_from_skip(self):
+        """An item in use_soon should NOT appear in skip even if quantity > 0.7."""
+        class MockLot:
+            status = "active"
+            quantity = 5.0
+            display_name = "Milk"
+            canonical_name = "milk"
+
+        html = render_home_advice([MockLot()], [], [{"canonical_name": "milk"}])
+        # Milk is in use_soon → should NOT appear in skip section
+        assert "Skip" not in html
+
+    def test_both_buy_and_skip_sections_rendered(self):
+        class LowLot:
+            status = "low"
+            quantity = 0.2
+            display_name = "Milk"
+            canonical_name = "milk"
+
+        class HighLot:
+            status = "active"
+            quantity = 8.0
+            display_name = "Rice"
+            canonical_name = "rice"
+
+        html = render_home_advice([LowLot(), HighLot()], [], [])
+        assert "Buy" in html
+        assert "Skip" in html
+        assert "Milk" in html
+        assert "Rice" in html
+
+    def test_max_buy_items_respected(self):
+        """Buy section limited to 3 items + 2 use_soon = up to 5 buy lines."""
+        class MockLot:
+            status = "low"
+            quantity = 0.1
+            display_name = ""
+            canonical_name = ""
+
+        lots = []
+        for i in range(6):
+            lot = MockLot()
+            lot.display_name = f"Item {i}"
+            lots.append(lot)
+
+        html = render_home_advice(lots, [], [])
+        # buy[:3] limits to 3 items; count "Buy" occurrences in <li> tags
+        assert html.count("<li>") <= 3
+
+    def test_html_escaped(self):
+        class MockLot:
+            status = "low"
+            quantity = 0.1
+            display_name = "<script>"
+            canonical_name = "<script>"
+
+        html = render_home_advice([MockLot()], [], [])
+        assert "&lt;script&gt;" in html
+        assert "<script>" not in html
+
+
+class TestRenderListSummary:
+    """render_list_summary: None, empty items, items with badges, max 8."""
+
+    def test_none_shows_no_active_list(self):
+        html = render_list_summary(None)
+        assert "No active list" in html
+
+    def test_empty_items_shows_list_empty(self):
+        class MockList:
+            items = []
+        html = render_list_summary(MockList())
+        assert "empty" in html.lower()
+
+    def test_items_rendered_with_badge(self):
+        class MockItem:
+            canonical_name = "milk"
+            status = "active"
+
+        class MockList:
+            items = [MockItem()]
+
+        html = render_list_summary(MockList())
+        assert "milk" in html or "Milk" in html
+        assert "badge" in html
+
+    def test_heading_shows_item_count(self):
+        class MockItem:
+            canonical_name = "milk"
+            status = "active"
+
+        class MockList:
+            items = [MockItem(), MockItem()]
+
+        html = render_list_summary(MockList())
+        assert "Shopping List" in html
+        assert "2 items" in html
+
+    def test_max_eight_items_respected(self):
+        class MockItem:
+            canonical_name = ""
+            status = ""
+
+        class MockList:
+            items = []
+
+        items = []
+        for i in range(10):
+            item = MockItem()
+            item.canonical_name = f"item_{i}"
+            items.append(item)
+
+        ml = MockList()
+        ml.items = items
+        html = render_list_summary(ml)
+        assert html.count("item_") <= 8
+
+    def test_html_escaped(self):
+        class MockItem:
+            canonical_name = "<script>alert(1)</script>"
+            status = "active"
+
+        class MockList:
+            items = [MockItem()]
+
+        html = render_list_summary(MockList())
+        assert "&lt;script&gt;" in html
+        assert "<script>alert" not in html
+
+
+class TestRenderLowStock:
+    """render_low_stock: empty, items with quantities, max 5."""
+
+    def test_empty_returns_empty_string(self):
+        assert render_low_stock([]) == ""
+
+    def test_items_rendered_with_quantity(self):
+        class MockLot:
+            display_name = "Milk"
+            quantity = 0.5
+            unit = "L"
+
+        html = render_low_stock([MockLot()])
+        assert "Milk" in html
+        assert "0.5" in html
+        assert "L" in html
+
+    def test_multiple_items_all_rendered(self):
+        class MockLot:
+            display_name = ""
+            quantity = 0.0
+            unit = "unit"
+
+        lots = []
+        for i in range(3):
+            lot = MockLot()
+            lot.display_name = f"Item {i}"
+            lot.quantity = float(i + 1) * 0.5
+            lots.append(lot)
+
+        html = render_low_stock(lots)
+        assert "Item 0" in html
+        assert "Item 1" in html
+        assert "Item 2" in html
+
+    def test_max_five_items_respected(self):
+        class MockLot:
+            display_name = ""
+            quantity = 0.0
+            unit = "unit"
+
+        lots = []
+        for i in range(8):
+            lot = MockLot()
+            lot.display_name = f"Item {i}"
+            lots.append(lot)
+
+        html = render_low_stock(lots)
+        assert "Item 0" in html
+        assert "Item 4" in html
+        assert "Item 5" not in html
+
+    def test_quantity_color_red(self):
+        class MockLot:
+            display_name = "Milk"
+            quantity = 0.3
+            unit = "L"
+
+        html = render_low_stock([MockLot()])
+        assert "color:var(--red)" in html or "--red" in html
+
+    def test_html_escaped(self):
+        class MockLot:
+            display_name = "<script>"
+            quantity = 0.1
+            unit = "<unit>"
+
+        html = render_low_stock([MockLot()])
+        assert "&lt;script&gt;" in html
+        assert "&lt;unit&gt;" in html
+
+
+class TestRenderRecentPurchases:
+    """render_recent_purchases: empty, items with prices, max 5."""
+
+    def test_empty_returns_empty_string(self):
+        assert render_recent_purchases([]) == ""
+
+    def test_items_rendered_with_price(self):
+        class MockPurchase:
+            canonical_name = "Milk"
+            total_price = 50.0
+
+        html = render_recent_purchases([MockPurchase()])
+        assert "Milk" in html
+        assert "50" in html
+
+    def test_multiple_items_all_rendered(self):
+        class MockPurchase:
+            canonical_name = ""
+            total_price = 0.0
+
+        purchases = []
+        for i in range(3):
+            p = MockPurchase()
+            p.canonical_name = f"Item {i}"
+            p.total_price = float(i + 1) * 100
+            purchases.append(p)
+
+        html = render_recent_purchases(purchases)
+        assert "Item 0" in html
+        assert "Item 1" in html
+        assert "Item 2" in html
+
+    def test_max_five_items_respected(self):
+        class MockPurchase:
+            canonical_name = ""
+            total_price = 0.0
+
+        purchases = []
+        for i in range(8):
+            p = MockPurchase()
+            p.canonical_name = f"Item {i}"
+            purchases.append(p)
+
+        html = render_recent_purchases(purchases)
+        assert "Item 0" in html
+        assert "Item 4" in html
+        assert "Item 5" not in html
+
+    def test_price_formatted_rupee_symbol(self):
+        class MockPurchase:
+            canonical_name = "Milk"
+            total_price = 50.0
+
+        html = render_recent_purchases([MockPurchase()])
+        # Unicode rupee sign \u20b9 should appear
+        assert "\u20b9" in html
+
+    def test_html_escaped(self):
+        class MockPurchase:
+            canonical_name = "<script>hack</script>"
+            total_price = 0.0
+
+        html = render_recent_purchases([MockPurchase()])
+        assert "&lt;script&gt;" in html
+        assert "<script>" not in html
 
 
 # ═══════════════════════════════════════════════════════════════════════

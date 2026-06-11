@@ -6,9 +6,7 @@ and tracks freshness metadata so consumers know how current the data is.
 
 from __future__ import annotations
 
-import json
 import logging
-from datetime import datetime, timezone
 from typing import Any
 
 from shopstack.market.schema import MarketSnapshot
@@ -33,23 +31,49 @@ class MarketSnapshotRepository:
             self._persist(snapshot)
 
     def get(self, snapshot_id: str) -> MarketSnapshot | None:
-        return self._cache.get(snapshot_id)
+        if not snapshot_id:
+            return None
+        if snapshot_id in self._cache:
+            return self._cache[snapshot_id]
+        if self._db is None:
+            return None
+        return self._load_snapshot_from_db(snapshot_id)
 
     def latest(self, source: str = "") -> MarketSnapshot | None:
-        candidates = [
-            s for s in self._cache.values()
-            if not source or s.source == source
-        ]
-        if not candidates:
-            return None
-        return max(candidates, key=lambda s: s.captured_at)
+        candidates = list(self._cache.values())
+
+        if not source:
+            if candidates:
+                return max(candidates, key=lambda s: s.captured_at)
+            return self._latest_snapshot_any()
+
+        source = source.strip()
+        candidates = [s for s in candidates if s.source == source]
+        if candidates:
+            return max(candidates, key=lambda s: s.captured_at)
+
+        return self._latest_snapshot_from_db(source)
 
     def list(self, source: str = "") -> list[MarketSnapshot]:
         snapshots = list(self._cache.values())
         if source:
             snapshots = [s for s in snapshots if s.source == source]
-        snapshots.sort(key=lambda s: s.captured_at, reverse=True)
-        return snapshots
+
+        if self._db is None:
+            snapshots.sort(key=lambda s: s.captured_at, reverse=True)
+            return snapshots
+
+        db_snapshots = self._list_snapshots_from_db(source=source)
+        seen: set[str] = set()
+        merged: list[MarketSnapshot] = []
+        for snap in db_snapshots + snapshots:
+            if snap.snapshot_id in seen:
+                continue
+            seen.add(snap.snapshot_id)
+            merged.append(snap)
+
+        merged.sort(key=lambda s: s.captured_at, reverse=True)
+        return merged
 
     def clear(self, source: str = "") -> int:
         if source:
@@ -60,37 +84,84 @@ class MarketSnapshotRepository:
             del self._cache[k]
         return len(keys)
 
+    def _load_snapshot_from_db(self, snapshot_id: str) -> MarketSnapshot | None:
+        try:
+            snap = self._db.get_market_snapshot(snapshot_id)
+        except Exception:
+            return None
+        if snap is None:
+            return None
+        self._cache[snap.snapshot_id] = snap
+        return snap
+
+    def _latest_snapshot_from_db(self, source: str | None = None) -> MarketSnapshot | None:
+        if self._db is None:
+            return None
+        source = (source or "").strip()
+        try:
+            if source:
+                row = self._db.conn.execute(
+                    "SELECT snapshot_id FROM market_snapshots WHERE source = ? ORDER BY captured_at DESC LIMIT 1",
+                    (source,),
+                ).fetchone()
+            else:
+                row = self._db.conn.execute(
+                    "SELECT snapshot_id FROM market_snapshots ORDER BY captured_at DESC LIMIT 1"
+                ).fetchone()
+        except Exception as exc:
+            logger.warning("Failed to read latest snapshot from DB: %s", exc)
+            return None
+        if not row:
+            return None
+        return self._load_snapshot_from_db(row["snapshot_id"])
+
+    def _latest_snapshot_any(self) -> MarketSnapshot | None:
+        return self._latest_snapshot_from_db()
+
+    def _list_snapshots_from_db(self, source: str = "") -> list[MarketSnapshot]:
+        if self._db is None:
+            return []
+        try:
+            if source:
+                rows = self._db.conn.execute(
+                    "SELECT snapshot_id FROM market_snapshots WHERE source = ? ORDER BY captured_at DESC",
+                    (source,),
+                ).fetchall()
+            else:
+                rows = self._db.conn.execute(
+                    "SELECT snapshot_id FROM market_snapshots ORDER BY captured_at DESC"
+                ).fetchall()
+        except Exception as exc:
+            logger.warning("Failed to list snapshots from DB: %s", exc)
+            return []
+
+        snapshots: list[MarketSnapshot] = []
+        for row in rows:
+            snap = self._load_snapshot_from_db(row["snapshot_id"])
+            if snap is not None:
+                snapshots.append(snap)
+        return snapshots
+
+    # Backward-compatible API retained for callers that imported `latest` directly.
+    def latest_snapshot(self, source: str = "") -> MarketSnapshot | None:
+        return self.latest(source)
+
+    # Backward-compatible API retained for callers that imported `list` directly.
+    def list_snapshots(self, source: str = "") -> list[MarketSnapshot]:
+        return self.list(source)
+
+    # Keep existing method names for compatibility with `build_registry` callers.
+    def clear_cache(self, source: str = "") -> int:
+        return self.clear(source)
+
+    def get_cache_size(self) -> int:
+        return len(self._cache)
+
     def _persist(self, snapshot: MarketSnapshot) -> None:
         if self._db is None:
             return
         try:
-            table = """
-                CREATE TABLE IF NOT EXISTS market_snapshots (
-                    snapshot_id TEXT PRIMARY KEY,
-                    source TEXT,
-                    source_category TEXT,
-                    captured_at TEXT,
-                    analytics TEXT,
-                    record_count INTEGER,
-                    stored_at TEXT
-                )
-            """
-            self._db.conn.execute(table)
-            self._db.conn.execute(
-                """INSERT OR REPLACE INTO market_snapshots
-                   (snapshot_id, source, source_category, captured_at, analytics, record_count, stored_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    snapshot.snapshot_id,
-                    snapshot.source,
-                    snapshot.source_category or "",
-                    snapshot.captured_at,
-                    json.dumps(snapshot.analytics) if snapshot.analytics else "{}",
-                    len(snapshot.normalized_records),
-                    datetime.now(timezone.utc).isoformat(),
-                ),
-            )
-            self._db.conn.commit()
+            self._db.save_market_snapshot(snapshot)
         except Exception as exc:
             logger.warning("Failed to persist snapshot %s: %s", snapshot.snapshot_id, exc)
 

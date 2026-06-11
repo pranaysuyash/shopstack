@@ -144,7 +144,7 @@ def reconcile_shopping_trip(
         # ── Update inventory for bought items ──
         if action_str == "bought" and tools is not None:
             try:
-                _add = tools.add_item if isinstance(tools, InventoryRepo) else tools.add_inventory_item
+                _add = tools.add_inventory_item if hasattr(tools, "add_inventory_item") else tools.add_item
                 add_result = _add(
                     canonical_name=name,
                     display_name=name.replace("_", " ").title(),
@@ -174,7 +174,7 @@ def reconcile_shopping_trip(
             sub_name = actual.get("substituted_with", "").lower().strip()
             if sub_name:
                 try:
-                    _add = tools.add_item if isinstance(tools, InventoryRepo) else tools.add_inventory_item
+                    _add = tools.add_inventory_item if hasattr(tools, "add_inventory_item") else tools.add_item
                     add_result = _add(
                         canonical_name=sub_name,
                         display_name=sub_name.replace("_", " ").title(),

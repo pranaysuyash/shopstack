@@ -11,6 +11,7 @@ from html import escape
 from typing import Any
 
 from shopstack.schemas.models import DecisionSet, _ACTION_COLORS as DECISION_COLORS
+from shopstack.ui.components.cards import render_unified_decision_card
 
 _LOW_STOCK_THRESHOLD = 0.5
 _USE_SOON_DAYS = 3
@@ -138,18 +139,9 @@ def render_compare_panel(ds: DecisionSet) -> str:
 
     rows = []
     for d in compare_items[:4]:
-        price = f" &#8377;{d.market_price_per_kg:.0f}/kg" if d.market_price_per_kg else ""
-        rows.append(
-            f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
-            f"<strong style='color:var(--decision-compare);'>Compare</strong> {escape(d.display_name)}"
-            f"<div style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}{price}</div></div>"
-        )
+        rows.append(render_unified_decision_card(d))
     for d in wait_items[:4]:
-        rows.append(
-            f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
-            f"<strong style='color:var(--decision-watch);'>Watch</strong> {escape(d.display_name)}"
-            f"<div style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}</div></div>"
-        )
+        rows.append(render_unified_decision_card(d))
 
     return f"{_CARD_OPEN}<h3>Compare / Market Signals</h3>{''.join(rows)}</div>"
 
@@ -168,37 +160,18 @@ def render_decision_panel(ds: DecisionSet) -> str:
     sections: list[str] = []
 
     if buy:
-        buy_rows = []
-        for d in buy[:6]:
-            price = f" &#8377;{d.market_price_per_kg:.0f}/kg" if d.market_price_per_kg else ""
-            buy_rows.append(
-                f"<div style='padding:5px 0;border-bottom:1px solid var(--border);'>"
-                f"<strong style='color:var(--decision-buy);'>Buy</strong> {escape(d.display_name)} "
-                f"<span style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}{price}</span></div>"
-            )
+        buy_rows = [render_unified_decision_card(d) for d in buy[:6]]
         sections.append("".join(buy_rows))
 
     if use_soon:
-        us_rows = []
-        for d in use_soon[:4]:
-            us_rows.append(
-                f"<div style='padding:5px 0;border-bottom:1px solid var(--border);'>"
-                f"<strong style='color:var(--decision-use-soon);'>Use Soon</strong> {escape(d.display_name)} "
-                f"<span style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}</span></div>"
-            )
+        us_rows = [render_unified_decision_card(d) for d in use_soon[:4]]
         sections.append("".join(us_rows))
 
     if skip:
-        skip_rows = []
-        for d in skip[:4]:
-            skip_rows.append(
-                f"<div style='padding:5px 0;border-bottom:1px solid var(--border);'>"
-                f"<strong style='color:var(--text-dim);'>Skip</strong> {escape(d.display_name)} "
-                f"<span style='font-size:11px;color:var(--text-dim);'>{escape(d.reason)}</span></div>"
-            )
+        skip_rows = [render_unified_decision_card(d) for d in skip[:4]]
         sections.append("".join(skip_rows))
 
-    return f"{_CARD_OPEN}<h3>Today's Decisions</h3>{''.join(sections)}</div>"
+    return f"<div style='margin-bottom:12px;'><h3>Today's Decisions</h3>{''.join(sections)}</div>"
 
 
 def render_what_changed(purchases: list[Any], traces: list[Any]) -> str:

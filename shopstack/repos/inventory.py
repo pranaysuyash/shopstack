@@ -244,13 +244,13 @@ class InventoryRepo:
                     "reason": f"All {lot.canonical_name} has been used.",
                     "priority": "must_buy",
                 })
-            elif lot.quantity < 0.2 * (lot.quantity if lot.quantity > 0 else 1) + 0.1 or lot.status == "low":
+            elif lot.status == "low" or lot.quantity <= 0.5:
                 suggestions.append({
                     "canonical_name": lot.canonical_name,
                     "display_name": lot.display_name,
                     "reason": f"Running low: {lot.quantity} {lot.unit} remaining.",
                     "priority": "must_buy",
-                    "suggested_quantity": round(lot.quantity * 2, 1),
+                    "suggested_quantity": max(round(lot.quantity * 2, 1), 1.0),
                 })
             elif lot.label_expiry_date and (lot.label_expiry_date - date.today()).days <= 3:
                 suggestions.append({

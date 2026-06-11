@@ -8,20 +8,24 @@ from html import escape
 from shopstack.app_context import db
 from shopstack.portability import export_json, export_csv_inventory, import_json, import_csv
 
+from shopstack.traces.export import _redact_obj, _redact_text
+
 
 def export_data_json() -> str:
     data = export_json(db)
+    redacted_data = _redact_obj(data)
     tmp = os.path.join(tempfile.mkdtemp(), "shopstack_export.json")
     with open(tmp, "w") as f:
-        json.dump(data, f, indent=2, default=str)
+        json.dump(redacted_data, f, indent=2, default=str)
     return tmp
 
 
 def export_data_csv() -> str:
     tmp = os.path.join(tempfile.mkdtemp(), "shopstack_inventory.csv")
     csv_text = export_csv_inventory(db)
+    redacted_csv = _redact_text(csv_text)
     with open(tmp, "w") as f:
-        f.write(csv_text)
+        f.write(redacted_csv)
     return tmp
 
 

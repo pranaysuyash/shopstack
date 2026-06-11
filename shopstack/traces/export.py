@@ -10,6 +10,48 @@ from shopstack.schemas.models import Trace
 FIELD_NOTES_CONFIG_KEY = "field_notes_markdown"
 
 
+def _normalize_tool_calls(calls: list[Any]) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    for call in calls:
+        if not isinstance(call, dict):
+            normalized.append({
+                "tool_name": "respond",
+                "args": {"message": str(call)},
+                "success": True,
+                "error": None,
+            })
+            continue
+
+        tool_name = call.get("tool_name") or call.get("tool")
+        if not tool_name:
+            normalized.append({
+                "tool_name": "respond",
+                "args": {"message": "Invalid tool call payload"},
+                "success": False,
+                "error": "Missing tool name",
+            })
+            continue
+
+        args = call.get("args")
+        if not isinstance(args, dict):
+            args = {}
+
+        result = call.get("result")
+        if result is not None and not isinstance(result, dict):
+            result = {"value": result}
+
+        normalized.append({
+            "tool_name": str(tool_name),
+            "args": args,
+            "result": result,
+            "success": bool(call.get("success", False)),
+            "error": call.get("error"),
+            "requires_confirmation": bool(call.get("requires_confirmation", True)),
+            "confirmed": bool(call.get("confirmed", False)),
+        })
+    return normalized
+
+
 def export_traces_to_jsonl(
     db: Database, output_path: str, limit: int = 50, redact: bool = True
 ) -> int:
@@ -37,6 +79,7 @@ def create_trace(
     final_response: str = "",
     human_confirmation: str | None = None,
 ) -> Trace:
+    normalized_calls = _normalize_tool_calls(proposed_tool_calls or [])
     trace = Trace(
         input_type=input_type,
         user_goal=user_goal,
@@ -44,7 +87,7 @@ def create_trace(
         perception=perception or {},
         inventory_context=inventory_context or {},
         decision=decision or {},
-        proposed_tool_calls=proposed_tool_calls or [],
+        proposed_tool_calls=normalized_calls,
         final_response=final_response,
         human_confirmation=human_confirmation,
     )
@@ -160,6 +203,7 @@ def create_add_purchase_trace(
             "quantity": quantity,
             "unit": unit,
             "store": store,
+            "price": price,
         },
         inventory_context={
             "storage_location": location,

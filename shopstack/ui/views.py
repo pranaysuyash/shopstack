@@ -48,23 +48,30 @@ ERROR_HTML = "<div style='color:var(--red);'>Could not load price history due to
 EMPTY_DF = pd.DataFrame(columns=["date", "store", "price", "unit_price", "qty", "unit", "source"])
 
 
+from shopstack.market.normalization import parse_size, compute_unit_prices
+
 def _compute_unit_price(price: float, quantity: float, unit: str) -> float | None:
-    unit_lower = unit.lower().strip()
     if quantity <= 0:
         return None
-    if unit_lower in ("kg", "kilogram", "kilograms", "kgs"):
-        normalized = price / quantity
-    elif unit_lower in ("l", "liter", "litre", "liters", "litres"):
-        normalized = price / quantity
-    elif unit_lower in ("g", "gram", "grams", "gm", "gms"):
-        normalized = price / (quantity / 1000)
-    elif unit_lower in ("ml", "milliliter", "millilitre"):
-        normalized = price / (quantity / 1000)
-    elif unit_lower in ("unit", "piece", "pieces", "count", "each"):
-        normalized = price / quantity
-    else:
-        normalized = price / quantity
-    return round(normalized, 2)
+        
+    parsed = parse_size(f"{quantity} {unit}")
+    if parsed.normalized_quantity is None or parsed.normalized_unit is None:
+        return round(price / quantity, 2)
+        
+    prices = compute_unit_prices(
+        price=price,
+        quantity=parsed.normalized_quantity,
+        unit=parsed.normalized_unit,
+        is_weight_based=parsed.is_weight_based,
+        is_piece_based=parsed.is_piece_based
+    )
+    
+    if parsed.is_weight_based and parsed.normalized_unit in ("g", "ml", "mL"):
+        return prices.get("price_per_kg") or prices.get("price_per_100g", 0) * 10
+    if parsed.is_piece_based:
+        return prices.get("price_per_piece")
+        
+    return round(price / quantity, 2)
 
 
 def _unit_label(unit: str) -> str:

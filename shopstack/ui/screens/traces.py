@@ -72,29 +72,48 @@ def _filter_traces(search: str = "", input_type_filter: str = "") -> list:
 def _trace_timeline_html(trace) -> str:
     if not trace:
         return "<div style='color:var(--text-dim);'>No activity selected yet.</div>"
+    
+    # Extract structured decision data if available
+    d_dict = trace.decision or {}
+    if not isinstance(d_dict, dict):
+        d_dict = {}
+    
+    final_action = d_dict.get("action", "No decision recorded")
+    confidence = d_dict.get("confidence", 0.0)
+    rule_path = d_dict.get("source_trace", "Unknown rule path")
+    
+    evidence_list = d_dict.get("evidence", [])
+    inventory_ev = [e.get("value") for e in evidence_list if e.get("source") == "inventory"]
+    market_ev = [e.get("value") for e in evidence_list if e.get("source") == "market"]
+    price_ev = [e.get("value") for e in evidence_list if e.get("source") == "price"]
+    preference_ev = [e.get("value") for e in evidence_list if e.get("source") == "preference"]
+    
+    warnings_list = d_dict.get("warnings", [])
+    warnings_str = ", ".join([w.get("message", "") for w in warnings_list]) if warnings_list else "None"
+
     steps = [
-        ("What happened", trace.input_type or "unknown"),
-        ("Details", trace.redacted_user_request or str(trace.perception or {})),
-        (
-            "Home state",
-            (str(trace.inventory_context) if trace.inventory_context else "Using live household state"),
-        ),
-        ("Decision", str(trace.decision) if trace.decision else "No decision recorded"),
-        ("Actions", f"{len(trace.proposed_tool_calls or [])} actions taken"),
-        (
-            "Confirmed",
-            trace.human_confirmation or "Not yet confirmed",
-        ),
-        ("Recorded", "Yes" if trace.trace_id else "No"),
+        ("Input Facts", trace.redacted_user_request or str(trace.perception or {})),
+        ("Inventory Evidence", ", ".join(inventory_ev) if inventory_ev else "None"),
+        ("Market Evidence", ", ".join(market_ev) if market_ev else "None"),
+        ("Price Evidence", ", ".join(price_ev) if price_ev else "None"),
+        ("Preference Evidence", ", ".join(preference_ev) if preference_ev else "None"),
+        ("Rule Path", rule_path),
+        ("Final Action", final_action.upper()),
+        ("Confidence", f"{confidence:.0%}"),
+        ("Warnings", warnings_str),
+        ("Actions Proposed", f"{len(trace.proposed_tool_calls or [])} actions"),
+        ("Recorded ID", trace.trace_id[:12] if trace.trace_id else "No"),
     ]
+    
     rows_html = "".join(
         f"<div style='display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);'>"
-        f"<strong>{label}</strong><span>{escape(str(value))}</span></div>"
+        f"<strong style='min-width:140px;color:var(--text-dim);'>{label}</strong>"
+        f"<span style='text-align:right;'>{escape(str(value))}</span></div>"
         for label, value in steps
     )
     return (
         "<div class='home-card' style='text-align:left;'>"
-        "<h3>Activity details</h3>"
+        "<h3>Decision Trace Details</h3>"
         f"{rows_html}"
         "</div>"
     )

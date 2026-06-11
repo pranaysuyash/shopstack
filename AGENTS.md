@@ -17,8 +17,8 @@
 ```
 app.py (Gradio Blocks)
   → shopstack.ui (views, components/cards — HTML rendering)
-  → ToolRegistry (11 tools, validates args, calls DB)
-    → Database (SQLite, WAL mode, 10 tables)
+  → ToolRegistry (12 tools, validates args, calls DB)
+    → Database (SQLite, WAL mode, 10 tables, 2 views)
   → ProviderRegistry (wired from config)
     → MockProviders (default, 11 interfaces)
     → LocalProvider (MLX + llama.cpp fallback, capability-optional)
@@ -40,7 +40,7 @@ app.py (Gradio Blocks)
 | `shopstack/providers/mock_providers.py` | Mock implementations for all providers |
 | `shopstack/providers/local_provider.py` | Local provider (MLX + llama.cpp, capability-optional) |
 | `shopstack/providers/registry.py` | Provider factory |
-| `shopstack/tools/registry.py` | 11 tool implementations |
+| `shopstack/tools/registry.py` | 12 tool implementations |
 | `shopstack/traces/export.py` | Trace redaction, JSONL export |
 | `shopstack/model_registry.py` | 16 candidate model entries |
 | `shopstack/planner/prompts.py` | Prompt builder for LLM tool-calling |
@@ -72,7 +72,7 @@ shopstack/
   schemas/
     models.py           (all Pydantic domain models)
   tools/
-    registry.py         (11 tools)
+    registry.py         (12 tools)
   traces/
     export.py           (PII redaction, JSONL)
   market/               (market intelligence — Swiggy + future sources)
@@ -152,7 +152,7 @@ uv run pytest benchmarks/ -v -m benchmark  # Run benchmarks
 
 A hook at `.git/hooks/pre-commit` runs `tools/sync-readme-stats` which extracts live test/benchmark counts from `pytest -q` output and updates README.md. On every commit, README test counts stay current automatically.
 
-> Current verified: **837 tests** (`uv run pytest tests/ --collect-only -q`). The inventory table above is the canonical reference.
+> To verify the current test count, run `uv run pytest tests/ --collect-only -q`. 
 
 ## Test Inventory
 
@@ -195,7 +195,7 @@ A hook at `.git/hooks/pre-commit` runs `tools/sync-readme-stats` which extracts 
 | `tests/test_adapter_blinkit.py` | 20 | Blinkit market source adapter: loader, normalization, freshness, adapter class |
 | `tests/test_adapter_zepto.py` | 20 | Zepto market source adapter: loader, normalization, freshness, adapter class |
 | `tests/test_adapter_dmart.py` | 20 | DMart market source adapter: loader, normalization, freshness, adapter class |
-| **Total** | **837** | (growing) |
+| **Total** | *(run pytest to count)* | (growing) |
 
 ## Next Work
 
@@ -296,8 +296,4 @@ This file remains a guidance snapshot; code/runtime/tests at the time of work re
 
 ## Status Update (2026-06-10) — Stale Test Count
 
-| Doc Claim | Actual |
-|-----------|--------|
-| "Current verified: **837 tests**" | **974 tests** collected (`uv run pytest tests/ --collect-only -q`) — +137 tests since this claim was written |
-
-Note: The test inventory table at the top of this file is also likely stale for many entries. Run `uv run pytest tests/ --collect-only -q` to get the actual current count.
+Note: The test inventory table at the top of this file is inherently stale. Do not rely on hardcoded counts. Run `uv run pytest tests/ --collect-only -q` to get the actual current count.

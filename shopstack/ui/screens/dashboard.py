@@ -90,32 +90,7 @@ def today_dashboard():
     cadence_html = render_cadence_insights(state.cadence_data)
     waste_html = render_waste_warnings(state.waste_data)
 
-    svg_cards: list[str] = []
-    for d in ds.buy[:6]:
-        svg_cards.append(render_svg_decision_card(d.display_name, "buy", d.reason, d.confidence))
-    for d in ds.use_soon[:3]:
-        svg_cards.append(render_svg_decision_card(d.display_name, "use_soon", d.reason, d.confidence))
-    for d in ds.skip[:3]:
-        svg_cards.append(render_svg_decision_card(d.display_name, "skip", d.reason, d.confidence))
-
     svg_section = ""
-    if svg_cards:
-        svg_grid = cards_to_grid(svg_cards, columns=3)
-        svg_section = (
-            f"<div class='stat-card' style='text-align:left;margin-bottom:12px;'>"
-            f"<h3>Decision Cards</h3>{svg_grid}</div>"
-        )
-
-    if ds.buy or ds.skip:
-        svg_summary = render_svg_summary(
-            items_bought=len(ds.buy),
-            items_skipped=len(ds.skip),
-            total_saved=sum(d.market_price or 0 for d in ds.skip),
-        )
-        svg_section += (
-            f"<div class='stat-card' style='margin-bottom:12px;'>"
-            f"{svg_summary}</div>"
-        )
 
     long_grid = (
         f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px;margin-bottom:10px;'>{inventory_overview}{compare_panel}</div>"

@@ -12,34 +12,37 @@ from html import escape
 from typing import Any
 
 from shopstack.market.sources import (
-    build_registry,
     compare_across_sources,
     format_cross_source_html,
 )
+from shopstack.services.market_sources import load_market_registry, source_status_report
 from shopstack.ui.components.primitives import empty_state_enhanced, stat_card, toast
 
 logger = logging.getLogger(__name__)
 
 _registry = None
+_registry_errors: dict[str, str] = {}
 
 
 def _get_registry():
     global _registry
+    global _registry_errors
     if _registry is None:
         try:
-            _registry = build_registry()
+            _registry, _registry_errors = load_market_registry(force=False)
         except Exception as exc:
             logger.warning("Failed to build source registry: %s", exc)
             _registry = None
+            _registry_errors = {}
     return _registry
 
 
 def _all_snapshots_loaded(registry) -> bool:
-    """Check if at least 2 sources have snapshots available."""
+    """Check if at least one source has a loaded snapshot."""
     try:
         snaps = registry.all_snapshots()
         available = [sid for sid, snap in snaps.items() if snap and snap.normalized_records]
-        return len(available) >= 2
+        return len(available) >= 1
     except Exception:
         return False
 
@@ -53,6 +56,13 @@ def multi_source_price_view() -> str:
     """
     registry = _get_registry()
     if registry is None:
+        status = source_status_report(force=False)
+        if status:
+            return empty_state_enhanced(
+                "Registry loaded, but no active sources yet. "
+                f"Available sources: {', '.join(escape(s) for s in status)}",
+                icon="📊",
+            )
         return empty_state_enhanced(
             "Source registry could not be initialised. Market data files may be missing.",
             icon="🔌",
@@ -64,6 +74,25 @@ def multi_source_price_view() -> str:
             return empty_state_enhanced(
                 "No market sources registered. Add Swiggy, Blinkit, Zepto, or DMart data to get started.",
                 icon="📊",
+            )
+        status = source_status_report(force=False)
+        missing = [name for name in registered if not status.get(name, {}).get("snapshot_id")]
+        if missing:
+            return empty_state_enhanced(
+                "Loaded sources: "
+                f"{', '.join(escape(name) for name in registered if name not in missing)}. "
+                f"Missing or not loaded: {', '.join(escape(name) for name in missing)}.",
+                icon="⏳",
+            )
+        if any(_registry_errors.get(name) for name in registered):
+            reason = "; ".join(
+                f"{escape(name)}: {escape(_registry_errors[name])}"
+                for name in registered
+                if _registry_errors.get(name)
+            )
+            return empty_state_enhanced(
+                f"Some sources failed to load: {reason}",
+                icon="⚠️",
             )
         return empty_state_enhanced(
             f"Loading snapshots for {', '.join(escape(s) for s in registered)}... Check that data files are present.",
@@ -183,7 +212,7 @@ def refresh_source_registry() -> str:
     """
     global _registry
     try:
-        _registry = build_registry()
+        _registry, _registry_errors = load_market_registry(force=True)
         registered = _registry.registered()
         snapshots = _registry.all_snapshots()
         loaded = len([s for s in snapshots.values() if s and s.normalized_records])

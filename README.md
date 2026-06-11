@@ -79,7 +79,17 @@ uv run pytest tests/ -v
 uv run pytest benchmarks/ -v -m benchmark
 ```
 
-Run `pytest tests/ --collect-only -q` for the current test count.
+Run `uv run pytest tests/ --collect-only -q` for the current test count.
+
+## Current Verified by Code Inspection
+
+As of the current code inspection, the following metrics are verified:
+- **10 Database Tables & 2 Views**: `inventory_lots`, `purchase_events`, `shopping_lists`, `shopping_list_items`, `household_locations`, `movement_events`, `price_observations`, `stores`, `traces`, `app_config` (Tables), `price_history`, `agent_traces` (Views).
+- **12 Tools**: Including `semantic_find_item`.
+
+*Note: Tests are continuously added. For the latest test count, run `uv run pytest tests/ --collect-only -q`.*
+
+**Engineering Mandate:** Do not narrow scope to hackathon/MVP. ShopStack is designed as a long-term, bold, and comprehensive intelligence platform. Follow `motto_v3.md` principles exactly.
 
 ## Project Structure
 
@@ -96,9 +106,9 @@ shopstack/
     mock_providers.py       # Full mock implementations for all 11 (Indian/Hinglish data)
     registry.py             # ProviderRegistry factory wired to Settings
   persistence/
-    database.py             # SQLite Database (WAL, 9 tables, 18 seeded locations, full CRUD)
+    database.py             # SQLite Database (WAL, 10 tables, 2 views, 18 seeded locations, full CRUD)
   tools/
-    registry.py             # ToolRegistry — 11 tools executing against Database
+    registry.py             # ToolRegistry — 12 tools executing against Database
   traces/
     export.py               # Trace creation, JSONL export, PII redaction
   data_sources/             # Data source adapters for market snapshots and external feeds
@@ -114,10 +124,11 @@ benchmarks/                 # pytest benchmark suite (9 latency markers)
 
 ```
 Gradio Blocks (app.py)
-  → ToolRegistry (11 tools, validates args, calls Database)
-    → Database (SQLite WAL, 9 tables, 18 seeded locations)
+  → ToolRegistry (12 tools, validates args, calls Database)
+    → Database (SQLite WAL, 10 tables, 2 views, 18 seeded locations)
   → ProviderRegistry (wired from Settings)
     → MockProviders (default — 11 interfaces, all offline)
+    → Market services (market source registry load + snapshot status helpers in `shopstack.services.market_sources`)
   → Settings (pydantic-settings, env-overridable)
   → ModelRegistry (16 candidates, not loaded by default)
 ```
@@ -138,7 +149,7 @@ Gradio Blocks (app.py)
 | `EmbeddingsProvider` | Returns random 384-d vectors |
 | `ImageEditProvider` | Returns a dummy edited image path |
 
-### 11 Tools
+### 12 Tools
 
 | Tool | Purpose |
 |------|---------|
@@ -147,6 +158,7 @@ Gradio Blocks (app.py)
 | `consume_inventory_item` | Record consumption (partial or full) |
 | `move_inventory_item` | Move an item to a different storage location |
 | `find_item` | Search for an item across inventory and locations |
+| `semantic_find_item` | Search for an item using exact, prefix, and semantic embedding search with match quality scores |
 | `create_or_update_shopping_list` | Create/update the active shopping list |
 | `compare_visible_item_to_inventory` | Compare detected item against current stock |
 | `record_price_observation` | Record a price observation for an item |
@@ -154,9 +166,9 @@ Gradio Blocks (app.py)
 | `get_next_buy_suggestions` | Get suggestions for what to buy next |
 | `export_anonymized_trace` | Export an anonymized agent trace |
 
-### 9 Database Tables
+### 10 Database Tables
 
-`inventory_lots`, `movement_events`, `purchase_events`, `price_observations`, `shopping_lists`, `shopping_list_items`, `household_locations`, `detection_events`, `traces`
+`inventory_lots`, `purchase_events`, `shopping_lists`, `shopping_list_items`, `household_locations`, `movement_events`, `price_observations`, `stores`, `traces`, `app_config`
 
 Compatibility aliases: `price_history` and `agent_traces` are exposed as read/delete-compatible views for older docs, tests, and scripts.
 

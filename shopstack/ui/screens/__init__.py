@@ -9,6 +9,8 @@ from shopstack.ui.screens.shopping import (
     complete_shopping_list,
     shopping_list_item_choices,
     mark_items_purchased,
+    get_reconciliation_draft,
+    confirm_reconciliation,
 )
 from shopstack.ui.screens.market_lens import (
     market_lens_process,
@@ -68,6 +70,7 @@ from shopstack.ui.screens.receipt import (
     receipt_parse_text,
     receipt_confirm,
 )
+from shopstack.ui.screens.intelligence import get_intelligence_dashboard
 from shopstack.ui.screens.nutrition import nutrition_lookup_view, nutrition_kitchen_view  # noqa: F401 — public API re-export
 
 __all__ = [
@@ -79,6 +82,8 @@ __all__ = [
     "complete_shopping_list",
     "shopping_list_item_choices",
     "mark_items_purchased",
+    "get_reconciliation_draft",
+    "confirm_reconciliation",
     "market_lens_process",
     "market_lens_confirm_buy",
     "market_lens_skip",
@@ -122,4 +127,5 @@ __all__ = [
     "receipt_scan_ocr",
     "receipt_parse_text",
     "receipt_confirm",
+    "get_intelligence_dashboard",
 ]

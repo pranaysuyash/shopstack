@@ -1,144 +1,125 @@
 from __future__ import annotations
 
 import logging
+import json
 import re
 from html import escape
+from typing import Any
 
 from shopstack.app_context import APP_NAME, db, planner, providers, tools
 from shopstack.ui.components.cards import card as ui_card
-from shopstack.ui.components.cards import render_decision_card
-from shopstack.ui.components.primitives import empty_state_enhanced, item_row, toast
+from shopstack.ui.components.primitives import toast
 from shopstack.traces.export import create_trace
 from shopstack.ui.screens._utils import (
     extract_query_for_action,
     normalize_item_name,
-    safe_render,
 )
 
 logger = logging.getLogger(__name__)
 
 
-@safe_render
-def ask_shopstack(question: str) -> str:
+def ask_shopstack(question: str) -> dict[str, Any]:
     question = (question or "").strip()
     if not question:
-        return empty_state_enhanced(
-            "Ask ShopStack anything \u2014 e.g. \u201cDo we have milk?\u201d or \u201cWhat should I buy today?\u201d",
-            icon="💬",
-        )
+        return {
+            "intent": "empty",
+            "message": "Ask ShopStack anything \u2014 e.g. 'Do we have milk?' or 'What should I buy today?'"
+        }
 
     lowered = question.lower()
 
     if _is_add_command(lowered):
         response = _handle_add_command(question)
-        _record_ask_trace(question, response, "ask_shopstack")
+        _record_ask_trace(
+            question,
+            response,
+            "ask_shopstack",
+            proposed_tool_calls=[{"tool_name": "add_inventory_item", "args": {"text": question}}],
+        )
         return response
 
     if planner.available:
         try:
-            response = planner.process(question)
-            _record_ask_trace(question, response, "ai_planner")
-            return _render_planner_response(response)
+            response = planner.process_structured(question)
+            _record_ask_trace(
+                question,
+                response,
+                mode="ai_planner",
+                proposed_tool_calls=response.get("tool_calls") if isinstance(response, dict) else None,
+                debug=response.get("debug") if isinstance(response, dict) else None,
+            )
+            return response
         except Exception as e:
             logger.warning("AI planner failed, falling back to heuristic: %s", e)
 
-    response: str
+    response: dict[str, Any] = {}
 
     if any(k in lowered for k in ["do we have", "kya", "hai kya", "where is", "where's", "where"]):
         query = extract_query_for_action(question, "item")
         result = tools.find_item(query)
-        results = result.get("results", [])
-        lines = [
-            f"<li>{r['lot'].get('canonical_name', '')} \xb7 {r['lot'].get('quantity', 0)} {r['lot'].get('unit', '')} @ {r.get('location_name', 'Unknown')}</li>"
-            for r in results
-        ]
-        if lines:
-            rows = "".join(
-                item_row(
-                    name=r["lot"].get("display_name", ""),
-                    quantity=r["lot"].get("quantity", 0),
-                    unit=r["lot"].get("unit", "unit"),
-                    location=r.get("location_name", "Unknown"),
-                )
-                for r in results
-            )
-            response = ui_card("Location match", rows)
-        else:
-            response = empty_state_enhanced(f"We looked for {query} but found nothing. Add it to your next list if needed.", icon="🔍")
+        response = {
+            "intent": "find_item",
+            "query": query,
+            "results": result.get("results", [])
+        }
 
     elif any(keyword in lowered for keyword in ["skip", "what can i skip", "can i skip"]):
         lots = db.get_inventory()
         stock = [lot for lot in lots if lot.quantity > 0 and lot.status == "active"]
-        if not stock:
-            response = empty_state_enhanced("No obvious skip candidates right now.", icon="✅")
-        else:
-            ranked = sorted(stock, key=lambda lot: lot.quantity, reverse=True)[:8]
-            rows = "".join(
-                item_row(
-                    name=lot.display_name,
-                    quantity=lot.quantity,
-                    unit=lot.unit,
-                    status="active",
-                    decision="skip",
-                )
-                for lot in ranked
-            )
-            if not rows:
-                response = empty_state_enhanced("No obvious skip candidates right now.", icon="✅")
-            else:
-                response = ui_card("Likely skip today", rows)
+        ranked = sorted(stock, key=lambda lot: lot.quantity, reverse=True)[:8]
+        from shopstack.schemas.models import DecisionSet, DecisionResult
+        ds = DecisionSet(decisions=[])
+        for lot in ranked:
+            ds.decisions.append(DecisionResult(
+                canonical_name=lot.canonical_name,
+                display_name=lot.display_name,
+                action="skip",
+                confidence=0.8,
+                reasons=[f"You have {lot.quantity} {lot.unit} remaining"]
+            ))
+        response = ds.model_dump()
 
     elif any(k in lowered for k in ["expiring", "expires", "use soon", "urgent"]):
         soon = tools.get_use_soon_items(days=7).get("items", [])
-        if not soon:
-            response = empty_state_enhanced("No urgent expiry items. You can hold steady today.", icon="🧊")
-        else:
-            rows = "".join(
-                item_row(
-                    name=item.get("display_name", item.get("canonical_name", "")),
-                    quantity=item.get("quantity", 0),
-                    unit=item.get("unit", "unit"),
-                    status="active",
-                    decision="use_soon",
-                    extra=escape(str(item.get("reason", "Use soon"))),
-                )
-                for item in soon[:6]
-            )
-            response = ui_card("Use-Soon Items", rows)
+        from shopstack.schemas.models import DecisionSet, DecisionResult
+        ds = DecisionSet(decisions=[])
+        for item in soon[:6]:
+            ds.decisions.append(DecisionResult(
+                canonical_name=item.get("canonical_name", ""),
+                display_name=item.get("display_name", item.get("canonical_name", "")),
+                action="use_soon",
+                confidence=0.9,
+                reasons=[item.get("reason", "Use soon")]
+            ))
+        response = ds.model_dump()
 
     elif _is_add_command(lowered):
-        response = _handle_add_command(question)
+        _response_html = _handle_add_command(question)
+        response = {"intent": "add_command", "html": _response_html}
 
     elif "should i buy" in lowered or "what should i buy" in lowered or "what do i need" in lowered:
         suggestions = tools.get_next_buy_suggestions().get("suggestions", [])
-        if not suggestions:
-            response = empty_state_enhanced("No clear buy suggestions right now.", icon="🛍️")
-        else:
-            items = [
-                {
-                    "canonical_name": s.get("canonical_name", ""),
-                    "reason": s.get("reason", ""),
-                    "decision": "buy",
-                    "confidence": 0.91,
-                }
-                for s in suggestions[:8]
-            ]
-            response = ui_card("Today's shopping suggestions", "".join(
-                render_decision_card(i["canonical_name"], i["decision"], i["reason"], i["confidence"], None, show_actions=False)
-                for i in items
+        from shopstack.schemas.models import DecisionSet, DecisionResult
+        ds = DecisionSet(decisions=[])
+        for s in suggestions[:8]:
+            ds.decisions.append(DecisionResult(
+                canonical_name=s.get("canonical_name", ""),
+                display_name=s.get("canonical_name", "").title(),
+                action="buy",
+                confidence=0.91,
+                reasons=[s.get("reason", "")]
             ))
+        response = ds.model_dump()
 
     else:
-        response = ui_card(
-            "Quick answer",
-            empty_state_enhanced(
-                f"Question understood: {question}",
-                icon="🤔",
-                secondary_text="Try: \u201cDo we have milk?\u201d, \u201cWhat should I buy today?\u201d, or \u201cWhere is toothpaste?\u201d",
-            ),
-        )
+        response = {"intent": "unknown", "question": question, "suggestion": "Try: 'Do we have milk?', 'What should I buy today?', or 'Where is toothpaste?'"}
 
-    _record_ask_trace(question, response, "ask_shopstack")
+    _record_ask_trace(
+        question,
+        response,
+        "ask_shopstack",
+        proposed_tool_calls=response.get("tool_calls") if isinstance(response, dict) else None,
+    )
     return response
 
 
@@ -158,31 +139,83 @@ def ask_shopstack_from_audio(audio_path: str | None) -> str:
         return ask_shopstack("")
     if planner.available:
         try:
-            response = planner.process(text)
-            _record_ask_trace(text, response, "ai_planner")
-            return _render_planner_response(response)
+            response = planner.process_structured(text)
+            _record_ask_trace(
+                text,
+                response,
+                "ai_planner_audio",
+                proposed_tool_calls=response.get("tool_calls") if isinstance(response, dict) else None,
+                debug=response.get("debug") if isinstance(response, dict) else None,
+                trace_input_type="voice",
+            )
+            return _render_planner_response(_render_structured_ask_summary(response))
         except Exception as exc:
             logger.warning("AI planner failed for voice, falling back: %s", exc)
+            _record_ask_trace(
+                text,
+                {"error": str(exc)},
+                "ai_planner_audio_fallback",
+                trace_input_type="voice",
+            )
+            return ask_shopstack(text)
 
     return ask_shopstack(text)
 
 
-def _record_ask_trace(question: str, response: str, mode: str) -> None:
+def _record_ask_trace(
+    question: str,
+    response: str | dict[str, Any],
+    mode: str,
+    *,
+    proposed_tool_calls: list[dict[str, Any]] | None = None,
+    debug: dict[str, Any] | None = None,
+    trace_input_type: str = "text",
+) -> None:
     try:
+        final_response = response if isinstance(response, str) else json.dumps(response, default=str)
+        normalized_mode = mode
+        if isinstance(response, dict):
+            normalized_mode = str(response.get("type", mode))
+            if proposed_tool_calls is None:
+                candidate = response.get("tool_calls")
+                if isinstance(candidate, list):
+                    proposed_tool_calls = candidate
         create_trace(
             db,
-            input_type="text",
+            input_type=trace_input_type,
             user_goal="ask_shopstack",
             redacted_user_request=question,
-            perception={"query": question},
+            perception={"query": question, "mode": mode},
             inventory_context={},
-            decision={"response_type": mode},
-            proposed_tool_calls=[{"tool_name": mode, "args": {"question": question}}],
-            final_response=response,
+            decision={
+                "response_type": normalized_mode,
+                "mode": mode,
+                "planner_debug": debug or {},
+            },
+            proposed_tool_calls=proposed_tool_calls or [{"tool_name": mode, "args": {"question": question}}],
+            final_response=final_response,
             human_confirmation="responded",
         )
     except Exception as e:
         logger.debug("Failed to record ask trace: %s", e)
+
+
+def _render_structured_ask_summary(response: dict[str, Any]) -> str:
+    if not isinstance(response, dict):
+        return str(response or "")
+    debug = response.get("debug", {})
+    if not isinstance(debug, dict):
+        debug = {}
+    tool_calls = response.get("tool_calls", [])
+    outcomes = response.get("outcomes", [])
+    if not isinstance(tool_calls, list):
+        tool_calls = []
+    if not isinstance(outcomes, list):
+        outcomes = []
+    return (
+        f"Tool calls: {len(tool_calls)}; Outcomes: {len(outcomes)}; "
+        f"Parser status: {debug.get('parser', {}).get('status', 'unknown')}"
+    )
 
 
 def _render_planner_response(response: str) -> str:

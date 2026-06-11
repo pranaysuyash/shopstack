@@ -4,6 +4,7 @@ import logging
 from html import escape
 
 from shopstack.market.schema import NormalizedMarketRecord
+from shopstack.services.market_sources import get_latest_snapshot, source_status_report
 from shopstack.ui.screens._utils import safe_render, source_freshness_html
 
 
@@ -17,12 +18,18 @@ def _market_freshness_html(snapshot) -> str:
 @safe_render
 def swiggy_market_view() -> str:
     from shopstack.market import compute_snapshot_analytics
-    from shopstack.market.sources.swiggy import load_snapshot
 
     try:
-        snapshot = load_snapshot()
-    except FileNotFoundError:
-        return "<div style='color:var(--text-dim);'>Swiggy data not found. Place snapshot files in data/ directory.</div>"
+        snapshot = get_latest_snapshot(source_id="swiggy")
+        if snapshot is None:
+            status = source_status_report(force=False)
+            if "swiggy" in status and status["swiggy"].get("status") == "missing":
+                return "<div style='color:var(--red);'>Swiggy data not found in registry. Load fresh snapshot data from data files first.</div>"
+            if "swiggy" in status and status["swiggy"].get("status") == "error":
+                return "<div style='color:var(--red);'>Swiggy data failed to load. Check source file availability or parser errors.</div>"
+            return "<div style='color:var(--text-dim);'>Swiggy data is not available yet.</div>"
+    except Exception:
+        return "<div style='color:var(--red);'>Failed to load Swiggy market snapshot from registry.</div>"
 
     analytics = compute_snapshot_analytics(snapshot)
 
@@ -106,15 +113,16 @@ def swiggy_market_view() -> str:
 def swiggy_basket_estimate(items_text: str) -> str:
     from shopstack.market import basket_summary, build_basket
     from shopstack.market.metadata import get_produce_metadata
-    from shopstack.market.sources.swiggy import load_snapshot
 
     if not items_text.strip():
         return "<div style='color:var(--text-dim);'>Enter items above (one per line).</div>"
 
     try:
-        snapshot = load_snapshot()
-    except FileNotFoundError:
-        return "<div style='color:var(--text-dim);'>Swiggy data not found.</div>"
+        snapshot = get_latest_snapshot(source_id="swiggy")
+        if snapshot is None:
+            return "<div style='color:var(--red);'>No Swiggy snapshot loaded for basket estimation.</div>"
+    except Exception:
+        return "<div style='color:var(--red);'>Failed to load Swiggy basket data.</div>"
 
     items = [line.strip() for line in items_text.strip().split("\n") if line.strip()]
     basket = build_basket(items, snapshot)

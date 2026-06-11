@@ -7,7 +7,13 @@ from datetime import date
 from typing import Any
 
 from shopstack.portability import ImportResult
-from shopstack.schemas.models import InventoryLot, PriceObservation, PurchaseEvent
+from shopstack.market.normalization import canonicalize_name, normalize_item_name
+from shopstack.schemas.models import (
+    InventoryLot,
+    PriceObservation,
+    PurchaseEvent,
+    ReconciliationEvent,
+)
 from shopstack.tools.registry import DEFAULT_STORAGE_LOCATION
 
 logger = logging.getLogger(__name__)
@@ -15,6 +21,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "ReceiptLine",
     "ReceiptResult",
+    "canonicalize_receipt_name",
     "parse_receipt_text",
     "confirm_receipt",
 ]
@@ -47,6 +54,18 @@ class ReceiptResult:
     lines: list[ReceiptLine]
     total: float
     raw_text: str
+
+
+def canonicalize_receipt_name(raw_name: str) -> str:
+    raw = str(raw_name or "").strip()
+    if not raw:
+        return ""
+    canonical = canonicalize_name(raw)[0]
+    if not canonical:
+        canonical = normalize_item_name(raw)
+    if not canonical:
+        return ""
+    return canonical
 
 
 def _normalise_unit(raw: str) -> str:
@@ -161,8 +180,11 @@ def _parse_line(line_text: str) -> ReceiptLine | None:
         raw_name = m.group(1).strip()
         qty, unit = _parse_quantity_unit(f"{m.group(2)} {m.group(3)}")
         price = float(m.group(4).replace(",", ""))
+        canonical_name = canonicalize_receipt_name(raw_name)
+        if not canonical_name:
+            return None
         return ReceiptLine(
-            canonical_name=raw_name.lower(),
+            canonical_name=canonical_name,
             display_name=raw_name,
             quantity=qty,
             unit=unit,
@@ -174,8 +196,11 @@ def _parse_line(line_text: str) -> ReceiptLine | None:
         raw_name = m.group(1).strip()
         qty = float(m.group(2))
         price = float(m.group(3).replace(",", ""))
+        canonical_name = canonicalize_receipt_name(raw_name)
+        if not canonical_name:
+            return None
         return ReceiptLine(
-            canonical_name=raw_name.lower(),
+            canonical_name=canonical_name,
             display_name=raw_name,
             quantity=qty,
             unit="unit",
@@ -186,8 +211,11 @@ def _parse_line(line_text: str) -> ReceiptLine | None:
     if m:
         raw_name = m.group(1).strip()
         price = float(m.group(2).replace(",", ""))
+        canonical_name = canonicalize_receipt_name(raw_name)
+        if not canonical_name:
+            return None
         return ReceiptLine(
-            canonical_name=raw_name.lower(),
+            canonical_name=canonical_name,
             display_name=raw_name,
             quantity=1.0,
             unit="unit",
@@ -195,6 +223,38 @@ def _parse_line(line_text: str) -> ReceiptLine | None:
         )
 
     return None
+
+
+def _extract_reconciliation_details(db: Any, canonical_name: str) -> tuple[str, float | None, str]:
+    """Return planned action, planned price, and notes from active shopping list.
+
+    If the item is not on the active list, planned_action is "unknown".
+    """
+    active_list = db.get_active_shopping_list() if db is not None else None
+    if not active_list or not getattr(active_list, "items", None):
+        return "unknown", None, ""
+
+    target = canonical_name.strip().lower()
+    for item in active_list.items:
+        candidate = canonicalize_receipt_name(item.canonical_name)
+        if candidate == target:
+            planned_price = None
+            reason = (item.reason or "").strip()
+            if reason:
+                match = re.search(r"(?:rs\.?|inr|₹)\s*(\d+(?:\.\d+)?)", reason, flags=re.IGNORECASE)
+                if match:
+                    try:
+                        planned_price = float(match.group(1))
+                    except ValueError:
+                        planned_price = None
+            notes = f"Matched active shopping list item: {item.canonical_name}"
+            try:
+                db.update_list_item(item.list_item_id, {"status": "bought"})
+            except Exception:
+                notes += " (status update deferred)"
+            return "buy", planned_price, notes
+
+    return "unknown", None, ""
 
 
 _SKIP_KEYWORDS = {"total", "gst", "tax", "cgst", "sgst", "change", "cash", "card", "sub total", "subtotal", "round", ":"}
@@ -273,6 +333,24 @@ def confirm_receipt(database: Any, result: ReceiptResult) -> ImportResult:
                 confirmed=True,
             )
             database.add_purchase_event(pe)
+
+            planned_action, planned_price, plan_notes = _extract_reconciliation_details(
+                database,
+                line.canonical_name,
+            )
+
+            reconcile_event = ReconciliationEvent(
+                canonical_name=line.canonical_name,
+                planned_action=planned_action,
+                actual_action="bought",
+                quantity=line.quantity,
+                unit=line.unit,
+                price_paid=line.price,
+                planned_price=planned_price,
+                source="receipt",
+                notes="; ".join(p for p in [f"Receipt scan from {result.merchant}", plan_notes] if p),
+            )
+            database.add_reconciliation_event(reconcile_event)
         except Exception as e:
             ir.errors.append(f"Failed for '{line.display_name}': {e}")
 
