@@ -69,12 +69,12 @@ MODEL_REGISTRY: list[ModelEntry] = [
     ModelEntry(
         provider_group="tts",
         model_id="qwen3-tts-0.6b",
-        hf_model="Qwen/Qwen3-TTS-0.6B",
+        hf_model="Qwen/Qwen3-TTS-12Hz-0.6B-Base",
         params_b=0.6,
         license_note="Apache-2.0",
-        runtime="transformers",
+        runtime="custom",
         status="active",
-        notes="lightweight TTS candidate — provider wired as qwen3_tts backend",
+        notes="lightweight TTS candidate — uses qwen_tts SDK (not transformers). Default voice Ryan.",
     ),
     ModelEntry(
         provider_group="tts",
@@ -97,7 +97,7 @@ MODEL_REGISTRY: list[ModelEntry] = [
         runtime="custom",
         status="active",
         badge_relevance="off_the_grid",
-        notes="higher quality TTS with Hindi support. Downloaded (19 files, 3.5GB). Custom architecture — needs CosyVoice repo for inference. Not yet wired as provider.",
+        notes="higher quality TTS with Hindi support. CosyVoiceTTSProvider wired as cosyvoice backend. Model download required: huggingface-cli download FunAudioLLM/CosyVoice2-0.5B --local-dir pretrained_models/CosyVoice2-0.5B",
     ),
     # Vision
     ModelEntry(

@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from html import escape
 from typing import Any
 from urllib.parse import quote
 
-from shopstack.app_context import APP_NAME, db, tools
+from shopstack.app_context import APP_NAME, db, providers, tools
 from shopstack.services.shopping import (
     classify_shopping_items,
     enrich_items_with_swiggy,
@@ -359,6 +360,64 @@ def _shopping_list_payload() -> tuple[str, list[list[str]], str, str, str, str]:
     share_text = _shopping_list_share_text(rows)
     share_html = _shopping_list_share_html(share_text)
     return goal_html, tbl, sl.list_id, sl.goal or "", cards, share_html
+
+
+def generate_shopping_poster() -> tuple[str, str]:
+    """Generate a shopping poster from the current shopping list items.
+
+    Returns:
+        (file_path_or_empty, status_html)
+    """
+    sl = db.get_active_shopping_list(user_id=_user_id())
+    if not sl or not sl.items:
+        return "", "<div class='muted'>No active shopping list to generate a poster from.</div>"
+
+    items = []
+    for lot in sl.items:
+        if lot.status in ("bought", "skipped"):
+            continue
+
+        decision_map = {
+            "must_buy": "buy",
+            "optional": "optional",
+            "avoid_buying": "skip",
+        }
+        decision = decision_map.get(lot.priority, "buy")
+
+        confidence_map = {
+            "must_buy": 0.85,
+            "optional": 0.70,
+            "avoid_buying": 0.90,
+        }
+        confidence = confidence_map.get(lot.priority, 0.80)
+
+        items.append({
+            "name": lot.canonical_name,
+            "decision": decision,
+            "reason": lot.reason or "",
+            "confidence": confidence,
+        })
+
+    if not items:
+        return "", "<div class='muted'>No active items to include in the poster.</div>"
+
+    try:
+        provider = providers.image_gen
+        if not provider or not getattr(provider, "available", True):
+            return "", (
+                "<div class='muted' style='color:var(--amber);'>"
+                "Image generation provider not available. Install cairosvg or svglib to generate poster images."
+                "</div>"
+            )
+
+        poster_path = provider.generate_shopping_poster(items)
+        if not poster_path or not os.path.isfile(poster_path):
+            return "", "<div style='color:var(--red);'>Poster generation returned an invalid file path.</div>"
+
+        return poster_path, f"<div style='color:var(--green);font-weight:600;margin-bottom:8px;'>\u2713 Poster saved: {os.path.basename(poster_path)}</div>"
+    except Exception as e:
+        logger.warning("Failed to generate shopping poster: %s", e)
+        return "", f"<div style='color:var(--red);'>Failed to generate poster: {e}</div>"
 
 
 def _shopping_list_view_with_cards() -> tuple[str, str, list[list[str]], str, str, str]:

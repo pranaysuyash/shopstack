@@ -356,9 +356,10 @@ class TestLocalProviderFallbacks:
         assert "does not support STT" in result["error"]
 
     def test_detect_objects(self):
+        """detect_objects returns empty list (not supported by local provider)."""
         provider = _provider_without_model()
         result = provider.detect_objects("/fake.jpg")
-        assert "error" in result[0]
+        assert result == []
 
     def test_extract_text(self):
         provider = _provider_without_model()

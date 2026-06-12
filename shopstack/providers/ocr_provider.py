@@ -178,9 +178,24 @@ class GlmOCRProvider:
 
 
 class NuExtract3OCRProvider:
-    """OCR / extraction provider using NuExtract3-4B via transformers.
+    """Structured extraction provider using NuExtract3-4B via transformers.
 
-    Provides structured text extraction from images (receipts, labels).
+    NuExtract3 (nuance/NuExtract3-4B) is a **text-only** Small Language
+    Model fine-tuned from Phi-3.5-mini-instruct for structured JSON
+    extraction from unstructured text. It **cannot** process images
+    directly.
+
+    To fulfil the ``extract(image_path)`` interface contract, this provider
+    uses a two-stage pipeline:
+
+    **Stage 1 (OCR):** Extract raw text from the image using Tesseract
+    (pytesseract). This gives us the textual content of the receipt,
+    label, or document.
+
+    **Stage 2 (Extraction):** Pass the OCR text to NuExtract3 with a
+    JSON extraction template. The model returns structured fields
+    (brand, product_name, weight, mrp, expiry_date, etc.).
+
     Falls back gracefully when deps are missing.
     Note: CC-BY-NC-4.0 license — non-commercial use only.
     """
@@ -207,11 +222,24 @@ class NuExtract3OCRProvider:
         self._model = None
         self._tokenizer = None
         self._available = False
+        self._pytesseract_available = False
         self._error: str | None = None
         self._last_latency_ms: float | None = None
         self._init()
 
     def _init(self) -> None:
+        # Check pytesseract availability for OCR pre-processing
+        try:
+            import pytesseract  # noqa: F401
+            self._pytesseract_available = True
+        except ImportError:
+            self._pytesseract_available = False
+            logger.info(
+                "pytesseract not available for NuExtract3 image OCR; "
+                "install: uv pip install pytesseract"
+            )
+
+        # Check NuExtract3 model deps
         try:
             import torch  # noqa: F401
             from transformers import (  # noqa: F401
@@ -273,64 +301,146 @@ class NuExtract3OCRProvider:
             logger.warning("NuExtract3 model load failed", exc_info=True)
             return False
 
-    def extract(self, image_path: str) -> dict[str, Any]:
-        """Extract structured text from an image (receipt/label).
+    def _ocr_image(self, image_path: str) -> str:
+        """Extract raw text from an image using Tesseract OCR.
 
-        Returns parsed fields when available, or raw OCR text.
+        Returns empty string if OCR fails or pytesseract is unavailable.
+        """
+        if not self._pytesseract_available:
+            return ""
+        try:
+            import pytesseract
+            return pytesseract.image_to_string(image_path, lang="eng").strip()
+        except ImportError:
+            # pytesseract became unavailable since __init__ (e.g. during test patching)
+            self._pytesseract_available = False
+            return ""
+        except Exception as exc:
+            logger.debug("Tesseract OCR failed for %s: %s", image_path, exc)
+            return ""
+
+    def _extract_structured(self, raw_text: str) -> dict[str, Any]:
+        """Pass OCR text to NuExtract3 for structured JSON extraction.
+
+        Uses the model's prompt format with a JSON extraction template
+        to produce structured fields from unstructured text.
+        """
+        if self._tokenizer is None:
+            return {}
+        if self._model is None and not self._load_model():
+            return {}
+
+        extraction_template = """{
+    "brand": "",
+    "product_name": "",
+    "weight": "",
+    "mrp": "",
+    "price_paid": "",
+    "expiry_date": "",
+    "manufacturing_date": "",
+    "batch_number": ""
+}"""
+
+        prompt = (
+            f"<|input|>\n"
+            f"### Extraction Task\n"
+            f"Extract product information from the following OCR text extracted "
+            f"from a receipt or product label. Return a JSON object with the "
+            f"fields specified below.\n\n"
+            f"### OCR Text\n{raw_text}\n\n"
+            f"### Output Template\n{extraction_template}\n"
+            f"<|output|>\n"
+        )
+
+        inputs = self._tokenizer(prompt, return_tensors="pt")
+        import torch
+        if torch.cuda.is_available():
+            inputs = {k: v.to("cuda") for k, v in inputs.items()}
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            inputs = {k: v.to("mps") for k, v in inputs.items()}
+
+        with torch.no_grad():
+            outputs = self._model.generate(
+                **inputs,
+                max_new_tokens=self._max_new_tokens,
+                temperature=0.1,
+                do_sample=False,
+                pad_token_id=self._tokenizer.pad_token_id or self._tokenizer.eos_token_id,
+            )
+
+        text = self._tokenizer.decode(
+            outputs[0][inputs["input_ids"].shape[1]:],
+            skip_special_tokens=True,
+        )
+
+        # Try parsing as JSON; if it fails, return the raw text
+        try:
+            import json
+            parsed = json.loads(text.strip())
+            if isinstance(parsed, dict):
+                return parsed
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        # Fallback: try to extract key fields from the raw text
+        return {"raw_extraction": text.strip()}
+
+    def extract(self, image_path: str) -> dict[str, Any]:
+        """Extract structured information from a receipt/label image.
+
+        Two-stage pipeline:
+        1. OCR the image with Tesseract to get raw text
+        2. Pass text through NuExtract3 for structured JSON extraction
+
+        Returns structured fields when available, or raw OCR text.
         """
         if not self._available:
             return {"error": self._error or "NuExtract3 not available", "model": self.name}
         if not os.path.isfile(image_path):
             return {"error": f"Image file not found: {image_path}", "model": self.name}
 
-        if self._model is None and not self._load_model():
-            return {"error": self._error or "Failed to load model", "model": self.name}
-
         try:
             t0 = time.monotonic()
 
-            prompt = (
-                "<|input|>\n"
-                f"### Image: {image_path}\n"
-                "Extract the following from this receipt or product label:\n"
-                "- brand\n- product_name\n- weight/volume\n- mrp/price\n"
-                "- expiry_date\n- manufacturing_date\n- batch_number\n"
-                "<|output|>\n"
-            )
+            # Stage 1: OCR the image to get raw text
+            raw_text = self._ocr_image(image_path)
 
-            inputs = self._tokenizer(prompt, return_tensors="pt")
-            import torch
-            if torch.cuda.is_available():
-                inputs = {k: v.to("cuda") for k, v in inputs.items()}
-            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-                inputs = {k: v.to("mps") for k, v in inputs.items()}
-
-            with torch.no_grad():
-                outputs = self._model.generate(
-                    **inputs,
-                    max_new_tokens=self._max_new_tokens,
-                    temperature=0.1,
-                    do_sample=False,
-                    pad_token_id=self._tokenizer.pad_token_id or self._tokenizer.eos_token_id,
+            if not raw_text:
+                logger.info(
+                    "Tesseract OCR returned no text for %s; "
+                    "NuExtract3 cannot extract from blank input",
+                    image_path,
                 )
+                elapsed = time.monotonic() - t0
+                self._last_latency_ms = round(elapsed * 1000, 1)
+                return {
+                    "raw_text": "",
+                    "model": self._model_name,
+                    "latency_ms": self._last_latency_ms,
+                    "error": "OCR produced no text from image",
+                    "brand": None,
+                    "product_name": None,
+                    "weight": None,
+                    "mrp": None,
+                    "expiry_date": None,
+                }
 
-            text = self._tokenizer.decode(
-                outputs[0][inputs["input_ids"].shape[1]:],
-                skip_special_tokens=True,
-            )
+            # Stage 2: Pass OCR text through NuExtract3 for structured extraction
+            structured = self._extract_structured(raw_text)
 
             elapsed = time.monotonic() - t0
             self._last_latency_ms = round(elapsed * 1000, 1)
 
             return {
-                "raw_text": text.strip(),
+                "raw_text": raw_text,
                 "model": self._model_name,
                 "latency_ms": self._last_latency_ms,
-                "brand": None,
-                "product_name": None,
-                "weight": None,
-                "mrp": None,
-                "expiry_date": None,
+                "brand": structured.get("brand"),
+                "product_name": structured.get("product_name"),
+                "weight": structured.get("weight"),
+                "mrp": structured.get("mrp") or structured.get("price_paid"),
+                "expiry_date": structured.get("expiry_date"),
+                "structured": structured,
             }
         except Exception as e:
             logger.warning("NuExtract3 extraction failed", exc_info=True)

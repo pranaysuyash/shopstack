@@ -11,6 +11,7 @@ from shopstack.ui.screens.shopping import (
     mark_items_purchased,
     get_reconciliation_draft,
     confirm_reconciliation,
+    generate_shopping_poster,
 )
 from shopstack.ui.screens.market_lens import (
     market_lens_process,
@@ -65,6 +66,7 @@ from shopstack.ui.screens.price_compare import (
     single_item_compare,
     refresh_source_registry,
 )
+from shopstack.ui.screens.market_intelligence import market_intelligence_view
 from shopstack.ui.screens.receipt import (
     receipt_scan_ocr,
     receipt_parse_text,
@@ -89,6 +91,7 @@ __all__ = [
     "mark_items_purchased",
     "get_reconciliation_draft",
     "confirm_reconciliation",
+    "generate_shopping_poster",
     "market_lens_process",
     "market_lens_confirm_buy",
     "market_lens_skip",
@@ -127,6 +130,7 @@ __all__ = [
     "multi_source_price_view",
     "single_item_compare",
     "refresh_source_registry",
+    "market_intelligence_view",
     "export_data_json",
     "export_data_csv",
     "import_data_file",

@@ -436,7 +436,13 @@ class LocalProvider:
         return {"error": "Local provider does not support STT. Use Whisper or a dedicated ASR model.", "model": self.name}
 
     def detect_objects(self, image_path: str) -> list[dict[str, Any]]:
-        return [{"error": "Local provider does not support object detection."}]
+        """Return empty list — local provider does not support object detection.
+
+        Object detection is handled by the vision backend provider (MiniCPMV
+        or mock). This method exists for API completeness and returns an
+        empty list to avoid breaking callers that iterate over results.
+        """
+        return []
 
     def extract_text(self, image_path: str) -> dict[str, Any]:
         return {"error": "Local provider does not support OCR. Use a dedicated OCR model.", "model": self.name}

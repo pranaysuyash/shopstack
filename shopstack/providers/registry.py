@@ -22,7 +22,6 @@ from shopstack.providers.interfaces import (
 from shopstack.providers.mock_providers import (
     MockEmbeddingsProvider,
     MockGroundingProvider,
-    MockImageEditProvider,
     MockDetectionProvider,
     MockOCRProvider,
     MockPlannerProvider,
@@ -178,6 +177,14 @@ def _load_parakeet():
         return None
 
 
+def _load_cosyvoice():
+    try:
+        from shopstack.providers.cosyvoice_provider import CosyVoiceTTSProvider
+        return CosyVoiceTTSProvider
+    except ImportError:
+        return None
+
+
 def _load_grounding_dino():
     try:
         from shopstack.providers.grounding_provider import GroundingDINOProvider
@@ -298,10 +305,20 @@ _PROVIDER_SPECS: dict[str, _ProviderSpec] = {
         kwargs_fn=lambda _s: {},
         unavailable_msg="Parakeet provider not available (transformers/torch missing), falling back to mock",
     ),
+    "cosyvoice": _ProviderSpec(
+        loader=_load_cosyvoice,
+        kwargs_fn=lambda _s: {},
+        unavailable_msg="CosyVoice TTS provider not available (cosyvoice package missing), falling back to mock",
+    ),
     "grounding_dino": _ProviderSpec(
         loader=_load_grounding_dino,
         kwargs_fn=lambda _s: {},
         unavailable_msg="GroundingDINO provider not available (transformers/torch missing), falling back to mock",
+    ),
+    "svg": _ProviderSpec(
+        loader=lambda: FluxImageProvider,
+        kwargs_fn=lambda _s: {},
+        unavailable_msg="SVG/Flux image provider not available, falling back to mock",
     ),
 }
 
@@ -375,8 +392,9 @@ class ProviderRegistry:
             "grounding": MockGroundingProvider, "segmentation": MockSegmentationProvider,
             "ocr": MockOCRProvider, "planner": MockPlannerProvider,
             "tool_call_parser": MockToolCallParser, "embeddings": MockEmbeddingsProvider,
-            "image_edit": MockImageEditProvider, "image_gen": FluxImageProvider,
+            "image_edit": FluxImageProvider, "image_gen": FluxImageProvider,
         }
+        # cosyvoice resolves through the provider spec; no dedicated mock needed.
         cls = mocks.get(name)
         if cls:
             return cls() if callable(cls) else cls

@@ -25,11 +25,23 @@ class TestSettings:
         s = Settings(_env_file=None)
         assert s.stt_backend == "sensevoice"
         assert s.tts_backend == "kokoro"
-        assert s.vision_backend == "mock"
-        assert s.planner_backend == "local"  # changed from mock to local
+        assert s.vision_backend == "minicpmv"
+        assert s.segmentation_backend == "rmbg"
+        assert s.planner_backend == "local"
         assert s.ocr_backend == "tesseract"
 
-    def test_openbmb_model_stack_preset(self):
+    def test_openbmb_model_stack_preset(self, monkeypatch):
+        # Clear env vars that could interfere with preset application
+        monkeypatch.delenv("SHOPSTACK_PLANNER_BACKEND", raising=False)
+        monkeypatch.delenv("SHOPSTACK_VISION_BACKEND", raising=False)
+        monkeypatch.delenv("SHOPSTACK_SEGMENTATION_BACKEND", raising=False)
+        monkeypatch.delenv("SHOPSTACK_OCR_BACKEND", raising=False)
+        monkeypatch.delenv("SHOPSTACK_EMBEDDINGS_BACKEND", raising=False)
+        monkeypatch.delenv("SHOPSTACK_STT_BACKEND", raising=False)
+        monkeypatch.delenv("SHOPSTACK_TTS_BACKEND", raising=False)
+        monkeypatch.delenv("SHOPSTACK_GROUNDING_BACKEND", raising=False)
+        monkeypatch.delenv("SHOPSTACK_IMAGE_GEN_BACKEND", raising=False)
+        monkeypatch.delenv("SHOPSTACK_TOOL_CALL_PARSER_BACKEND", raising=False)
         s = Settings(_env_file=None, model_stack="openbmb_local")
         assert s.planner_backend == "minicpm5"
         assert s.vision_backend == "minicpmv"

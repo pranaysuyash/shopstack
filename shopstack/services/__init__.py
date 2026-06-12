@@ -6,6 +6,12 @@ from shopstack.services.shopping import (
 )
 from shopstack.services.market_lens import MarketLensResult, analyze_market_lens
 from shopstack.services.dashboard import DashboardState, build_dashboard_state
+from shopstack.services.market_intelligence import (
+    MarketTruthScore,
+    MarketCluster,
+    MarketIntelligenceGraph,
+    build_market_intelligence_graph,
+)
 from shopstack.services.search import SearchResult, semantic_search, build_item_embeddings
 from shopstack.services.weather import WeatherState, get_weather, get_shopping_weather_recommendation
 from shopstack.services.trip_context import TripAdvice, get_trip_advice, format_trip_advice_html
@@ -59,6 +65,11 @@ __all__ = [
     # Dashboard
     "DashboardState",
     "build_dashboard_state",
+    # Market intelligence graph
+    "MarketTruthScore",
+    "MarketCluster",
+    "MarketIntelligenceGraph",
+    "build_market_intelligence_graph",
     # Search
     "SearchResult",
     "semantic_search",

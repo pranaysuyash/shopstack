@@ -177,16 +177,16 @@ class TestMiniCPM5ProviderInit:
 class TestQwen3TTSProviderInit:
     def test_not_available_when_deps_missing(self):
         from shopstack.providers.tts_provider import Qwen3TTSProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
-            provider = Qwen3TTSProvider()
+        with patch.dict("sys.modules", {"qwen_tts": None}, clear=False):
+            provider = Qwen3TTSProvider(prefer_gtts_fallback=False)
             assert not provider.available
             assert provider.error is not None
-            assert "transformers" in (provider.error or "").lower()
+            assert "qwen-tts" in (provider.error or "").lower()
 
     def test_name_and_capabilities(self):
         from shopstack.providers.tts_provider import Qwen3TTSProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
-            provider = Qwen3TTSProvider()
+        with patch.dict("sys.modules", {"qwen_tts": None}, clear=False):
+            provider = Qwen3TTSProvider(prefer_gtts_fallback=False)
             assert provider.name == "qwen3_tts"
             assert provider.model_id == "qwen3-tts-0.6b"
             assert provider.parameter_count == 0.6
@@ -194,27 +194,67 @@ class TestQwen3TTSProviderInit:
 
     def test_synthesize_empty_text(self):
         from shopstack.providers.tts_provider import Qwen3TTSProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
-            provider = Qwen3TTSProvider()
+        with patch.dict("sys.modules", {"qwen_tts": None}, clear=False):
+            provider = Qwen3TTSProvider(prefer_gtts_fallback=False)
             result = provider.synthesize("")
             assert result == b""
 
     def test_synthesize_returns_empty_when_not_available(self):
         from shopstack.providers.tts_provider import Qwen3TTSProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
-            provider = Qwen3TTSProvider()
+        with patch.dict("sys.modules", {"qwen_tts": None}, clear=False):
+            provider = Qwen3TTSProvider(prefer_gtts_fallback=False)
             result = provider.synthesize("Hello")
             assert result == b""
 
+    def test_synthesize_falls_back_to_gtts(self):
+        """When qwen_tts SDK missing but gTTS available, should return gTTS audio."""
+        from shopstack.providers.tts_provider import Qwen3TTSProvider
+        with patch.dict("sys.modules", {"qwen_tts": None}, clear=False):
+            # gTTS is likely installed; synthesize should work
+            provider = Qwen3TTSProvider(prefer_gtts_fallback=True)
+            result = provider.synthesize("Hello")
+            if provider._gtts_available:
+                assert isinstance(result, bytes)
+                assert len(result) > 0
+            else:
+                assert result == b""
+
     def test_healthcheck_false_when_not_available(self):
         from shopstack.providers.tts_provider import Qwen3TTSProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
-            provider = Qwen3TTSProvider()
+        with patch.dict("sys.modules", {"qwen_tts": None}, clear=False):
+            provider = Qwen3TTSProvider(prefer_gtts_fallback=False)
             assert not provider.healthcheck()
 
     def test_name_correct(self):
         from shopstack.providers.tts_provider import Qwen3TTSProvider
         assert Qwen3TTSProvider.name == "qwen3_tts"
+
+    def test_voice_default(self):
+        from shopstack.providers.tts_provider import Qwen3TTSProvider
+        with patch.dict("sys.modules", {"qwen_tts": None}, clear=False):
+            provider = Qwen3TTSProvider(prefer_gtts_fallback=False)
+            assert provider._voice in provider.VOICES
+
+    def test_voice_custom(self):
+        from shopstack.providers.tts_provider import Qwen3TTSProvider
+        with patch.dict("sys.modules", {"qwen_tts": None}, clear=False):
+            provider = Qwen3TTSProvider(
+                voice="Emma", prefer_gtts_fallback=False
+            )
+            assert provider._voice == "Emma"
+
+    def test_voice_invalid_falls_back_to_default(self):
+        from shopstack.providers.tts_provider import Qwen3TTSProvider
+        with patch.dict("sys.modules", {"qwen_tts": None}, clear=False):
+            provider = Qwen3TTSProvider(
+                voice="NonExistent", prefer_gtts_fallback=False
+            )
+            assert provider._voice == "Ryan"
+
+    def test_model_name_update(self):
+        """Default model name uses the 12Hz variant."""
+        from shopstack.providers.tts_provider import Qwen3TTSProvider
+        assert "12Hz" in Qwen3TTSProvider()._model_name
 
 
 # ============================================================
@@ -267,6 +307,63 @@ class TestNuExtract3OCRProviderInit:
         with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
             provider = NuExtract3OCRProvider()
             assert provider.last_latency_ms is None
+
+    def test_ocr_no_text_returns_error(self):
+        """When pytesseract is available but returns no text, returns error."""
+        from unittest.mock import MagicMock as Mock
+
+        mock_pytesseract = Mock()
+        mock_pytesseract.image_to_string.return_value = ""
+
+        with (
+            patch.dict("sys.modules", {"transformers": Mock(), "torch": Mock()}, clear=False),
+            patch.dict("sys.modules", {"pytesseract": mock_pytesseract}, clear=False),
+        ):
+            # Re-import to pick up patched deps
+            from shopstack.providers.ocr_provider import NuExtract3OCRProvider
+            provider = NuExtract3OCRProvider()
+            provider._available = True
+            provider._pytesseract_available = True
+
+            # Create a dummy image file
+            import tempfile
+            from pathlib import Path
+
+            img_path = Path(tempfile.mkdtemp()) / "test.txt"
+            img_path.write_text("fake-image")
+
+            try:
+                result = provider.extract(str(img_path))
+                assert "error" in result
+                assert "no text" in result["error"].lower()
+            finally:
+                img_path.unlink(missing_ok=True)
+
+    def test_ocr_pytesseract_unavailable_returns_error(self):
+        """When pytesseract is unavailable, returns error."""
+        with (
+            patch.dict("sys.modules", {"transformers": MagicMock(), "torch": MagicMock()}, clear=False),
+            patch.dict("sys.modules", {"pytesseract": None}, clear=False),
+        ):
+            from shopstack.providers.ocr_provider import NuExtract3OCRProvider
+            provider = NuExtract3OCRProvider()
+            assert not provider._pytesseract_available
+
+    def test_ocr_calls_tesseract(self):
+        """Verify _ocr_image calls pytesseract.image_to_string."""
+        from unittest.mock import MagicMock as Mock
+
+        mock_pytesseract = Mock()
+        mock_pytesseract.image_to_string.return_value = "Milk 64 MRP 64"
+
+        with patch.dict("sys.modules", {"pytesseract": mock_pytesseract}, clear=False):
+            from shopstack.providers.ocr_provider import NuExtract3OCRProvider
+            provider = NuExtract3OCRProvider()
+            provider._pytesseract_available = True
+
+            result = provider._ocr_image("/fake/path")
+            assert result == "Milk 64 MRP 64"
+            mock_pytesseract.image_to_string.assert_called_once()
 
 
 # ============================================================
@@ -557,6 +654,80 @@ class TestGroundingDINOProviderInit:
 
 
 # ============================================================
+#  CosyVoiceTTSProvider
+# ============================================================
+
+
+class TestCosyVoiceTTSProviderInit:
+    def test_not_available_when_deps_missing(self):
+        from shopstack.providers.cosyvoice_provider import CosyVoiceTTSProvider
+        with patch.dict("sys.modules", {"cosyvoice": None}, clear=False):
+            provider = CosyVoiceTTSProvider(prefer_gtts_fallback=False)
+            assert not provider.available
+            assert provider.error is not None
+            assert "cosyvoice" in (provider.error or "").lower()
+
+    def test_name_and_capabilities(self):
+        from shopstack.providers.cosyvoice_provider import CosyVoiceTTSProvider
+        provider = CosyVoiceTTSProvider(prefer_gtts_fallback=False)
+        assert provider.name == "cosyvoice"
+        assert provider.model_id == "cosyvoice2-0.5b"
+        assert provider.parameter_count == 0.5
+        assert "tts" in provider.capabilities
+
+    def test_synthesize_empty_text(self):
+        from shopstack.providers.cosyvoice_provider import CosyVoiceTTSProvider
+        with patch.dict("sys.modules", {"cosyvoice": None}, clear=False):
+            provider = CosyVoiceTTSProvider(prefer_gtts_fallback=False)
+            result = provider.synthesize("")
+            assert result == b""
+
+    def test_synthesize_returns_empty_when_not_available(self):
+        from shopstack.providers.cosyvoice_provider import CosyVoiceTTSProvider
+        with patch.dict("sys.modules", {"cosyvoice": None}, clear=False):
+            provider = CosyVoiceTTSProvider(prefer_gtts_fallback=False)
+            result = provider.synthesize("Hello")
+            assert result == b""
+
+    def test_synthesize_falls_back_to_gtts(self):
+        """When CosyVoice missing but gTTS available, should return gTTS audio."""
+        from shopstack.providers.cosyvoice_provider import CosyVoiceTTSProvider
+        with patch.dict("sys.modules", {"cosyvoice": None}, clear=False):
+            provider = CosyVoiceTTSProvider(prefer_gtts_fallback=True)
+            result = provider.synthesize("Hello")
+            if provider._gtts_available:
+                assert isinstance(result, bytes)
+                assert len(result) > 0
+            else:
+                assert result == b""
+
+    def test_healthcheck_false_when_not_available(self):
+        from shopstack.providers.cosyvoice_provider import CosyVoiceTTSProvider
+        with patch.dict("sys.modules", {"cosyvoice": None}, clear=False):
+            provider = CosyVoiceTTSProvider(prefer_gtts_fallback=False)
+            assert not provider.healthcheck()
+
+    def test_healthcheck_true_with_gtts_fallback(self):
+        """healthcheck returns True when gTTS fallback is available."""
+        from shopstack.providers.cosyvoice_provider import CosyVoiceTTSProvider
+        with patch.dict("sys.modules", {"cosyvoice": None}, clear=False):
+            provider = CosyVoiceTTSProvider(prefer_gtts_fallback=True)
+            if provider._gtts_available:
+                assert provider.healthcheck()
+            else:
+                assert not provider.healthcheck()
+
+    def test_language_instruction_map(self):
+        """Language instruction map should contain key languages."""
+        from shopstack.providers.cosyvoice_provider import _LANGUAGE_INSTRUCT
+        assert "en" in _LANGUAGE_INSTRUCT
+        assert "hi" in _LANGUAGE_INSTRUCT
+        assert "ta" in _LANGUAGE_INSTRUCT
+        assert "bn" in _LANGUAGE_INSTRUCT
+        assert len(_LANGUAGE_INSTRUCT) >= 20
+
+
+# ============================================================
 #  Import smoke tests
 # ============================================================
 
@@ -597,3 +768,7 @@ class TestProviderImport:
     def test_grounding_dino_import(self):
         from shopstack.providers.grounding_provider import GroundingDINOProvider
         assert GroundingDINOProvider.name == "grounding_dino"
+
+    def test_cosyvoice_import(self):
+        from shopstack.providers.cosyvoice_provider import CosyVoiceTTSProvider
+        assert CosyVoiceTTSProvider.name == "cosyvoice"

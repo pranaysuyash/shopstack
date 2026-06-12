@@ -41,9 +41,9 @@ class Settings(BaseSettings):
     planner_backend: str = "local"
     stt_backend: str = "sensevoice"
     tts_backend: str = "kokoro"
-    vision_backend: str = "mock"
+    vision_backend: str = "minicpmv"
     ocr_backend: str = "tesseract"
-    segmentation_backend: str = "mock"
+    segmentation_backend: str = "rmbg"
     grounding_backend: str = "grounding_dino"
     image_gen_backend: str = "svg"
     embeddings_backend: str = "bge_m3"
@@ -72,16 +72,10 @@ class Settings(BaseSettings):
         explicit_fields = set(self.model_dump(exclude_unset=True).keys())
         preset_backends = {
             "planner_backend": "minicpm5",
-            "vision_backend": "minicpmv",
-            "ocr_backend": "glm_ocr",
-            "embeddings_backend": "bge_m3",
-            "stt_backend": "sensevoice",
-            "tts_backend": "kokoro",
-            "tool_call_parser_backend": "minicpm5",
-            "segmentation_backend": "rmbg",
-            "grounding_backend": "grounding_dino",
-            "image_gen_backend": "svg",
+            "ocr_backend": "glm_ocr",  # overrides default tesseract for vision-native OCR
         }
+        # vision_backend=minicpmv, segmentation_backend=rmbg, and most other
+        # backends are now the default — no longer need explicit preset overrides.
         for field_name, backend in preset_backends.items():
             if field_name not in explicit_fields:
                 setattr(self, field_name, backend)
@@ -104,7 +98,7 @@ class Settings(BaseSettings):
             "planner": self.planner_backend,
             "tool_call_parser": self.tool_call_parser_backend,
             "embeddings": self.embeddings_backend,
-            "image_edit": self.planner_backend,
+            "image_edit": self.image_gen_backend,
             "image_gen": self.image_gen_backend,
         }
         return backends

@@ -32,6 +32,7 @@ from shopstack.ui.screens import (
     runtime_proof_view,
     price_memory_view,
     price_intelligence_view,
+    market_intelligence_view,
     household_map_view,
     agent_trace_view,
     agent_trace_detail,
@@ -50,6 +51,7 @@ from shopstack.ui.screens import (
     shopping_list_create,
     _shopping_list_view_with_cards,
     _build_shopping_list_and_refresh,
+    generate_shopping_poster,
 )
 from shopstack.ui.screens.other import move_inventory_to_location
 from shopstack.ui.screens.receipt import (
@@ -263,7 +265,7 @@ document.addEventListener('keydown', function(e) {
             outputs=household_dropdown,
         )
 
-        # ── 5-tab daily loop: Today → Basket → ShopLens → Reconcile → Memory ──
+        # ── 5-tab daily loop: Today → Shopping → Scan & Compare → Pantry → Insights ──
         with gr.Tabs(elem_classes="tabs") as tabs:
 
             # ═══════════════════════════════════════════════════════════════
@@ -327,7 +329,40 @@ document.addEventListener('keydown', function(e) {
                                 lines=3,
                             )
                         sl_share = gr.HTML("")
-                        
+
+                        # --- Shopping Poster Export ---
+                        with gr.Accordion("Generate Shopping Poster", open=False):
+                            gr.Markdown(
+                                "Export your shopping decisions as a printable poster image. "
+                                "Each item is rendered as a decision card with its buy/skip/optional status."
+                            )
+                            with gr.Row():
+                                poster_btn = gr.Button("\U0001f5bc Generate Poster", variant="primary", scale=1)
+                            poster_status = gr.HTML("")
+                            with gr.Row():
+                                poster_preview = gr.Image(
+                                    label="Poster Preview",
+                                    show_label=True,
+                                    visible=True,
+                                    height=400,
+                                    scale=2,
+                                )
+                                poster_download = gr.File(
+                                    label="Download Poster",
+                                    visible=True,
+                                    scale=1,
+                                )
+                            poster_btn.click(
+                                generate_shopping_poster,
+                                outputs=[poster_preview, poster_status],
+                                api_name="generate_poster",
+                                api_description="Generate a shopping poster from the active shopping list",
+                            ).then(
+                                lambda poster_path: gr.update(value=poster_path, visible=bool(poster_path)),
+                                poster_preview,
+                                poster_download,
+                            )
+
                         # --- Reconciliation UI ---
                         with gr.Accordion("List Reconciliation (Review & Add to Inventory)", open=False):
                             sl_reconciliation_table = gr.Dataframe(
@@ -468,6 +503,52 @@ document.addEventListener('keydown', function(e) {
                             api_name="price_compare_item",
                             api_description="Compare single item prices across all market sources",
                         )
+
+                    # ── Market Map ──
+                    with gr.Tab("Market Map"):
+                        with gr.Row():
+                            market_focus = gr.Textbox(
+                                label="Focus item",
+                                placeholder="tomato, onion, milk, coriander...",
+                            )
+                            market_lane = gr.Dropdown(
+                                label="Lane",
+                                choices=[
+                                    ("All", ""),
+                                    ("Buy", "buy"),
+                                    ("Use Soon", "use_soon"),
+                                    ("Compare", "compare"),
+                                    ("Substitute", "substitute"),
+                                    ("Wait", "wait"),
+                                    ("Skip", "skip"),
+                                ],
+                                value="",
+                                allow_custom_value=False,
+                            )
+                            market_refresh = gr.Button("Refresh", elem_classes="secondary")
+                        market_graph_html = gr.HTML("")
+                        market_focus.change(
+                            market_intelligence_view,
+                            [market_focus, market_lane],
+                            market_graph_html,
+                            api_name="market_intelligence_search",
+                            api_description="Search the market intelligence graph",
+                        )
+                        market_lane.change(
+                            market_intelligence_view,
+                            [market_focus, market_lane],
+                            market_graph_html,
+                            api_name="market_intelligence_lane",
+                            api_description="Filter the market intelligence graph by lane",
+                        )
+                        market_refresh.click(
+                            market_intelligence_view,
+                            [market_focus, market_lane],
+                            market_graph_html,
+                            api_name="market_intelligence_refresh",
+                            api_description="Refresh the market intelligence graph",
+                        )
+                        app.load(market_intelligence_view, inputs=[market_focus, market_lane], outputs=market_graph_html)
 
                     # ── Price Check ──
                     with gr.Tab("Price Check"):
@@ -623,7 +704,7 @@ document.addEventListener('keydown', function(e) {
                 )
 
             # ═══════════════════════════════════════════════════════════════
-            # Tab 4: Reconcile — what actually happened?
+            # Tab 4: Pantry — what actually happened?
             # ═══════════════════════════════════════════════════════════════
             with gr.Tab(_tab_label("reconcile"), id="reconcile"):
                 with gr.Tabs():
@@ -774,7 +855,7 @@ document.addEventListener('keydown', function(e) {
                         app.load(household_map_view, outputs=map_html)
 
             # ═══════════════════════════════════════════════════════════════
-            # Tab 5: Memory — what did we learn?
+            # Tab 5: Insights — what did we learn?
             # ═══════════════════════════════════════════════════════════════
             with gr.Tab(_tab_label("memory"), id="memory"):
                 with gr.Tabs():

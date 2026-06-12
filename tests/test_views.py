@@ -472,9 +472,10 @@ class TestMarketLens:
 
 
 class TestModelStack:
-    def test_provider_status_badge_reports_mock_runtime(self, app):
+    def test_provider_status_badge_reports_runtime_state(self, app):
         badge = app.provider_status_badge()
-        assert "Mock" in badge
+        assert badge.startswith('<span class="badge ')
+        assert any(state in badge for state in {"Mock", "Configured", "AI", "Off-grid"})
 
     def test_provider_status_badge_reports_real_loaded_runtime(self, app, monkeypatch):
         monkeypatch.setattr(

@@ -183,109 +183,200 @@ class KokoroTTSProvider(TTSProvider):
 
 
 class Qwen3TTSProvider(TTSProvider):
-    """TTS provider using Qwen3-TTS-0.6B via transformers.
+    """TTS provider using Qwen3-TTS-0.6B via the official qwen-tts SDK.
 
-    Provides text-to-speech synthesis. Falls back gracefully when deps are missing.
+    Qwen3-TTS uses a discrete multi-codebook language model architecture
+    for end-to-end speech synthesis. It uses a 12Hz acoustic tokenizer
+    and does **not** require a separate neural vocoder.
+
+    The correct API is the ``qwen_tts`` SDK (``Qwen3TTSModel``), not
+    standard ``transformers`` ``model.generate()`` which would produce
+    text tokens, not audio.
+
+    Primary path: ``qwen_tts.Qwen3TTSModel.from_pretrained()`` +
+    ``model.generate_custom_voice()`` returning ``(wavs, sr)``.
+
+    Fallback: Uses gTTS when qwen_tts SDK is unavailable.
     """
 
     name = "qwen3_tts"
     model_id = "qwen3-tts-0.6b"
     parameter_count = 0.6
     license_note = "Apache-2.0"
-    runtime_type = "transformers"
+    runtime_type = "custom"
     supports_off_grid = True
     capabilities: set[str] = {"tts"}
 
     SAMPLE_RATE = 24000
+    VOICES = ["Ryan", "Alex", "Emma", "Bella", "Ava", "Luke"]
+    DEFAULT_VOICE = "Ryan"
 
     def __init__(
         self,
-        model_name: str = "Qwen/Qwen3-TTS-0.6B",
+        model_name: str = "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
         device: str = "auto",
         cache_dir: str | None = None,
+        voice: str = DEFAULT_VOICE,
+        prefer_gtts_fallback: bool = True,
     ):
         self._model_name = model_name
         self._device = device
         self._cache_dir = cache_dir or os.path.join(
             tempfile.gettempdir(), "shopstack_qwen3tts_cache"
         )
-        self._model = None
-        self._processor = None
+        self._voice = voice if voice in self.VOICES else self.DEFAULT_VOICE
+        self._prefer_gtts_fallback = prefer_gtts_fallback
+        self._model: Any = None
         self._available = False
+        self._gtts_available = False
         self._error: str | None = None
+        self._last_latency_ms: float | None = None
         self._init()
 
     def _init(self) -> None:
+        self._init_qwen_sdk()
+        if not self._available and self._prefer_gtts_fallback:
+            self._init_gtts()
+
+    def _init_qwen_sdk(self) -> None:
+        """Try loading via the official qwen-tts SDK."""
         try:
-            import torch  # noqa: F401
-            from transformers import (  # noqa: F401
-                AutoModel,
-                AutoTokenizer,
-            )
+            from qwen_tts import Qwen3TTSModel  # noqa: F401
             self._available = True
             self._error = None
-            logger.info("Qwen3-TTS provider initialised (model=%s)", self._model_name)
+            logger.info(
+                "Qwen3-TTS provider initialised (model=%s, voice=%s)",
+                self._model_name, self._voice,
+            )
         except ImportError:
             self._error = (
-                "transformers/torch not installed. "
-                "Run: uv pip install transformers torch"
+                "qwen-tts SDK not installed. Run: uv pip install qwen-tts"
             )
-            self._available = False
+            logger.warning(self._error)
+
+    def _init_gtts(self) -> None:
+        try:
+            import gtts  # noqa: F401
+            self._gtts_available = True
+            self._error = None
+            logger.info("gTTS fallback available for Qwen3TTSProvider")
+        except ImportError:
+            self._gtts_available = False
+            self._error = (
+                "qwen-tts not installed and gTTS fallback not available. "
+                "Run: uv pip install qwen-tts"
+            )
+            logger.warning(self._error)
+
+    def _gtts_synthesize(self, text: str, language: str) -> bytes:
+        try:
+            from gtts import gTTS
+            import io
+
+            fp = io.BytesIO()
+            tts = gTTS(text=text, lang=language, slow=False)
+            tts.write_to_fp(fp)
+            fp.seek(0)
+            return fp.read()
+        except Exception as e:
+            logger.warning("gTTS synthesis failed: %s", e)
+            return b""
+
+    def _synthesize_qwen_sdk(self, text: str, language: str) -> bytes:
+        """Synthesize speech using the qwen-tts SDK."""
+        import io
+
+        from qwen_tts import Qwen3TTSModel
+
+        # Map language code to full language name
+        lang_map = {
+            "en": "English",
+            "zh": "Chinese",
+            "ja": "Japanese",
+            "ko": "Korean",
+            "fr": "French",
+            "de": "German",
+            "es": "Spanish",
+            "pt": "Portuguese",
+            "it": "Italian",
+            "ru": "Russian",
+            "ar": "Arabic",
+            "hi": "Hindi",
+        }
+        full_lang = lang_map.get(language, "English")
+
+        # Lazy-load the model on first use
+        if self._model is None:
+            import torch
+            logger.info("Loading Qwen3-TTS model %s ...", self._model_name)
+            self._model = Qwen3TTSModel.from_pretrained(
+                self._model_name,
+                device_map=self._device if self._device != "auto" else None,
+                dtype=torch.bfloat16,
+            )
+            logger.info("Qwen3-TTS model loaded")
+
+        # Generate speech — returns (list_of_wavs, sample_rate)
+        wavs, sr = self._model.generate_custom_voice(
+            text=text,
+            language=full_lang,
+            speaker=self._voice,
+        )
+
+        if not wavs:
+            logger.warning("Qwen3-TTS produced no audio for: %s", text[:60])
+            return b""
+
+        import numpy as np
+
+        audio = wavs[0] if isinstance(wavs, list) else wavs
+        if isinstance(audio, np.ndarray):
+            audio_np = audio
+        elif hasattr(audio, "numpy"):
+            audio_np = audio.numpy()
+        else:
+            audio_np = np.array(audio, dtype=np.float32)
+
+        # Normalize
+        max_val = float(np.max(np.abs(audio_np)))
+        if max_val > 1.0:
+            audio_np = audio_np / max_val
+
+        sample_rate = sr or self.SAMPLE_RATE
+
+        # Convert to 16-bit PCM WAV in memory
+        try:
+            import soundfile as sf
+            buf = io.BytesIO()
+            sf.write(buf, audio_np, sample_rate, format="wav")
+            buf.seek(0)
+            return buf.read()
+        except ImportError:
+            # soundfile not installed — write raw PCM via wave module
+            import wave
+            max_int16 = np.iinfo(np.int16).max
+            audio_int16 = (audio_np * max_int16).astype(np.int16)
+            buf = io.BytesIO()
+            with wave.open(buf, "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(sample_rate)
+                wf.writeframes(audio_int16.tobytes())
+            buf.seek(0)
+            return buf.read()
 
     def load(self) -> None:
-        if self._model is not None:
-            return
-        self._load_model()
-
-    def _load_model(self) -> bool:
-        if self._model is not None:
-            return True
-        try:
-            import torch
-            from transformers import AutoModel, AutoTokenizer
-
-            logger.info("Loading Qwen3-TTS model %s ...", self._model_name)
-            self._tokenizer = AutoTokenizer.from_pretrained(
-                self._model_name, trust_remote_code=True
-            )
-            self._model = AutoModel.from_pretrained(
-                self._model_name,
-                trust_remote_code=True,
-                torch_dtype=torch.bfloat16,
-            )
-            if self._device == "auto":
-                if torch.cuda.is_available():
-                    self._model = self._model.to("cuda")
-                elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-                    self._model = self._model.to("mps")
-            else:
-                self._model = self._model.to(self._device)
-            self._model.eval()
-            logger.info("Qwen3-TTS model loaded")
-            return True
-        except ImportError:
-            self._error = (
-                "transformers/torch not installed. "
-                "Run: uv pip install transformers torch"
-            )
-            return False
-        except Exception as e:
-            self._error = f"Failed to load Qwen3-TTS model: {e}"
-            logger.warning("Qwen3-TTS model load failed", exc_info=True)
-            return False
+        pass
 
     def _cache_path(self, text: str, language: str) -> str:
         key = hashlib.md5(
-            f"{text}:{language}:{self._model_name}".encode()
+            f"{text}:{language}:{self._voice}:{self._model_name}".encode()
         ).hexdigest()
         os.makedirs(self._cache_dir, exist_ok=True)
         return os.path.join(self._cache_dir, f"{key}.wav")
 
     def synthesize(self, text: str, language: str = "en") -> bytes | str:
         if not text:
-            return b""
-
-        if not self._available:
             return b""
 
         cache_path = self._cache_path(text, language)
@@ -296,50 +387,38 @@ class Qwen3TTSProvider(TTSProvider):
             except OSError:
                 pass
 
-        if self._model is None and not self._load_model():
-            return b""
+        # Primary path: qwen-tts SDK
+        if self._available:
+            try:
+                audio_bytes = self._synthesize_qwen_sdk(text, language)
+                if audio_bytes:
+                    # Cache the result
+                    try:
+                        with open(cache_path, "wb") as f:
+                            f.write(audio_bytes)
+                    except OSError:
+                        pass
+                    return audio_bytes
+            except Exception:
+                logger.warning(
+                    "Qwen3-TTS SDK synthesis failed, trying fallback", exc_info=True
+                )
 
-        if self._tokenizer is None:
-            return b""
+        # Fallback: gTTS
+        if self._gtts_available:
+            audio_bytes = self._gtts_synthesize(text, language)
+            if audio_bytes:
+                try:
+                    with open(cache_path, "wb") as f:
+                        f.write(audio_bytes)
+                except OSError:
+                    pass
+                return audio_bytes
 
-        try:
-            import torch
-
-            inputs = self._tokenizer(
-                text, return_tensors="pt", padding=True, truncation=True
-            )
-            if torch.cuda.is_available():
-                inputs = {k: v.to("cuda") for k, v in inputs.items()}
-            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-                inputs = {k: v.to("mps") for k, v in inputs.items()}
-
-            with torch.no_grad():
-                audio_values = self._model.generate(**inputs, max_length=4096)
-
-            audio_np = audio_values.cpu().numpy().flatten()
-
-            import numpy as np
-            max_val = float(np.max(np.abs(audio_np)))
-            if max_val > 1.0:
-                audio_np = audio_np / max_val
-
-            audio_int16 = (audio_np * 32767).astype(np.int16)
-
-            with wave.open(cache_path, "wb") as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(2)
-                wf.setframerate(self.SAMPLE_RATE)
-                wf.writeframes(audio_int16.tobytes())
-
-            with open(cache_path, "rb") as f:
-                return f.read()
-
-        except Exception:
-            logger.warning("Qwen3-TTS synthesis failed", exc_info=True)
-            return b""
+        return b""
 
     def healthcheck(self) -> bool:
-        return self._available
+        return self._available or self._gtts_available
 
     @property
     def available(self) -> bool:
@@ -348,3 +427,7 @@ class Qwen3TTSProvider(TTSProvider):
     @property
     def error(self) -> str | None:
         return self._error
+
+    @property
+    def last_latency_ms(self) -> float | None:
+        return self._last_latency_ms
