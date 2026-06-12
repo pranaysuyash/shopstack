@@ -128,6 +128,23 @@ def should_buy(
         if is_staple:
             reasons.append("Household staple — restock recommended")
             confidence = 0.88
+    elif purchase_cadence_days is not None and purchase_cadence_days > 0 and last_purchase_date is not None:
+        # Predictive restock: item has cadence data and is approaching expected restock date
+        days_since = (date.today() - last_purchase_date).days
+        days_until_restock = round(purchase_cadence_days) - days_since
+        if days_until_restock <= 2 and days_until_restock >= -3:
+            reasons.append(f"Usually restock every {round(purchase_cadence_days)} days (day {days_since} now)")
+            evidence.append(DecisionEvidence(
+                source="purchase_cadence",
+                value=f"avg_interval={purchase_cadence_days:.0f}d, days_since={days_since}",
+                confidence=0.7,
+            ))
+            confidence = 0.72
+            if is_staple:
+                reasons.append("Household staple — proactive restock")
+                confidence = 0.80
+        else:
+            return None
     else:
         return None  # enough stock, don't recommend buy
 
@@ -487,3 +504,88 @@ def detect_stale_snapshot_warnings(
         d.data_freshness_label = snapshot_freshness.label
 
     return decisions
+
+
+def predict_restock_needs(
+    cadence_data: dict[str, dict[str, Any]],
+    inventory: list[Any],
+    days_ahead: int = 2,
+) -> list[dict[str, Any]]:
+    """Predict items that will need restocking within ``days_ahead`` days.
+
+    Uses purchase cadence (avg interval between buys) and current inventory
+    to surface proactive restock suggestions before the user runs out.
+
+    Args:
+        cadence_data: Output of ``detect_purchase_cadence()`` — maps
+            canonical_name to cadence info (avg_interval_days, last_bought,
+            typical_qty, etc.).
+        inventory: Active inventory lots.
+        days_ahead: How many days before expected restock to surface the item.
+
+    Returns:
+        List of dicts with ``canonical_name``, ``reason``, ``urgency``,
+        ``days_until_restock``, ``typical_qty``, ``typical_unit``.
+    """
+    today = date.today()
+    inv_by_name: dict[str, float] = {}
+    for lot in inventory:
+        if getattr(lot, "status", "active") != "active":
+            continue
+        name = lot.canonical_name.lower().strip()
+        inv_by_name[name] = inv_by_name.get(name, 0.0) + float(lot.quantity or 0.0)
+
+    predictions: list[dict[str, Any]] = []
+
+    for cname, info in cadence_data.items():
+        if info.get("purchase_count", 0) < 2:
+            continue
+
+        avg_interval = info.get("avg_interval_days", 0)
+        if avg_interval <= 0:
+            continue
+
+        last_bought = info.get("last_bought")
+        if last_bought is None:
+            continue
+
+        if hasattr(last_bought, "date"):
+            last_bought = last_bought.date() if callable(last_bought.date) else last_bought
+
+        days_since = (today - last_bought).days
+        days_until = round(avg_interval) - days_since
+
+        # Surface items within the lookahead window or already past due
+        if days_until > days_ahead:
+            continue
+
+        on_hand = inv_by_name.get(cname, 0.0)
+
+        # Skip if plenty in stock relative to typical buy cycle
+        if on_hand > 0 and info.get("typical_qty") and on_hand >= info["typical_qty"] * 1.5:
+            continue
+
+        if days_until <= 0:
+            urgency = "overdue"
+            reason = f"Usually bought every {round(avg_interval)} days — {abs(days_until)} day(s) overdue"
+        elif days_until <= 1:
+            urgency = "due_today"
+            reason = f"Usually bought every {round(avg_interval)} days — due today"
+        else:
+            urgency = "due_soon"
+            reason = f"Usually bought every {round(avg_interval)} days — due in {days_until} day(s)"
+
+        predictions.append({
+            "canonical_name": cname,
+            "reason": reason,
+            "urgency": urgency,
+            "days_until_restock": days_until,
+            "avg_interval_days": round(avg_interval),
+            "days_since_last": days_since,
+            "typical_qty": info.get("typical_qty", 1.0),
+            "typical_unit": info.get("typical_unit", "unit"),
+            "quantity_at_home": on_hand,
+        })
+
+    predictions.sort(key=lambda p: p["days_until_restock"])
+    return predictions

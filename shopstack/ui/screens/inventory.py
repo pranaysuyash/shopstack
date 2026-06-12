@@ -21,6 +21,47 @@ def _user_id() -> str:
     return current_user_id()
 
 
+def _search_inventory_items(search: str) -> tuple[list[Any], str]:
+    """Return inventory lots matching the search query.
+
+    Uses the fast direct text path first, then falls back to semantic search
+    when the user query does not directly match any canonical or display name.
+    """
+    uid = _user_id()
+    items = db.get_inventory(user_id=uid)
+    query = (search or "").strip().lower()
+    if not query:
+        return items, "all"
+
+    direct_matches = [
+        lot for lot in items
+        if query in lot.canonical_name.lower() or query in lot.display_name.lower()
+    ]
+    if direct_matches:
+        return direct_matches, "direct"
+
+    try:
+        semantic = tools.semantic_find_item(search, user_id=uid)
+    except Exception as exc:
+        logger.debug("Semantic inventory search failed: %s", exc)
+        return [], "none"
+
+    seen: set[str] = set()
+    semantic_matches: list[Any] = []
+    for result in semantic.get("results", []):
+        lot_data = result.get("lot") if isinstance(result, dict) else None
+        lot_id = lot_data.get("lot_id") if isinstance(lot_data, dict) else None
+        if not lot_id or lot_id in seen:
+            continue
+        lot = next((candidate for candidate in items if candidate.lot_id == lot_id), None)
+        if lot is None:
+            continue
+        semantic_matches.append(lot)
+        seen.add(lot_id)
+
+    return semantic_matches, "semantic" if semantic_matches else "none"
+
+
 def add_purchase_form(
     name: str, qty: float, unit: str, price: float, store: str, location: str, purchase_date_str: str, category: str
 ) -> str:
@@ -197,10 +238,7 @@ def seed_demo_inventory() -> str:
 
 
 def inventory_view(search: str = "") -> list[list[str]]:
-    items = db.get_inventory(user_id=_user_id())
-    if search:
-        q = search.lower()
-        items = [lot for lot in items if q in lot.canonical_name.lower() or q in lot.display_name.lower()]
+    items, _match_mode = _search_inventory_items(search)
     locations = {loc.location_id: loc.name for loc in db.get_locations()}
     tbl = list_to_table(
         [
@@ -222,13 +260,18 @@ def inventory_view(search: str = "") -> list[list[str]]:
 
 
 def inventory_cards_view(search: str = "") -> str:
-    items = db.get_inventory(user_id=_user_id())
-    if search:
-        q = search.lower()
-        items = [lot for lot in items if q in lot.canonical_name.lower() or q in lot.display_name.lower()]
+    items, match_mode = _search_inventory_items(search)
     locations = {loc.location_id: loc.name for loc in db.get_locations()}
     if not items:
         return empty_state("Your inventory is empty. Add one item in Add Purchase to start.")
+
+    search_note = ""
+    if search and match_mode == "semantic":
+        search_note = (
+            "<div style='margin-bottom:10px;font-size:12px;color:var(--text-dim);'>"
+            f"Showing semantic matches for {escape(search.strip())}."
+            "</div>"
+        )
 
     grouped: dict[str, list[dict[str, Any]]] = {}
     for lot in items:
@@ -259,7 +302,7 @@ def inventory_cards_view(search: str = "") -> str:
             "<div class='home-card' style='margin-bottom:10px;'>"
             f"<h4>{escape(str(loc_name))}</h4>{body}</div>"
         )
-    return cards
+    return search_note + cards
 
 
 def consume_item(lot_id: str, qty: float) -> str:

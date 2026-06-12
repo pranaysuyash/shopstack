@@ -40,6 +40,10 @@ class PreferenceService:
         """Fetch preference signals."""
         return self.db.get_preference_signals(canonical_name=canonical_name, user_id=user_id)
 
+    def delete_signal(self, signal_id: str) -> bool:
+        """Delete a preference signal by ID."""
+        return self.db.delete_preference_signal(signal_id)
+
     def get_staples(self, user_id: str = "") -> list[str]:
         """Get list of canonical names marked as staple."""
         signals = self.db.get_preference_signals(user_id=user_id)

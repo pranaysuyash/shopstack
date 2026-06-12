@@ -111,7 +111,7 @@ TAB_ORDER: dict[str, int] = {
 # A module's `tab_labels` dict overrides these for module-specific labels.
 TAB_LABELS: dict[str, str] = {
     "today":      "Today",
-    "basket":     "Basket",
+    "basket":     "Shopping",
     "market":     "Scan & Compare",
     "reconcile":  "Pantry",
     "memory":     "Insights",
@@ -148,10 +148,10 @@ SHOPSTOCK = _register(ModuleMetadata(
 SHOPBASKET = _register(ModuleMetadata(
     slug="basket",
     name="ShopBasket",
-    label="Buy List",
+    label="Shopping",
     description="Shopping list creation, decision classification (buy/skip/use-soon), cart planning, and market basket optimization.",
     tab_ids=("basket",),
-    tab_labels={"basket": "Basket"},
+    tab_labels={"basket": "Shopping"},
     order=TAB_ORDER.get("basket", 999),
     service_modules=(
         "shopstack.services.shopping",
@@ -163,10 +163,10 @@ SHOPBASKET = _register(ModuleMetadata(
 SHOPCOMPARE = _register(ModuleMetadata(
     slug="compare",
     name="ShopCompare",
-    label="Compare",
+    label="Price Check",
     description="Retailer price comparison, unit price normalization, price-drop alerts, and best-store recommendations.",
     tab_ids=("basket",),
-    tab_labels={"basket": "Basket"},
+    tab_labels={"basket": "Shopping"},
     order=TAB_ORDER.get("basket", 999),
     service_modules=(
         "shopstack.market",

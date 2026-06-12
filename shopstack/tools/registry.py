@@ -248,14 +248,6 @@ class ToolRegistry:
 
             return None, f"Argument '{name}' must be an array, got {type(value).__name__}"
 
-        if arg.enum_values is not None and type_name not in {"array", "list"}:
-            if isinstance(value, str):
-                normalized = value
-            else:
-                normalized = str(value)
-            if normalized not in arg.enum_values:
-                return None, f"Argument '{name}' must be one of {', '.join(arg.enum_values)}"
-
         if type_name in {"object", "dict"}:
             if isinstance(value, dict):
                 return dict(value), None

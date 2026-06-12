@@ -42,6 +42,14 @@ class TestTodayDashboard:
         for r in results:
             assert isinstance(r, str)
 
+    def test_empty_dashboard_shows_next_actions(self, app):
+        results = app.today_dashboard()
+        full_html = "".join(results)
+        assert "Start your first flow" in full_html
+        assert "Build a basket" in full_html
+        assert "Scan with ShopLens" in full_html
+        assert "Try receipt flow" in full_html
+
     def test_includes_runtime_proof(self, app):
         results = app.today_dashboard()
         assert "Runtime Proof" in results[0]
@@ -185,6 +193,36 @@ class TestInventoryView:
         tbl = app.inventory_view(search="rice")
         assert len(tbl) == 2
 
+    def test_semantic_search_fallback(self, app, monkeypatch):
+        app.db.add_inventory_lot(InventoryLot(canonical_name="milk", display_name="Milk", quantity=1.0, unit="L"))
+        app.db.add_inventory_lot(InventoryLot(canonical_name="rice", display_name="Rice", quantity=2.0, unit="kg"))
+
+        monkeypatch.setattr(
+            app.tools,
+            "semantic_find_item",
+            lambda query, user_id="": {
+                "results": [
+                    {
+                        "lot": next(
+                            lot.model_dump()
+                            for lot in app.db.get_inventory(user_id=user_id)
+                            if lot.canonical_name == "milk"
+                        ),
+                        "location_name": "Fridge",
+                        "location_id": "fridge",
+                        "match_type": "semantic",
+                        "match_score": 0.91,
+                    }
+                ],
+                "count": 1,
+                "match_type": "semantic",
+            },
+        )
+
+        tbl = app.inventory_view(search="doodh")
+        assert any("Milk" in str(cell) for row in tbl for cell in row)
+        assert not any("Rice" in str(cell) for row in tbl for cell in row)
+
 
 class TestConsume:
     def test_consume_item(self, app):
@@ -229,6 +267,35 @@ class TestInventoryCardsView:
         html = app.inventory_cards_view(search="rice")
         assert "Basmati Rice" in html
         assert "Toor Dal" not in html
+
+    def test_semantic_search_fallback(self, app, monkeypatch):
+        app.db.add_inventory_lot(InventoryLot(canonical_name="milk", display_name="Milk", quantity=1.0, unit="L", storage_location_id="fridge"))
+
+        monkeypatch.setattr(
+            app.tools,
+            "semantic_find_item",
+            lambda query, user_id="": {
+                "results": [
+                    {
+                        "lot": next(
+                            lot.model_dump()
+                            for lot in app.db.get_inventory(user_id=user_id)
+                            if lot.canonical_name == "milk"
+                        ),
+                        "location_name": "Fridge",
+                        "location_id": "fridge",
+                        "match_type": "semantic",
+                        "match_score": 0.91,
+                    }
+                ],
+                "count": 1,
+                "match_type": "semantic",
+            },
+        )
+
+        html = app.inventory_cards_view(search="doodh")
+        assert "Showing semantic matches for doodh" in html
+        assert "Milk" in html
 
     def test_inventory_cards_escape_html(self, app):
         app.db.add_inventory_lot(

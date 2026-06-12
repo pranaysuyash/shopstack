@@ -179,6 +179,14 @@ class TestShoppingList:
         assert result["success"] is False
         assert "invalid priority" in result["error"].lower()
 
+    def test_accepts_case_insensitive_priority(self, tool_registry):
+        result = tool_registry.execute(
+            "create_or_update_shopping_list",
+            goal="test",
+            items=[{"canonical_name": "milk", "priority": "MUST_BUY"}],
+        )
+        assert result["success"] is True
+
 
 class TestGetNextBuySuggestions:
     def test_suggestions_empty(self, tool_registry):

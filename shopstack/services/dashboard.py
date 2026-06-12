@@ -27,6 +27,7 @@ class DashboardState:
     price_deals: list[dict[str, Any]] = field(default_factory=list)
     best_store: dict[str, Any] = field(default_factory=dict)
     optimized_basket: Any | None = None
+    restock_predictions: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def use_soon_count(self) -> int:
@@ -114,6 +115,14 @@ def build_dashboard_state(db: Database, inventory, city: str = "mumbai", user_id
         except Exception as exc:
             logger.debug("Optimized basket build failed: %s", exc)
 
+    # Restock predictions — proactive "buy before you run out" from cadence
+    restock_predictions: list[dict[str, Any]] = []
+    try:
+        from shopstack.services.decision_engine import predict_restock_needs
+        restock_predictions = predict_restock_needs(cadence_data, active_inventory)
+    except Exception as exc:
+        logger.debug("Restock prediction failed: %s", exc)
+
     return DashboardState(
         decision_set=decision_set,
         market_snapshot=market_snapshot,
@@ -129,6 +138,7 @@ def build_dashboard_state(db: Database, inventory, city: str = "mumbai", user_id
         price_deals=price_deals,
         best_store=best_store,
         optimized_basket=optimized_basket,
+        restock_predictions=restock_predictions,
     )
 
 

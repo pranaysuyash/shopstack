@@ -7,6 +7,12 @@ from shopstack.services.dashboard import build_dashboard_state
 from shopstack.ui.components.cards import render_action_grid, render_hero_panel
 from shopstack.ui.components.primitives import stat_card, item_row
 from shopstack.ui.renderers import render_cadence_insights, render_waste_warnings
+from shopstack.ui.renderers.decision_cards import (
+    render_restock_predictions,
+    render_price_deals,
+    render_best_store,
+    render_optimized_basket_summary,
+)
 from shopstack.ui.renderers.image_cards import (
     cards_to_grid,
     render_decision_card as render_svg_decision_card,
@@ -92,14 +98,13 @@ def today_dashboard():
     needs_confirm = render_needs_confirmation(db)
     cadence_html = render_cadence_insights(state.cadence_data)
     waste_html = render_waste_warnings(state.waste_data)
+    restock_html = render_restock_predictions(state.restock_predictions)
+    deals_html = render_price_deals(state.price_deals)
+    best_store_html = render_best_store(state.best_store)
+    basket_summary_html = render_optimized_basket_summary(state.optimized_basket)
 
     show_empty_hints = (
         not state.active_inventory
-        and not ds.buy
-        and not ds.skip
-        and not ds.use_soon
-        and not ds.optional
-        and not state.low_items
         and not state.recent_purchases
         and state.active_list is None
     )
@@ -109,7 +114,8 @@ def today_dashboard():
 
     long_grid = (
         f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px;margin-bottom:10px;'>{inventory_overview}{compare_panel}</div>"
-        + f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;'>{fridge_html}{alert_html}{needs_confirm}{cadence_html}{waste_html}</div>"
+        + f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;'>{fridge_html}{alert_html}{needs_confirm}{cadence_html}{waste_html}{restock_html}</div>"
+        + f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;'>{deals_html}{best_store_html}{basket_summary_html}</div>"
         + f"{what_changed}"
     )
 
@@ -130,28 +136,28 @@ def _render_today_empty_hints() -> str:
         "<div class='muted' style='margin-bottom:8px;'>No inventory data yet — try one path to begin:</div>"
         f"{render_action_grid([
             {
-                \"label\": \"Build a basket\",
-                \"subtitle\": \"Create shopping list from free text or compare list\",
-                \"tab_id\": \"basket\",
-                \"tone\": \"primary\",
+                "label": "Build a basket",
+                "subtitle": "Create shopping list from free text or compare list",
+                "tab_id": "basket",
+                "tone": "primary",
             },
             {
-                \"label\": \"Scan with ShopLens\",
-                \"subtitle\": \"Capture shelf items and compare to home inventory\",
-                \"tab_id\": \"market\",
-                \"tone\": \"default\",
+                "label": "Scan with ShopLens",
+                "subtitle": "Capture shelf items and compare to home inventory",
+                "tab_id": "market",
+                "tone": "default",
             },
             {
-                \"label\": \"Log a purchase\",
-                \"subtitle\": \"Add purchase records and seed your pantry\",
-                \"tab_id\": \"reconcile\",
-                \"tone\": \"default\",
+                "label": "Log a purchase",
+                "subtitle": "Add purchase records and seed your pantry",
+                "tab_id": "reconcile",
+                "tone": "default",
             },
             {
-                \"label\": \"Try receipt flow\",
-                \"subtitle\": \"Paste or upload receipts to reconcile\",
-                \"tab_id\": \"reconcile\",
-                \"tone\": \"default\",
+                "label": "Try receipt flow",
+                "subtitle": "Paste or upload receipts to reconcile",
+                "tab_id": "reconcile",
+                "tone": "default",
             },
         ])}"
         "</div>"

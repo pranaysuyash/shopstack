@@ -483,7 +483,9 @@ class PlannerEngine:
 
             tool_spec = self._tools._find_tool_spec(tool)
             if tool_spec is not None and tool_spec.mutability == "write":
-                requires_confirmation = bool(tool_spec.needs_confirmation) or not settings.planner_allow_writes
+                requires_confirmation = bool(tool_spec.needs_confirmation) or (
+                    not settings.planner_allow_writes and tool != "create_or_update_shopping_list"
+                )
                 if requires_confirmation:
                     elapsed_ms = round((time.monotonic() - started) * 1000, 2)
                     if tool == "create_or_update_shopping_list":

@@ -902,6 +902,14 @@ class Database:
         rows = self.conn.execute(query, params).fetchall()
         return [_row_to_preference(r) for r in rows]
 
+    def delete_preference_signal(self, signal_id: str) -> bool:
+        cursor = self.conn.execute(
+            "DELETE FROM preference_signals WHERE signal_id = ?",
+            (signal_id,),
+        )
+        self.conn.commit()
+        return cursor.rowcount > 0
+
     # --- Market Snapshot Records ---
 
     def save_market_snapshot(self, snapshot) -> bool:

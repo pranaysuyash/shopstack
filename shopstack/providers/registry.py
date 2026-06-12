@@ -381,25 +381,6 @@ class ProviderRegistry:
         if name not in self._providers and name in self._pending:
             self._providers[name] = self._resolve(name, expected_cap)
             
-        provider = self._providers.get(name)
-        
-        # Dynamic capability routing: if current resolved provider is mock, check others
-        if provider is None or getattr(provider, "name", "mock").startswith("mock"):
-            # Eagerly resolve any other explicitly configured backend to check its capabilities
-            pending_tasks = list(self._pending.keys())
-            for other_task in pending_tasks:
-                b_name = self._pending.get(other_task)
-                if b_name and b_name not in {"mock", "mocked"}:
-                    # Instantiate it by getting it
-                    self.get(other_task)
-            
-            # Now check all instantiated providers for the expected capability
-            for other_name, other_provider in self._providers.items():
-                if not getattr(other_provider, "name", "mock").startswith("mock"):
-                    if expected_cap in getattr(other_provider, "capabilities", set()):
-                        self._providers[name] = other_provider
-                        return other_provider
-
         return self._providers.get(name)
 
     def supports(self, capability: str) -> bool:

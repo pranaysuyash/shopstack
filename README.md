@@ -41,8 +41,7 @@ See `Docs/SHOPSTACK_PRODUCT_ARCHITECTURE.md` for full details.
 
 ShopStack is organized around workflow experiences:
 
-- **Today** — Decision-first dashboard: what to buy, skip, use soon, and compare
-- **Today** also includes a runtime proof panel so the active model stack is visible immediately
+ - **Today** — Decision-first dashboard: what to buy, skip, use soon, and compare
 - **Ask ShopStack** — Natural language queries across all modules
 - **Shopping List** — Create, classify (buy/skip/use-soon), and complete shopping plans
 - **Market Lens** — Scan items via camera or voice, compare to inventory
@@ -62,35 +61,6 @@ uv run python app.py
 ```
 
 Open `http://localhost:7860` in your browser.
-
-## Runtime Proof
-
-The Today screen now shows a runtime proof card near the top of the workflow. It surfaces:
-
-- active planner, vision, OCR, and embedding backends
-- runtime mode: `local`, `cloud`, `mixed`, or `off-grid / mock`
-- whether cloud APIs are actually in use
-- active model budget, recent latency, recent token count, and latest trace ID
-
-If you want the sponsor-aligned OpenBMB local stack, run:
-
-```bash
-SHOPSTACK_MODEL_STACK=openbmb_local uv run python app.py
-```
-
-That preset keeps the app local-first while mapping the core product roles to the MiniCPM / BGE / GLM / Kokoro family where available.
-
-## Judge Path
-
-For a clean demo or scoring pass, follow this path:
-
-1. Open **Today** and inspect the runtime proof card.
-2. Ask a question in **Ask ShopStack** so a trace is recorded.
-3. Open **Traces** to inspect the model, provider, parser, and execution metadata.
-4. Visit **Basket** and **Price Compare** to show the household shopping loop.
-5. Check freshness labels before trusting any market-derived price claim.
-
-See [`Docs/SCORING_GUIDE.md`](Docs/SCORING_GUIDE.md) for the shorter operator version of the same path.
 
 ## Market Snapshot Import
 
@@ -248,7 +218,6 @@ Operational resource guards are documented in **[`Docs/RESOURCE_OPTIMIZATION_POL
 | `SHOPSTACK_LOCAL_WHISPER_AUTO_UNLOAD` | `true` | Unload local STT model after each transcription |
 | `SHOPSTACK_TRACE_MAX_ROWS` | `2000` | Maximum number of trace rows to retain |
 | `SHOPSTACK_TRACE_TTL_DAYS` | `30` | Delete traces older than this many days |
-| `SHOPSTACK_MODEL_STACK` | `default` | Named preset for grouped provider backends (`openbmb_local` available) |
 | `SHOPSTACK_STT_BACKEND` | `mock` | STT provider selection |
 | `SHOPSTACK_TTS_BACKEND` | `mock` | TTS provider selection |
 | `SHOPSTACK_VISION_BACKEND` | `mock` | Vision provider selection |

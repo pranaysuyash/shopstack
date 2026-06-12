@@ -55,6 +55,22 @@ def test_analyze_market_lens_image_and_audio_records_stt_tool(providers, tool_re
     assert result.transcript_text
 
 
+def test_analyze_market_lens_metadata_includes_source_mode_and_freshness(providers, tool_registry):
+    result = analyze_market_lens("fake-market-image.jpg", None, providers, tool_registry)
+
+    assert result.source_mode == "vision"
+    assert result.freshness_label
+    assert isinstance(result.warnings, list)
+
+
+def test_analyze_market_lens_metadata_for_audio_mode(providers, tool_registry):
+    result = analyze_market_lens(None, "fake-audio.wav", providers, tool_registry)
+
+    assert result.source_mode == "audio"
+    assert result.freshness_label
+
+
+
 def test_enrich_market_prices_known_item():
     decisions = [{"canonical_name": "Tomato"}]
 
@@ -113,6 +129,8 @@ def test_analyze_market_lens_no_input(providers, tool_registry):
     assert result.items_found == []
     assert result.decisions == []
     assert result.transcript_text == ""
+    assert result.source_mode == "none"
+    assert result.warnings
 
 
 def test_analyze_market_lens_barcode_json_format(providers, tool_registry):

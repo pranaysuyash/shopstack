@@ -5,12 +5,26 @@ from pathlib import Path
 from typing import Generator
 
 import pytest
+from unittest.mock import patch
 
 from shopstack.config import Settings
 from shopstack.persistence.database import Database
 from shopstack.planner.engine import PlannerEngine
 from shopstack.providers.registry import ProviderRegistry
 from shopstack.tools.registry import ToolRegistry
+
+
+@pytest.fixture(autouse=True)
+def _patch_decode_barcode():
+    """Patch ``decode_barcode`` to return ``[]`` by default in all tests.
+
+    This prevents real file I/O in mock-only tests (e.g. the barcode scanner
+    trying to open ``fake-market-image.jpg``).  Tests that need actual barcode
+    behaviour can unpatch by calling ``monkeypatch.undo()`` or applying their
+    own patch inside the test body.
+    """
+    with patch("shopstack.scanner.decode_barcode", return_value=[]):
+        yield
 
 
 @pytest.fixture()

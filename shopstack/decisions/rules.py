@@ -73,6 +73,9 @@ def classify_all(
     # Build market data from single snapshot or multi-source registry
     _multi_source_market_data(market_snapshot, source_registry, market_by_canonical, market_evidence_map)
 
+    # Purchase cadence — used for predictive restock recommendations
+    cadence_data = detect_purchase_cadence(db, user_id=uid)
+
     seen: set[str] = set()
     decisions: list[DecisionResult] = []
 
@@ -139,7 +142,7 @@ def classify_all(
                 on_shopping_list=on_list,
                 is_staple=is_staple,
                 waste_risk=meta.waste_risk if meta else "unknown",
-                purchase_cadence_days=None,
+                purchase_cadence_days=cadence_data.get(cname, {}).get("avg_interval_days"),
                 last_purchase_date=lot.purchase_date,
                 recently_bought=bool(recently_bought),
                 is_disliked=is_disliked,

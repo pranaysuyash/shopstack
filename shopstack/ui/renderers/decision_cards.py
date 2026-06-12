@@ -290,3 +290,103 @@ def render_needs_confirmation(uncertain: list[Any]) -> str:
         )
 
     return f"{_CARD_ALERT_OPEN}<h3>Needs Confirmation</h3>{''.join(rows)}</div>"
+
+
+def render_restock_predictions(predictions: list[dict[str, Any]]) -> str:
+    """Render proactive restock suggestions from consumption prediction."""
+    if not predictions:
+        return ""
+
+    urgency_colors = {"overdue": "var(--red)", "due_today": "var(--amber)", "due_soon": "var(--blue)"}
+    rows = []
+    for p in predictions[:6]:
+        name = escape(p["canonical_name"].replace("_", " ").title())
+        urgency = p.get("urgency", "due_soon")
+        color = urgency_colors.get(urgency, "var(--text-dim)")
+        reason = escape(p.get("reason", ""))
+        qty = f"{p.get('typical_qty', 1.0):.0f} {p.get('typical_unit', 'unit')}"
+        on_hand = p.get("quantity_at_home", 0)
+        on_hand_str = f" ({on_hand:.1f} at home)" if on_hand > 0 else ""
+        rows.append(
+            f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'>"
+            f"<span style='font-weight:600;color:{color};'>&#9679; {name}</span> "
+            f"<span style='font-size:11px;color:var(--text-dim);'>{reason}{on_hand_str} &middot; {qty}</span></div>"
+        )
+
+    return f"{_CARD_ALERT_OPEN}<h3>Restock Predictions</h3>{''.join(rows)}</div>"
+
+
+def render_price_deals(deals: list[dict[str, Any]]) -> str:
+    """Render price deal scores for buy items."""
+    if not deals:
+        return ""
+
+    score_colors = {"great": "var(--green)", "good": "var(--green)", "fair": "var(--blue)", "poor": "var(--red)"}
+    rows = []
+    for d in deals[:6]:
+        name = escape(d.get("product", "").replace("_", " ").title())
+        score = d.get("score", "unknown")
+        color = score_colors.get(score, "var(--text-dim)")
+        reason = escape(d.get("reason", ""))
+        badge = f"<span style='font-size:10px;font-weight:600;color:{color};'>[{score.upper()}]</span>"
+        rows.append(
+            f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'>"
+            f"<strong>{name}</strong> {badge} "
+            f"<span style='font-size:11px;color:var(--text-dim);'>{reason}</span></div>"
+        )
+
+    return f"{_CARD_OPEN}<h3>Price Deals</h3>{''.join(rows)}</div>"
+
+
+def render_best_store(store_data: dict[str, Any]) -> str:
+    """Render best store recommendation."""
+    if not store_data or not store_data.get("store"):
+        return ""
+
+    store = escape(store_data["store"])
+    best_count = store_data.get("items_with_best_price", 0)
+    total = store_data.get("total_items_compared", 0)
+    coverage = store_data.get("coverage_pct", 0)
+    savings = store_data.get("estimated_savings_vs_worst", 0)
+
+    return (
+        f"{_CARD_OPEN}<h3>Best Store</h3>"
+        f"<div style='font-size:14px;padding:4px 0;'>"
+        f"<strong>{store}</strong> has the best price for "
+        f"{best_count}/{total} items ({coverage:.0f}% coverage)."
+        f"</div>"
+        f"<div style='font-size:11px;color:var(--text-dim);'>"
+        f"Estimated savings vs worst store: &#8377;{savings:.0f}</div></div>"
+    )
+
+
+def render_optimized_basket_summary(basket: Any) -> str:
+    """Render a compact optimized basket summary."""
+    if basket is None:
+        return ""
+
+    buy_items = basket.buy if hasattr(basket, "buy") else []
+    skip_items = basket.skip if hasattr(basket, "skip") else []
+    total = basket.total_estimated if hasattr(basket, "total_estimated") else 0
+
+    if not buy_items:
+        return ""
+
+    rows = []
+    for item in buy_items[:6]:
+        name = escape(item.canonical_name.replace("_", " ").title())
+        price = f"&#8377;{item.estimated_price_inr:.0f}" if item.estimated_price_inr else ""
+        reason = escape(item.reason.split(".")[0]) if item.reason else ""
+        rows.append(
+            f"<div style='display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);'>"
+            f"<span>{name}</span>"
+            f"<span style='font-weight:600;font-size:12px;'>{price}</span></div>"
+        )
+
+    skip_note = f"<div style='font-size:11px;color:var(--text-dim);margin-top:4px;'>+ {len(skip_items)} skipped</div>" if skip_items else ""
+
+    return (
+        f"{_CARD_OPEN}<h3>Optimized Basket</h3>"
+        f"{''.join(rows)}{skip_note}"
+        f"<div style='margin-top:6px;font-weight:700;font-size:16px;'>Total: &#8377;{total:.0f}</div></div>"
+    )

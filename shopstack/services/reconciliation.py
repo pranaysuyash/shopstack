@@ -208,16 +208,30 @@ def reconcile_shopping_trip(
                     result.errors.append(error_msg)
 
         # ── Record price observation for bought items ──
-        if action_str == "bought" and price_paid is not None and database is not None:
+        # Keep the price-memory loop closed even when the reconciliation payload
+        # omits an explicit paid price. We still persist a scoped observation so
+        # later corrections can refine it, and we prefer actual paid price over
+        # planned price when available.
+        if action_str == "bought" and database is not None:
             try:
                 from shopstack.schemas.models import PriceObservation
+                if price_paid is not None:
+                    price_value = float(price_paid)
+                elif planned_price is not None:
+                    price_value = float(planned_price)
+                else:
+                    price_value = 0.0
                 observation = PriceObservation(
                     canonical_name=name,
                     quantity=qty,
                     unit=unit,
-                    price=float(price_paid),
+                    price=price_value,
                     source_event_id=event.event_id,
-                    notes=f"Reconciled from trip {trip_id}",
+                    notes=(
+                        f"Reconciled from trip {trip_id}"
+                        if price_paid is not None or planned_price is not None
+                        else f"Reconciled from trip {trip_id} without explicit price"
+                    ),
                 )
                 database.record_price(observation, user_id=user_id)
                 result.price_observations.append({

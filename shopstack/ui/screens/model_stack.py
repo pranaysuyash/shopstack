@@ -13,7 +13,7 @@ from shopstack.model_registry import (
 )
 from shopstack.providers.runtime import collect_runtime_diagnostics, diagnostics_to_rows
 from shopstack.ui.components.cards import badge_html, card as ui_card, render_metric
-from shopstack.ui.screens._utils import WORKFLOW_STEPS, workflow_header, rows_to_html
+from shopstack.ui.screens._utils import rows_to_html
 
 
 def _active_model_rows() -> list[dict[str, Any]]:
@@ -240,7 +240,9 @@ def model_budget_view() -> str:
     )
 
     return (
-        f"{workflow_header(WORKFLOW_STEPS)}"
+        "<div style='margin-bottom:10px;color:var(--text-dim);font-size:13px;'>"
+        "System status, runtime budget, and candidate model overview."
+        "</div>"
         + "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:12px 0;'>"
         f"{render_metric('Active / Loaded', f'{diag.active_total_params_b:.2f} B')}"
         f"{render_metric('Candidate Pool', f'{total_candidate_params():.2f} B')}"

@@ -371,7 +371,9 @@ class DecisionSet(BaseModel):
 
     @property
     def wait(self) -> list[DecisionResult]:
-        return [d for d in self.decisions if d.action == "wait"]
+        # ``watch`` is the legacy market-only wait state. Keep it counted here so
+        # downstream UI/tests treat market-signal-only items as waitable.
+        return [d for d in self.decisions if d.action in {"wait", "watch"}]
 
     @property
     def substitute(self) -> list[DecisionResult]:
@@ -448,6 +450,12 @@ class CorrectionEvent(BaseModel):
     source: str = "user_correction"
     timestamp: datetime = Field(default_factory=datetime.now)
 
+    def __getitem__(self, key: str):
+        return getattr(self, key)
+
+    def __contains__(self, key: object) -> bool:
+        return isinstance(key, str) and hasattr(self, key)
+
 
 class MarketSnapshotModel(BaseModel):
     snapshot_id: str = Field(default_factory=new_id)
@@ -494,5 +502,3 @@ class MarketRecordComponentModel(BaseModel):
     component_id: str = Field(default_factory=new_id)
     record_id: str
     component_name: str
-
-

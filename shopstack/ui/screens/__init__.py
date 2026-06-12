@@ -70,7 +70,12 @@ from shopstack.ui.screens.receipt import (
     receipt_parse_text,
     receipt_confirm,
 )
-from shopstack.ui.screens.intelligence import get_intelligence_dashboard
+from shopstack.ui.screens.intelligence import (
+    get_intelligence_dashboard,
+    add_preference,
+    delete_preference,
+    refresh_preferences,
+)
 from shopstack.ui.screens.nutrition import nutrition_lookup_view, nutrition_kitchen_view  # noqa: F401 — public API re-export
 
 __all__ = [
@@ -129,4 +134,7 @@ __all__ = [
     "receipt_parse_text",
     "receipt_confirm",
     "get_intelligence_dashboard",
+    "add_preference",
+    "delete_preference",
+    "refresh_preferences",
 ]

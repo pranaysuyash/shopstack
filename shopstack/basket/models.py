@@ -14,6 +14,8 @@ class BasketItem(BaseModel):
     waste_risk: str = "unknown"
     is_ad: bool = False
     is_upgrade: bool = False
+    price_status: str = "known"
+    notes: str | None = None
 
 class BasketCandidate(BaseModel):
     id: str = ""

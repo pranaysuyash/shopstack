@@ -1,4 +1,4 @@
-"""Cross-source price comparison screen — compares prices across Swiggy, Blinkit, Zepto, DMart.
+"""Cross-source price comparison screen — compares available market snapshots.
 
 Provides:
 - multi_source_price_view: full comparison dashboard for all registered market sources
@@ -78,10 +78,14 @@ def multi_source_price_view() -> str:
         status = source_status_report(force=False)
         missing = [name for name in registered if not status.get(name, {}).get("snapshot_id")]
         if missing:
+            available = [name for name in registered if name not in missing]
+            if available:
+                availability = f"Available snapshots: {', '.join(escape(name) for name in available)} loaded."
+            else:
+                availability = "No snapshots loaded."
+            missing_label = ", ".join(escape(name) for name in missing)
             return empty_state_enhanced(
-                "Loaded sources: "
-                f"{', '.join(escape(name) for name in registered if name not in missing)}. "
-                f"Missing or not loaded: {', '.join(escape(name) for name in missing)}.",
+                f"{availability} Missing or stale: {missing_label}.",
                 icon="⏳",
             )
         if any(_registry_errors.get(name) for name in registered):

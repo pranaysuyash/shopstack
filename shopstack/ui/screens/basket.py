@@ -16,7 +16,15 @@ def get_basket_ui_html() -> str:
     candidates = optimize_baskets(decision_set, registry)
     
     if not candidates:
-        return "<div class='home-card' style='text-align:center;padding:40px;color:var(--text-dim);'>No items to buy today.</div>"
+        return (
+            "<div class='home-card' style='text-align:center;padding:40px;color:var(--text-dim);'>"
+            "<h3>Build a basket</h3>"
+            "<div style='margin-top:8px;'>No basket candidates yet because the active shopping list is empty.</div>"
+            "<div style='margin-top:8px;font-size:12px;'>"
+            "Try: add items from a free-text shopping list or run the demo seed workflow."
+            "</div>"
+            "</div>"
+        )
 
     html_parts = []
     for idx, c in enumerate(candidates):
@@ -26,12 +34,23 @@ def get_basket_ui_html() -> str:
         
         items_html = ""
         for i in c.items:
-            price_str = f"&#8377;{i.price_inr:.0f}"
+            if getattr(i, "price_status", "known") == "unavailable":
+                price_str = "<span style='color:var(--text-dim);font-size:12px;'>Price pending</span>"
+                status_note = "<span style='font-size:11px;color:var(--amber);'>(point-in-time)</span>"
+            else:
+                price_str = f"&#8377;{i.price_inr:.0f}"
+                status_note = ""
             stale_warning = f" <span style='color:var(--amber);font-size:11px;'>(Stale)</span>" if i.freshness == "stale" else ""
             ad_warning = f" <span style='color:var(--text-dim);font-size:11px;'>(Ad)</span>" if i.is_ad else ""
+            row_note = ""
+            if getattr(i, "notes", None):
+                row_note = f"<div style='font-size:11px;color:var(--text-dim);'>{i.notes}</div>"
             items_html += (
                 f"<div style='display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--border);'>"
-                f"<span>{i.display_name}{stale_warning}{ad_warning}</span>"
+                f"<div>"
+                f"<span>{i.display_name}{stale_warning}{ad_warning}{status_note}</span>"
+                f"{row_note}"
+                f"</div>"
                 f"<span style='font-weight:600;'>{price_str}</span>"
                 f"</div>"
             )
@@ -43,8 +62,8 @@ def get_basket_ui_html() -> str:
         card = (
             f"<div class='home-card' style='margin-bottom:16px;{border}'>"
             f"  <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;'>"
-            f"    <h3 style='margin:0;display:flex;align-items:center;'>{c.source_name.title()} Basket {badge}</h3>"
-            f"    <div style='font-size:20px;font-weight:bold;'>&#8377;{c.total_cost:.0f}</div>"
+            f"    <h3 style='margin:0;display:flex;align-items:center;'>{c.source_name.replace('_', ' ').title()} Basket {badge}</h3>"
+            f"    <div style='font-size:20px;font-weight:bold;'>{'--' if c.source_name == 'decision_only' else f'&#8377;{c.total_cost:.0f}'}</div>"
             f"  </div>"
             f"  <div style='margin-bottom:12px;'>{items_html}</div>"
             f"  {missing_html}"
@@ -63,7 +82,7 @@ def get_basket_ui_html() -> str:
 def build_basket_screen():
     with gr.Column():
         gr.Markdown("## Multi-Source Basket Optimizer")
-        gr.Markdown("Ranks baskets by usefulness, cost, freshness, waste risk, and user preference across multiple sources (Swiggy, Zepto, DMart).")
+        gr.Markdown("Ranks baskets by usefulness, cost, freshness, waste risk, and user preference across available snapshots.")
         
         refresh_btn = gr.Button("Optimize Baskets", variant="primary")
         basket_html = gr.HTML("<div class='home-card' style='text-align:center;padding:40px;color:var(--text-dim);'>Click 'Optimize Baskets' to generate multi-source candidates.</div>")
