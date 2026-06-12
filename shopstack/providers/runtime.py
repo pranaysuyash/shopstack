@@ -17,6 +17,7 @@ class RuntimeDiagnostics:
     context_length: int = 0
     loaded: bool = False
     pending: bool = False
+    blocked_by_off_grid: bool = False
     requested_backend: str = ""
     last_latency_ms: float | None = None
     last_token_count: int | None = None
@@ -36,6 +37,7 @@ def collect_runtime_diagnostics(provider_registry: Any) -> AggregateDiagnostics:
     pending = getattr(provider_registry, "_pending", {})
     backend_requests = getattr(provider_registry, "_backend_requests", {})
     fallback_backends = getattr(provider_registry, "_fallback_backends", {})
+    blocked_backends = getattr(provider_registry, "_blocked_backends", {})
     mock_for = getattr(provider_registry, "_mock_for", lambda name: None)
     diagnostics_list: list[RuntimeDiagnostics] = []
 
@@ -47,19 +49,21 @@ def collect_runtime_diagnostics(provider_registry: Any) -> AggregateDiagnostics:
         is_mock_backend = normalized_backend in {"", "mock", "mocked"}
         if provider is None:
             mock = mock_for(name)
+            blocked_backend = blocked_backends.get(name, "")
             diag = RuntimeDiagnostics(
                 provider_name=name,
-                backend=requested_backend,
+                backend=blocked_backend or requested_backend,
                 model_id=getattr(mock, "model_id", ""),
                 local_path="",
                 quantization="",
                 params_b=float(getattr(mock, "parameter_count", 0.0)) if mock is not None else 0.0,
                 context_length=0,
                 loaded=False,
-                pending=True,
+                pending=not bool(blocked_backend),
+                blocked_by_off_grid=bool(blocked_backend),
                 last_latency_ms=None,
                 last_token_count=None,
-                status="pending",
+                status="blocked_off_grid" if blocked_backend else "pending",
             )
         else:
             provider_name = type(provider).__name__.lower()
@@ -68,6 +72,7 @@ def collect_runtime_diagnostics(provider_registry: Any) -> AggregateDiagnostics:
                 and (not is_mock_backend)
                 and provider_name.startswith("mock")
             )
+            is_blocked = bool(blocked_backends.get(name))
             diag = RuntimeDiagnostics(
                 provider_name=name,
                 backend=getattr(provider, "backend", requested_backend),
@@ -76,11 +81,16 @@ def collect_runtime_diagnostics(provider_registry: Any) -> AggregateDiagnostics:
                 quantization=getattr(provider, "quantization", ""),
                 params_b=getattr(provider, "parameter_count", 0.0),
                 context_length=getattr(provider, "_n_ctx", 0),
-                loaded=False if is_fallback else getattr(provider, "available", False),
+                loaded=False if (is_fallback or is_blocked) else getattr(provider, "available", False),
                 pending=is_fallback,
+                blocked_by_off_grid=is_blocked,
                 last_latency_ms=getattr(provider, "_last_latency_ms", None),
                 last_token_count=getattr(provider, "_last_token_count", None),
-                status="fallback" if is_fallback else getattr(provider, "status", "resolved"),
+                status=(
+                    "blocked_off_grid"
+                    if is_blocked
+                    else ("fallback" if is_fallback else getattr(provider, "status", "resolved"))
+                ),
             )
         diagnostics_list.append(diag)
 
@@ -99,14 +109,15 @@ def collect_runtime_diagnostics(provider_registry: Any) -> AggregateDiagnostics:
 def diagnostics_to_rows(diag: AggregateDiagnostics) -> list[dict[str, Any]]:
     rows = []
     for p in diag.providers:
-        rows.append({
-            "provider": p.provider_name,
-            "backend": p.backend,
-            "model": p.model_id,
-            "loaded": "Yes" if p.loaded else "No",
-            "status": p.status,
-            "params_b": f"{p.params_b:.2f}",
-            "latency_ms": str(p.last_latency_ms) if p.last_latency_ms is not None else "",
-            "tokens": str(p.last_token_count) if p.last_token_count is not None else "",
-        })
+            rows.append({
+                "provider": p.provider_name,
+                "backend": p.backend,
+                "model": p.model_id,
+                "loaded": "Yes" if p.loaded else "No",
+                "status": p.status,
+                "blocked": "Yes" if p.blocked_by_off_grid else "",
+                "params_b": f"{p.params_b:.2f}",
+                "latency_ms": str(p.last_latency_ms) if p.last_latency_ms is not None else "",
+                "tokens": str(p.last_token_count) if p.last_token_count is not None else "",
+            })
     return rows

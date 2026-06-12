@@ -10,6 +10,7 @@ from shopstack.services.receipt import (
     _find_total,
     _parse_line,
     _parse_quantity_unit,
+    confirm_receipt,
     parse_receipt_text,
 )
 
@@ -142,3 +143,31 @@ def test_parse_receipt_text_deduplicates():
     text = "Store\nONION 1 KG 40\nONION 1 KG 45"
     result = parse_receipt_text(text)
     assert len(result.lines) == 1
+
+
+def test_confirm_receipt_scopes_to_user_id(db):
+    result = ReceiptResult(
+        merchant="Demo Mart",
+        purchase_date=date(2026, 6, 6),
+        lines=[
+            ReceiptLine(
+                canonical_name="milk",
+                display_name="Milk",
+                quantity=2.0,
+                unit="L",
+                price=120.0,
+            ),
+        ],
+        total=120.0,
+        raw_text="Milk 2 L 120",
+    )
+
+    ir = confirm_receipt(db, result, user_id="house_a")
+
+    assert ir.errors == []
+    assert ir.items_added == 1
+    assert ir.price_observations_added == 1
+    assert len(db.get_inventory(canonical_name="milk", user_id="house_a")) == 1
+    assert len(db.get_inventory(canonical_name="milk", user_id="house_b")) == 0
+    assert len(db.get_purchase_events(user_id="house_a")) == 1
+    assert len(db.get_purchase_events(user_id="house_b")) == 0

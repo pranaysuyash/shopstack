@@ -19,6 +19,7 @@ def market_lens_process(image_path: str | None, audio_path: str | None) -> tuple
     result_html = "<div style='color:var(--text-dim);'>No input provided.</div>"
     service_result = analyze_market_lens(image_path, audio_path, providers, tools.inventory)
     analysis = service_result.analysis_json
+    source_metadata = _render_market_lens_source_metadata(service_result)
 
     if image_path:
         swiggy_section = _render_swiggy_section(service_result.decisions)
@@ -35,7 +36,8 @@ def market_lens_process(image_path: str | None, audio_path: str | None) -> tuple
         barcode_result = _render_barcode_section(service_result)
         barcode_section = barcode_result + "<br>" if barcode_result else ""
         result_html = (
-            barcode_section
+            source_metadata
+            + barcode_section
             + "<div class='home-card'>"
             f"<h3>Market Lens</h3>{analysis}"
             f"{swiggy_section}"
@@ -45,6 +47,8 @@ def market_lens_process(image_path: str | None, audio_path: str | None) -> tuple
 
     if audio_path:
         transcript_text = service_result.transcript_text
+        if not image_path:
+            result_html = source_metadata
         result_html += f"<div style='margin-top:12px;'><strong>Heard:</strong> {escape(transcript_text)}</div>"
         if not image_path and transcript_text:
             result_html = ask_shopstack(transcript_text)
@@ -121,6 +125,32 @@ def _render_swiggy_section(decisions: list[dict[str, Any]]) -> str:
     )
 
 
+def _render_market_lens_source_metadata(result: MarketLensResult) -> str:
+    if not result.source_mode and not result.freshness_label and not result.warnings:
+        return ""
+
+    warning_html = ""
+    if result.warnings:
+        warning_rows = [
+            f"<li style='margin:4px 0;color:var(--red);'>⚠ {escape(warning)}</li>"
+            for warning in result.warnings
+        ]
+        warning_html = (
+            "<ul style='margin:8px 0 0 14px;padding:0;line-height:1.35;'>"
+            + "".join(warning_rows)
+            + "</ul>"
+        )
+
+    return (
+        "<div class='home-card' style='margin-bottom:10px;'>"
+        f"<h4>Market Lens context</h4>"
+        f"<div style='margin-bottom:6px;'><strong>Source mode:</strong> {escape(result.source_mode.title())}</div>"
+        f"<div style='font-size:12px;color:var(--text-dim);'>"
+        f"{escape(result.freshness_label)}</div>{warning_html}"
+        "</div>"
+    )
+
+
 def market_lens_confirm_buy(ml_analysis_json: str, ml_trace_id: str) -> str:
     if not ml_analysis_json:
         return "<div style='color:var(--text-dim);'>Scan something first.</div>"
@@ -143,7 +173,7 @@ def market_lens_confirm_buy(ml_analysis_json: str, ml_trace_id: str) -> str:
         })
     tools.create_or_update_shopping_list(items=list_items, user_id=current_user_id())
     if ml_trace_id:
-        update_trace_confirmation(db, ml_trace_id, "confirmed-buy")
+        update_trace_confirmation(db, ml_trace_id, "confirmed-buy", user_id=current_user_id())
     names = ", ".join(i.get("canonical_name", "") for i in buy_items)
     return f"<div style='color:var(--green);'>Added {len(buy_items)} item(s) to shopping list: {escape(names)}</div>"
 
@@ -152,14 +182,14 @@ def market_lens_skip(ml_analysis_json: str, ml_trace_id: str) -> str:
     if not ml_analysis_json:
         return "<div style='color:var(--text-dim);'>Scan something first.</div>"
     if ml_trace_id:
-        update_trace_confirmation(db, ml_trace_id, "skipped")
+        update_trace_confirmation(db, ml_trace_id, "skipped", user_id=current_user_id())
     return "<div style='color:var(--text-dim);'>Saved skip decision to workflow trace.</div>"
 
 
 def market_lens_save_trace(ml_analysis_json: str, ml_trace_id: str) -> str:
     if not ml_trace_id:
         return "<div style='color:var(--text-dim);'>No trace to save. Scan something first.</div>"
-    update_trace_confirmation(db, ml_trace_id, "saved")
+    update_trace_confirmation(db, ml_trace_id, "saved", user_id=current_user_id())
     return f"<div style='color:var(--green);'>Trace {ml_trace_id[:12]} saved to workflow history.</div>"
 
 

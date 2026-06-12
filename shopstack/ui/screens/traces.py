@@ -83,6 +83,12 @@ def _trace_timeline_html(trace) -> str:
     d_dict = trace.decision or {}
     if not isinstance(d_dict, dict):
         d_dict = {}
+    planner_debug = d_dict.get("planner_debug") or d_dict.get("debug") or {}
+    if not isinstance(planner_debug, dict):
+        planner_debug = {}
+    provider_debug = planner_debug.get("provider") if isinstance(planner_debug.get("provider"), dict) else {}
+    parser_debug = planner_debug.get("parser") if isinstance(planner_debug.get("parser"), dict) else {}
+    execution_debug = planner_debug.get("execution") if isinstance(planner_debug.get("execution"), dict) else {}
     
     final_action = d_dict.get("action", "No decision recorded")
     confidence = d_dict.get("confidence", 0.0)
@@ -99,6 +105,11 @@ def _trace_timeline_html(trace) -> str:
 
     steps = [
         ("Input Facts", trace.redacted_user_request or str(trace.perception or {})),
+        ("Model Used", provider_debug.get("model", "Unknown")),
+        ("Provider", provider_debug.get("provider", "Unknown")),
+        ("Backend", provider_debug.get("backend", "Unknown")),
+        ("Latency", f"{provider_debug.get('latency_ms', 'n/a')} ms" if provider_debug.get("latency_ms") is not None else "n/a"),
+        ("Tokens", provider_debug.get("output_tokens", provider_debug.get("input_tokens", "n/a"))),
         ("Inventory Evidence", ", ".join(inventory_ev) if inventory_ev else "None"),
         ("Market Evidence", ", ".join(market_ev) if market_ev else "None"),
         ("Price Evidence", ", ".join(price_ev) if price_ev else "None"),
@@ -106,6 +117,8 @@ def _trace_timeline_html(trace) -> str:
         ("Rule Path", rule_path),
         ("Final Action", final_action.upper()),
         ("Confidence", f"{confidence:.0%}"),
+        ("Parser", parser_debug.get("status", "Unknown")),
+        ("Execution", execution_debug.get("tool_calls_executed", "0")),
         ("Warnings", warnings_str),
         ("Actions Proposed", f"{len(trace.proposed_tool_calls or [])} actions"),
         ("Recorded ID", trace.trace_id[:12] if trace.trace_id else "No"),

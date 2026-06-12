@@ -160,6 +160,7 @@ def reconcile_shopping_trip(
                     quantity=qty,
                     unit=unit,
                     storage_location_id=DEFAULT_STORAGE_LOCATION,
+                    user_id=user_id,
                 )
                 lot_id = add_result.get("lot_id", "")
                 result.inventory_updates.append({
@@ -190,6 +191,7 @@ def reconcile_shopping_trip(
                         quantity=qty,
                         unit=unit,
                         storage_location_id=DEFAULT_STORAGE_LOCATION,
+                        user_id=user_id,
                     )
                     lot_id = add_result.get("lot_id", "")
                     result.inventory_updates.append({

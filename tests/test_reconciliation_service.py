@@ -47,6 +47,24 @@ def test_reconciliation_substituted_item():
     assert result.events[0].substituted_with == "red_onion"
 
 
+def test_reconciliation_inventory_scopes_to_user_id(db, tool_registry):
+    result = reconcile_shopping_trip(
+        planned_items=[{"canonical_name": "bread", "action": "buy"}],
+        actual_items=[{"canonical_name": "bread", "action": "bought", "quantity": 1.0}],
+        tools=tool_registry,
+        database=db,
+        user_id="house_a",
+    )
+    assert result.count == 1
+
+    assert len(db.get_inventory(canonical_name="bread", user_id="house_a")) == 1
+    assert len(db.get_inventory(canonical_name="bread", user_id="house_b")) == 0
+    assert len(db.get_price_history("bread", user_id="house_a")) == 1
+    assert len(db.get_price_history("bread", user_id="house_b")) == 0
+    assert len(db.get_reconciliation_events(canonical_name="bread", user_id="house_a")) == 1
+    assert len(db.get_reconciliation_events(canonical_name="bread", user_id="house_b")) == 0
+
+
 def test_reconciliation_with_tools_and_db(db, tool_registry):
     result = reconcile_shopping_trip(
         planned_items=[{"canonical_name": "bread", "action": "buy"}],

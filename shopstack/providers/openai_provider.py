@@ -20,6 +20,7 @@ def _check_deps() -> tuple[bool, str]:
 class OpenAIProvider:
     name = "openai"
     capabilities: set[str] = {"text", "vision", "embeddings", "planning"}
+    supports_off_grid = False
 
 
     def __init__(
@@ -225,4 +226,3 @@ class OpenAIProvider:
     @property
     def error(self) -> str | None:
         return self._error
-

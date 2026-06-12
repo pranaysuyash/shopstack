@@ -3,7 +3,8 @@ from __future__ import annotations
 from html import escape
 from typing import Any
 
-from shopstack.app_context import providers
+from shopstack.app_context import db, providers, current_user_id
+from shopstack.config import settings
 from shopstack.model_registry import (
     MAX_ACTIVE_MODEL_PARAMS_B,
     get_registry,
@@ -64,6 +65,10 @@ def _provider_is_mock(provider_info: dict[str, Any]) -> bool:
     return provider_type.startswith("mock") or provider_type == ""
 
 
+def _provider_is_blocked(provider_info: dict[str, Any]) -> bool:
+    return str(provider_info.get("status", "")).lower() == "blocked_off_grid"
+
+
 def provider_status_badge() -> str:
     provider_rows = providers.list_providers()
     runtime_rows = [
@@ -73,10 +78,14 @@ def provider_status_badge() -> str:
     ]
     real_rows = [row for row in runtime_rows if not _provider_is_mock(row)]
     loaded_real_rows = [row for row in real_rows if bool(row.get("available"))]
+    blocked_rows = [row for row in runtime_rows if _provider_is_blocked(row)]
 
     if not real_rows:
         status = "Mock"
         cls = "badge-amber"
+    elif blocked_rows and not loaded_real_rows:
+        status = "Off-grid"
+        cls = "badge-blue"
     elif loaded_real_rows:
         status = "AI"
         cls = "badge-green"
@@ -91,6 +100,108 @@ def provider_status_badge() -> str:
     )
     title = f"Capabilities: {', '.join(caps) if caps else 'mock'} | {backend_summary or 'mock runtime'}"
     return f'<span class="badge {cls}" title="{escape(title, quote=True)}">{escape(status)}</span>'
+
+
+def _runtime_mode(runtime_rows: list[dict[str, Any]]) -> str:
+    loaded = [row for row in runtime_rows if row.get("available") and not _provider_is_mock(row)]
+    cloud = [row for row in loaded if str(row.get("backend", "")).lower() in {"openai", "huggingface", "whisper"}]
+    blocked = [row for row in runtime_rows if _provider_is_blocked(row)]
+    if loaded and cloud:
+        return "mixed"
+    if loaded:
+        return "cloud" if cloud else "local"
+    if blocked:
+        return "off-grid / mock"
+    return "mock"
+
+
+def _pick_runtime_sample(runtime_rows: list[dict[str, Any]], key: str) -> str:
+    preferred_order = ("planner", "vision", "ocr", "embeddings", "stt", "tts")
+    for preferred in preferred_order:
+        for row in runtime_rows:
+            if row.get("name") == preferred:
+                value = row.get(key, "")
+                if value not in {"", None}:
+                    return str(value)
+    for row in runtime_rows:
+        value = row.get(key, "")
+        if value not in {"", None}:
+            return str(value)
+    return ""
+
+
+def runtime_proof_view() -> str:
+    diag = collect_runtime_diagnostics(providers)
+    runtime_rows = [
+        row
+        for row in providers.list_providers()
+        if row.get("name") in {"stt", "tts", "vision", "object_detection", "grounding", "segmentation", "ocr", "planner", "tool_call_parser", "embeddings", "image_edit", "image_gen"}
+    ]
+    planner_backend = next((row.get("backend", "") for row in runtime_rows if row.get("name") == "planner"), "")
+    vision_backend = next((row.get("backend", "") for row in runtime_rows if row.get("name") == "vision"), "")
+    ocr_backend = next((row.get("backend", "") for row in runtime_rows if row.get("name") == "ocr"), "")
+    embeddings_backend = next((row.get("backend", "") for row in runtime_rows if row.get("name") == "embeddings"), "")
+    cloud_apis = any(
+        str(row.get("backend", "")).lower() in {"openai", "huggingface", "whisper"} and bool(row.get("available"))
+        for row in runtime_rows
+    )
+    latest_trace = ""
+    try:
+        traces = db.get_traces(limit=1, user_id=current_user_id())
+        latest_trace = traces[0].trace_id if traces else ""
+    except Exception:
+        latest_trace = ""
+
+    badge_parts = [provider_status_badge()]
+    if settings.model_stack != "default":
+        badge_parts.append(badge_html(settings.model_stack.replace("_", " ").title(), "blue"))
+    badges_html = " ".join(badge_parts)
+
+    cards_html = (
+        "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:12px;'>"
+        f"{render_metric('Planner', planner_backend or 'mock')}"
+        f"{render_metric('Vision', vision_backend or 'mock')}"
+        f"{render_metric('OCR', ocr_backend or 'mock')}"
+        f"{render_metric('Embeddings', embeddings_backend or 'mock')}"
+        f"{render_metric('Mode', _runtime_mode(runtime_rows))}"
+        f"{render_metric('Cloud APIs', 'yes' if cloud_apis else 'no')}"
+        f"{render_metric('Active Params', f'{diag.active_total_params_b:.2f} B')}"
+        f"{render_metric('Budget', 'within' if diag.within_budget else 'over')}"
+        f"{render_metric('Last Latency', _pick_runtime_sample(runtime_rows, 'latency_ms') or 'n/a')}"
+        f"{render_metric('Last Tokens', _pick_runtime_sample(runtime_rows, 'tokens') or 'n/a')}"
+        f"{render_metric('Last Trace', latest_trace[:12] or 'n/a')}"
+        "</div>"
+    )
+
+    status_line = (
+        "<div style='font-size:12px;color:var(--text-dim);margin-top:8px;'>"
+        "Off-grid policy blocks cloud backends; local models remain eligible. "
+        "Cloud use is shown honestly, not hidden behind mock routing."
+        "</div>"
+    )
+    if any(row.get("status") == "blocked_off_grid" for row in runtime_rows):
+        status_line += (
+            "<div style='font-size:12px;color:var(--amber);margin-top:6px;'>"
+            "Some requested backends are blocked by off-grid policy and are shown as unavailable."
+            "</div>"
+        )
+
+    table_html = (
+        rows_to_html(
+            runtime_rows,
+            ["name", "backend", "status", "available", "blocked", "capabilities"],
+        )
+        if runtime_rows
+        else "<div style='color:var(--text-dim);margin-top:12px;'>No runtime rows available.</div>"
+    )
+
+    return ui_card(
+        "Runtime Proof",
+        f"<div style='display:flex;gap:8px;flex-wrap:wrap;align-items:center;'>{badges_html}</div>"
+        f"{status_line}"
+        f"{cards_html}"
+        f"<div style='margin-top:12px;'>{table_html}</div>",
+    )
 
 
 def model_budget_view() -> str:
@@ -116,7 +227,7 @@ def model_budget_view() -> str:
     else:
         diag_html = rows_to_html(
             diag_rows,
-            ["provider", "backend", "model", "loaded", "status", "params_b", "latency_ms", "tokens"]
+            ["provider", "backend", "model", "loaded", "status", "blocked", "params_b", "latency_ms", "tokens"]
         )
 
     budget_pct = min(100.0, max(0.0, (diag.active_total_params_b / diag.budget_limit_b) * 100)) if diag.budget_limit_b > 0 else 0

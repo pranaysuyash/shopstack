@@ -33,6 +33,42 @@ def test_off_the_grid_uses_mock_for_ocr():
     assert ocr is not None
 
 
+def test_off_the_grid_blocks_cloud_backends(monkeypatch):
+    from shopstack.providers import registry as registry_mod
+
+    def _fail_loader():
+        raise AssertionError("cloud loader should not run when off-grid")
+
+    monkeypatch.setattr(registry_mod._PROVIDER_SPECS["openai"], "loader", _fail_loader)
+    settings = Settings(_env_file=None, off_the_grid=True, planner_backend="openai")
+    registry = ProviderRegistry(settings)
+    planner = registry.planner
+    assert planner is not None
+    listed = registry.list_providers()
+    planner_row = next(row for row in listed if row["name"] == "planner")
+    assert planner_row["status"] == "blocked_off_grid"
+    assert planner_row["available"] is False
+
+
+def test_off_the_grid_allows_local_backends(monkeypatch):
+    from shopstack.providers import registry as registry_mod
+
+    class FakeMiniCPM5Provider:
+        name = "minicpm5"
+        backend = "minicpm5"
+        available = True
+        model_id = "openbmb/MiniCPM5-1B"
+        parameter_count = 1.0
+        capabilities = {"text", "planning"}
+
+    monkeypatch.setattr(registry_mod._PROVIDER_SPECS["minicpm5"], "loader", lambda: FakeMiniCPM5Provider)
+    settings = Settings(_env_file=None, off_the_grid=True, planner_backend="minicpm5")
+    registry = ProviderRegistry(settings)
+    planner = registry.planner
+    assert type(planner).__name__ == "FakeMiniCPM5Provider"
+    assert planner.available is True
+
+
 def test_register_overrides_default():
     settings = Settings(_env_file=None, off_the_grid=True)
     registry = ProviderRegistry(settings)

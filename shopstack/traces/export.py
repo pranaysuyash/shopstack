@@ -223,22 +223,22 @@ def create_add_purchase_trace(
     )
 
 
-def find_trace_by_id(db: Database, trace_id: str) -> Trace | None:
+def find_trace_by_id(db: Database, trace_id: str, user_id: str = "") -> Trace | None:
     target = (trace_id or "").strip()
     if not target:
         return None
-    return db.get_trace_by_id(target)
+    return db.get_trace_by_id(target, user_id=user_id)
 
 
-def update_trace_confirmation(db: Database, trace_id: str, confirmation: str) -> bool:
+def update_trace_confirmation(db: Database, trace_id: str, confirmation: str, user_id: str = "") -> bool:
     target = (trace_id or "").strip()
     if not target:
         return False
-    trace = db.get_trace_by_id(target)
+    trace = db.get_trace_by_id(target, user_id=user_id)
     if not trace:
         return False
     trace.human_confirmation = confirmation
-    db.save_trace(trace)
+    db.save_trace(trace, user_id=user_id)
     return True
 
 

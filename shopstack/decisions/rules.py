@@ -29,11 +29,11 @@ _USE_SOON_DAYS = 3
 _RECENT_PURCHASE_DAYS = 2
 
 
-def _get_use_soon(inventory: Any, days: int) -> dict[str, Any]:
+def _get_use_soon(inventory: Any, days: int, user_id: str = "") -> dict[str, Any]:
     """Call get_use_soon (InventoryRepo) or get_use_soon_items (ToolRegistry)."""
     if hasattr(inventory, "get_use_soon"):
-        return inventory.get_use_soon(days=days)
-    return inventory.get_use_soon_items(days=days)
+        return inventory.get_use_soon(days=days, user_id=user_id)
+    return inventory.get_use_soon_items(days=days, user_id=user_id)
 
 
 def classify_all(
@@ -41,17 +41,18 @@ def classify_all(
     inventory: Any,
     market_snapshot=None,
     source_registry: Any = None,
+    user_id: str = "",
 ) -> DecisionSet:
     from shopstack.services.preference import PreferenceService
     pref_service = PreferenceService(db)
-    uid = getattr(db, "current_user_id", lambda: "")() if callable(getattr(db, "current_user_id", None)) else getattr(db, "current_user_id", "")
+    uid = user_id
     staples = set(pref_service.get_staples(user_id=uid))
     disliked = set(pref_service.get_disliked(user_id=uid))
 
-    active_inv = [lot for lot in db.get_inventory() if lot.status == "active"]
-    use_soon_items = _get_use_soon(inventory, _USE_SOON_DAYS).get("items", [])
-    active_list = db.get_active_shopping_list()
-    purchases = db.get_purchase_events(limit=50)
+    active_inv = [lot for lot in db.get_inventory(user_id=uid) if lot.status == "active"]
+    use_soon_items = _get_use_soon(inventory, _USE_SOON_DAYS, user_id=uid).get("items", [])
+    active_list = db.get_active_shopping_list(user_id=uid)
+    purchases = db.get_purchase_events(limit=50, user_id=uid)
     recent_dates: set[date] = set()
     for p in purchases:
         try:
@@ -618,8 +619,8 @@ def _build_freshness(market_snapshot) -> dict[str, Any]:
         return {"age_days": 0, "is_stale": False, "label": "unknown"}
 
 
-def detect_purchase_cadence(db: Database) -> dict[str, dict[str, Any]]:
-    purchases = db.get_purchase_events(limit=200)
+def detect_purchase_cadence(db: Database, user_id: str = "") -> dict[str, dict[str, Any]]:
+    purchases = db.get_purchase_events(limit=200, user_id=user_id)
     by_item: dict[str, list[Any]] = {}
     for p in purchases:
         try:
@@ -660,10 +661,10 @@ def detect_purchase_cadence(db: Database) -> dict[str, dict[str, Any]]:
     return cadence
 
 
-def detect_waste_patterns(db: Database) -> list[dict[str, Any]]:
-    cadence = detect_purchase_cadence(db)
+def detect_waste_patterns(db: Database, user_id: str = "") -> list[dict[str, Any]]:
+    cadence = detect_purchase_cadence(db, user_id=user_id)
     waste_signals: list[dict[str, Any]] = []
-    inv = db.get_inventory()
+    inv = db.get_inventory(user_id=user_id)
 
     for cname, info in cadence.items():
         if info["purchase_count"] < 3:

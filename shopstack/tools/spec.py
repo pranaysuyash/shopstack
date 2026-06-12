@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 DEFAULT_STORAGE_LOCATION = "kitchen"
+SHOPPING_LIST_PRIORITIES = ["must_buy", "optional", "avoid_buying"]
 
 
 def _compact_arg_str(a: ArgSpec) -> str:
@@ -177,7 +178,14 @@ def build_tool_specs() -> list[ToolSpec]:
             name="create_or_update_shopping_list",
             description="Create a shopping list or add items to the active list.",
             args=[
-                ArgSpec("items", 'A JSON array of item dicts, each with canonical_name (required), requested_quantity, unit, priority (must_buy/optional/avoid_buying), reason.', type_name="array", required=False, default=[]),
+                ArgSpec(
+                    "items",
+                    "A JSON array of item dicts, each with canonical_name (required), requested_quantity, unit, priority (must_buy/optional/avoid_buying), reason.",
+                    type_name="array",
+                    required=False,
+                    default=[],
+                    enum_values=SHOPPING_LIST_PRIORITIES,
+                ),
                 ArgSpec("goal", "A short description of the shopping goal. Optional.", type_name="string", required=False, default=""),
             ],
             mutability="write",

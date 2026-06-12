@@ -326,6 +326,315 @@ class TestTraceServiceExport:
             lines = f.readlines()
         assert len(lines) == 0
 
+    def test_export_all_to_jsonl_scoped_per_household(self, db, tmp_path):
+        """``export_all_to_jsonl`` with ``user_id`` only exports traces for that household."""
+        from shopstack.services.trace import TraceService
+        svc = TraceService(db)
+
+        # Create traces for two different households
+        svc.create_trace(input_type="text", user_goal="household_a_task", user_id="household_a")
+        svc.create_trace(input_type="text", user_goal="household_b_task", user_id="household_b")
+
+        # Export scoped to household_a
+        out_a = tmp_path / "export_a.jsonl"
+        count_a = svc.export_all_to_jsonl(str(out_a), user_id="household_a")
+        assert count_a == 1, f"Expected 1 trace for household_a, got {count_a}"
+        with open(out_a) as f:
+            lines_a = f.readlines()
+        assert len(lines_a) == 1
+        assert "household_a_task" in lines_a[0]
+
+        # Export scoped to household_b
+        out_b = tmp_path / "export_b.jsonl"
+        count_b = svc.export_all_to_jsonl(str(out_b), user_id="household_b")
+        assert count_b == 1, f"Expected 1 trace for household_b, got {count_b}"
+        with open(out_b) as f:
+            lines_b = f.readlines()
+        assert len(lines_b) == 1
+        assert "household_b_task" in lines_b[0]
+
+        # Export without user_id sees both
+        out_all = tmp_path / "export_all.jsonl"
+        count_all = svc.export_all_to_jsonl(str(out_all))
+        assert count_all == 2, f"Expected 2 traces unfiltered, got {count_all}"
+
+    def test_export_all_to_jsonl_scoped_empty_household(self, db, tmp_path):
+        """``export_all_to_jsonl`` for a household with no traces returns 0."""
+        from shopstack.services.trace import TraceService
+        svc = TraceService(db)
+
+        svc.create_trace(input_type="text", user_goal="exists", user_id="household_a")
+
+        out = tmp_path / "empty_export.jsonl"
+        count = svc.export_all_to_jsonl(str(out), user_id="household_with_no_traces")
+        assert count == 0, f"Expected 0 traces for empty household, got {count}"
+        with open(out) as f:
+            assert f.read() == ""
+
+    def test_export_trace_to_jsonl_scoped_found(self, db):
+        """``export_trace_to_jsonl`` with matching ``user_id`` returns the export path."""
+        from shopstack.services.trace import TraceService
+        svc = TraceService(db)
+
+        trace = svc.create_trace(
+            input_type="text",
+            user_goal="scoped_export_test",
+            user_id="household_export_user",
+        )
+
+        path = svc.export_trace_to_jsonl(trace.trace_id, user_id="household_export_user")
+        assert path != "", "Expected non-empty path for matching user_id"
+        assert path.endswith(".jsonl")
+        with open(path) as f:
+            content = f.read().strip()
+            assert len(content) > 0
+            parsed = json.loads(content)
+            assert parsed["trace_id"] == trace.trace_id
+        os.remove(path)
+
+    def test_export_trace_to_jsonl_scoped_blocked(self, db):
+        """``export_trace_to_jsonl`` with a non-matching ``user_id`` returns empty string."""
+        from shopstack.services.trace import TraceService
+        svc = TraceService(db)
+
+        trace = svc.create_trace(
+            input_type="text",
+            user_goal="blocked_export_test",
+            user_id="household_owner",
+        )
+
+        path = svc.export_trace_to_jsonl(trace.trace_id, user_id="household_intruder")
+        assert path == "", "Expected empty string for mismatched user_id"
+
+    def test_export_trace_to_jsonl_scoped_without_user_id_finds_any(self, db):
+        """``export_trace_to_jsonl`` without ``user_id`` finds any trace."""
+        from shopstack.services.trace import TraceService
+        svc = TraceService(db)
+
+        trace = svc.create_trace(
+            input_type="text",
+            user_goal="unfiltered_export",
+            user_id="household_someone",
+        )
+
+        path = svc.export_trace_to_jsonl(trace.trace_id)  # no user_id
+        assert path != "", "Expected non-empty path without user_id"
+        assert path.endswith(".jsonl")
+        with open(path) as f:
+            content = f.read().strip()
+            assert len(content) > 0
+            parsed = json.loads(content)
+            assert parsed["trace_id"] == trace.trace_id
+        os.remove(path)
+
+    # ══════════════════════════════════════════════════════════════════════
+    # TraceService export — user_id pass-through delegation tests
+    # ══════════════════════════════════════════════════════════════════════
+
+    def test_export_trace_to_jsonl_forwards_user_id(self, db):
+        """export_trace_to_jsonl passes ``user_id`` through to ``_export_trace_by_id``."""
+        from unittest.mock import patch
+        from shopstack.services.trace import TraceService
+        svc = TraceService(db)
+
+        with patch("shopstack.services.trace._export_trace_by_id", return_value=True) as mock_fn:
+            result = svc.export_trace_to_jsonl("trace-abc", user_id="household_test_user")
+
+            mock_fn.assert_called_once()
+            _args, kwargs = mock_fn.call_args
+            assert kwargs.get("user_id") == "household_test_user", (
+                f"Expected user_id='household_test_user', got {kwargs.get('user_id')!r}"
+            )
+            if result:
+                import os
+                os.remove(result)
+
+    def test_export_all_to_jsonl_forwards_user_id(self, db, tmp_path):
+        """export_all_to_jsonl passes ``user_id`` through to ``_export_traces_to_jsonl``."""
+        from unittest.mock import patch
+        from shopstack.services.trace import TraceService
+        svc = TraceService(db)
+        out = tmp_path / "fwd_test.jsonl"
+
+        with patch("shopstack.services.trace._export_traces_to_jsonl", return_value=3) as mock_fn:
+            svc.export_all_to_jsonl(str(out), user_id="household_bulk_test")
+
+            mock_fn.assert_called_once()
+            _args, kwargs = mock_fn.call_args
+            assert kwargs.get("user_id") == "household_bulk_test", (
+                f"Expected user_id='household_bulk_test', got {kwargs.get('user_id')!r}"
+            )
+
+    def test_export_trace_to_jsonl_default_user_id_empty(self, db):
+        """export_trace_to_jsonl defaults ``user_id`` to ``""`` when not provided."""
+        from unittest.mock import patch
+        from shopstack.services.trace import TraceService
+        svc = TraceService(db)
+
+        with patch("shopstack.services.trace._export_trace_by_id", return_value=True) as mock_fn:
+            result = svc.export_trace_to_jsonl("trace-def")
+
+            mock_fn.assert_called_once()
+            _args, kwargs = mock_fn.call_args
+            assert kwargs.get("user_id") == "", (
+                f"Expected user_id='', got {kwargs.get('user_id')!r}"
+            )
+            if result:
+                import os
+                os.remove(result)
+
+    def test_export_all_to_jsonl_default_user_id_empty(self, db, tmp_path):
+        """export_all_to_jsonl defaults ``user_id`` to ``""`` when not provided."""
+        from unittest.mock import patch
+        from shopstack.services.trace import TraceService
+        svc = TraceService(db)
+        out = tmp_path / "def_test.jsonl"
+
+        with patch("shopstack.services.trace._export_traces_to_jsonl", return_value=0) as mock_fn:
+            svc.export_all_to_jsonl(str(out))
+
+            mock_fn.assert_called_once()
+            _args, kwargs = mock_fn.call_args
+            assert kwargs.get("user_id") == "", (
+                f"Expected user_id='', got {kwargs.get('user_id')!r}"
+            )
+
+    # ══════════════════════════════════════════════════════════════════════
+    # TraceService — get_trace / update_confirmation user_id forwarding
+    # ══════════════════════════════════════════════════════════════════════
+
+    def test_get_trace_forwards_user_id(self, db):
+        """get_trace passes ``user_id`` through to ``_find_trace_by_id``."""
+        from unittest.mock import patch
+        from shopstack.services.trace import TraceService
+        svc = TraceService(db)
+
+        with patch("shopstack.services.trace._find_trace_by_id", return_value=None) as mock_fn:
+            svc.get_trace("trace-123", user_id="household_get_user")
+
+            mock_fn.assert_called_once()
+            _args, kwargs = mock_fn.call_args
+            assert kwargs.get("user_id") == "household_get_user", (
+                f"Expected user_id='household_get_user', got {kwargs.get('user_id')!r}"
+            )
+
+    def test_get_trace_default_user_id_empty(self, db):
+        """get_trace defaults ``user_id`` to ``""`` when not provided."""
+        from unittest.mock import patch
+        from shopstack.services.trace import TraceService
+        svc = TraceService(db)
+
+        with patch("shopstack.services.trace._find_trace_by_id", return_value=None) as mock_fn:
+            svc.get_trace("trace-def")
+
+            mock_fn.assert_called_once()
+            _args, kwargs = mock_fn.call_args
+            assert kwargs.get("user_id") == "", (
+                f"Expected user_id='', got {kwargs.get('user_id')!r}"
+            )
+
+    def test_update_confirmation_forwards_user_id(self, db):
+        """update_confirmation passes ``user_id`` through to ``_update_trace_confirmation``."""
+        from unittest.mock import patch
+        from shopstack.services.trace import TraceService
+        svc = TraceService(db)
+
+        with patch("shopstack.services.trace._update_trace_confirmation", return_value=True) as mock_fn:
+            svc.update_confirmation("trace-456", "approved", user_id="household_update_user")
+
+            mock_fn.assert_called_once()
+            _args, kwargs = mock_fn.call_args
+            assert kwargs.get("user_id") == "household_update_user", (
+                f"Expected user_id='household_update_user', got {kwargs.get('user_id')!r}"
+            )
+
+    def test_update_confirmation_default_user_id_empty(self, db):
+        """update_confirmation defaults ``user_id`` to ``""`` when not provided."""
+        from unittest.mock import patch
+        from shopstack.services.trace import TraceService
+        svc = TraceService(db)
+
+        with patch("shopstack.services.trace._update_trace_confirmation", return_value=True) as mock_fn:
+            svc.update_confirmation("trace-def", "skip")
+
+            mock_fn.assert_called_once()
+            _args, kwargs = mock_fn.call_args
+            assert kwargs.get("user_id") == "", (
+                f"Expected user_id='', got {kwargs.get('user_id')!r}"
+            )
+
+    # ══════════════════════════════════════════════════════════════════════
+    # TraceService — create_trace / create_market_lens_trace user_id forwarding
+    # ══════════════════════════════════════════════════════════════════════
+
+    def test_create_trace_forwards_user_id(self, db):
+        """create_trace passes ``user_id`` through to ``_create_trace``."""
+        from unittest.mock import patch
+        from shopstack.services.trace import TraceService
+        from shopstack.schemas.models import Trace as _Trace
+        svc = TraceService(db)
+        mock_trace = _Trace(input_type="mock")
+
+        with patch("shopstack.services.trace._create_trace", return_value=mock_trace) as mock_fn:
+            svc.create_trace(input_type="test", user_goal="test_goal", user_id="household_create_user")
+
+            mock_fn.assert_called_once()
+            _args, kwargs = mock_fn.call_args
+            assert kwargs.get("user_id") == "household_create_user", (
+                f"Expected user_id='household_create_user', got {kwargs.get('user_id')!r}"
+            )
+
+    def test_create_trace_default_user_id_empty(self, db):
+        """create_trace defaults ``user_id`` to ``""`` when not provided."""
+        from unittest.mock import patch
+        from shopstack.services.trace import TraceService
+        from shopstack.schemas.models import Trace as _Trace
+        svc = TraceService(db)
+        mock_trace = _Trace(input_type="mock")
+
+        with patch("shopstack.services.trace._create_trace", return_value=mock_trace) as mock_fn:
+            svc.create_trace(input_type="test", user_goal="test_goal")
+
+            mock_fn.assert_called_once()
+            _args, kwargs = mock_fn.call_args
+            assert kwargs.get("user_id") == "", (
+                f"Expected user_id='', got {kwargs.get('user_id')!r}"
+            )
+
+    def test_create_market_lens_trace_forwards_user_id(self, db):
+        """create_market_lens_trace passes ``user_id`` through to ``_create_market_lens_trace``."""
+        from unittest.mock import patch
+        from shopstack.services.trace import TraceService
+        from shopstack.schemas.models import Trace as _Trace
+        svc = TraceService(db)
+        mock_trace = _Trace(input_type="market_lens")
+
+        with patch("shopstack.services.trace._create_market_lens_trace", return_value=mock_trace) as mock_fn:
+            svc.create_market_lens_trace(items_detected=["tomato"], user_id="household_ml_user")
+
+            mock_fn.assert_called_once()
+            _args, kwargs = mock_fn.call_args
+            assert kwargs.get("user_id") == "household_ml_user", (
+                f"Expected user_id='household_ml_user', got {kwargs.get('user_id')!r}"
+            )
+
+    def test_create_market_lens_trace_default_user_id_empty(self, db):
+        """create_market_lens_trace defaults ``user_id`` to ``""`` when not provided."""
+        from unittest.mock import patch
+        from shopstack.services.trace import TraceService
+        from shopstack.schemas.models import Trace as _Trace
+        svc = TraceService(db)
+        mock_trace = _Trace(input_type="market_lens")
+
+        with patch("shopstack.services.trace._create_market_lens_trace", return_value=mock_trace) as mock_fn:
+            svc.create_market_lens_trace()
+
+            mock_fn.assert_called_once()
+            _args, kwargs = mock_fn.call_args
+            assert kwargs.get("user_id") == "", (
+                f"Expected user_id='', got {kwargs.get('user_id')!r}"
+            )
+
 
 # ══════════════════════════════════════════════════════════════════════════
 # TraceService — trace_payload & redact_payload

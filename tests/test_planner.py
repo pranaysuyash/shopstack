@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from shopstack.planner.parser import extract_json, parse_tool_calls
-from shopstack.planner.prompts import format_inventory_context
+from shopstack.planner.prompts import build_planner_prompt, format_inventory_context
+from shopstack.planner.engine import PlannerEngine
+from shopstack.persistence.database import Database
 from shopstack.schemas.models import InventoryLot
 
 
@@ -318,3 +320,40 @@ class TestPlannerEngine:
         result = engine.process("hello")
         assert "<script>" not in result
         assert "&lt;script&gt;" in result
+
+    def test_build_prompt_includes_tool_contract(self):
+        db = Database(":memory:")
+        try:
+            prompt = build_planner_prompt("How do I plan shopping?", db)
+        finally:
+            db.close()
+
+        assert "Tool contract (canonical):" in prompt
+        assert "\"tool_schema_version\": \"1.1\"" in prompt
+        assert "\"name\": \"compare_visible_item_to_inventory\"" in prompt
+        assert "must_buy/optional/avoid_buying" in prompt
+
+    def test_process_blocks_write_tool_calls_when_writes_disabled(self, db, tool_registry):
+        from shopstack.config import Settings
+        from shopstack.providers.registry import ProviderRegistry
+
+        class FakeWritePlanner:
+            available = True
+            capabilities = {"planning"}
+            model_id = "fake-writes"
+
+            def plan(self, payload):
+                return [{
+                    "tool": "add_inventory_item",
+                    "args": {"canonical_name": "milk", "quantity": 1.0, "unit": "L"},
+                }]
+
+        settings = Settings(_env_file=None, off_the_grid=True, planner_backend="mock")
+        providers = ProviderRegistry(settings)
+        providers.register("planner", FakeWritePlanner())
+        engine = PlannerEngine(db, tool_registry, providers)
+
+        result = engine.process("Add milk to inventory")
+        assert "Planner write blocked by safety policy" in result
+        assert "Review and confirm this action in the relevant screen." in result
+        assert len(db.get_inventory()) == 0

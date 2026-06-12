@@ -17,6 +17,7 @@ def _check_deps() -> tuple[bool, str]:
 class WhisperProvider:
     name = "whisper"
     capabilities: set[str] = {"stt"}
+    supports_off_grid = False
 
     def __init__(self, api_key: str = "", model: str = "whisper-1"):
         self._api_key = api_key

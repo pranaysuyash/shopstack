@@ -52,9 +52,9 @@ class TraceService:
 
     # ── Retrieval ──────────────────────────────────────────────────
 
-    def get_trace(self, trace_id: str) -> Trace | None:
+    def get_trace(self, trace_id: str, user_id: str = "") -> Trace | None:
         """Retrieve a single trace by ID."""
-        return _find_trace_by_id(self._db, trace_id)
+        return _find_trace_by_id(self._db, trace_id, user_id=user_id)
 
     def list_traces(self, limit: int | None = None) -> list[Trace]:
         """List recent traces, ordered by timestamp descending."""
@@ -187,9 +187,9 @@ class TraceService:
 
     # ── Lifecycle ──────────────────────────────────────────────────
 
-    def update_confirmation(self, trace_id: str, confirmation: str) -> bool:
+    def update_confirmation(self, trace_id: str, confirmation: str, user_id: str = "") -> bool:
         """Update the human_confirmation field on a trace."""
-        return _update_trace_confirmation(self._db, trace_id, confirmation)
+        return _update_trace_confirmation(self._db, trace_id, confirmation, user_id=user_id)
 
     def prune(self, max_rows: int | None = None, ttl_days: int | None = None) -> int:
         """Prune old/excess traces. Returns count removed."""

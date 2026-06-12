@@ -160,6 +160,25 @@ class TestShoppingList:
         result = tool_registry.execute("create_or_update_shopping_list", goal="test", items=items)
         assert result["success"] is True
 
+    def test_reject_unknown_args(self, tool_registry):
+        result = tool_registry.execute(
+            "create_or_update_shopping_list",
+            goal="test",
+            items=[],
+            secret_note="internal",
+        )
+        assert result["success"] is False
+        assert "unexpected args" in result["error"].lower()
+
+    def test_reject_invalid_item_priority(self, tool_registry):
+        result = tool_registry.execute(
+            "create_or_update_shopping_list",
+            goal="test",
+            items=[{"canonical_name": "milk", "priority": "must_have"}],
+        )
+        assert result["success"] is False
+        assert "invalid priority" in result["error"].lower()
+
 
 class TestGetNextBuySuggestions:
     def test_suggestions_empty(self, tool_registry):

@@ -61,14 +61,19 @@ def export_backup(database: Database) -> dict[str, Any]:
         "with import_mode='replace' for a clean restore."
     )
 
-    storage_locations = []
+    household_locations = []
     try:
-        cursor = database.conn.execute("SELECT * FROM storage_locations ORDER BY name")
+        cursor = database.conn.execute(
+            "SELECT location_id, name, parent_location_id, location_type, photo_path, notes "
+            "FROM household_locations ORDER BY name"
+        )
         for row in cursor.fetchall():
-            storage_locations.append(dict(row))
+            household_locations.append(dict(row))
     except Exception:
         pass
-    export["storage_locations"] = storage_locations
+    export["household_locations"] = household_locations
+    # Backward-compatibility alias for existing importers/docs.
+    export["storage_locations"] = household_locations
 
     return export
 

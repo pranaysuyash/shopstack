@@ -29,6 +29,15 @@ class TestSettings:
         assert s.planner_backend == "local"  # changed from mock to local
         assert s.ocr_backend == "tesseract"
 
+    def test_openbmb_model_stack_preset(self):
+        s = Settings(_env_file=None, model_stack="openbmb_local")
+        assert s.planner_backend == "minicpm5"
+        assert s.vision_backend == "minicpmv"
+        assert s.ocr_backend == "glm_ocr"
+        assert s.embeddings_backend == "bge_m3"
+        assert s.tool_call_parser_backend == "minicpm5"
+        assert s.stt_backend == "sensevoice"
+
     def test_provider_backends_compat_alias(self):
         s = Settings(_env_file=None, stt_backend="mock", tts_backend="mock", vision_backend="mock", ocr_backend="mock")
         assert s.provider_backends["stt"] == "mock"

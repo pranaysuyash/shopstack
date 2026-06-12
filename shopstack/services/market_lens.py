@@ -19,6 +19,9 @@ class MarketLensResult:
     decisions: list[dict[str, Any]] = field(default_factory=list)
     barcode_info: list[dict[str, Any]] = field(default_factory=list)
     transcript_text: str = ""
+    source_mode: str = "none"
+    freshness_label: str = "Market signals are point-in-time snapshots and can change frequently."
+    warnings: list[str] = field(default_factory=list)
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
 
     @property
@@ -47,15 +50,34 @@ def analyze_market_lens(
     """Analyze Market Lens inputs without rendering UI or writing traces."""
     result = MarketLensResult()
 
+    if not image_path and not audio_path:
+        result.source_mode = "none"
+        result.warnings.append("No image or audio input provided.")
+        return result
+
+    if image_path and audio_path:
+        result.source_mode = "vision+audio"
+    elif image_path:
+        result.source_mode = "vision"
+    else:
+        result.source_mode = "audio"
+
     if image_path:
         result.barcode_info = detect_barcodes(image_path)
         result.decisions = analyze_visible_items(image_path, providers, inventory)
         result.items_found = [d["canonical_name"] for d in result.decisions]
         if result.decisions:
-            result.tool_calls.append({
-                "tool_name": "compare_visible_item_to_inventory",
-                "args": {"items": [d.get("canonical_name", "") for d in result.decisions]},
-            })
+            for decision in result.decisions:
+                result.tool_calls.append({
+                    "tool_name": "compare_visible_item_to_inventory",
+                    "args": {
+                        "canonical_name": decision.get("canonical_name", ""),
+                        "quantity": decision.get("quantity", 1.0),
+                        "unit": decision.get("unit", "unit"),
+                    },
+                })
+        if not result.decisions:
+            result.warnings.append("Could not detect individual shelf items from image; OCR fallback may still find text.")
 
     if audio_path:
         result.transcript_text = transcribe_audio(audio_path, providers)
@@ -69,6 +91,8 @@ def analyze_market_lens(
                 "tool_name": "ask_shopstack",
                 "args": {"question": result.transcript_text},
             })
+        if not result.transcript_text:
+            result.warnings.append("Audio input could not be transcribed.")
 
     return result
 
@@ -91,27 +115,50 @@ def analyze_visible_items(image_path: str, providers: Any, inventory: InventoryR
     raw_product = ocr_result.get("product_name", "") if isinstance(ocr_result, dict) else ""
 
     decisions: list[dict[str, Any]] = []
-    for detection in detections[:8]:
-        item_name = normalize_item_name(str(detection.get("label", "")))
-        quantity = detection.get("quantity", 1.0)
-        _compare = inventory.compare_visible if hasattr(inventory, "compare_visible") else inventory.compare_visible_item_to_inventory
-        comparison = _compare(item_name, quantity, "unit")
-        decision, reason = classify_inventory_comparison(
-            comparison.get("total_quantity_at_home", 0),
-            quantity,
-            "unit",
-            comparison.get("is_use_soon", False),
-        )
-        decisions.append({
-            "canonical_name": item_name.title(),
-            "decision": decision,
-            "reason": reason,
-            "confidence": float(detection.get("confidence", 0.0)),
-            "unit": "unit",
-            "quantity": quantity,
-            "suggested_quantity": max(0.0, quantity),
-            "source": raw_product,
-        })
+    if detections:
+        for detection in detections[:8]:
+            item_name = normalize_item_name(str(detection.get("label", "")))
+            quantity = detection.get("quantity", 1.0)
+            _compare = inventory.compare_visible if hasattr(inventory, "compare_visible") else inventory.compare_visible_item_to_inventory
+            comparison = _compare(item_name, quantity, "unit")
+            decision, reason = classify_inventory_comparison(
+                comparison.get("total_quantity_at_home", 0),
+                quantity,
+                "unit",
+                comparison.get("is_use_soon", False),
+            )
+            decisions.append({
+                "canonical_name": item_name.title(),
+                "decision": decision,
+                "reason": reason,
+                "confidence": float(detection.get("confidence", 0.0)),
+                "unit": "unit",
+                "quantity": quantity,
+                "suggested_quantity": max(0.0, quantity),
+                "source": raw_product,
+            })
+    elif raw_product:
+        normalized = normalize_item_name(raw_product)
+        if normalized:
+            quantity = 1.0
+            _compare = inventory.compare_visible if hasattr(inventory, "compare_visible") else inventory.compare_visible_item_to_inventory
+            comparison = _compare(normalized, quantity, "unit")
+            decision, reason = classify_inventory_comparison(
+                comparison.get("total_quantity_at_home", 0),
+                quantity,
+                "unit",
+                comparison.get("is_use_soon", False),
+            )
+            decisions.append({
+                "canonical_name": normalized.title(),
+                "decision": decision,
+                "reason": reason,
+                "confidence": 0.45,
+                "unit": "unit",
+                "quantity": quantity,
+                "suggested_quantity": max(0.0, quantity),
+                "source": raw_product,
+            })
 
     enrich_market_prices(decisions)
     return decisions

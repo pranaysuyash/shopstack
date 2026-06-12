@@ -187,6 +187,7 @@ class _ProviderSpec:
     loader: Callable[[], type | None]
     kwargs_fn: Callable[[Settings], dict[str, Any]]
     unavailable_msg: str
+    supports_off_grid: bool = True
 
 
 _PROVIDER_SPECS: dict[str, _ProviderSpec] = {
@@ -203,11 +204,13 @@ _PROVIDER_SPECS: dict[str, _ProviderSpec] = {
         loader=_load_openai,
         kwargs_fn=lambda s: {"api_key": s.openai_api_key},
         unavailable_msg="OpenAI provider not available (openai package missing), falling back to mock",
+        supports_off_grid=False,
     ),
     "whisper": _ProviderSpec(
         loader=_load_whisper,
         kwargs_fn=lambda s: {"api_key": s.openai_api_key},
         unavailable_msg="Whisper provider not available (openai package missing), falling back to mock",
+        supports_off_grid=False,
     ),
     "local": _ProviderSpec(
         loader=_load_local,
@@ -225,6 +228,7 @@ _PROVIDER_SPECS: dict[str, _ProviderSpec] = {
         loader=_load_huggingface,
         kwargs_fn=lambda s: {"api_key": s.hf_api_key},
         unavailable_msg="HuggingFace provider not available (huggingface_hub package missing), falling back to mock",
+        supports_off_grid=False,
     ),
     "sensevoice": _ProviderSpec(
         loader=_load_sensevoice,
@@ -311,19 +315,16 @@ class ProviderRegistry:
         self._pending: dict[str, str] = {}
         self._backend_requests: dict[str, str] = {}
         self._fallback_backends: dict[str, str] = {}
+        self._blocked_backends: dict[str, str] = {}
         self._unified: Any | None = None
         self._init_lazy()
 
     def _init_lazy(self) -> None:
         backends = self._settings.provider_backends
-        offline_mock = {"vision", "object_detection", "grounding", "segmentation", "tool_call_parser", "image_edit"}
         for name in ["stt", "tts", "vision", "object_detection", "grounding",
                      "segmentation", "ocr", "planner", "tool_call_parser",
                      "embeddings", "image_edit", "image_gen"]:
-            if self._settings.off_the_grid and name in offline_mock:
-                self._pending[name] = "mock"
-            else:
-                self._pending[name] = backends.get(name, "mock")
+            self._pending[name] = backends.get(name, "mock")
             self._backend_requests[name] = self._pending[name]
         self._unified = MockUnifiedProvider()
 
@@ -333,6 +334,14 @@ class ProviderRegistry:
         self._fallback_backends.pop(name, None)
         if not backend or backend in {"mock", "mocked"}:
             return self._mock_for(name)
+        spec = _PROVIDER_SPECS.get(backend.replace("-", "_"))
+        if self._settings.off_the_grid and spec is not None and not spec.supports_off_grid:
+            logger.info("Provider %s blocked by off-grid policy, falling back to mock", backend)
+            self._blocked_backends[name] = backend
+            mock = self._mock_for(name)
+            if mock is not None:
+                setattr(mock, "backend", backend)
+            return mock
         real = _try_real_provider(backend, self._settings)
         if real:
             caps = getattr(real, "capabilities", set())
@@ -472,6 +481,7 @@ class ProviderRegistry:
         pending_backend = self._pending.get(name, self._backend_requests.get(name, "mock"))
         normalized_backend = pending_backend.lower() if pending_backend else ""
         is_mock_backend = normalized_backend in {"mock", "mocked", ""}
+        blocked_backend = self._blocked_backends.get(name, "")
         if provider is None:
             mock = self._mock_for(name)
             requested_backend = pending_backend or "mock"
@@ -481,8 +491,9 @@ class ProviderRegistry:
                 "type": row_type,
                 "backend": requested_backend,
                 "available": bool(mock) if is_mock_backend else False,
-                "pending": True,
+                "pending": bool(blocked_backend == ""),
                 "capabilities": ", ".join(sorted(getattr(mock, "capabilities", set()))) if mock else "",
+                "status": "blocked_off_grid" if blocked_backend else "pending",
             }
 
         requested_backend = pending_backend or self._backend_requests.get(name, "mock")
@@ -492,8 +503,9 @@ class ProviderRegistry:
             and self._fallback_backends.get(name) == requested_backend
             and type(provider).__name__.lower().startswith("mock")
         )
+        is_blocked_off_grid = bool(blocked_backend)
         is_available_default = getattr(provider, "available", True)
-        available = False if is_real_request_for_mock_provider else is_available_default
+        available = False if (is_real_request_for_mock_provider or is_blocked_off_grid) else is_available_default
         return {
             "name": name,
             "type": type(provider).__name__,
@@ -501,7 +513,12 @@ class ProviderRegistry:
             "available": available,
             "pending": bool(is_real_request_for_mock_provider),
             "capabilities": ", ".join(sorted(getattr(provider, "capabilities", set()))),
-            "status": ("fallback" if is_real_request_for_mock_provider else getattr(provider, "status", "resolved")),
+            "status": (
+                "blocked_off_grid"
+                if is_blocked_off_grid
+                else ("fallback" if is_real_request_for_mock_provider else getattr(provider, "status", "resolved"))
+            ),
+            "blocked_by_off_grid": is_blocked_off_grid,
         }
 
     def get_runtime_diagnostics(self) -> Any:

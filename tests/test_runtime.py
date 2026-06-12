@@ -3,6 +3,7 @@ from __future__ import annotations
 from shopstack.providers.runtime import (
     RuntimeDiagnostics,
     AggregateDiagnostics,
+    collect_runtime_diagnostics,
     diagnostics_to_rows,
 )
 
@@ -56,3 +57,29 @@ class TestRuntimeDiagnostics:
         )
         assert diag.within_budget is False
         assert diag.active_total_params_b == 40.0
+
+    def test_blocked_off_grid_status(self):
+        class _MockProvider:
+            backend = "openai"
+            model_id = "gpt-4o"
+            parameter_count = 0.0
+            available = False
+            _last_latency_ms = None
+            _last_token_count = None
+            capabilities = {"text", "planning"}
+
+        class _Registry:
+            _providers = {"planner": _MockProvider()}
+            _pending = {"planner": "openai"}
+            _backend_requests = {"planner": "openai"}
+            _fallback_backends = {}
+            _blocked_backends = {"planner": "openai"}
+
+            def _mock_for(self, _name):
+                return _MockProvider()
+
+        diag = collect_runtime_diagnostics(_Registry())
+        planner = next(p for p in diag.providers if p.provider_name == "planner")
+        assert planner.blocked_by_off_grid is True
+        assert planner.status == "blocked_off_grid"
+        assert planner.loaded is False

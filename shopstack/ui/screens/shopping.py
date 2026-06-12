@@ -18,6 +18,7 @@ from shopstack.ui.components.cards import list_to_table
 from shopstack.ui.components.primitives import empty_state_enhanced, item_row, toast
 from shopstack.ui.renderers import render_mark_purchased, render_shopping_completion
 from shopstack.traces.export import create_trace
+from shopstack.services.reconciliation import reconcile_shopping_trip
 from shopstack.ui.screens._utils import (
     parse_shopping_text,
     source_freshness_html,
@@ -49,6 +50,7 @@ def shopping_list_view():
 
 
 def shopping_list_create(goal: str, items_json: str) -> str:
+    uid = _user_id()
     if not items_json:
         items = []
         plan_note = empty_state_enhanced("No items specified yet.", icon="📝")
@@ -95,7 +97,7 @@ def shopping_list_create(goal: str, items_json: str) -> str:
         _record_shopping_trace(goal, items_json, items, must_buy, optional, skipped, use_soon, plan_note)
     else:
         plan_note = empty_state_enhanced("Created an empty active list. Add more items anytime.", icon="📋")
-    result = tools.create_or_update_shopping_list(items=items, goal=goal)
+    result = tools.create_or_update_shopping_list(items=items, goal=goal, user_id=uid)
     safe_list_id = escape(str(result.get("list", {}).get("list_id", "")))
     return toast(f"Created list: {safe_list_id} with {len(items)} items", kind="success") + plan_note
 
@@ -279,7 +281,6 @@ def _shopping_list_share_html(share_text: str) -> str:
     safe_text = escape(share_text)
     encoded = quote(share_text)
     whatsapp_url = f"https://wa.me/?text={encoded}"
-    share_link = f"https://shopstack.local/share/list?text={encoded}"
     return (
         "<div style='margin-top:8px;'>"
         "<strong>Copy for WhatsApp</strong>"
@@ -295,7 +296,6 @@ def _shopping_list_share_html(share_text: str) -> str:
         "this.textContent='Copied!';setTimeout(function(){this.textContent='Copy'}.bind(this),1500);"
         "\" class='gr-button' style='margin-top:6px;font-size:12px;'>Copy</button>"
         f"<a class='gr-button' style='margin-top:6px;display:inline-block;text-decoration:none;' href='{whatsapp_url}' target='_blank'>Open WhatsApp</a>"
-        f"<a class='gr-button' style='margin-top:6px;display:inline-block;text-decoration:none;' href='{share_link}' target='_blank'>Shareable Link</a>"
         "</div>"
     )
 
@@ -389,7 +389,7 @@ def mark_items_purchased(item_ids_json: str | list[str]) -> str:
         item_ids = item_ids_json
     else:
         item_ids = item_ids_json
-    result = mark_items_purchased_service(item_ids, tools.inventory, db)
+    result = mark_items_purchased_service(item_ids, tools.inventory, db, user_id=_user_id())
     return render_mark_purchased(result)
 
 
@@ -450,12 +450,23 @@ def confirm_reconciliation(df_data: Any, list_id: str) -> str:
     if not df_list:
         return "<div style='color:var(--red);'>No data in reconciliation table.</div>"
 
-    from shopstack.schemas.models import ReconciliationEvent, PriceObservation
-    from shopstack.services.preferences import learn_preferences_from_reconciliation
-    
-    added_count = 0
-    skipped_count = 0
-    actual_items = []
+    sl = db.get_active_shopping_list(user_id=uid)
+    if not sl:
+        return "<div style='color:var(--red);'>No active shopping list.</div>"
+
+    planned_items: list[dict[str, Any]] = []
+    for item in sl.items:
+        if item.status in ("bought", "skipped"):
+            continue
+        planned_items.append({
+            "canonical_name": item.canonical_name,
+            "requested_quantity": item.requested_quantity,
+            "unit": item.unit or "unit",
+            "action": item.priority if item.priority in ("must_buy", "optional", "avoid_buying") else "buy",
+            "smart_decision": item.priority if item.priority in ("must_buy", "optional", "avoid_buying") else "must_buy",
+        })
+
+    actual_items: list[dict[str, Any]] = []
 
     for row in df_list:
         try:
@@ -470,66 +481,33 @@ def confirm_reconciliation(df_data: Any, list_id: str) -> str:
             price = float(price_str) if price_str else 0.0
             action = str(action).strip().lower()
             note_val = note.strip() if note else None
-            
-            re = ReconciliationEvent(
-                canonical_name=name.lower(),
-                planned_action="planned",
-                actual_action=action,
-                quantity=qty,
-                unit=str(unit),
-                price_paid=price,
-                substituted_with=note_val if action == "substituted" else None,
-                source="manual",
-                notes=note_val if action != "substituted" else None
-            )
-            db.add_reconciliation_event(re, user_id=uid)
-            
             actual_items.append({
                 "canonical_name": name.lower(),
+                "quantity": qty,
+                "unit": str(unit) or "unit",
                 "action": action,
-                "substituted_with": note_val,
+                "price_paid": price,
+                "substituted_with": note_val if action == "substituted" else None,
+                "notes": note_val if action not in ("substituted", "") else None,
+                "source": "manual",
             })
-
-            if action in ("bought", "substituted"):
-                lot_name = name
-                if action == "substituted" and note:
-                    lot_name = note.strip()
-                    
-                tools.inventory.add_item(
-                    canonical_name=lot_name.lower(),
-                    display_name=lot_name,
-                    quantity=qty,
-                    unit=str(unit),
-                    storage_location_id="kitchen",
-                    user_id=uid,
-                )
-                added_count += 1
-                
-                if price > 0:
-                    po = PriceObservation(
-                        canonical_name=lot_name.lower(),
-                        quantity=qty,
-                        unit=str(unit),
-                        price=price,
-                        currency="INR",
-                        store_name="Unknown",
-                        source_event_id="reconciliation"
-                    )
-                    db.record_price(po, user_id=uid)
-            else:
-                skipped_count += 1
         except Exception as e:
             logger.warning("Reconciliation row error: %s", e)
 
     try:
-        learned = learn_preferences_from_reconciliation(db, actual_items)
-        learned_msg = f" Learned {learned} new preferences." if learned > 0 else ""
+        result = reconcile_shopping_trip(
+            planned_items=planned_items,
+            actual_items=actual_items,
+            tools=tools.inventory,
+            database=db,
+            user_id=uid,
+        )
+        db.mark_list_complete(list_id)
+        return f"<div class='home-card' style='color:var(--green);font-weight:600;'>Reconciliation complete. {result.message}</div>"
     except Exception as e:
-        logger.warning("Failed to learn preferences: %s", e)
-        learned_msg = ""
+        logger.warning("Failed to reconcile shopping trip: %s", e)
 
-    db.mark_list_complete(list_id)
-    return f"<div class='home-card' style='color:var(--green);font-weight:600;'>Reconciliation complete. Added {added_count} items. Skipped {skipped_count}.{learned_msg}</div>"
+    return "<div style='color:var(--red);'>Failed to reconcile shopping trip.</div>"
 
 
 # Public handlers for Gradio composition layer

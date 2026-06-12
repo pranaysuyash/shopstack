@@ -39,6 +39,7 @@ class HuggingFaceProvider:
     model_id: str = DEFAULT_MODEL
     parameter_count: float = 3.8  # Phi-3-mini ~3.8B
     capabilities: set[str] = {"text", "planning"}
+    supports_off_grid = False
 
     def __init__(
         self,

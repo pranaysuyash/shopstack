@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     local_whisper_size: str = "tiny"
     local_auto_unload: bool = True
     local_whisper_auto_unload: bool = True
+    model_stack: str = "default"
 
     trace_max_rows: int = 2000
     trace_ttl_days: int = 30
@@ -47,6 +48,7 @@ class Settings(BaseSettings):
     embeddings_backend: str = "bge_m3"
     tool_call_parser_backend: str = "minicpm5"
     planner_compact_tools: bool = False  # Use compact type-shorthand tool descriptions (~90% accuracy vs ~50%)
+    planner_allow_writes: bool = False
 
     model_config = {"env_file": ".env", "env_prefix": "SHOPSTACK_", "extra": "ignore"}
 
@@ -58,6 +60,30 @@ class Settings(BaseSettings):
         if legacy_db_path and "db_path" not in self.model_dump(exclude_unset=True):
             self.db_path = legacy_db_path
 
+        self._apply_model_stack_preset()
+
+    def _apply_model_stack_preset(self) -> None:
+        """Overlay a named model stack preset onto unset provider backends."""
+        preset = self.model_stack.strip().lower()
+        if preset != "openbmb_local":
+            return
+
+        explicit_fields = set(self.model_dump(exclude_unset=True).keys())
+        preset_backends = {
+            "planner_backend": "minicpm5",
+            "vision_backend": "minicpmv",
+            "ocr_backend": "glm_ocr",
+            "embeddings_backend": "bge_m3",
+            "stt_backend": "sensevoice",
+            "tts_backend": "kokoro",
+            "tool_call_parser_backend": "minicpm5",
+            "segmentation_backend": "rmbg",
+            "image_gen_backend": "svg",
+        }
+        for field_name, backend in preset_backends.items():
+            if field_name not in explicit_fields:
+                setattr(self, field_name, backend)
+
     @property
     def provider_backends(self) -> dict[str, str]:
         """Backward-compatible provider backend map.
@@ -65,7 +91,7 @@ class Settings(BaseSettings):
         Canonical configuration is in *_backend fields (for example
         stt_backend), but existing callers may still read provider_backends.
         """
-        return {
+        backends = {
             "stt": self.stt_backend,
             "tts": self.tts_backend,
             "vision": self.vision_backend,
@@ -79,6 +105,7 @@ class Settings(BaseSettings):
             "image_edit": self.planner_backend,
             "image_gen": self.image_gen_backend,
         }
+        return backends
 
     @property
     def database_path(self) -> str:

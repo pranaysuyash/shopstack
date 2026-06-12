@@ -51,6 +51,7 @@ def test_today_dashboard_returns_correct_shape(fresh_app):
 def test_all_view_functions_importable(fresh_app):
     views = [
         "today_dashboard",
+        "runtime_proof_view",
         "shopping_list_view_with_cards",
         "build_shopping_list_and_refresh",
         "add_purchase_form",

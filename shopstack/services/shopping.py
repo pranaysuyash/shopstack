@@ -201,7 +201,7 @@ def complete_shopping_list_service(
             success=False, list_id="", message="No active shopping list to complete."
         )
 
-    sl = database.get_active_shopping_list()
+    sl = database.get_active_shopping_list(user_id=user_id)
     if not sl or sl.list_id != list_id:
         return ShoppingCompletionResult(
             success=False, list_id=list_id,
@@ -229,6 +229,7 @@ def complete_shopping_list_service(
             quantity=qty,
             unit=item.unit or "unit",
             storage_location_id=DEFAULT_STORAGE_LOCATION,
+            user_id=user_id,
         )
         lot_id = result.get("lot_id", "")
         added.append(CompletionItem(
@@ -273,6 +274,7 @@ def mark_items_purchased_service(
     item_ids_json: str | list[str],
     inventory: InventoryRepo,
     database: Database,
+    user_id: str = "",
 ) -> MarkPurchasedResult:
     """Mark selected shopping list items as purchased and add to inventory.
 
@@ -293,7 +295,7 @@ def mark_items_purchased_service(
     if not selected:
         return MarkPurchasedResult(success=False, message="No items selected.")
 
-    sl = database.get_active_shopping_list()
+    sl = database.get_active_shopping_list(user_id=user_id)
     if not sl or not sl.items:
         return MarkPurchasedResult(success=False, message="No active shopping list.")
 
@@ -308,6 +310,7 @@ def mark_items_purchased_service(
                 quantity=qty,
                 unit=item.unit or "unit",
                 storage_location_id=DEFAULT_STORAGE_LOCATION,
+                user_id=user_id,
             )
             lot_id = result.get("lot_id", "")
             database.update_list_item(item.list_item_id, {"status": "bought"})

@@ -42,6 +42,11 @@ class TestTodayDashboard:
         for r in results:
             assert isinstance(r, str)
 
+    def test_includes_runtime_proof(self, app):
+        results = app.today_dashboard()
+        assert "Runtime Proof" in results[0]
+        assert "Off-grid policy" in results[0]
+
     def test_shows_use_soon(self, app):
         app.db.add_inventory_lot(
             InventoryLot(canonical_name="milk", display_name="Milk", quantity=0.5, unit="L")
@@ -329,11 +334,29 @@ class TestAgentTrace:
         assert len(trace_id) > 0
 
     def test_detail_found(self, app):
-        app.db.save_trace(Trace(input_type="voice", final_response="test"))
+        app.db.save_trace(Trace(
+            input_type="voice",
+            final_response="test",
+            decision={
+                "planner_debug": {
+                    "provider": {
+                        "provider": "planner",
+                        "model": "openbmb/MiniCPM5-1B",
+                        "backend": "minicpm5",
+                        "latency_ms": 42.5,
+                        "output_tokens": 77,
+                    },
+                    "parser": {"status": "ok"},
+                    "execution": {"tool_calls_executed": 1},
+                }
+            },
+        ))
         traces = app.db.get_traces()
         tid = traces[0].trace_id
         detail = app.agent_trace_detail(tid)
         assert tid in detail
+        assert "Model Used" in detail
+        assert "Provider" in detail
 
     def test_detail_not_found(self, app):
         detail = app.agent_trace_detail("nonexistent")

@@ -32,6 +32,7 @@ def today_dashboard():
         render_what_changed,
         render_needs_confirmation,
     )
+    from shopstack.ui.screens.model_stack import runtime_proof_view
 
     state = build_dashboard_state(db, tools.inventory, user_id=uid)
     ds = state.decision_set
@@ -41,6 +42,7 @@ def today_dashboard():
         f"{len(ds.buy)} to buy, {len(ds.skip)} to skip, {len(ds.use_soon)} to use soon.",
         APP_NAME,
     )
+    runtime_proof = runtime_proof_view()
 
     quick_actions = (
         "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:12px 0 16px 0;'>"
@@ -91,6 +93,18 @@ def today_dashboard():
     cadence_html = render_cadence_insights(state.cadence_data)
     waste_html = render_waste_warnings(state.waste_data)
 
+    show_empty_hints = (
+        not state.active_inventory
+        and not ds.buy
+        and not ds.skip
+        and not ds.use_soon
+        and not ds.optional
+        and not state.low_items
+        and not state.recent_purchases
+        and state.active_list is None
+    )
+    empty_state = _render_today_empty_hints() if show_empty_hints else ""
+
     svg_section = ""
 
     long_grid = (
@@ -100,10 +114,45 @@ def today_dashboard():
     )
 
     return [
-        f"{hero}{loop_actions}{quick_actions}",
+        f"{hero}{runtime_proof}{loop_actions}{quick_actions}{empty_state}",
         decision_panel,
         svg_section,
         market_basket,
         list_panel,
         long_grid,
     ]
+
+
+def _render_today_empty_hints() -> str:
+    return (
+        "<div class='home-card' style='margin-top:10px;'>"
+        "<h3>Start your first flow</h3>"
+        "<div class='muted' style='margin-bottom:8px;'>No inventory data yet — try one path to begin:</div>"
+        f"{render_action_grid([
+            {
+                \"label\": \"Build a basket\",
+                \"subtitle\": \"Create shopping list from free text or compare list\",
+                \"tab_id\": \"basket\",
+                \"tone\": \"primary\",
+            },
+            {
+                \"label\": \"Scan with ShopLens\",
+                \"subtitle\": \"Capture shelf items and compare to home inventory\",
+                \"tab_id\": \"market\",
+                \"tone\": \"default\",
+            },
+            {
+                \"label\": \"Log a purchase\",
+                \"subtitle\": \"Add purchase records and seed your pantry\",
+                \"tab_id\": \"reconcile\",
+                \"tone\": \"default\",
+            },
+            {
+                \"label\": \"Try receipt flow\",
+                \"subtitle\": \"Paste or upload receipts to reconcile\",
+                \"tab_id\": \"reconcile\",
+                \"tone\": \"default\",
+            },
+        ])}"
+        "</div>"
+    )

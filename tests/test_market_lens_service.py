@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from shopstack.services.market_lens import analyze_market_lens, enrich_market_prices
 
 
@@ -23,6 +25,25 @@ def test_analyze_market_lens_audio_returns_transcript(providers, tool_registry):
     assert result.decisions == []
     assert result.tool_calls[0]["tool_name"] == "ask_shopstack"
     assert "audio_query" in result.analysis_json
+
+
+def test_market_lens_tool_call_schema_is_canonical_for_visible_items(providers, tool_registry):
+    result = analyze_market_lens("fake-market-image.jpg", None, providers, tool_registry)
+
+    compare_calls = [
+        call for call in result.tool_calls
+        if call.get("tool_name") == "compare_visible_item_to_inventory"
+    ]
+    assert compare_calls, "Expected canonical compare tool calls"
+
+    for call in compare_calls:
+        args = call["args"]
+        assert set(args.keys()) == {"canonical_name", "quantity", "unit"}
+        assert isinstance(args["canonical_name"], str)
+        assert args["canonical_name"].strip()
+        assert isinstance(args["quantity"], (int, float))
+        assert args["quantity"] > 0
+        assert isinstance(args["unit"], str)
 
 
 def test_analyze_market_lens_image_and_audio_records_stt_tool(providers, tool_registry):
@@ -99,3 +120,14 @@ def test_analyze_market_lens_barcode_json_format(providers, tool_registry):
 
     barcode = json.loads(result.barcode_json)
     assert isinstance(barcode, list)
+
+
+def test_analyze_market_lens_ocr_fallback_when_no_detections(providers, tool_registry, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(providers.object_detection, "detect", lambda _path: [])
+
+    result = analyze_market_lens("fake-market-image.jpg", None, providers, tool_registry)
+
+    assert result.decisions
+    assert result.decisions[0]["canonical_name"] == "Sample Product"
+    assert result.tool_calls
+    assert result.tool_calls[0]["tool_name"] == "compare_visible_item_to_inventory"

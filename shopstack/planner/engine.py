@@ -481,6 +481,39 @@ class PlannerEngine:
                 })
                 continue
 
+            tool_spec = self._tools._find_tool_spec(tool)
+            if tool_spec is not None and tool_spec.mutability == "write":
+                requires_confirmation = bool(tool_spec.needs_confirmation) or not settings.planner_allow_writes
+                if requires_confirmation:
+                    elapsed_ms = round((time.monotonic() - started) * 1000, 2)
+                    if tool == "create_or_update_shopping_list":
+                        item_count = 0
+                        if isinstance(args.get("items"), list):
+                            item_count = len(args.get("items", []))
+                        summary = f"plan {item_count} shopping list item(s)"
+                    elif "canonical_name" in args:
+                        summary = f"modify '{args['canonical_name']}'"
+                    else:
+                        summary = f"apply '{tool}'"
+
+                    reason = (
+                        f"Planner write blocked by safety policy: {summary}. "
+                        "Review and confirm this action in the relevant screen."
+                    )
+                    run["status"] = "blocked_by_policy"
+                    run["error"] = reason
+                    run["latency_ms"] = elapsed_ms
+                    execution["tool_runs"].append(run)
+                    execution["tool_calls_executed"] += 1
+                    execution["tool_calls_failed"] += 1
+                    results.append({
+                        "tool": tool,
+                        "success": False,
+                        "error": reason,
+                        "latency_ms": elapsed_ms,
+                    })
+                    continue
+
             try:
                 outcome = self._tools.execute(tool, **args)
                 elapsed_ms = round((time.monotonic() - started) * 1000, 2)

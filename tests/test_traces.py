@@ -311,6 +311,151 @@ class TestTraceUserScoping:
 
 
 # ══════════════════════════════════════════════════════════════════════════
+# Export functions with user_id filtering
+# ══════════════════════════════════════════════════════════════════════════
+
+
+class TestExportWithUserScoping:
+    """export_traces_to_jsonl and export_trace_by_id should respect user_id filtering."""
+
+    def test_export_traces_to_jsonl_filters_by_user_id(self, db):
+        """Exporting with user_id should only export traces for that user."""
+        create_trace(db, input_type="text", user_goal="hh_a_task",
+                     redacted_user_request="req_a", final_response="ok",
+                     user_id="household_a")
+        create_trace(db, input_type="text", user_goal="hh_b_task",
+                     redacted_user_request="req_b", final_response="ok",
+                     user_id="household_b")
+
+        with tempfile.NamedTemporaryFile(suffix=".jsonl", mode="w", delete=False) as f:
+            path_a = f.name
+        with tempfile.NamedTemporaryFile(suffix=".jsonl", mode="w", delete=False) as f:
+            path_b = f.name
+        with tempfile.NamedTemporaryFile(suffix=".jsonl", mode="w", delete=False) as f:
+            path_all = f.name
+        try:
+            # Export filtered by household_a
+            count_a = export_traces_to_jsonl(db, path_a, user_id="household_a")
+            assert count_a == 1
+            with open(path_a) as f:
+                data = json.loads(f.readline())
+            assert data["user_goal"] == "hh_a_task"
+
+            # Export filtered by household_b
+            count_b = export_traces_to_jsonl(db, path_b, user_id="household_b")
+            assert count_b == 1
+            with open(path_b) as f:
+                data = json.loads(f.readline())
+            assert data["user_goal"] == "hh_b_task"
+
+            # Export without filter sees both
+            count_all = export_traces_to_jsonl(db, path_all)
+            assert count_all == 2
+        finally:
+            Path(path_a).unlink(missing_ok=True)
+            Path(path_b).unlink(missing_ok=True)
+            Path(path_all).unlink(missing_ok=True)
+
+    def test_export_traces_to_jsonl_with_user_id_isolates_households(self, db):
+        """Traces from household_a should not appear in household_b's export."""
+        create_trace(db, input_type="voice", user_goal="a_voice",
+                     redacted_user_request="req_a", final_response="ok",
+                     user_id="household_a")
+        create_trace(db, input_type="voice", user_goal="b_voice",
+                     redacted_user_request="req_b", final_response="ok",
+                     user_id="household_b")
+
+        with tempfile.NamedTemporaryFile(suffix=".jsonl", mode="w", delete=False) as f:
+            path_a = f.name
+        try:
+            count_a = export_traces_to_jsonl(db, path_a, user_id="household_a")
+            assert count_a == 1
+            with open(path_a) as f:
+                line = f.readline()
+                assert "a_voice" in line
+                assert "b_voice" not in line
+        finally:
+            Path(path_a).unlink(missing_ok=True)
+
+    def test_export_traces_to_jsonl_without_user_id_exports_all(self, db):
+        """Exporting without user_id filter should export all traces."""
+        create_trace(db, input_type="text", user_goal="goal_a",
+                     redacted_user_request="req_a", final_response="ok",
+                     user_id="household_x")
+        create_trace(db, input_type="text", user_goal="goal_b",
+                     redacted_user_request="req_b", final_response="ok",
+                     user_id="household_y")
+        create_trace(db, input_type="text", user_goal="goal_c",
+                     redacted_user_request="req_c", final_response="ok",
+                     user_id="household_z")
+
+        with tempfile.NamedTemporaryFile(suffix=".jsonl", mode="w", delete=False) as f:
+            path = f.name
+        try:
+            count = export_traces_to_jsonl(db, path)  # no user_id filter — default ""
+            assert count == 3
+            with open(path) as f:
+                lines = f.readlines()
+            assert len(lines) == 3
+        finally:
+            Path(path).unlink(missing_ok=True)
+
+    def test_export_trace_by_id_respects_user_id(self, db):
+        """export_trace_by_id with user_id should only find traces for that user."""
+        trace = create_trace(db, input_type="vision", user_goal="secret",
+                             redacted_user_request="secret", final_response="ok",
+                             user_id="household_x")
+
+        with tempfile.NamedTemporaryFile(suffix=".jsonl", mode="w", delete=False) as f:
+            path_ok = f.name
+        with tempfile.NamedTemporaryFile(suffix=".jsonl", mode="w", delete=False) as f:
+            path_blocked = f.name
+        try:
+            # Can export with correct user_id
+            success = export_trace_by_id(db, trace.trace_id, path_ok, user_id="household_x")
+            assert success is True
+            with open(path_ok) as f:
+                data = json.loads(f.readline())
+            assert data["user_goal"] == "secret"
+
+            # Cannot export with wrong user_id
+            blocked = export_trace_by_id(db, trace.trace_id, path_blocked, user_id="household_y")
+            assert blocked is False
+            # File should be empty
+            with open(path_blocked) as f:
+                assert f.read() == ""
+        finally:
+            Path(path_ok).unlink(missing_ok=True)
+            Path(path_blocked).unlink(missing_ok=True)
+
+    def test_export_trace_by_id_without_user_id_finds_any(self, db):
+        """export_trace_by_id without user_id should find any trace."""
+        trace = create_trace(db, input_type="text", user_goal="anyone",
+                             redacted_user_request="anyone", final_response="ok",
+                             user_id="household_z")
+
+        with tempfile.NamedTemporaryFile(suffix=".jsonl", mode="w", delete=False) as f:
+            path = f.name
+        try:
+            success = export_trace_by_id(db, trace.trace_id, path)  # no user_id
+            assert success is True
+        finally:
+            Path(path).unlink(missing_ok=True)
+
+    def test_export_trace_by_id_missing_trace(self, db):
+        """export_trace_by_id with a non-existent trace should return False."""
+        with tempfile.NamedTemporaryFile(suffix=".jsonl", mode="w", delete=False) as f:
+            path = f.name
+        try:
+            result = export_trace_by_id(db, "nonexistent", path, user_id="household_a")
+            assert result is False
+            with open(path) as f:
+                assert f.read() == ""
+        finally:
+            Path(path).unlink(missing_ok=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # End-to-end trace scoping integration tests (through screen builders)
 # ══════════════════════════════════════════════════════════════════════════
 
@@ -596,3 +741,477 @@ class TestEndToEndTraceScoping:
         app.db.active_household_id = "household_blue"
         blue_export = app.agent_trace_export_file(blue_traces[0].trace_id)
         assert blue_export.endswith(".jsonl")
+
+    # ══════════════════════════════════════════════════════════════════
+    # Market Lens trace scoping (uses mock providers — no real images)
+    # ══════════════════════════════════════════════════════════════════
+
+    def test_market_lens_image_trace_scoped(self, e2e_app):
+        """market_lens_process with image creates a trace scoped to the active household."""
+        app = e2e_app
+        app.db.active_household_id = "household_market_green"
+
+        # market_lens_process with a fake image path uses mock providers
+        result_html, detected_items, analysis, ml_trace_id, barcode_json = app.market_lens_process(
+            "fake-market-image.jpg", None,
+        )
+        assert "Market Lens" in result_html
+        assert ml_trace_id, "Expected a non-empty trace ID from market_lens_process"
+
+        # Trace is visible to the owning household
+        stored = app.db.get_trace_by_id(ml_trace_id, user_id="household_market_green")
+        assert stored is not None
+        assert stored.user_goal == "market_lens"
+        assert stored.human_confirmation == "uncommitted"
+
+        # Trace is NOT visible to a different household
+        assert app.db.get_trace_by_id(ml_trace_id, user_id="household_market_blue") is None
+
+        # Trace appears in household-scoped listing
+        hh_traces = app.db.get_traces(user_id="household_market_green")
+        assert any(t.trace_id == ml_trace_id for t in hh_traces)
+
+        # Different household sees no traces
+        other_traces = app.db.get_traces(user_id="household_market_blue")
+        assert all(t.trace_id != ml_trace_id for t in other_traces)
+
+    def test_market_lens_audio_trace_scoped(self, e2e_app):
+        """market_lens_process with audio creates a trace scoped to the active household."""
+        app = e2e_app
+        app.db.active_household_id = "household_audio_red"
+
+        # Audio-only market lens uses mock STT + falls through to ask_shopstack
+        result_html, detected_items, analysis, ml_trace_id, barcode_json = app.market_lens_process(
+            None, "fake-audio-query.wav",
+        )
+        assert ml_trace_id, "Expected a non-empty trace ID from market_lens_process with audio"
+
+        # Trace is visible to the owning household
+        stored = app.db.get_trace_by_id(ml_trace_id, user_id="household_audio_red")
+        assert stored is not None
+        assert stored.input_type in ("audio", "text")  # may become "text" via ask_shopstack path
+
+        # Trace is NOT visible to a different household
+        assert app.db.get_trace_by_id(ml_trace_id, user_id="household_audio_blue") is None
+
+    def test_market_lens_image_audio_dual_trace_scoped(self, e2e_app):
+        """market_lens_process with both image+audio creates a single trace scoped to the household."""
+        app = e2e_app
+        app.db.active_household_id = "household_dual_a"
+
+        result_html, detected_items, analysis, ml_trace_id, barcode_json = app.market_lens_process(
+            "fake-dual-image.jpg", "fake-dual-audio.wav",
+        )
+        assert ml_trace_id, "Expected a non-empty trace ID"
+
+        # Single trace created
+        stored = app.db.get_trace_by_id(ml_trace_id, user_id="household_dual_a")
+        assert stored is not None
+
+        # Different household cannot access it
+        assert app.db.get_trace_by_id(ml_trace_id, user_id="household_dual_b") is None
+
+    def test_market_lens_multiple_households_isolated(self, e2e_app):
+        """market_lens_process traces from different households stay isolated."""
+        app = e2e_app
+
+        # Household A does a market lens scan
+        app.db.active_household_id = "household_ml_a"
+        _, _, _, trace_a_id, _ = app.market_lens_process("scan-image-a.jpg", None)
+        assert trace_a_id
+
+        # Household B does a market lens scan
+        app.db.active_household_id = "household_ml_b"
+        _, _, _, trace_b_id, _ = app.market_lens_process("scan-image-b.jpg", None)
+        assert trace_b_id
+
+        # Household A's trace is only visible to household A
+        assert app.db.get_trace_by_id(trace_a_id, user_id="household_ml_a") is not None
+        assert app.db.get_trace_by_id(trace_a_id, user_id="household_ml_b") is None
+
+        # Household B's trace is only visible to household B
+        assert app.db.get_trace_by_id(trace_b_id, user_id="household_ml_b") is not None
+        assert app.db.get_trace_by_id(trace_b_id, user_id="household_ml_a") is None
+
+        # Each sees only their own in listings
+        a_traces = app.db.get_traces(user_id="household_ml_a")
+        b_traces = app.db.get_traces(user_id="household_ml_b")
+        assert any(t.trace_id == trace_a_id for t in a_traces)
+        assert any(t.trace_id == trace_b_id for t in b_traces)
+        assert all(t.trace_id != trace_b_id for t in a_traces)
+        assert all(t.trace_id != trace_a_id for t in b_traces)
+
+    def test_market_lens_confirm_buy_updates_own_trace(self, e2e_app):
+        """market_lens_confirm_buy updates the trace scoped to the active household."""
+        app = e2e_app
+        app.db.active_household_id = "household_ml_c"
+
+        _, _, analysis, ml_trace_id, _ = app.market_lens_process("scan-confirm.jpg", None)
+        assert ml_trace_id
+
+        # Confirm the buy — forwards user_id via current_user_id()
+        result = app.market_lens_confirm_buy(analysis, ml_trace_id)
+        assert "Added" in result or "No BUY items" in result
+
+        # Trace is findable by household_ml_c (user_id preserved by fix)
+        stored = app.db.get_trace_by_id(ml_trace_id, user_id="household_ml_c")
+        assert stored is not None
+
+    def test_market_lens_skip_updates_own_trace(self, e2e_app):
+        """market_lens_skip updates the trace scoped to the active household."""
+        app = e2e_app
+        app.db.active_household_id = "household_ml_d"
+
+        _, _, analysis, ml_trace_id, _ = app.market_lens_process("scan-skip.jpg", None)
+        assert ml_trace_id
+
+        # Skip the trace — forwards user_id via current_user_id()
+        result = app.market_lens_skip(analysis, ml_trace_id)
+        assert "skip" in result.lower() or "Saved" in result
+
+        # Trace is findable by household_ml_d (user_id preserved by fix)
+        stored = app.db.get_trace_by_id(ml_trace_id, user_id="household_ml_d")
+        assert stored is not None
+
+    # ══════════════════════════════════════════════════════════════════
+    # Shopping list completion trace scoping
+    # ══════════════════════════════════════════════════════════════════
+
+    def test_complete_shopping_list_trace_scoped(self, e2e_app):
+        """complete_shopping_list creates a trace scoped to the active household."""
+        app = e2e_app
+        app.db.active_household_id = "household_shopping_a"
+
+        # Create a shopping list first
+        result = app.shopping_list_create(
+            "Weekly shop", '[{"canonical_name":"milk","requested_quantity":2}]',
+        )
+        assert "Created list" in result
+
+        # Get the list ID
+        sl = app.db.get_active_shopping_list()
+        assert sl is not None, "No active shopping list"
+        list_id = sl.list_id
+
+        # Complete the shopping list
+        completion = app.complete_shopping_list(list_id)
+        assert "List completed" in completion or "completed" in completion.lower()
+
+        # Trace should exist for household_shopping_a
+        hh_traces = app.db.get_traces(user_id="household_shopping_a")
+        assert len(hh_traces) >= 1
+        assert any(
+            t.user_goal == "complete_shopping_list"
+            or t.user_goal == "Plan shopping list"
+            for t in hh_traces
+        )
+
+        # Other household should not see these traces
+        other_traces = app.db.get_traces(user_id="household_shopping_b")
+        assert len(other_traces) == 0
+
+        # Cross-tenant get_trace_by_id blocked
+        for t in hh_traces:
+            assert app.db.get_trace_by_id(t.trace_id, user_id="household_shopping_b") is None
+
+    def test_complete_shopping_list_multi_household_isolated(self, e2e_app):
+        """complete_shopping_list in different households produces isolated traces."""
+        app = e2e_app
+
+        # Household X: create and complete a list
+        app.db.active_household_id = "household_x"
+        app.shopping_list_create(
+            "X groceries", '[{"canonical_name":"rice","requested_quantity":1}]',
+        )
+        sl_x = app.db.get_active_shopping_list()
+        assert sl_x is not None, "No active shopping list"
+        list_x_id = sl_x.list_id
+        app.complete_shopping_list(list_x_id)
+
+        # Household Y: create and complete a different list
+        app.db.active_household_id = "household_y"
+        app.shopping_list_create(
+            "Y items", '[{"canonical_name":"paneer","requested_quantity":1}]',
+        )
+        sl_y = app.db.get_active_shopping_list()
+        assert sl_y is not None, "No active shopping list"
+        list_y_id = sl_y.list_id
+        app.complete_shopping_list(list_y_id)
+
+        # Each household sees only its own complete_shopping_list traces
+        x_traces = app.db.get_traces(user_id="household_x")
+        y_traces = app.db.get_traces(user_id="household_y")
+
+        assert len(x_traces) >= 1
+        assert len(y_traces) >= 1
+
+        # No traces leaked
+        for t in x_traces:
+            assert app.db.get_trace_by_id(t.trace_id, user_id="household_y") is None
+        for t in y_traces:
+            assert app.db.get_trace_by_id(t.trace_id, user_id="household_x") is None
+
+    # ══════════════════════════════════════════════════════════════════
+    # Reconcile shopping trip trace scoping
+    # ══════════════════════════════════════════════════════════════════
+
+    def test_reconcile_shopping_trip_trace_scoped(self, e2e_app):
+        """reconcile_shopping_trip creates a trace scoped to the specified user_id."""
+        app = e2e_app
+
+        from shopstack.services.reconciliation import reconcile_shopping_trip
+
+        # Reconcile a trip for household_a
+        result = reconcile_shopping_trip(
+            planned_items=[{"canonical_name": "milk"}],
+            actual_items=[{"canonical_name": "milk", "action": "bought", "price_paid": 64.0}],
+            tools=app.tools,
+            database=app.db,
+            user_id="household_recon_a",
+        )
+        assert result.success
+
+        # Trace should exist for household_recon_a
+        hh_traces = app.db.get_traces(user_id="household_recon_a")
+        assert len(hh_traces) >= 1
+        assert any(t.user_goal == "post_shopping_reconciliation" for t in hh_traces)
+
+        # Other household should not see these traces
+        other_traces = app.db.get_traces(user_id="household_recon_b")
+        assert len(other_traces) == 0
+
+        # Cross-tenant get_trace_by_id blocked
+        for t in hh_traces:
+            assert app.db.get_trace_by_id(t.trace_id, user_id="household_recon_b") is None
+
+    def test_reconcile_shopping_trip_multi_household_isolated(self, e2e_app):
+        """reconcile_shopping_trip traces from different households stay isolated."""
+        app = e2e_app
+
+        from shopstack.services.reconciliation import reconcile_shopping_trip
+
+        # Household A reconciliation
+        reconcile_shopping_trip(
+            planned_items=[{"canonical_name": "milk"}, {"canonical_name": "bread"}],
+            actual_items=[
+                {"canonical_name": "milk", "action": "bought", "price_paid": 64.0},
+                {"canonical_name": "bread", "action": "skipped"},
+            ],
+            tools=app.tools,
+            database=app.db,
+            user_id="household_recon_a",
+        )
+
+        # Household B reconciliation
+        reconcile_shopping_trip(
+            planned_items=[{"canonical_name": "eggs"}],
+            actual_items=[{"canonical_name": "eggs", "action": "bought", "price_paid": 60.0}],
+            tools=app.tools,
+            database=app.db,
+            user_id="household_recon_b",
+        )
+
+        # Each household sees only its own traces
+        a_traces = app.db.get_traces(user_id="household_recon_a")
+        b_traces = app.db.get_traces(user_id="household_recon_b")
+
+        assert len(a_traces) >= 1
+        assert len(b_traces) >= 1
+
+        # No cross-tenant bleed
+        for t in a_traces:
+            assert app.db.get_trace_by_id(t.trace_id, user_id="household_recon_b") is None
+        for t in b_traces:
+            assert app.db.get_trace_by_id(t.trace_id, user_id="household_recon_a") is None
+
+        # Unfiltered query sees all
+        all_traces = app.db.get_traces()
+        assert len(all_traces) >= 2
+
+    def test_reconcile_shopping_trip_without_user_id_unscoped(self, e2e_app):
+        """reconcile_shopping_trip without user_id creates an unscoped trace."""
+        app = e2e_app
+
+        from shopstack.services.reconciliation import reconcile_shopping_trip
+
+        # Reconcile without user_id (empty string default)
+        result = reconcile_shopping_trip(
+            planned_items=[{"canonical_name": "salt"}],
+            actual_items=[{"canonical_name": "salt", "action": "bought"}],
+            tools=app.tools,
+            database=app.db,
+        )
+        assert result.success
+
+        # Trace with empty user_id should NOT appear in scoped queries
+        scoped_traces = app.db.get_traces(user_id="some_household")
+        assert len(scoped_traces) == 0
+
+    # ══════════════════════════════════════════════════════════════════
+    # Reconciliation screen (confirm_reconciliation) scoping
+    # ══════════════════════════════════════════════════════════════════
+
+    def test_confirm_reconciliation_scoped_per_household(self, e2e_app):
+        """confirm_reconciliation scopes events via user_id from current_user_id()."""
+        app = e2e_app
+        app.db.active_household_id = "household_recon_c"
+
+        # Create a shopping list to get a list_id
+        result = app.shopping_list_create(
+            "Recon test", '[{"canonical_name":"milk","requested_quantity":2}]',
+        )
+        assert "Created list" in result
+
+        sl = app.db.get_active_shopping_list()
+        assert sl is not None, "No active shopping list"
+        list_id = sl.list_id
+
+        # Call confirm_reconciliation with mock data
+        recon_data = [
+            ["milk", "2", "L", "bought", "64.0", ""],
+        ]
+        result = app.confirm_reconciliation(recon_data, list_id)
+        assert "Reconciliation complete" in result
+
+        # Reconciliation events should be scoped to the household
+        events = app.db.get_reconciliation_events(user_id="household_recon_c")
+        assert len(events) >= 1
+        assert any(e.canonical_name == "milk" for e in events)
+
+        # Other household should not see these events
+        other_events = app.db.get_reconciliation_events(user_id="household_recon_d")
+        assert all(e.canonical_name != "milk" for e in other_events)
+
+    def test_confirm_reconciliation_multi_household_isolated(self, e2e_app):
+        """confirm_reconciliation events from different households are isolated."""
+        app = e2e_app
+
+        # Household C: list + reconciliation
+        app.db.active_household_id = "household_recon_c"
+        app.shopping_list_create(
+            "C list", '[{"canonical_name":"milk","requested_quantity":2}]',
+        )
+        sl_c = app.db.get_active_shopping_list()
+        assert sl_c is not None, "No active shopping list"
+        list_c_id = sl_c.list_id
+        app.confirm_reconciliation([["milk", "2", "L", "bought", "64.0", ""]], list_c_id)
+
+        # Household D: list + reconciliation
+        app.db.active_household_id = "household_recon_d"
+        app.shopping_list_create(
+            "D list", '[{"canonical_name":"eggs","requested_quantity":6}]',
+        )
+        sl_d = app.db.get_active_shopping_list()
+        assert sl_d is not None, "No active shopping list"
+        list_d_id = sl_d.list_id
+        app.confirm_reconciliation([["eggs", "6", "pieces", "bought", "60.0", ""]], list_d_id)
+
+        # Each household sees only its own events
+        c_events = app.db.get_reconciliation_events(user_id="household_recon_c")
+        d_events = app.db.get_reconciliation_events(user_id="household_recon_d")
+
+        assert len(c_events) >= 1
+        assert len(d_events) >= 1
+        assert any(e.canonical_name == "milk" for e in c_events)
+        assert any(e.canonical_name == "eggs" for e in d_events)
+        assert all(e.canonical_name != "eggs" for e in c_events)
+        assert all(e.canonical_name != "milk" for e in d_events)
+
+    # ══════════════════════════════════════════════════════════════════
+    # Bulk export trace scoping (via screen layer)
+    # ══════════════════════════════════════════════════════════════════
+
+    def test_export_all_to_jsonl_scoped_per_household(self, e2e_app):
+        """``export_traces_to_jsonl`` respects household boundaries when
+        called through the screen's ``TraceService``.
+
+        Creates test data via screen builders (``add_purchase_form``),
+        then verifies that the same export function used by the screen
+        (``TraceService.export_all_to_jsonl`` → ``export_traces_to_jsonl``)
+        properly filters by ``user_id``.
+        """
+        app = e2e_app
+        from datetime import date
+
+        # Create traces for two households via screen ops
+        app.db.active_household_id = "household_export_a"
+        app.add_purchase_form(
+            "Rice", 2.0, "kg", 100.0, "Store", "pantry",
+            date.today().isoformat(), "Grains",
+        )
+
+        app.db.active_household_id = "household_export_b"
+        app.add_purchase_form(
+            "Bread", 1.0, "loaf", 40.0, "Bakery", "fridge_top",
+            date.today().isoformat(), "Bakery",
+        )
+
+        # Same export function as TestExportWithUserScoping, called
+        # through the same database the screen builders use.
+        # (``TraceService`` is not used directly to avoid singleton
+        # lifecycle issues in the session-scoped fixture.)
+
+        # ── Scoped export: household_export_a ─────────────────────
+        with tempfile.NamedTemporaryFile(suffix=".jsonl", mode="w", delete=False) as f:
+            path_a = f.name
+        try:
+            count_a = export_traces_to_jsonl(app.db, path_a, user_id="household_export_a")
+            assert count_a >= 1, f"Expected >=1 trace for household_export_a, got {count_a}"
+            with open(path_a) as f:
+                lines = f.readlines()
+            assert len(lines) >= 1
+        finally:
+            Path(path_a).unlink(missing_ok=True)
+
+        # ── Scoped export: household_export_b ─────────────────────
+        with tempfile.NamedTemporaryFile(suffix=".jsonl", mode="w", delete=False) as f:
+            path_b = f.name
+        try:
+            count_b = export_traces_to_jsonl(app.db, path_b, user_id="household_export_b")
+            assert count_b >= 1, f"Expected >=1 trace for household_export_b, got {count_b}"
+            with open(path_b) as f:
+                lines = f.readlines()
+            assert len(lines) >= 1
+        finally:
+            Path(path_b).unlink(missing_ok=True)
+
+        # ── Unfiltered export sees more than either scoped ────────
+        with tempfile.NamedTemporaryFile(suffix=".jsonl", mode="w", delete=False) as f:
+            path_all = f.name
+        try:
+            count_all = export_traces_to_jsonl(app.db, path_all)  # no user_id filter
+            assert count_all >= 2, f"Expected >=2 traces unfiltered, got {count_all}"
+            with open(path_all) as f:
+                lines = f.readlines()
+            assert len(lines) >= 2
+        finally:
+            Path(path_all).unlink(missing_ok=True)
+
+        # ── Empty household export is 0 ───────────────────────────
+        with tempfile.NamedTemporaryFile(suffix=".jsonl", mode="w", delete=False) as f:
+            path_empty = f.name
+        try:
+            count_empty = export_traces_to_jsonl(app.db, path_empty, user_id="household_export_empty")
+            assert count_empty == 0, f"Expected 0 traces for empty household, got {count_empty}"
+            with open(path_empty) as f:
+                assert f.read() == ""
+        finally:
+            Path(path_empty).unlink(missing_ok=True)
+
+    def test_market_lens_save_trace_preserves_household(self, e2e_app):
+        """market_lens_save_trace preserves the trace scoped to the active household."""
+        app = e2e_app
+        app.db.active_household_id = "household_ml_e"
+
+        _, _, analysis, ml_trace_id, _ = app.market_lens_process("scan-save.jpg", None)
+        assert ml_trace_id
+
+        # Save the trace — forwards user_id via current_user_id()
+        result = app.market_lens_save_trace(analysis, ml_trace_id)
+        assert "Trace" in result or "saved" in result.lower()
+
+        # Trace is findable by household_ml_e (user_id preserved by fix)
+        stored = app.db.get_trace_by_id(ml_trace_id, user_id="household_ml_e")
+        assert stored is not None
+
+    # ══════════════════════════════════════════════════════════════════

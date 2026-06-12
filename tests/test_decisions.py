@@ -105,6 +105,42 @@ class TestDecisionClassification:
         assert len(bread) == 1
         assert bread[0].action == Decision.BUY.value
 
+    def test_classify_all_respects_user_id_scope(self, ctx):
+        from shopstack.decisions import classify_all
+        from shopstack.schemas.models import ShoppingListItem
+
+        ctx.db.add_household("house_a", "House A")
+        ctx.db.add_household("house_b", "House B")
+
+        ctx.tools.add_inventory_item(
+            canonical_name="milk",
+            display_name="Milk",
+            quantity=3.0,
+            unit="L",
+            user_id="house_a",
+        )
+        ctx.tools.add_inventory_item(
+            canonical_name="bread",
+            display_name="Bread",
+            quantity=0.0,
+            unit="unit",
+            user_id="house_b",
+        )
+
+        sl_a = ctx.db.create_shopping_list(name="plan_a", goal="A", user_id="house_a")
+        sl_b = ctx.db.create_shopping_list(name="plan_b", goal="B", user_id="house_b")
+        ctx.db.add_list_item(sl_a.list_id, ShoppingListItem(canonical_name="tomato", status="pending"))
+        ctx.db.add_list_item(sl_b.list_id, ShoppingListItem(canonical_name="rice", status="pending"))
+
+        ds_a = classify_all(ctx.db, ctx.tools, user_id="house_a")
+        ds_b = classify_all(ctx.db, ctx.tools, user_id="house_b")
+
+        names_a = {d.canonical_name for d in ds_a.decisions}
+        names_b = {d.canonical_name for d in ds_b.decisions}
+
+        assert names_a == {"milk", "tomato"}
+        assert names_b == {"bread", "rice"}
+
 
 class TestDecisionSetProperties:
     def test_buy_property(self, ctx):

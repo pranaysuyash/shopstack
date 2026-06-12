@@ -29,6 +29,7 @@ from shopstack.ui.screens import (
     use_soon_view,
     model_budget_view,
     provider_status_badge,
+    runtime_proof_view,
     price_memory_view,
     price_intelligence_view,
     household_map_view,
@@ -113,9 +114,19 @@ def _model_download_status() -> str:
 
 def _runtime_label() -> str:
     try:
-        runtime = providers.runtime_report()
-        loaded_real = [r for r in runtime if getattr(r, "loaded", False) and getattr(r, "backend", "") != "mock"]
-        return "Local runtime" if loaded_real else "Local mock mode"
+        runtime = providers.get_runtime_diagnostics()
+        loaded_real = [
+            r for r in runtime.providers
+            if getattr(r, "loaded", False) and getattr(r, "backend", "") != "mock"
+        ]
+        blocked = [r for r in runtime.providers if getattr(r, "blocked_by_off_grid", False)]
+        if loaded_real and any(getattr(r, "backend", "") in {"openai", "huggingface", "whisper"} for r in loaded_real):
+            return "Cloud runtime"
+        if loaded_real:
+            return "Local runtime"
+        if blocked:
+            return "Off-grid mock mode"
+        return "Local mock mode"
     except Exception:
         return "Local runtime"
 

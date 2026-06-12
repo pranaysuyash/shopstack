@@ -42,7 +42,13 @@ def build_dashboard_state(db: Database, inventory, city: str = "mumbai", user_id
     market_input = _load_market_snapshot(db)
     # _load_market_snapshot returns (snapshot, registry) or (None, None)
     market_snapshot, source_registry = market_input if isinstance(market_input, tuple) else (market_input, None)
-    decision_set = classify_all(db, inventory, market_snapshot=market_snapshot, source_registry=source_registry)
+    decision_set = classify_all(
+        db,
+        inventory,
+        market_snapshot=market_snapshot,
+        source_registry=source_registry,
+        user_id=user_id,
+    )
     use_soon = inventory.get_use_soon(days=3, user_id=user_id) if hasattr(inventory, "get_use_soon") else inventory.get_use_soon_items(days=3)
     active_list = db.get_active_shopping_list(user_id=user_id)
     all_inventory = db.get_inventory(user_id=user_id)
@@ -50,8 +56,8 @@ def build_dashboard_state(db: Database, inventory, city: str = "mumbai", user_id
     low_items = [lot for lot in active_inventory if lot.quantity <= 0.5 or lot.status == "low"]
     recent_purchases = db.get_purchase_events(limit=5, user_id=user_id)
 
-    cadence_data = detect_purchase_cadence(db)
-    waste_data = detect_waste_patterns(db)
+    cadence_data = detect_purchase_cadence(db, user_id=user_id)
+    waste_data = detect_waste_patterns(db, user_id=user_id)
 
     weather: WeatherState | None = None
     try:

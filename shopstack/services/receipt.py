@@ -227,12 +227,16 @@ def _parse_line(line_text: str) -> ReceiptLine | None:
     return None
 
 
-def _extract_reconciliation_details(db: Any, canonical_name: str) -> tuple[str, float | None, str]:
+def _extract_reconciliation_details(
+    db: Any,
+    canonical_name: str,
+    user_id: str = "",
+) -> tuple[str, float | None, str]:
     """Return planned action, planned price, and notes from active shopping list.
 
     If the item is not on the active list, planned_action is "unknown".
     """
-    active_list = db.get_active_shopping_list() if db is not None else None
+    active_list = db.get_active_shopping_list(user_id=user_id) if db is not None else None
     if not active_list or not getattr(active_list, "items", None):
         return "unknown", None, ""
 
@@ -299,7 +303,7 @@ def parse_receipt_text(raw_text: str) -> ReceiptResult:
     )
 
 
-def confirm_receipt(database: Any, result: ReceiptResult) -> ImportResult:
+def confirm_receipt(database: Any, result: ReceiptResult, user_id: str = "") -> ImportResult:
     ir = ImportResult()
 
     if not result.lines:
@@ -320,7 +324,7 @@ def confirm_receipt(database: Any, result: ReceiptResult) -> ImportResult:
                 category=line.category,
                 source_event_id="receipt",
             )
-            database.add_inventory_lot(lot)
+            database.add_inventory_lot(lot, user_id=user_id)
             ir.items_added += 1
 
             pe = PurchaseEvent(
@@ -334,11 +338,12 @@ def confirm_receipt(database: Any, result: ReceiptResult) -> ImportResult:
                 raw_text=result.raw_text,
                 confirmed=True,
             )
-            database.add_purchase_event(pe)
+            database.add_purchase_event(pe, user_id=user_id)
 
             planned_action, planned_price, plan_notes = _extract_reconciliation_details(
                 database,
                 line.canonical_name,
+                user_id=user_id,
             )
 
             reconcile_event = ReconciliationEvent(
@@ -352,7 +357,7 @@ def confirm_receipt(database: Any, result: ReceiptResult) -> ImportResult:
                 source="receipt",
                 notes="; ".join(p for p in [f"Receipt scan from {result.merchant}", plan_notes] if p),
             )
-            database.add_reconciliation_event(reconcile_event)
+            database.add_reconciliation_event(reconcile_event, user_id=user_id)
         except Exception as e:
             ir.errors.append(f"Failed for '{line.display_name}': {e}")
 
@@ -368,7 +373,7 @@ def confirm_receipt(database: Any, result: ReceiptResult) -> ImportResult:
                 source_event_id="receipt",
                 notes=f"Receipt scan from {result.merchant}",
             )
-            database.record_price(po)
+            database.record_price(po, user_id=user_id)
             ir.price_observations_added += 1
         except Exception as e:
             ir.errors.append(f"Failed to record price for '{line.display_name}': {e}")

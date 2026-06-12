@@ -190,10 +190,20 @@ class ToolRegistry:
         type_name = arg.type_name.lower()
         name = arg.name
 
+        def _enum_error(normalized: Any) -> str | None:
+            if arg.enum_values is None:
+                return None
+            normalized_value = str(normalized).strip()
+            if normalized_value not in arg.enum_values:
+                return f"Argument '{name}' must be one of {', '.join(arg.enum_values)}"
+            return None
+
         if type_name == "string":
-            if isinstance(value, str):
-                return value, None
-            return str(value), None
+            normalized = value if isinstance(value, str) else str(value)
+            enum_error = _enum_error(normalized)
+            if enum_error is not None:
+                return None, enum_error
+            return normalized, None
 
         if type_name == "number":
             if isinstance(value, bool):
@@ -201,16 +211,26 @@ class ToolRegistry:
                     f"Argument '{name}' must be a number, not a boolean"
                 )
             if isinstance(value, (int, float)):
-                return float(value), None
+                normalized = float(value)
+                enum_error = _enum_error(normalized)
+                if enum_error is not None:
+                    return None, enum_error
+                return normalized, None
             if isinstance(value, str):
                 try:
-                    return float(value), None
+                    normalized = float(value)
+                    enum_error = _enum_error(normalized)
+                    if enum_error is not None:
+                        return None, enum_error
+                    return normalized, None
                 except ValueError:
                     return None, f"Argument '{name}' must be a number, got {value!r}"
             return None, f"Argument '{name}' must be a number, got {type(value).__name__}"
 
         if type_name in {"array", "list"}:
             if isinstance(value, list):
+                if name == "items":
+                    return ToolRegistry._coerce_items_array(arg, value)
                 return list(value), None
             if isinstance(value, str):
                 try:
@@ -218,10 +238,23 @@ class ToolRegistry:
                 except json.JSONDecodeError:
                     return None, f"Argument '{name}' must be a JSON array string or array"
                 if isinstance(parsed, list):
+                    if name == "items":
+                        return ToolRegistry._coerce_items_array(arg, parsed)
+                    enum_error = _enum_error(parsed)
+                    if enum_error is not None:
+                        return None, enum_error
                     return parsed, None
                 return None, f"Argument '{name}' must be a JSON array, got {type(parsed).__name__}"
 
             return None, f"Argument '{name}' must be an array, got {type(value).__name__}"
+
+        if arg.enum_values is not None and type_name not in {"array", "list"}:
+            if isinstance(value, str):
+                normalized = value
+            else:
+                normalized = str(value)
+            if normalized not in arg.enum_values:
+                return None, f"Argument '{name}' must be one of {', '.join(arg.enum_values)}"
 
         if type_name in {"object", "dict"}:
             if isinstance(value, dict):
@@ -232,6 +265,9 @@ class ToolRegistry:
                 except json.JSONDecodeError:
                     return None, f"Argument '{name}' must be a JSON object string or object"
                 if isinstance(parsed, dict):
+                    enum_error = _enum_error(parsed)
+                    if enum_error is not None:
+                        return None, enum_error
                     return parsed, None
                 return None, f"Argument '{name}' must be a JSON object, got {type(parsed).__name__}"
 
@@ -243,12 +279,63 @@ class ToolRegistry:
             if isinstance(value, str):
                 lowered = value.strip().lower()
                 if lowered in {"1", "true", "yes", "y"}:
+                    enum_error = _enum_error(True)
+                    if enum_error is not None:
+                        return None, enum_error
                     return True, None
                 if lowered in {"0", "false", "no", "n"}:
+                    enum_error = _enum_error(False)
+                    if enum_error is not None:
+                        return None, enum_error
                     return False, None
             return None, f"Argument '{name}' must be a boolean"
 
+        enum_error = _enum_error(value)
+        if enum_error is not None:
+            return None, enum_error
+
         return value, None
+
+    @staticmethod
+    def _coerce_items_array(arg: ArgSpec, value: list[Any]) -> tuple[list[dict[str, Any]], str | None]:
+        normalized: list[dict[str, Any]] = []
+        allowed_priorities = arg.enum_values or []
+
+        for idx, raw_item in enumerate(value):
+            if not isinstance(raw_item, dict):
+                return [], f"Item {idx} in '{arg.name}' must be an object"
+
+            normalized_item = dict(raw_item)
+            canonical_name = str(normalized_item.get("canonical_name", "")).strip()
+            if not canonical_name:
+                return [], f"Item {idx} in '{arg.name}' requires canonical_name"
+
+            requested_quantity = normalized_item.get("requested_quantity")
+            if requested_quantity is None and "quantity" in normalized_item:
+                requested_quantity = normalized_item["quantity"]
+                normalized_item["requested_quantity"] = requested_quantity
+
+            if requested_quantity is not None:
+                if isinstance(requested_quantity, bool):
+                    return [], f"Item {idx} in '{arg.name}' has invalid requested_quantity"
+                try:
+                    normalized_item["requested_quantity"] = float(requested_quantity)
+                except (TypeError, ValueError):
+                    return [], f"Item {idx} in '{arg.name}' has invalid requested_quantity"
+
+            priority = normalized_item.get("priority")
+            if priority is not None and allowed_priorities:
+                priority_norm = str(priority).strip().lower()
+                if priority_norm not in allowed_priorities:
+                    return [], (
+                        f"Item {idx} in '{arg.name}' has invalid priority '{priority}'. "
+                        f"Expected {', '.join(allowed_priorities)}."
+                    )
+                normalized_item["priority"] = priority_norm
+
+            normalized.append(normalized_item)
+
+        return normalized, None
 
     # ── Price observation (single method, stays here) ──────────────
 

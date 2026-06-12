@@ -5,6 +5,7 @@ import pytest
 
 from shopstack.portability import (
     export_csv_inventory,
+    export_backup,
     export_json,
     import_csv,
     import_json,
@@ -40,6 +41,16 @@ class TestExportJSON:
     def test_export_empty_inventory(self, db):
         data = export_json(db)
         assert data["inventory"] == []
+
+
+def test_export_backup_includes_household_locations(db):
+    data = export_backup(db)
+    assert "household_locations" in data
+    assert "storage_locations" in data
+    assert isinstance(data["household_locations"], list)
+    assert isinstance(data["storage_locations"], list)
+    assert len(data["household_locations"]) > 0
+    assert len(data["household_locations"]) == len(data["storage_locations"])
 
 
 class TestExportCSV:

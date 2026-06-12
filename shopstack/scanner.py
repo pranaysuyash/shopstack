@@ -29,6 +29,10 @@ _pyzbar_decode, ZBarSymbol = _load_pyzbar()
 
 
 def decode_barcode(image_path: str) -> list[dict[str, Any]]:
+    if not os.path.exists(image_path):
+        logger.debug("Barcode decode skipped: %s does not exist", image_path)
+        return []
+
     if _pyzbar_decode is None:
         return _try_zbar_subprocess(image_path)
 
