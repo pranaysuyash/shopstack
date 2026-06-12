@@ -79,6 +79,14 @@ from shopstack.ui.screens.intelligence import (
     refresh_preferences,
 )
 from shopstack.ui.screens.nutrition import nutrition_lookup_view, nutrition_kitchen_view  # noqa: F401 — public API re-export
+from shopstack.ui.screens.unified_shopping import run_unified_plan, unified_plan_summary
+from shopstack.ui.screens.consumption import (
+    consumption_dashboard,
+    quick_consume,
+    batch_consume_with_context,
+    consumption_history,
+    consumption_rates,
+)
 
 __all__ = [
     "today_dashboard",
@@ -141,4 +149,11 @@ __all__ = [
     "add_preference",
     "delete_preference",
     "refresh_preferences",
+    "run_unified_plan",
+    "unified_plan_summary",
+    "consumption_dashboard",
+    "quick_consume",
+    "batch_consume_with_context",
+    "consumption_history",
+    "consumption_rates",
 ]

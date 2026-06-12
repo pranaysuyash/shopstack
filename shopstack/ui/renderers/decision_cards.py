@@ -143,7 +143,50 @@ def render_compare_panel(ds: DecisionSet) -> str:
     for d in wait_items[:4]:
         rows.append(render_unified_decision_card(d))
 
-    return f"{_CARD_OPEN}<h3>Compare / Market Signals</h3>{''.join(rows)}</div>"
+    bridge_actions = [
+        {
+            "label": "Open Shopping",
+            "subtitle": "Turn compare items into a list",
+            "tab_id": "basket",
+            "tone": "primary",
+        },
+        {
+            "label": "Open Pantry",
+            "subtitle": "Check what is already covered",
+            "tab_id": "reconcile",
+            "tone": "default",
+        },
+        {
+            "label": "Open Memory",
+            "subtitle": "Compare against your price baseline",
+            "tab_id": "memory",
+            "tone": "default",
+        },
+    ]
+
+    compare_preview = ""
+    if compare_items:
+        preview_rows = []
+        for d in compare_items[:3]:
+            preview_rows.append(
+                f"<div style='display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);'>"
+                f"<strong>{escape(d.display_name)}</strong>"
+                f"<span style='color:var(--text-dim);font-size:12px;'>{escape(d.reason or 'Compare signal')}</span>"
+                "</div>"
+            )
+        compare_preview = (
+            "<div style='margin:6px 0 10px 0;padding:8px;border:1px solid var(--border);border-radius:8px;'>"
+            "<div style='font-size:12px;font-weight:600;margin-bottom:6px;'>Compare bridge</div>"
+            + "".join(preview_rows)
+            + "</div>"
+        )
+
+    note = (
+        "<div style='font-size:11px;color:var(--text-dim);margin:6px 0 10px 0;'>"
+        "Market Map adds freshness, combo overlap, and substitute context for these signals."
+        "</div>"
+    )
+    return f"{_CARD_OPEN}<h3>Compare / Market Signals</h3>{note}{compare_preview}{render_action_grid(bridge_actions)}{''.join(rows)}</div>"
 
 
 def render_decision_panel(ds: DecisionSet) -> str:

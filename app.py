@@ -14,6 +14,13 @@ from shopstack.ui.screens import (
     get_reconciliation_draft,
     confirm_reconciliation,
     get_intelligence_dashboard,
+    run_unified_plan,
+    unified_plan_summary,
+    consumption_dashboard,
+    quick_consume,
+    batch_consume_with_context,
+    consumption_history,
+    consumption_rates,
     market_lens_process,
     market_lens_confirm_buy,
     market_lens_skip,
@@ -310,6 +317,30 @@ document.addEventListener('keydown', function(e) {
             # ═══════════════════════════════════════════════════════════════
             with gr.Tab(_tab_label("basket"), id="basket"):
                 with gr.Tabs():
+                    # ── Unified Plan ──
+                    with gr.Tab("Plan"):
+                        gr.Markdown("### Unified Shopping Plan")
+                        gr.Markdown("Enter items to classify, price, find substitutions, and score deals in one pass.")
+                        with gr.Row():
+                            up_goal = gr.Textbox(label="Goal", placeholder="Weekly groceries", scale=1)
+                            up_items = gr.Textbox(
+                                label="Items (comma or newline separated)",
+                                placeholder="milk, bread, tomato, onion, rice, egg",
+                                lines=3,
+                                scale=2,
+                            )
+                        up_run_btn = gr.Button("Run Plan", variant="primary")
+                        up_summary = gr.HTML("")
+                        up_detail = gr.HTML("")
+                        up_run_btn.click(
+                            run_unified_plan,
+                            [up_goal, up_items],
+                            [up_summary, up_detail],
+                            api_name="unified_plan",
+                            api_description="Run unified shopping plan: classify, price, substitute, score deals",
+                        )
+                        app.load(unified_plan_summary, outputs=up_summary)
+
                     # ── Optimizer ──
                     with gr.Tab("Optimizer"):
                         build_basket_screen()
@@ -832,6 +863,67 @@ document.addEventListener('keydown', function(e) {
                             api_description="Refresh use-soon inventory recommendations",
                         )
                         app.load(use_soon_view, inputs=use_days, outputs=use_table)
+
+                    # ── Consumption ──
+                    with gr.Tab("Consume"):
+                        gr.Markdown("### Consumption Tracker")
+                        gr.Markdown("Log what you use. Track waste, meals, and consumption rates.")
+                        cons_grid = gr.HTML("")
+                        cons_history = gr.HTML("")
+                        cons_rates = gr.HTML("")
+                        cons_refresh = gr.Button("Refresh", elem_classes="secondary")
+                        cons_refresh.click(
+                            consumption_dashboard,
+                            outputs=[cons_grid, cons_history, cons_rates],
+                            api_name="consumption_refresh",
+                            api_description="Refresh consumption dashboard",
+                        )
+                        app.load(consumption_dashboard, outputs=[cons_grid, cons_history, cons_rates])
+
+                        gr.Markdown("---")
+                        gr.Markdown("### Quick Consume")
+                        with gr.Row():
+                            cons_lot_input = gr.Textbox(label="Lot ID", placeholder="e.g. abc123", scale=2)
+                            cons_qty_input = gr.Number(label="Quantity", value=1.0, scale=1)
+                            cons_btn = gr.Button("Consume", variant="primary", scale=0)
+                        cons_result = gr.HTML("")
+                        cons_btn.click(
+                            quick_consume,
+                            [cons_lot_input, cons_qty_input],
+                            cons_result,
+                            api_name="quick_consume",
+                            api_description="Quick consume quantity from a lot",
+                        )
+
+                        gr.Markdown("---")
+                        gr.Markdown("### Batch Consume with Context")
+                        cons_batch_input = gr.Textbox(
+                            label="Items (one per line: lot_id:qty)",
+                            lines=4,
+                            placeholder="abc123: 0.5\ndef456: 1",
+                        )
+                        with gr.Row():
+                            cons_meal = gr.Dropdown(
+                                label="Meal context",
+                                choices=["breakfast", "lunch", "dinner", "snack", "other"],
+                                value="other",
+                                scale=1,
+                            )
+                            cons_waste = gr.Dropdown(
+                                label="Waste?",
+                                choices=[("Normal use", ""), ("Wasted", "waste")],
+                                value="",
+                                scale=1,
+                            )
+                        cons_batch_btn = gr.Button("Log Batch")
+                        cons_batch_result = gr.HTML("")
+                        cons_batch_btn.click(
+                            batch_consume_with_context,
+                            [cons_batch_input, cons_meal, cons_waste],
+                            cons_batch_result,
+                            api_name="batch_consume_context",
+                            api_description="Batch consume with meal context and waste tracking",
+                        )
 
                     # ── Locations ──
                     with gr.Tab("Locations"):

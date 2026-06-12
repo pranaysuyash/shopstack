@@ -5,6 +5,7 @@ import logging
 from shopstack.app_context import APP_DESCRIPTION, APP_NAME, db, tools, current_user_id
 from shopstack.services.dashboard import build_dashboard_state
 from shopstack.ui.components.cards import card as ui_card
+from shopstack.ui.components.cards import badge_html
 from shopstack.ui.components.cards import render_action_grid, render_hero_panel
 from shopstack.ui.components.primitives import stat_card, item_row
 from shopstack.ui.renderers import render_cadence_insights, render_waste_warnings
@@ -43,6 +44,7 @@ def today_dashboard():
 
     state = build_dashboard_state(db, tools.inventory, user_id=uid)
     ds = state.decision_set
+    market_graph = _build_market_graph(uid)
 
     hero = render_hero_panel(
         f"Good day. {APP_DESCRIPTION}",
@@ -50,6 +52,9 @@ def today_dashboard():
         APP_NAME,
     )
     start_here = _render_today_start_here(state, ds)
+    market_chips = _render_market_summary_chips(market_graph)
+    market_next_steps = _render_market_next_steps(market_graph)
+    market_map = _render_market_map_teaser(state, market_graph)
     runtime_proof = runtime_proof_view()
 
     quick_actions = (
@@ -122,7 +127,7 @@ def today_dashboard():
     )
 
     return [
-        f"{hero}{start_here}{quick_actions}{loop_actions}{runtime_proof}{onboarding}",
+        f"{hero}{market_chips}{market_next_steps}{start_here}{quick_actions}{market_map}{loop_actions}{runtime_proof}{onboarding}",
         decision_panel,
         svg_section,
         market_basket,
@@ -274,4 +279,159 @@ def _render_today_empty_hints(state, ds) -> str:
             },
         ])}"
         "</div>"
+    )
+
+
+def _build_market_graph(uid: str):
+    from shopstack.services.market_intelligence import build_market_intelligence_graph
+
+    graph = build_market_intelligence_graph(db, tools.inventory, user_id=uid)
+    return graph
+
+
+def _render_market_summary_chips(graph) -> str:
+    chips = [
+        badge_html(f"{graph.summary.get('items_scored', 0)} items", "blue"),
+        badge_html(f"{graph.summary.get('compare', 0)} compare", "blue"),
+        badge_html(f"{graph.summary.get('substitute', 0)} substitute", "red"),
+        badge_html(f"{graph.summary.get('stale', 0)} stale", "red" if graph.summary.get("stale", 0) else "gray"),
+    ]
+    return (
+        "<div style='margin-top:-2px;margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap;'>"
+        + "".join(chips)
+        + "</div>"
+    )
+
+
+def _render_market_next_steps(graph) -> str:
+    actions = []
+    if graph.summary.get("buy", 0):
+        actions.append(
+            {
+                "label": "Open Shopping",
+                "subtitle": "Turn buy items into the list",
+                "tab_id": "basket",
+                "tone": "primary",
+            }
+        )
+    if graph.summary.get("compare", 0):
+        actions.append(
+            {
+                "label": "Review Compare",
+                "subtitle": "Check overlap and substitutions",
+                "tab_id": "basket",
+                "tone": "default",
+            }
+        )
+    if graph.summary.get("substitute", 0):
+        actions.append(
+            {
+                "label": "Review Substitutes",
+                "subtitle": "See better replacements",
+                "tab_id": "basket",
+                "tone": "default",
+            }
+        )
+    if graph.summary.get("stale", 0):
+        actions.append(
+            {
+                "label": "Inspect Freshness",
+                "subtitle": "Treat stale cards as references",
+                "tab_id": "basket",
+                "tone": "default",
+            }
+        )
+
+    if not actions:
+        return (
+            "<div class='home-card' style='text-align:left;margin-top:8px;'>"
+            "<h3>Next steps</h3>"
+            "<div class='muted'>No market actions to prioritize yet.</div>"
+            "</div>"
+        )
+
+    top_signals = []
+    if graph.compare:
+        top_signals.append(f"{graph.compare[0].display_name}: compare")
+    if graph.substitute:
+        top_signals.append(f"{graph.substitute[0].display_name}: substitute")
+    if graph.buy:
+        top_signals.append(f"{graph.buy[0].display_name}: buy")
+
+    return ui_card(
+        "Next steps",
+        f"<div class='muted' style='margin-bottom:8px;'>"
+        f"{' · '.join(top_signals) if top_signals else 'The graph is quiet right now.'}"
+        f"</div>"
+        f"{render_action_grid(actions)}",
+    )
+
+
+def _render_market_map_teaser(state, graph) -> str:
+    freshness = graph.snapshot_freshness_label or graph.snapshot_freshness or "unknown"
+    compare_preview = _render_compare_preview(graph)
+    body = (
+        f"{graph.summary.get('items_scored', 0)} items scored · "
+        f"{graph.summary.get('buy', 0)} buy · "
+        f"{graph.summary.get('compare', 0)} compare · "
+        f"{graph.summary.get('substitute', 0)} substitute"
+    )
+    if state.market_snapshot is None and graph.summary.get("items_scored", 0) == 0:
+        body = "No market snapshot is loaded yet. Add one and the graph will start ranking buy / compare / substitute signals."
+
+    actions = [
+        {
+            "label": "Open Market Map",
+            "subtitle": "Inspect the living market graph",
+            "tab_id": "basket",
+            "tone": "primary",
+        },
+        {
+            "label": "Check Pantry",
+            "subtitle": "See what the household already has",
+            "tab_id": "reconcile",
+            "tone": "default",
+        },
+        {
+            "label": "Open Memory",
+            "subtitle": "Compare against your price baseline",
+            "tab_id": "memory",
+            "tone": "default",
+        },
+    ]
+
+    return ui_card(
+        "Market Map",
+        f"<div class='muted' style='margin-bottom:8px;'>{freshness}</div>"
+        f"<div style='margin-bottom:10px;'>{body}</div>"
+        f"{compare_preview}"
+        f"{render_action_grid(actions)}",
+    )
+
+
+def _render_compare_preview(graph) -> str:
+    compare_items = graph.compare[:3]
+    if not compare_items:
+        return (
+            "<div style='margin-bottom:10px;padding:8px;border:1px solid var(--border);border-radius:10px;'>"
+            "<div style='font-size:12px;font-weight:600;margin-bottom:6px;'>Compare preview</div>"
+            "<div class='muted'>No compare items yet.</div>"
+            "</div>"
+        )
+
+    rows = []
+    for cluster in compare_items:
+        signal = cluster.reason or (cluster.reasons[0] if cluster.reasons else "Compare signal available")
+        rows.append(
+            "<div style='display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);'>"
+            f"<strong>{cluster.display_name}</strong>"
+            f"<span style='color:var(--text-dim);font-size:12px;'>{signal}</span>"
+            "</div>"
+        )
+
+    return (
+        "<div style='margin-bottom:10px;padding:8px;border:1px solid var(--border);border-radius:10px;'>"
+        "<div style='font-size:12px;font-weight:600;margin-bottom:6px;'>Compare preview</div>"
+        + "".join(rows)
+        + "</div>"
     )

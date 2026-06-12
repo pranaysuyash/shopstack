@@ -55,19 +55,29 @@ class TestTodayDashboard:
         assert "Runtime Proof" in results[0]
         assert "Off-grid policy" in results[0]
 
+    def test_includes_market_map_teaser(self, app):
+        results = app.today_dashboard()
+        assert "Market Map" in results[0]
+        assert "Next steps" in results[0]
+        assert "Open Market Map" in results[0]
+        assert "compare" in results[0].lower()
+        assert "Compare preview" in results[0]
+
     def test_shows_use_soon(self, app):
         app.db.add_inventory_lot(
-            InventoryLot(canonical_name="milk", display_name="Milk", quantity=0.5, unit="L")
+            InventoryLot(canonical_name="milk", display_name="Milk", quantity=0.5, unit="L"),
+            user_id=app.current_user_id(),
         )
         results = app.today_dashboard()
-        assert any("Milk" in r for r in results)
+        assert any("Use soon" in r for r in results)
 
     def test_shows_low_stock(self, app):
         app.db.add_inventory_lot(
-            InventoryLot(canonical_name="bread", display_name="Bread", quantity=0.3, unit="loaf")
+            InventoryLot(canonical_name="bread", display_name="Bread", quantity=0.3, unit="loaf"),
+            user_id=app.current_user_id(),
         )
         results = app.today_dashboard()
-        assert any("Bread" in r for r in results)
+        assert any("Low stock" in r for r in results)
 
 
 class TestShoppingListView:
@@ -117,14 +127,15 @@ class TestShoppingListView:
                 quantity=2.0,
                 unit="loaf",
                 storage_location_id="pantry",
-            )
+            ),
+            user_id=app.current_user_id(),
         )
         app.shopping_list_create("Pantry top-up", "bread")
         cards, list_html, _table, list_id, _goal, share = app._shopping_list_view_with_cards()
         assert "ShopStack list for today" in share
         assert list_id
         assert "Shopping List" in cards
-        assert "Must Buy" in cards or "Skip" in cards
+        assert "Bread" in cards
 
 
 class TestModelBudgetView:
@@ -144,7 +155,7 @@ class TestAddPurchase:
         result = app.add_purchase_form("Paneer", 0.5, "kg", 120.0, "Local Store", "fridge",
                                        date.today().isoformat(), "Dairy")
         assert "Added" in result
-        items = app.db.get_inventory()
+        items = app.db.get_inventory(user_id=app.current_user_id())
         assert any(i.canonical_name == "paneer" for i in items)
 
     def test_negative_quantity(self, app):
@@ -162,7 +173,7 @@ class TestAddPurchase:
                                        date.today().isoformat(), "Dairy")
         assert "Added" in result
         prices = app.db.conn.execute("SELECT * FROM price_observations").fetchall()
-        assert len(prices) >= 1
+        assert any(row["canonical_name"] == "butter" for row in prices)
 
     def test_blank_item_rejected(self, app):
         result = app.add_purchase_form("   ", 1.0, "kg", 10.0, "Store", "fridge",

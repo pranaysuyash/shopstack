@@ -859,6 +859,255 @@ class TestAnnotateImageIntegration:
             test_img.unlink(missing_ok=True)
 
 
+class TestGroundingDINOBboxFlow:
+    """Tests that GroundingDINO-style absolute_xyxy bboxes (no bbox_format tag)
+    are correctly auto-detected and drawn by annotate_image.
+
+    GroundingDINO's ``ground()`` method returns bboxes as absolute pixel
+    ``[xmin, ymin, xmax, ymax]`` via ``all_detections``, but does **not**
+    set a ``bbox_format`` key.  The ``_detect_bbox_format`` heuristic must
+    correctly identify these as ``absolute_xyxy`` based on coordinate magnitude.
+    """
+
+    @staticmethod
+    def _make_test_image(path: str, width: int = 300, height: int = 200) -> None:
+        try:
+            from PIL import Image
+        except ImportError:
+            pytest.skip("Pillow not installed")
+        Image.new("RGB", (width, height), color="white").save(path)
+
+    @staticmethod
+    def _pixel_at(path: str, x: int, y: int) -> tuple[int, int, int]:
+        from PIL import Image
+        img = Image.open(path).convert("RGB")
+        return img.getpixel((x, y))
+
+    def test_grounding_dino_absolute_xyxy_auto_detected(self):
+        """GroundingDINO-style bbox (absolute xyxy, no format tag) draws correctly.
+
+        GroundingDINO returns absolute pixel coords via ``all_detections``
+        without a ``bbox_format`` key.  The auto-detect heuristic must
+        classify these as ``absolute_xyxy``.
+        """
+        from shopstack.providers.image_gen_provider import FluxImageProvider
+
+        W, H = 300, 200
+        provider = FluxImageProvider()
+        test_img = Path(tempfile.mkdtemp()) / "test_grounding_dino_auto.png"
+        self._make_test_image(str(test_img), width=W, height=H)
+
+        try:
+            # GroundingDINO-style: absolute pixel xyxy [xmin,ymin,xmax,ymax]
+            # with no bbox_format key — exactly what ground() returns.
+            detections = [
+                {
+                    "bbox": [30, 20, 150, 100],  # absolute pixel
+                    "label": "tomato",
+                    "score": 0.87,
+                    # NO bbox_format key!
+                },
+            ]
+            result = provider.annotate_image(str(test_img), detections)
+
+            red = (229, 57, 53)
+            white = (255, 255, 255)
+
+            # The bbox [30, 20, 150, 100] maps directly to those pixel coords
+            # Top edge (y=20)
+            assert self._pixel_at(result, 90, 20) == red
+            # Bottom edge (y=99, Pillow draws up to y2-1)
+            assert self._pixel_at(result, 90, 99) == red
+            # Left edge (x=30)
+            assert self._pixel_at(result, 30, 60) == red
+            # Right edge (x=149, Pillow draws up to x2-1)
+            assert self._pixel_at(result, 149, 60) == red
+            # Interior
+            assert self._pixel_at(result, 90, 60) == white
+            # Outside
+            assert self._pixel_at(result, 250, 50) == white
+        finally:
+            test_img.unlink(missing_ok=True)
+
+    def test_grounding_dino_multiple_detections(self):
+        """Multiple GroundingDINO-style detections all produce correct outlines.
+
+        This simulates the actual ``all_detections`` output from GroundingDINO
+        where every entry is absolute xyxy with no format tag.
+        """
+        from shopstack.providers.image_gen_provider import FluxImageProvider
+
+        W, H = 400, 300
+        provider = FluxImageProvider()
+        test_img = Path(tempfile.mkdtemp()) / "test_grounding_dino_multi.png"
+        self._make_test_image(str(test_img), width=W, height=H)
+
+        try:
+            # Exact shape of GroundingDINO all_detections entries
+            detections = [
+                {
+                    "bbox": [40, 30, 180, 150],  # top-left quadrant
+                    "label": "apple",
+                    "score": 0.92,
+                },
+                {
+                    "bbox": [220, 50, 370, 200],  # right side
+                    "label": "banana",
+                    "score": 0.78,
+                },
+                {
+                    "bbox": [50, 180, 200, 270],  # bottom-left
+                    "label": "carrot",
+                    "score": 0.65,
+                },
+            ]
+            result = provider.annotate_image(str(test_img), detections)
+
+            red = (229, 57, 53)
+            white = (255, 255, 255)
+
+            # box1: [40, 30, 180, 150] → on 400×300
+            #   top: (110, 30), right: (179, 90)
+            assert self._pixel_at(result, 110, 30) == red
+            assert self._pixel_at(result, 179, 90) == red
+
+            # box2: [220, 50, 370, 200] → on 400×300
+            #   top: (295, 50), left: (220, 125)
+            assert self._pixel_at(result, 295, 50) == red
+            assert self._pixel_at(result, 220, 125) == red
+
+            # box3: [50, 180, 200, 270] → on 400×300
+            #   top: (125, 180), right: (199, 225)
+            assert self._pixel_at(result, 125, 180) == red
+            assert self._pixel_at(result, 199, 225) == red
+
+            # Gap between box1 and box2 is white
+            assert self._pixel_at(result, 200, 90) == white
+        finally:
+            test_img.unlink(missing_ok=True)
+
+    def test_grounding_dino_edge_of_image(self):
+        """Bboxes at image edges are clamped and drawn correctly."""
+        from shopstack.providers.image_gen_provider import FluxImageProvider
+
+        W, H = 200, 150
+        provider = FluxImageProvider()
+        test_img = Path(tempfile.mkdtemp()) / "test_grounding_edge.png"
+        self._make_test_image(str(test_img), width=W, height=H)
+
+        try:
+            # Bbox that extends beyond image: [0, -10, 220, 160]
+            # After clamping: [0, 0, 200, 150] — full image border
+            detections = [
+                {
+                    "bbox": [0, -10, 220, 160],
+                    "label": "edge_object",
+                    "score": 0.50,
+                },
+            ]
+            result = provider.annotate_image(str(test_img), detections)
+
+            red = (229, 57, 53)
+            white = (255, 255, 255)
+
+            # The clamped box covers the full image [0, 0, 200, 150]
+            # Top edge at y=0
+            assert self._pixel_at(result, 100, 0) == red
+            # Bottom edge at y=149 (Pillow y2-1)
+            assert self._pixel_at(result, 100, 149) == red
+            # Left edge at x=0
+            assert self._pixel_at(result, 0, 75) == red
+            # Right edge at x=199 (Pillow x2-1)
+            assert self._pixel_at(result, 199, 75) == red
+            # Center — should be white even though it's technically inside the
+            # clamped box, because the original bbox center is (110, 75) which
+            # is well inside the image. The red outline is only 3px wide at the
+            # image borders.
+            assert self._pixel_at(result, 100, 75) == white
+        finally:
+            test_img.unlink(missing_ok=True)
+
+    def test_grounding_dino_svg_fallback(self):
+        """SVG fallback mode also handles GroundingDINO absolute_xyxy bboxes."""
+        from unittest.mock import patch
+
+        from shopstack.providers.image_gen_provider import FluxImageProvider
+
+        W, H = 300, 200
+        provider = FluxImageProvider()
+        test_img = Path(tempfile.mkdtemp()) / "test_grounding_svg.png"
+        self._make_test_image(str(test_img), width=W, height=H)
+
+        try:
+            detections = [
+                {
+                    "bbox": [30, 20, 150, 100],  # absolute pixel, no format tag
+                    "label": "tomato",
+                    "score": 0.87,
+                },
+            ]
+            with patch.dict("sys.modules", {"PIL": None}, clear=False):
+                result = provider.annotate_image(str(test_img), detections)
+                assert result.endswith(".svg")
+                content = Path(result).read_text()
+                # The SVG uses a viewBox of 800×600.  The bbox normalizes
+                # within the SVG viewport (not the image), so:
+                # [30, 20, 150, 100] → normalized [0.0375, 0.0333, 0.1875, 0.1667]
+                # → SVG rect: x=30, y=20, w=120, h=80
+                assert "tomato" in content
+                assert "<svg" in content or "<rect" in content
+        finally:
+            test_img.unlink(missing_ok=True)
+
+    def test_grounding_dino_mixed_with_other_formats(self):
+        """GroundingDINO-style (no format tag) alongside tagged bboxes works."""
+        from shopstack.providers.image_gen_provider import FluxImageProvider
+
+        W, H = 300, 200
+        provider = FluxImageProvider()
+        test_img = Path(tempfile.mkdtemp()) / "test_grounding_mixed.png"
+        self._make_test_image(str(test_img), width=W, height=H)
+
+        try:
+            detections = [
+                # GroundingDINO-style: absolute xyxy, no format tag
+                {
+                    "bbox": [30, 20, 150, 100],
+                    "label": "tomato",
+                    "score": 0.87,
+                },
+                # Normalized xyxy with explicit format tag
+                {
+                    "bbox": [0.6, 0.1, 0.9, 0.4],
+                    "label": "onion",
+                    "score": 0.72,
+                    "bbox_format": "normalized_xyxy",
+                },
+                # Absolute cxcywh with explicit format tag
+                {
+                    "bbox": [200, 170, 40, 30],
+                    "label": "garlic",
+                    "score": 0.60,
+                    "bbox_format": "absolute_cxcywh",
+                },
+            ]
+            result = provider.annotate_image(str(test_img), detections)
+
+            red = (229, 57, 53)
+
+            # box1 (GroundingDINO): [30, 20, 150, 100] top edge
+            assert self._pixel_at(result, 90, 20) == red
+            # box2 (normalized): [0.6, 0.1, 0.9, 0.4] → [180, 20, 270, 80] top edge
+            assert self._pixel_at(result, 225, 20) == red
+            # box3 (cxcywh): [200, 170, 40, 30] on 300×200
+            #   → normalized: cx=0.667, cy=0.85, w=0.133, h=0.15
+            #   → xyxy: [0.6, 0.775, 0.733, 0.925]
+            #   → pixel: [180, 155, 220, 185] top edge
+            assert self._pixel_at(result, 200, 155) == red
+        finally:
+            test_img.unlink(missing_ok=True)
+
+
 class TestFluxProviderImportSmoke:
     def test_import(self):
         from shopstack.providers.image_gen_provider import FluxImageProvider

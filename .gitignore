@@ -9,6 +9,8 @@ build/
 *.bak
 benchmarks/.bench_results.json
 benchmarks/RESULTS.md
+benchmarks/trends/*
+!benchmarks/trends/.gitkeep
 
 data/*.db
 data/*.db-shm

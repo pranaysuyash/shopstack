@@ -493,6 +493,183 @@ def llama3b_model() -> Generator[Any, None, None]:
     provider._tokenizer = None
 
 
+def _generate_test_audio() -> str:
+    """Generate a short WAV file with a 440Hz sine tone and return its path.
+
+    Creates ~1 second of mono 16-bit PCM audio at 16kHz.
+    Used by real STT provider benchmarks.
+    """
+    import math
+    import struct
+    import tempfile
+    import wave
+
+    sample_rate = 16000
+    duration_s = 1.0
+    num_samples = int(sample_rate * duration_s)
+
+    fd, path = tempfile.mkstemp(suffix=".wav", prefix="stt_bench_")
+    os.close(fd)
+
+    with wave.open(path, "w") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        for i in range(num_samples):
+            sample = int(math.sin(2.0 * math.pi * 440.0 * i / sample_rate) * 16000)
+            wf.writeframes(struct.pack("<h", sample))
+    return path
+
+
+# ── Real STT provider fixture ──────────────────────────────────
+
+
+@pytest.fixture(scope="session")
+def real_stt_model() -> Generator[Any, None, None]:
+    """Provide a real STT provider (tries LocalWhisperProvider first).
+
+    Skips the test if no real STT backend is available.
+    Yields ``(provider, audio_path)`` where ``audio_path`` is a generated
+    sine-tone WAV file suitable for transcription benchmarks.
+    """
+    provider = None
+
+    # Try LocalWhisperProvider (mlx-whisper or faster-whisper)
+    try:
+        from shopstack.providers.local_whisper_provider import LocalWhisperProvider
+        p = LocalWhisperProvider()
+        if p.available:
+            provider = p
+    except Exception:
+        pass
+
+    # Fallback: SenseVoiceSTTProvider
+    if provider is None:
+        try:
+            from shopstack.providers.stt_provider import SenseVoiceSTTProvider
+            p = SenseVoiceSTTProvider()
+            if p.available:
+                provider = p
+        except Exception:
+            pass
+
+    if provider is None:
+        pytest.skip("No real STT provider available (install mlx-whisper or funasr)")
+
+    audio_path = _generate_test_audio()
+    yield provider, audio_path
+
+    try:
+        os.unlink(audio_path)
+    except Exception:
+        pass
+
+
+# ── Real TTS provider fixture ──────────────────────────────────
+
+
+@pytest.fixture(scope="session")
+def real_tts_model() -> Generator[Any, None, None]:
+    """Provide a real TTS provider (KokoroTTSProvider with gTTS fallback).
+
+    Skips the test if no real TTS backend is available.
+    gTTS is tried as a fallback (requires no model weights).
+    Yields ``provider`` for synthesis benchmarks.
+    """
+    provider = None
+
+    try:
+        from shopstack.providers.tts_provider import KokoroTTSProvider
+        p = KokoroTTSProvider()
+        if p.healthcheck():
+            provider = p
+    except Exception:
+        pass
+
+    if provider is None:
+        pytest.skip("No real TTS provider available (install kokoro or gtts)")
+
+    yield provider
+
+
+# ── Real Vision provider fixture ───────────────────────────────
+
+
+@pytest.fixture(scope="session")
+def real_vision_model() -> Generator[Any, None, None]:
+    """Provide a real Vision provider (MiniCPM-V via transformers).
+
+    Skips the test if transformers/torch are not installed or the
+    model weights are not cached locally.
+    Yields ``(provider, image_path, tmpdir)`` for understanding benchmarks.
+    """
+    import importlib
+
+    if importlib.util.find_spec("transformers") is None:
+        pytest.skip("transformers not installed")
+
+    try:
+        from shopstack.providers.vision_provider import MiniCPMVProvider
+        provider = MiniCPMVProvider()
+        if not provider.available:
+            pytest.skip("MiniCPM-V provider not available (missing deps)")
+    except Exception as e:
+        pytest.skip(f"MiniCPM-V provider init failed: {e}")
+
+    from PIL import Image
+    from pathlib import Path
+    import tempfile
+    tmp = Path(tempfile.mkdtemp())
+    img_path = tmp / "vision_bench.png"
+    Image.new("RGB", (400, 300), color="white").save(img_path)
+
+    yield provider, str(img_path), tmp
+
+    for f in tmp.iterdir():
+        f.unlink(missing_ok=True)
+    tmp.rmdir()
+
+
+# ── Real Planner provider fixture ──────────────────────────────
+
+
+@pytest.fixture(scope="session")
+def real_planner_model() -> Generator[Any, None, None]:
+    """Provide a real Planner provider (LocalProvider via MLX).
+
+    Skips the test if MLX or the cached model weights are not available.
+    Uses the same cache check as the existing ``llama3b_model`` fixture.
+    Yields ``(provider, warm_elapsed)`` for planning benchmarks.
+    """
+    import importlib
+
+    if importlib.util.find_spec("mlx_lm") is None:
+        pytest.skip("mlx-lm not installed")
+
+    cache_path = _mlx_model_cache_path()
+    if cache_path is None:
+        pytest.skip("MLX model not cached (run: uv run python -c 'import mlx_lm; mlx_lm.load(\"mlx-community/Llama-3.2-3B-Instruct-4bit\")')")
+
+    try:
+        from shopstack.providers.local_provider import LocalProvider
+        provider = LocalProvider(
+            model_dir=os.path.dirname(cache_path),
+            mlx_model=cache_path,
+            allow_download=False,
+            auto_unload=False,
+        )
+        warm_start = __import__("time").perf_counter()
+        provider._ensure_model()
+        warm_elapsed = __import__("time").perf_counter() - warm_start
+    except Exception as e:
+        pytest.skip(f"LocalProvider init failed: {e}")
+
+    yield provider, warm_elapsed
+
+    provider._llm = None
+    provider._tokenizer = None
+
+
 def _tesseract_check() -> bool:
     """Return True if Tesseract OCR CLI is available and working."""
     try:

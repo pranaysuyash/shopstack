@@ -34,6 +34,17 @@ def _detect_bbox_format(bbox: list[float]) -> str:
            last two are moderate in size → likely normalized_cxcywh.
         4. Otherwise → assume normalized [x1, y1, x2, y2].
 
+    .. note::
+
+        xywh ([x, y, w, h]) and cxcywh ([cx, cy, w, h]) are
+        inherently ambiguous without image dimensions because
+        ``[300, 200, 100, 80]`` could be xywh (box starts at 300,200,
+        spans 100×80 rightward) **or** cxcywh (box centered at 300,200,
+        spans 100×80 symmetrically).  Both are geometrically valid.
+        The heuristic prefers xywh when w/h are very small relative
+        to x/y (suggesting a tight extent from a top-left corner) and
+        cxcywh for the remaining cases where the geometry allows it.
+
     Returns one of the keys in ``BBOX_FORMATS``.
     """
     if not bbox or len(bbox) < 4:
@@ -43,12 +54,27 @@ def _detect_bbox_format(bbox: list[float]) -> str:
     if any(v > 1.5 for v in bbox):
         w, h = bbox[2], bbox[3]
         x, y = bbox[0], bbox[1]
-        # xywh: width/height ≤ half the x/y magnitude
+
+        # xywh: width/height ≤ half the x/y magnitude.
+        # This check can also match cxcywh boxes where cx >> w, but
+        # without image dimensions the two are indistinguishable.
         if w <= x * 0.5 and h <= y * 0.5:
             return "absolute_xywh"
-        # cxcywh: width/height comparable but not exceeding x/y by much
+
+        # Guard: cxcywh is impossible if w > 2*x or h > 2*y
+        # because the left/top edge (cx - w/2) would be negative.
+        # Must be xyxy or xywh (already ruled out above).
+        if w > 2 * x or h > 2 * y:
+            return "absolute_xyxy"
+
+        # cxcywh: width/height comparable to center coordinates.
+        # Uses a 1.5× threshold as a pragmatic trade-off — higher
+        # values (e.g. 2×) would reduce false-negatives for cxcywh
+        # at the cost of increasing false-positives for xyxy boxes
+        # in the same ambiguous ratio range.
         if w < x * 1.5 and h < y * 1.5:
             return "absolute_cxcywh"
+
         return "absolute_xyxy"
 
     # All values <= 1.5 → normalized range

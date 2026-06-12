@@ -57,4 +57,5 @@ def test_market_intelligence_view_renders_graph(monkeypatch):
     assert "Tomato" in html
     assert "Buy Now" in html
     assert "Truth" in html
-
+    assert "Reliable" in html
+    assert "Why this signal?" in html

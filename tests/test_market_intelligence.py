@@ -167,6 +167,8 @@ def test_market_intelligence_graph_combos_substitutions_and_staleness(db, tool_r
 
     tomato = next(cluster for cluster in graph.clusters if cluster.canonical_name == "tomato")
     assert tomato.truth_score.label in {"reliable", "reference", "low confidence"}
+    assert any("sponsored" in warning.lower() for warning in tomato.warnings)
+    assert any("stale" in warning.lower() for warning in tomato.truth_score.warnings)
     assert tomato.price_memory_observations >= 2
     assert tomato.market_source == "swiggy"
     assert tomato.decision is not None
@@ -185,4 +187,3 @@ def test_market_intelligence_graph_smoke_empty(db, tool_registry, monkeypatch: p
     graph = build_market_intelligence_graph(db, tool_registry)
     assert graph.summary["items_scored"] == 0
     assert graph.snapshot_freshness in {"unknown", "stale"}
-

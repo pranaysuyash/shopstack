@@ -76,6 +76,103 @@ def test_build_app_appears_to_have_tabs(fresh_app):
     assert len(children) > 0
 
 
+def test_generate_shopping_poster_e2e(fresh_app):
+    """End-to-end: seed demo data → generate shopping poster → verify output.
+
+    Seeds an in-memory database with stores, inventory items, and an active
+    shopping list, then calls ``generate_shopping_poster()`` (simulating the
+    Gradio button click) and verifies the output.
+    """
+    import os
+    from datetime import date, timedelta
+    from pathlib import Path
+
+    from shopstack.app_context import db
+    from shopstack.schemas.models import InventoryLot, ShoppingListItem, Store
+
+    uid = db.active_household_id
+    assert uid, "Default household should be available for user_id scoping"
+
+    # ── Seed test data ──────────────────────────────────────────
+    db.add_store(Store(
+        store_id="test_store", name="Test Store",
+        location="Test", store_type="supermarket",
+    ))
+
+    today = date.today()
+    db.add_inventory_lot(InventoryLot(
+        lot_id="test_milk", canonical_name="milk",
+        display_name="Test Milk", quantity=0.5, unit="L",
+        storage_location_id="fridge",
+        purchase_date=today - timedelta(days=2),
+    ), user_id=uid)
+
+    sl = db.create_shopping_list(
+        name="Weekly Grocery Run",
+        goal="Stock up for the week",
+        user_id=uid,
+    )
+
+    items_data = [
+        ("milk", 2.0, "L", "must_buy", "Only 0.5L left"),
+        ("tomato", 1.0, "kg", "must_buy", "Almost out"),
+        ("bread", 1.0, "loaf", "optional", "Current loaf expires soon"),
+        ("toor_dal", 1.0, "kg", "must_buy", "Running low on dal"),
+    ]
+    for canonical, qty, unit, priority, reason in items_data:
+        item = ShoppingListItem(
+            canonical_name=canonical,
+            requested_quantity=qty,
+            unit=unit,
+            priority=priority,
+            reason=reason,
+        )
+        db.add_list_item(sl.list_id, item)
+
+    # ── Call poster generation (simulates Gradio button click) ──
+    poster_path, status_html = fresh_app.generate_shopping_poster()
+
+    assert status_html, "Status HTML should not be empty"
+
+    if poster_path:
+        # Provider is available — verify the output file
+        assert os.path.isfile(poster_path), f"Poster file should exist: {poster_path}"
+
+        # File is either SVG (text) or PNG (binary with cairosvg/svglib)
+        is_svg = poster_path.endswith(".svg")
+        is_png = poster_path.endswith(".png")
+        assert is_svg or is_png, f"Expected .svg or .png, got {Path(poster_path).suffix}"
+
+        if is_svg:
+            with open(poster_path, errors="replace") as f:
+                content = f.read()
+            assert "milk" in content.lower()
+            assert "tomato" in content.lower()
+            assert "bread" in content.lower()
+        else:
+            # PNG — verify valid image structure
+            try:
+                from PIL import Image
+                img = Image.open(poster_path).convert("RGB")
+                w, h = img.size
+                assert w > 0 and h > 0, f"Poster image has invalid dimensions: {w}x{h}"
+            except ImportError:
+                pass  # Skip pixel-level check when PIL unavailable
+
+        # Status should indicate success
+        assert "saved" in status_html.lower() or "\u2713" in status_html
+
+        # Clean up
+        os.unlink(poster_path)
+        try:
+            Path(poster_path).parent.rmdir()
+        except OSError:
+            pass
+    else:
+        # Provider not available — status should explain
+        assert "provider" in status_html.lower() or "available" in status_html.lower()
+
+
 def test_today_tab_does_not_expose_demo_loader():
     app_source = Path(__file__).resolve().parents[1] / "app.py"
     text = app_source.read_text()
