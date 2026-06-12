@@ -20,6 +20,12 @@ from shopstack.ui.screens.market_lens import (
     market_lens_save_trace,
     market_lens_barcode_add,
 )
+from shopstack.ui.screens.shelf_scan import (
+    shelf_scan_process,
+    shelf_scan_confirm,
+    shelf_scan_skip,
+    shelf_scan_save_trace,
+)
 from shopstack.ui.screens.ask import ask_shopstack
 from shopstack.ui.screens.inventory import (
     add_purchase_form,
@@ -65,6 +71,7 @@ from shopstack.ui.screens.price_compare import (
     multi_source_price_view,
     single_item_compare,
     refresh_source_registry,
+    basket_compare_view,
 )
 from shopstack.ui.screens.market_intelligence import market_intelligence_view
 from shopstack.ui.screens.receipt import (
@@ -105,6 +112,10 @@ __all__ = [
     "market_lens_skip",
     "market_lens_save_trace",
     "market_lens_barcode_add",
+    "shelf_scan_process",
+    "shelf_scan_confirm",
+    "shelf_scan_skip",
+    "shelf_scan_save_trace",
     "ask_shopstack",
     "add_purchase_form",
     "add_purchase_batch",
@@ -138,6 +149,7 @@ __all__ = [
     "multi_source_price_view",
     "single_item_compare",
     "refresh_source_registry",
+    "basket_compare_view",
     "market_intelligence_view",
     "export_data_json",
     "export_data_csv",

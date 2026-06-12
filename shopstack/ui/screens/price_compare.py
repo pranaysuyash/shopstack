@@ -3,6 +3,7 @@
 Provides:
 - multi_source_price_view: full comparison dashboard for all registered market sources
 - single_item_compare: price comparison for one item across sources
+- basket_compare_view: per-source totals for a multi-item basket
 """
 
 from __future__ import annotations
@@ -14,6 +15,11 @@ from typing import Any
 from shopstack.market.sources import (
     compare_across_sources,
     format_cross_source_html,
+)
+from shopstack.services.basket_compare import (
+    compare_basket_across_sources,
+    parse_basket_input,
+    render_basket_comparison_html,
 )
 from shopstack.services.market_sources import load_market_registry, source_status_report
 from shopstack.ui.components.primitives import empty_state_enhanced, stat_card, toast
@@ -226,3 +232,37 @@ def refresh_source_registry() -> str:
         )
     except Exception as exc:
         return toast(f"Failed to refresh registry: {escape(str(exc))}", kind="error")
+
+
+def basket_compare_view(items_text: str) -> str:
+    """Compare a multi-item basket's total across all registered market sources.
+
+    Accepts one item per line, e.g.::
+
+        2kg onions
+        1L milk
+        500g tomatoes
+        12 eggs
+
+    Returns:
+        HTML string showing per-source totals, cheapest source, total savings,
+        and a per-item line breakdown. Falls back to an informative empty state
+        when fewer than 2 sources have data, or when no items are entered.
+    """
+    registry = _get_registry()
+    if registry is None:
+        return empty_state_enhanced(
+            "Source registry could not be initialised. Market data files may be missing.",
+            icon="🔌",
+        )
+
+    requested = parse_basket_input(items_text)
+    if not requested:
+        return empty_state_enhanced(
+            "Enter at least one item — one per line, with quantity and unit if needed. "
+            "Example: `2kg onions` or `1L milk`.",
+            icon="🛒",
+        )
+
+    comparison = compare_basket_across_sources(registry, requested)
+    return render_basket_comparison_html(comparison)

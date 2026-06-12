@@ -273,7 +273,9 @@ ITEM_ALIASES: dict[str, list[str]] = {
     "garlic": ["lehsun", "lasun", "vellulli"],
     "ginger": ["adrak", "allam", "inji"],
     # ── Dairy & staples ──
-    "curd": ["dahi", "yogurt", "mosaru"],
+    "curd": ["dahi", "yogurt", "mosaru", "perugu", "thayir"],
+    "milk": ["doodh", "khir", "paal", "paal", "halu", "milkk"],
+    "paneer": ["paneer", "cottage cheese", "panir"],
     "wheat flour": ["atta", "aata", "godhi hittu"],
     "rice": ["chawal", "akki", "arisi"],
     "lentils": ["dal", "daal", "pappu", "paruppu"],

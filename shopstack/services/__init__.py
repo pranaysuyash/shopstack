@@ -5,6 +5,9 @@ from shopstack.services.shopping import (
     normalize_item_name,
 )
 from shopstack.services.market_lens import MarketLensResult, analyze_market_lens
+from shopstack.services.shelf_intelligence import (
+    analyze_shelf_scene,
+)
 from shopstack.services.dashboard import DashboardState, build_dashboard_state
 from shopstack.services.market_intelligence import (
     ReasonAtom,
@@ -71,6 +74,7 @@ __all__ = [
     # Market
     "MarketLensResult",
     "analyze_market_lens",
+    "analyze_shelf_scene",
     # Dashboard
     "DashboardState",
     "build_dashboard_state",

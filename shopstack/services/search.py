@@ -21,6 +21,25 @@ class SearchResult:
     score: float
 
 
+def _canonicalize_query(query: str) -> str | None:
+    """Try to canonicalize a Hinglish/regional query into the canonical English name.
+
+    Returns the canonical name if ``resolve_canonical`` recognises the query
+    (e.g. "doodh" → "milk", "pyaaz" → "onion"), otherwise ``None``. The caller
+    should fall through to prefix/semantic search when this returns ``None``.
+
+    This bridges the gap between Hinglish household vocabulary and the English
+    canonical names that market snapshots use, without requiring every
+    household to re-train their brain to English.
+    """
+    try:
+        from shopstack.market.normalization import resolve_canonical
+
+        return resolve_canonical(query)
+    except Exception:
+        return None
+
+
 def _extract_unique_items(database: Database) -> dict[str, dict[str, str]]:
     items: dict[str, dict[str, str]] = {}
     for lot in database.get_inventory():
@@ -44,6 +63,20 @@ def semantic_search(
 
     items = _extract_unique_items(database)
     results: list[SearchResult] = []
+
+    # 0. Hinglish/regional canonicalization. "doodh" → "milk" hits the exact
+    #    branch below; "tamatar" → "tomato" same. This is the most-common
+    #    search pattern for an Indian household app.
+    canonical_q = _canonicalize_query(query)
+    if canonical_q and canonical_q != q and canonical_q in items:
+        results.append(SearchResult(
+            canonical_name=canonical_q,
+            display_name=items[canonical_q]["display_name"],
+            category=items[canonical_q]["category"],
+            match_type="exact",
+            score=1.0,
+        ))
+        return results
 
     for cname in items:
         if cname.lower() == q:
