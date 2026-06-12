@@ -11,6 +11,10 @@ from shopstack.services.market_intelligence import (
     MarketCluster,
     MarketTruthScore,
     build_market_intelligence_graph,
+    project_ask_context,
+    project_market_lens,
+    project_today,
+    project_unified_shopping,
 )
 
 
@@ -86,6 +90,10 @@ def _record(
 
 
 def test_market_intelligence_graph_combos_substitutions_and_staleness(db, tool_registry, monkeypatch: pytest.MonkeyPatch):
+    # Guard: the test expects precise control over inventory and market data
+    pre_existing = db.get_inventory()
+    assert len(pre_existing) == 0, f"Expected empty db, got {len(pre_existing)} items"
+
     tool_registry.add_inventory_item(
         canonical_name="onion",
         display_name="Onion",
@@ -151,12 +159,7 @@ def test_market_intelligence_graph_combos_substitutions_and_staleness(db, tool_r
     )
 
     registry = _Registry({"swiggy": snapshot})
-    monkeypatch.setattr(
-        "shopstack.services.market_intelligence.load_market_registry",
-        lambda db, force=False: (registry, {}),
-    )
-
-    graph = build_market_intelligence_graph(db, tool_registry)
+    graph = build_market_intelligence_graph(db, tool_registry, registry=registry)
 
     assert isinstance(graph, MarketIntelligenceGraph)
     assert graph.snapshot_freshness == "stale"
@@ -172,18 +175,44 @@ def test_market_intelligence_graph_combos_substitutions_and_staleness(db, tool_r
     assert tomato.price_memory_observations >= 2
     assert tomato.market_source == "swiggy"
     assert tomato.decision is not None
+    assert tomato.truth_breakdown.freshness_score == tomato.truth_score.freshness_score
+    assert tomato.reason_atoms
+    assert tomato.evidence_claims
+    assert tomato.action_intent is not None
+    assert tomato.evidence_claims[0].claim_type == "snapshot"
+    assert tomato.action_intent.primary_action == tomato.lane
 
     payload = graph.to_dict()
     assert payload["summary"]["items_scored"] == graph.summary["items_scored"]
     assert payload["clusters"]
 
+    today = project_today(graph)
+    assert today.title == "Today"
+    assert today.summary["items"] >= 1
+    assert today.next_actions
+
+    projection = project_unified_shopping(graph, ["tomato", "veg_combo"])
+    assert "tomato" in projection.matched_names
+    assert any(cluster.canonical_name == "tomato" for cluster in projection.clusters)
+    assert projection.title == "Unified Shopping"
+
+    lens = project_market_lens(graph, "tomato")
+    assert lens.title == "Market Lens: tomato"
+    assert "tomato" in lens.matched_names
+    ask = project_ask_context(graph, "tomato")
+    assert ask.title.startswith("Ask Context")
+    assert ask.clusters
+
 
 def test_market_intelligence_graph_smoke_empty(db, tool_registry, monkeypatch: pytest.MonkeyPatch):
+    # Ensure the fixture db is truly empty (guard against suite-level contamination)
+    inv = db.get_inventory()
+    assert inv == [], f"smoke_empty test requires empty fixture db, got {len(inv)} items"
+
     registry = _Registry({})
-    monkeypatch.setattr(
-        "shopstack.services.market_intelligence.load_market_registry",
-        lambda db, force=False: (registry, {}),
+    graph = build_market_intelligence_graph(db, tool_registry, registry=registry)
+    assert graph.summary["items_scored"] == 0, (
+        f"Expected 0 items with empty db and registry, got {graph.summary['items_scored']}. "
+        "Possible suite-level state contamination from session-scoped app imports."
     )
-    graph = build_market_intelligence_graph(db, tool_registry)
-    assert graph.summary["items_scored"] == 0
     assert graph.snapshot_freshness in {"unknown", "stale"}

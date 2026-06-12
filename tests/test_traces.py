@@ -8,6 +8,8 @@ from pathlib import Path
 import pytest
 
 from shopstack.traces.export import _redact_trace, create_trace, export_trace_by_id, export_traces_to_jsonl
+from shopstack.ui.screens.shopping import shopping_list_create
+from shopstack.ui.screens.traces import agent_trace_detail
 
 
 class TestTraceRedaction:
@@ -527,7 +529,7 @@ class TestEndToEndTraceScoping:
         app = e2e_app
         app.db.active_household_id = "household_blue"
 
-        result = app.shopping_list_create(
+        result = shopping_list_create(
             "Weekly groceries", '[{"canonical_name":"milk","requested_quantity":2}]',
         )
         assert "Created list" in result
@@ -583,7 +585,7 @@ class TestEndToEndTraceScoping:
         app.db.active_household_id = "household_a"
         app.add_purchase_form("Milk", 2.0, "L", 64.0, "Store A", "fridge",
                               date.today().isoformat(), "Dairy")
-        app.shopping_list_create(
+        shopping_list_create(
             "A's list", '[{"canonical_name":"eggs","requested_quantity":6}]',
         )
 
@@ -700,12 +702,12 @@ class TestEndToEndTraceScoping:
 
         # household_green can see its own trace
         app.db.active_household_id = "household_green"
-        detail = app.agent_trace_detail(green_tid)
+        detail = agent_trace_detail(green_tid)
         assert "not found" not in detail.lower()
 
         # household_blue cannot see household_green's trace
         app.db.active_household_id = "household_blue"
-        blocked = app.agent_trace_detail(green_tid)
+        blocked = agent_trace_detail(green_tid)
         assert "not found" in blocked.lower()
         # household_blue's own trace is still visible
         blue_traces = app.db.get_traces(user_id="household_blue")
@@ -883,7 +885,7 @@ class TestEndToEndTraceScoping:
         app.db.active_household_id = "household_shopping_a"
 
         # Create a shopping list first
-        result = app.shopping_list_create(
+        result = shopping_list_create(
             "Weekly shop", '[{"canonical_name":"milk","requested_quantity":2}]',
         )
         assert "Created list" in result
@@ -920,7 +922,7 @@ class TestEndToEndTraceScoping:
 
         # Household X: create and complete a list
         app.db.active_household_id = "household_x"
-        app.shopping_list_create(
+        shopping_list_create(
             "X groceries", '[{"canonical_name":"rice","requested_quantity":1}]',
         )
         sl_x = app.db.get_active_shopping_list()
@@ -930,7 +932,7 @@ class TestEndToEndTraceScoping:
 
         # Household Y: create and complete a different list
         app.db.active_household_id = "household_y"
-        app.shopping_list_create(
+        shopping_list_create(
             "Y items", '[{"canonical_name":"paneer","requested_quantity":1}]',
         )
         sl_y = app.db.get_active_shopping_list()
@@ -1057,7 +1059,7 @@ class TestEndToEndTraceScoping:
         app.db.active_household_id = "household_recon_c"
 
         # Create a shopping list to get a list_id
-        result = app.shopping_list_create(
+        result = shopping_list_create(
             "Recon test", '[{"canonical_name":"milk","requested_quantity":2}]',
         )
         assert "Created list" in result
@@ -1088,7 +1090,7 @@ class TestEndToEndTraceScoping:
 
         # Household C: list + reconciliation
         app.db.active_household_id = "household_recon_c"
-        app.shopping_list_create(
+        shopping_list_create(
             "C list", '[{"canonical_name":"milk","requested_quantity":2}]',
         )
         sl_c = app.db.get_active_shopping_list()
@@ -1098,7 +1100,7 @@ class TestEndToEndTraceScoping:
 
         # Household D: list + reconciliation
         app.db.active_household_id = "household_recon_d"
-        app.shopping_list_create(
+        shopping_list_create(
             "D list", '[{"canonical_name":"eggs","requested_quantity":6}]',
         )
         sl_d = app.db.get_active_shopping_list()

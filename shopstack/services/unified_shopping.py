@@ -72,6 +72,7 @@ class ItemResult:
 class UnifiedShoppingResult:
     goal: str
     items: list[ItemResult] = field(default_factory=list)
+    graph_projection: dict[str, Any] = field(default_factory=dict)
 
     @property
     def buy(self) -> list[ItemResult]:
@@ -109,6 +110,7 @@ class UnifiedShoppingResult:
         return {
             "goal": self.goal,
             "items": [i.to_dict() for i in self.items],
+            "graph_projection": dict(self.graph_projection),
             "summary": {
                 "buy": len(self.buy),
                 "skip": len(self.skip),
@@ -125,6 +127,7 @@ def run_unified_shopping_flow(
     items_text: str,
     db: Any,
     inventory: Any,
+    graph: Any | None = None,
 ) -> UnifiedShoppingResult:
     """Execute the full shopping pipeline in one pass.
 
@@ -170,7 +173,36 @@ def run_unified_shopping_flow(
     # Step 5: Score deals against price memory
     _enrich_deal_scores(item_results, db)
 
-    return UnifiedShoppingResult(goal=goal, items=item_results)
+    graph_projection: dict[str, Any] = {}
+    if graph is not None:
+        try:
+            from shopstack.services.market_intelligence import project_unified_shopping
+
+            projection = project_unified_shopping(graph, [item.canonical_name for item in item_results])
+            graph_projection = projection.to_dict()
+        except Exception:
+            logger.debug("Failed to project unified shopping against market graph", exc_info=True)
+    if not graph_projection:
+        graph_projection = {
+            "title": "Unified Shopping",
+            "matched_names": [item.canonical_name for item in item_results],
+            "unmatched_names": [],
+            "next_actions": [action for action in (
+                "add_to_basket" if any(i.decision == "buy" for i in item_results) else None,
+                "review_compare_candidates" if any(i.decision == "compare" for i in item_results) else None,
+                "choose_substitute" if any(i.substitutions for i in item_results) else None,
+            ) if action],
+            "summary": {
+                "items": len(item_results),
+                "buy": len([i for i in item_results if i.decision == "buy"]),
+                "skip": len([i for i in item_results if i.decision == "skip"]),
+                "use_soon": len([i for i in item_results if i.decision == "use_soon"]),
+                "compare": len([i for i in item_results if i.decision == "compare"]),
+                "substitute": len([i for i in item_results if i.substitutions]),
+            },
+        }
+
+    return UnifiedShoppingResult(goal=goal, items=item_results, graph_projection=graph_projection)
 
 
 def _parse_items(text: str) -> list[dict[str, Any]]:

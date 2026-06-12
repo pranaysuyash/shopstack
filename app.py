@@ -6,6 +6,8 @@ import gradio as gr
 
 from shopstack.ui.screens import (
     today_dashboard,
+    shopping_list_view,
+    shopping_list_create,
     shopping_list_view_with_cards,
     build_shopping_list_and_refresh,
     complete_shopping_list,
@@ -53,11 +55,6 @@ from shopstack.ui.screens import (
     export_data_json,
     export_data_csv,
     import_data_file,
-    # Backward compatibility for tests
-    shopping_list_view,
-    shopping_list_create,
-    _shopping_list_view_with_cards,
-    _build_shopping_list_and_refresh,
     generate_shopping_poster,
 )
 from shopstack.ui.screens.other import move_inventory_to_location
@@ -76,6 +73,8 @@ from shopstack.ui.screens.price_compare import (
 from shopstack.ui.screens.basket import build_basket_screen
 from shopstack.ui.components import WORKFLOW_STEPS, workflow_header, workflow_title_bar
 from shopstack.ui.theme import CSS
+from shopstack.ui.tabs.context import TabContext
+from shopstack.ui.tabs.today import build_today_tab, TodayTabHandles
 
 from pathlib import Path
 from shopstack.app_context import APP_DESCRIPTION, APP_NAME, db, providers, tools, planner, model_registry
@@ -277,40 +276,17 @@ document.addEventListener('keydown', function(e) {
 
             # ═══════════════════════════════════════════════════════════════
             # Tab 1: Today — what matters now?
+            # Built in shopstack/ui/tabs/today.py
             # ═══════════════════════════════════════════════════════════════
-            with gr.Tab(_tab_label("today"), id="today"):
-                today_stats = gr.HTML("")
-                today_soon = gr.HTML("")
-                today_list = gr.HTML("")
-                today_low = gr.HTML("")
-                today_recent = gr.HTML("")
-                today_changed = gr.HTML("")
-                app.load(today_dashboard, outputs=[today_stats, today_soon, today_list,
-                                                    today_low, today_recent, today_changed])
-
-                gr.Markdown("---")
-                gr.Markdown("### Ask ShopStack")
-                ask_input = gr.Textbox(
-                    label="Ask anything across your inventory, lists, and prices",
-                    placeholder="Do we have milk?  |  What should I buy today?  |  Where is toothpaste?",
-                    lines=2,
-                )
-                ask_btn = gr.Button("Ask")
-                ask_output = gr.JSON(label="Structured Response")
-                ask_btn.click(
-                    ask_shopstack,
-                    ask_input,
-                    ask_output,
-                    api_name="ask",
-                    api_description="Ask the ShopStack agent a natural language question about inventory, shopping, or prices",
-                )
-                ask_input.submit(
-                    ask_shopstack,
-                    ask_input,
-                    ask_output,
-                    api_name="ask_submit",
-                    api_description="Submit question via Enter key",
-                )
+            today_handles: TodayTabHandles = build_today_tab(
+                blocks=app, app=app, ctx=TabContext(),
+            )
+            today_stats = today_handles.today_stats
+            today_soon = today_handles.today_soon
+            today_list = today_handles.today_list
+            today_low = today_handles.today_low
+            today_recent = today_handles.today_recent
+            today_changed = today_handles.today_changed
 
             # ═══════════════════════════════════════════════════════════════
             # Tab 2: Basket — what should I buy / skip / compare?
@@ -399,7 +375,7 @@ document.addEventListener('keydown', function(e) {
                             sl_reconciliation_table = gr.Dataframe(
                                 headers=["Item", "Qty", "Unit", "Action (bought/skipped/substituted)", "Price Paid", "Substitution Note"],
                                 datatype=["str", "number", "str", "str", "number", "str"],
-                                col_count=(6, "fixed"),
+                                column_count=6,
                                 interactive=True,
                                 label="Reconciliation Draft (Edit before confirming)"
                             )
@@ -644,7 +620,7 @@ document.addEventListener('keydown', function(e) {
                         receipt_df = gr.Dataframe(
                             headers=["Item", "Quantity", "Unit", "Price"],
                             datatype=["str", "number", "str", "number"],
-                            col_count=(4, "fixed"),
+                            column_count=4,
                             interactive=True,
                             label="Editable Receipt Draft",
                         )
@@ -741,12 +717,6 @@ document.addEventListener('keydown', function(e) {
                 with gr.Tabs():
                     # ── Add Purchase ──
                     with gr.Tab("Add Purchase"):
-                        location_choices = [(l.name, l.location_id) for l in db.get_locations()]
-                        default_location = (
-                            "pantry"
-                            if any(value == "pantry" for _label, value in location_choices)
-                            else (location_choices[0][1] if location_choices else None)
-                        )
                         with gr.Row():
                             p_name = gr.Textbox(label="Item Name", placeholder="e.g. Milk, Atta, Rice")
                             p_qty = gr.Number(label="Quantity", value=1.0)
@@ -754,8 +724,15 @@ document.addEventListener('keydown', function(e) {
                         with gr.Row():
                             p_price = gr.Number(label="Price (\u20b9)", value=0.0)
                             p_store = gr.Textbox(label="Store", placeholder="e.g. Big Bazaar, Local Kirana")
-                            p_location = gr.Dropdown(label="Storage Location", choices=location_choices,
-                                                     value=default_location)
+                            # Location choices are bound at construction; the
+                            # `app.load` handler below refreshes them on first
+                            # render so newly-added locations (e.g. via household
+                            # switching) appear without an app restart.
+                            p_location = gr.Dropdown(
+                                label="Storage Location",
+                                choices=[(l.name, l.location_id) for l in db.get_locations()],
+                                value="pantry",
+                            )
                         with gr.Row():
                             p_date = gr.Textbox(label="Purchase Date (YYYY-MM-DD)",
                                                 placeholder=date.today().isoformat())
@@ -1170,6 +1147,18 @@ document.addEventListener('keydown', function(e) {
             api_name="switch_household",
             api_description="Switch active household and refresh dashboard",
         )
+
+        # Per-render refresh of location-dependent dropdowns.
+        # The dropdowns are constructed with choices at build_app() time. This
+        # `app.load` handler re-fetches them on first page render, so locations
+        # added mid-session (e.g. via household switching) appear without an
+        # app restart. The default value stays the same; "pantry" is always
+        # present in the seeded locations.
+        def _refresh_location_choices() -> gr.update:
+            return gr.update(choices=[(l.name, l.location_id) for l in db.get_locations()])
+
+        app.load(_refresh_location_choices, outputs=p_location)
+        app.load(_refresh_location_choices, outputs=move_dest)
 
         # Wire add-household button and form
         add_hh_btn.click(

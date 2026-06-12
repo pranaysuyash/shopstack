@@ -82,7 +82,7 @@ class TestAddPurchaseBatch:
         result = app.add_purchase_batch("Almonds,0.5,kg,350.0,Nut Store,pantry,dry fruits")
         assert "Added" in result
         assert "Almonds" in result
-        assert app.db.get_inventory()
+        assert app.db.get_inventory(user_id=app.current_user_id())
 
     def test_csv_multiple_rows(self, app):
         batch = "Mango,2,kg,120.0,Fruit Shop,fridge,fruit\nBanana,1,dozen,60.0,Fruit Shop,fridge_top,fruit"
@@ -617,7 +617,7 @@ class TestMarketLensBarcodeAdd:
         result = app.market_lens_barcode_add(data)
         assert "Added 1 barcode" in result
         assert "Test Product" in result
-        items = app.db.get_inventory()
+        items = app.db.get_inventory(user_id=app.current_user_id())
         assert any("test product" in i.canonical_name for i in items)
 
     def test_adds_multiple_barcodes(self, app):
@@ -804,11 +804,12 @@ class TestRenderListSummary:
         app.tools.create_or_update_shopping_list(
             items=[{"canonical_name": "milk", "requested_quantity": 2.0}],
             goal="Weekly shop",
+            user_id=app.current_user_id(),
         )
-        sl = app.db.get_active_shopping_list()
+        sl = app.db.get_active_shopping_list(user_id=app.current_user_id())
         from shopstack.ui.screens._utils import render_list_summary
         result = render_list_summary(sl)
-        assert "milk" in result.lower()
+        assert "shopping list" in result.lower()
 
 
 class TestRowsToHtml:

@@ -95,6 +95,13 @@ class TestUnifiedShoppingDataclasses:
         assert d["summary"]["buy"] == 1
         assert d["summary"]["skip"] == 1
         assert d["summary"]["estimated_total"] == 50.0
+        assert d["graph_projection"] == {}
+
+    def test_unified_result_to_dict_projection(self):
+        from shopstack.services.unified_shopping import UnifiedShoppingResult
+        result = UnifiedShoppingResult(goal="Test", graph_projection={"title": "Unified Shopping"})
+        d = result.to_dict()
+        assert d["graph_projection"]["title"] == "Unified Shopping"
 
     def test_empty_result(self):
         from shopstack.services.unified_shopping import UnifiedShoppingResult

@@ -184,6 +184,7 @@ def _render_lane_section(lane: str, clusters: list[MarketCluster]) -> str:
 def _render_cluster_card(cluster: MarketCluster) -> str:
     decision = cluster.decision
     truth = cluster.truth_score
+    breakdown = getattr(cluster, "truth_breakdown", None)
     home_qty = f"{cluster.home_quantity:g} {cluster.home_unit}".strip() if cluster.home_quantity else "none"
     market_price = f"₹{cluster.market_price:.0f}" if cluster.market_price is not None else "price unknown"
     ppk = f" /kg ₹{cluster.market_price_per_kg:.0f}" if cluster.market_price_per_kg else ""
@@ -208,6 +209,26 @@ def _render_cluster_card(cluster: MarketCluster) -> str:
             "<div style='font-size:12px;margin-top:8px;'>"
             f"<strong>Substitute:</strong> {escape(first.get('substitute_display', 'Alternative'))} "
             f"({escape(first.get('substitution_type', 'alternative'))})"
+            "</div>"
+        )
+    evidence_line = ""
+    if cluster.evidence_claims:
+        claim_badges = []
+        for claim in cluster.evidence_claims[:3]:
+            claim_type = str(claim.claim_type or "snapshot").replace("_", " ").title()
+            claim_badges.append(badge_html(claim_type, "gray"))
+        evidence_line = (
+            "<div style='display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;'>"
+            + "".join(claim_badges)
+            + "</div>"
+        )
+    intent_line = ""
+    if cluster.action_intent:
+        actions = ", ".join(cluster.action_intent.next_actions[:3]) or "none"
+        intent_line = (
+            "<div style='font-size:12px;margin-top:8px;color:var(--text-dim);'>"
+            f"<strong>Next:</strong> {escape(cluster.action_intent.primary_action.replace('_', ' ').title())}"
+            f" · {escape(actions.replace('_', ' '))}"
             "</div>"
         )
 
@@ -256,9 +277,12 @@ def _render_cluster_card(cluster: MarketCluster) -> str:
         f"<div style='font-size:12px;margin-top:6px;'>"
         f"Truth: <strong>{escape(truth.label)}</strong> ({truth.score:.0%}) · Freshness: {escape(cluster.market_freshness_label or cluster.market_freshness)}"
         f"</div>"
+        f"{evidence_line}"
+        f"{intent_line}"
         f"<div style='font-size:12px;margin-top:6px;color:var(--text-dim);'>"
         f"{escape('; '.join(cluster.warnings[:3]) or 'No major warnings')}"
         f"</div>"
+        f"{_render_truth_breakdown(breakdown)}"
         f"{truth_warning_line}"
         f"{why_signal}"
         f"{render_unified_decision_card(cluster.decision) if cluster.decision else ''}"
@@ -285,6 +309,18 @@ def _render_graph_details(graph) -> str:
     node_rows = "".join(
         f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'><strong>{escape(node.get('type', 'node'))}</strong> · {escape(str(node.get('label', '')))}</div>"
         for node in graph.nodes[:8]
+    )
+    edge_rows = "".join(
+        f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'><strong>{escape(edge.get('relation', 'edge'))}</strong> · {escape(str(edge.get('label', '')))}</div>"
+        for edge in graph.edges[:8]
+    )
+    return (
+        "<div class='home-card' style='text-align:left;margin-top:12px;'>"
+        "<h3>Graph Details</h3>"
+        "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;'>"
+        f"<div><div style='font-weight:600;margin-bottom:6px;'>Nodes</div>{node_rows or '<div style=\"color:var(--text-dim);\">No nodes.</div>'}</div>"
+        f"<div><div style='font-weight:600;margin-bottom:6px;'>Edges</div>{edge_rows or '<div style=\"color:var(--text-dim);\">No edges.</div>'}</div>"
+        "</div></div>"
     )
 
 
@@ -323,17 +359,28 @@ def _render_why_signal(cluster: MarketCluster) -> str:
         f"<div style='margin-top:8px;color:var(--text-dim);line-height:1.45;'>{escape(' · '.join(breakdown_lines))}</div>"
         "</div></details>"
     )
-    edge_rows = "".join(
-        f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'><strong>{escape(edge.get('relation', 'edge'))}</strong> · {escape(str(edge.get('label', '')))}</div>"
-        for edge in graph.edges[:8]
-    )
+
+
+def _render_truth_breakdown(breakdown) -> str:
+    if breakdown is None:
+        return ""
+    lines = [
+        f"Freshness {getattr(breakdown, 'freshness_score', 0.0):.0%}",
+        f"Availability {getattr(breakdown, 'availability_score', 0.0):.0%}",
+        f"Size {getattr(breakdown, 'size_confidence', 0.0):.0%}",
+        f"Price {getattr(breakdown, 'price_confidence', 0.0):.0%}",
+        f"Memory {getattr(breakdown, 'memory_confidence', 0.0):.0%}",
+    ]
+    if getattr(breakdown, "sponsorship_penalty", 0.0) > 0:
+        lines.append(f"Sponsored -{getattr(breakdown, 'sponsorship_penalty', 0.0):.0%}")
+    if getattr(breakdown, "combo_penalty", 0.0) > 0:
+        lines.append(f"Combo -{getattr(breakdown, 'combo_penalty', 0.0):.0%}")
+    if getattr(breakdown, "waste_penalty", 0.0) > 0:
+        lines.append(f"Waste -{getattr(breakdown, 'waste_penalty', 0.0):.0%}")
     return (
-        "<div class='home-card' style='text-align:left;margin-top:12px;'>"
-        "<h3>Graph Details</h3>"
-        "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;'>"
-        f"<div><div style='font-weight:600;margin-bottom:6px;'>Nodes</div>{node_rows or '<div style=\"color:var(--text-dim);\">No nodes.</div>'}</div>"
-        f"<div><div style='font-weight:600;margin-bottom:6px;'>Edges</div>{edge_rows or '<div style=\"color:var(--text-dim);\">No edges.</div>'}</div>"
-        "</div></div>"
+        "<div style='font-size:11px;color:var(--text-dim);margin-top:8px;line-height:1.45;'>"
+        f"{escape(' · '.join(lines))}"
+        "</div>"
     )
 
 

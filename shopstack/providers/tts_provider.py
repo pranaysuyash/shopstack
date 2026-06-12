@@ -379,6 +379,9 @@ class Qwen3TTSProvider(TTSProvider):
         if not text:
             return b""
 
+        if not self._available and not self._gtts_available:
+            return b""
+
         cache_path = self._cache_path(text, language)
         if os.path.isfile(cache_path):
             try:

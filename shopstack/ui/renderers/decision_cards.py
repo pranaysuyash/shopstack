@@ -11,7 +11,7 @@ from html import escape
 from typing import Any
 
 from shopstack.schemas.models import DecisionSet, _ACTION_COLORS as DECISION_COLORS
-from shopstack.ui.components.cards import render_unified_decision_card
+from shopstack.ui.components.cards import render_action_grid, render_unified_decision_card
 
 _LOW_STOCK_THRESHOLD = 0.5
 _USE_SOON_DAYS = 3

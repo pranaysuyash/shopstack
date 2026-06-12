@@ -7,9 +7,18 @@ from shopstack.services.shopping import (
 from shopstack.services.market_lens import MarketLensResult, analyze_market_lens
 from shopstack.services.dashboard import DashboardState, build_dashboard_state
 from shopstack.services.market_intelligence import (
+    ReasonAtom,
+    EvidenceClaim,
+    TruthScoreBreakdown,
+    GraphActionIntent,
+    MarketGraphProjection,
     MarketTruthScore,
     MarketCluster,
     MarketIntelligenceGraph,
+    project_today,
+    project_unified_shopping,
+    project_market_lens,
+    project_ask_context,
     build_market_intelligence_graph,
 )
 from shopstack.services.search import SearchResult, semantic_search, build_item_embeddings
@@ -66,9 +75,18 @@ __all__ = [
     "DashboardState",
     "build_dashboard_state",
     # Market intelligence graph
+    "ReasonAtom",
+    "EvidenceClaim",
+    "TruthScoreBreakdown",
+    "GraphActionIntent",
+    "MarketGraphProjection",
     "MarketTruthScore",
     "MarketCluster",
     "MarketIntelligenceGraph",
+    "project_today",
+    "project_unified_shopping",
+    "project_market_lens",
+    "project_ask_context",
     "build_market_intelligence_graph",
     # Search
     "SearchResult",

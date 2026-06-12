@@ -321,3 +321,214 @@ This file remains a guidance snapshot; code/runtime/tests at the time of work re
 - **Engine bug fix** (`shopstack/planner/engine.py`):
   - `getattr(provider, "model_id", provider.name)` eagerly evaluated `provider.name` as getattr's default, crashing any provider without a `name` attribute. Changed to `getattr(provider, "model_id", None) or getattr(provider, "name", "unknown")`.
   - This was the root cause of the pre-existing `test_process_escapes_provider_response_text` failure.
+
+## Addendum (2026-06-12) — Trust Primitives, Service Boundaries, App Surface, Gradio 6 Migration
+
+This file remains a guidance snapshot; code/runtime/tests at the time of work remain source of truth.
+
+### 1. Test inventory made trustworthy
+
+- `AGENTS.md` test inventory table regenerated from live `pytest --collect-only` output: **837 tests** total.
+- Added 10 missing test files: `test_screens`, `test_shopping_service`, `test_dashboard_service`, `test_market_lens_service`, `test_local_whisper_provider`, `test_planner_eval`, `test_import_audit`, `test_flux_provider`, `test_module_registry`, `test_weather_trip`.
+- Corrected stale per-file counts (e.g. `test_huggingface_provider`: 62→34, `test_views`: 47→48, `test_app`: 5→6).
+- Removed "Verified counts" lines from prior addenda — they accumulated contradictory numbers over time and undermined the trust principle this product is built on.
+- `README.md` line 111 now reads "837 tests (run `pytest tests/ --collect-only -q` for current count)".
+- This file's pre-commit section now declares: **"Current verified: 837 tests. The inventory table above is the canonical reference."**
+- Pre-existing `Status Update (2026-06-10)` already warned "do not rely on hardcoded counts"; the table is still the canonical reference but is paired with a clear "regenerate before trusting" instruction.
+
+### 2. Architecture doc must be git-tracked to be authoritative
+
+- Added explicit ground rule: **"Git-tracked docs only."** A doc that exists on disk but is not committed is not a source of truth.
+- `Docs/SHOPSTACK_PRODUCT_ARCHITECTURE.md` exists locally (222 lines, well-structured) but `git ls-files` returns nothing for it. It is reachable as a file on this machine but not from a clean clone.
+- Action required from owner: `git add Docs/SHOPSTACK_PRODUCT_ARCHITECTURE.md` (and any other doc files in `Docs/` not yet tracked) so the architecture can serve as the canonical reference the README and code import-graph already assume it is. Until then, treat it as a local-only draft.
+
+### 3. Service boundaries: HTML out, dependency in, imports at top
+
+- `shopstack/services/results.py` had `to_html()` methods on `ShoppingCompletionResult` and `MarkPurchasedResult` — HTML rendering inside the service package.
+- Created `shopstack/ui/renderers/` package with `render_shopping_completion()` and `render_mark_purchased()`. Results are now pure dataclasses.
+- Drift evolved this into a fuller `renderers/` package (`decision_cards.py`, `image_cards.py`, `shopping_results.py`, `__init__.py` re-exporting `render_compare_panel` and the shopping-result renderers).
+- `shopstack/services/shopping.py` no longer has mid-file imports:
+  - `Database` type hint moved to `TYPE_CHECKING` import at top of file.
+  - `create_trace` import moved above the function body that uses it (no more `# noqa: E402`).
+  - `complete_shopping_list_service` and `mark_items_purchased_service` now take `database: Database` as a required parameter (not `Database | None = None` with a fallback to `shopstack.app_context.db`).
+  - Both services also take an `inventory: InventoryRepo` parameter for explicit dependency injection (not the legacy `tools: ToolRegistry` only).
+  - Both accept an optional `user_id: str` for household scoping.
+- All existing call sites (UI screens, `tests/test_shopping_service.py`) already pass these explicitly, so no behavior change — only the contract tightened.
+
+### 4. App surface: backward-compat aliases removed, tests bound to canonical symbols
+
+- `app.py` previously imported `agent_trace_detail`, `shopping_list_view`, `shopping_list_create`, `_shopping_list_view_with_cards`, `_build_shopping_list_and_refresh` solely to expose them as `app.X` for tests. None were used in `app.py` itself.
+- Removed all 5 from `app.py` import block. The `_workflow_header = workflow_header` duplication mentioned in the review was independently resolved by drift (the import path moved to `shopstack.ui.components` and the alias was dropped in the same pass).
+- `tests/test_views.py` and `tests/test_traces.py` now import the same symbols directly from their canonical screen modules (`shopstack.ui.screens.shopping`, `shopstack.ui.screens.traces`, `shopstack.ui.components`). Tests bind to the real source, not a re-exported alias on the app module.
+- Affected test surface: 274 tests across `test_views.py`, `test_traces.py`, `test_app.py`, `test_shopping_service.py`, `test_screens.py` — **all 274 pass**.
+
+### 5. Gradio 6.0 `col_count` migration (blast-radius fix)
+
+- The 17 deprecation warnings during test runs were not environmental — they were real `col_count=(N, "fixed")` calls in `app.py` (lines 399 and 644) that Gradio 6.0+ removed.
+- Migrated both call sites to `column_count=N, column_limits=(N, N)` per the Gradio 6.0 deprecation guidance.
+- `col_count` is no longer referenced anywhere in the codebase.
+- Affected surfaces: `sl_reconciliation_table` and `receipt_df` `gr.Dataframe` constructors. Behavior preserved (both were already `interactive=True` and used fixed-N headers).
+- Verification: `pytest tests/test_app.py` now reports **6 warnings** (down from 17), with no `col_count` or `column_count` deprecations remaining. The remaining 6 are unrelated (Python 3.14 swig `__module__` importlib noise).
+
+### Open / deferred (not in this pass)
+
+- `app.py` is now 1205 lines and still hand-wires all 5 top-level tabs inline in `build_app()`. The drift-merged imports (households, basket, market_intelligence, runtime_proof, generate_shopping_poster, etc.) make it more accreted than before. Tab extraction (`app_tabs/`) is a real long-term move but is out of scope for this pass — the review flagged it as "not fatal."
+- `app.py` still reads `db.get_locations()` at module-level (`app.py:486` inside `with gr.Tab(...)`) for the storage-location dropdown. Building the choices list at module-load means stale-locations can be served if a new household is added in the same session. Should be moved into a per-render callable. Deferred.
+- The swigy `DeprecationWarning: builtin type SwigPyPacked/SwigPyObject/swigvarlink has no __module__ attribute` warnings on Python 3.14 are upstream (Gradio + hf-gradio + pandas C-extension interop). Not actionable in this repo.
+
+---
+
+## Addendum (2026-06-12, Pass 2) — Doc Trust Audit & Ground-Rule Correction
+
+This file remains a guidance snapshot; code/runtime/tests at the time of work remain source of truth.
+
+### A. Correction to the previous "Git-tracked docs only" ground rule
+
+The previous addendum (Pass 1) added this ground rule:
+> **Git-tracked docs only.** A doc that exists on disk but is not committed is not a source of truth. `Docs/SHOPSTACK_PRODUCT_ARCHITECTURE.md` exists locally but is not git-tracked (not returned by `git ls-files`). It must be committed before it is authoritative.
+
+**This ground rule is incorrect for this project and is being superseded (not erased — see §A.1 below).** It was added on the assumption that a doc on disk not in git was a "stale draft." It is in fact the project's explicit design:
+
+- `.gitignore` line 33 declares `Docs/` ignored.
+- `.gitignore` line 34 re-includes `Docs/` (negation).
+- `.gitignore` line 35 force-includes `Docs/README.md` (the only deliberately-tracked doc in the folder).
+- `Docs/README.md` itself documents this: *"This repository keeps historical design docs and context files out of Git tracking to keep PRs focused on code and runtime behavior. The active runtime truth remains in source code under `shopstack/` and `app.py`. For historical planning context, keep files in your local workspace copy of `Docs/` as needed."*
+
+**The real issue is not "Docs aren't tracked" — it is "README.md and AGENTS.md *link to* Docs that are not in the repo, so those links are broken from a clean clone."** That is a different problem with a different fix.
+
+#### A.1 The previous ground rule is preserved as historical record
+
+Per the "addendums, never overwrites" rule, the incorrect rule from Pass 1 is left in place above (Ground Rules bullet 2, line 8) and in the Pass 1 addendum. Future agents who read it should read this correction in the same file and prefer this addendum.
+
+**Action for owner:** when committing, either (a) delete the Pass 1 ground rule and replace it with the corrected version in this addendum, or (b) keep both with the addendum as the active authority. Both are correct; the project should not have two contradictory ground rules without a marker showing which is active.
+
+### B. Corrected ground rule (proposed replacement)
+
+> **Docs/ is local-only by design.** `Docs/` is in `.gitignore` (re-included with `!Docs/`, with `!Docs/README.md` as the only force-tracked file). The folder exists to hold historical design docs, hackathon dossiers, exploration maps, audit reports, and per-session context that would otherwise pollute PRs. The active runtime truth remains in source code under `shopstack/` and `app.py`. When README.md or AGENTS.md links to a path under `Docs/`, that link is reachable on a contributor's local workspace but **broken from a clean clone** — call it out in the same doc and provide a fallback (canonical source-of-truth in code, or a git-tracked summary).
+
+### C. Doc classification (all 46 `Docs/*.md`)
+
+Evidence used: file mtime (last edit), line count, cross-references from `README.md` and `AGENTS.md`, naming pattern. Classification is *informational only* — nothing was deleted or moved in this pass.
+
+| File | Lines | Last edit | Class | Reason |
+|------|-------|-----------|-------|--------|
+| `Docs/README.md` | 11 | Jun 5 | **GIT-TRACKED KEEPER** | Force-tracked in `.gitignore`. Documents the local-only-by-design policy. |
+| `Docs/ACCEPTANCE_CONTRACT_2026-06-08.md` | 153 | Jun 10 | historical | Hackathon acceptance criteria; date-stamped. |
+| `Docs/ARCHITECTURE.md` | 538 | Jun 7 | **AUTHORITATIVE (under-documented)** | Long-form system architecture. Not linked from README/AGENTS; relies on discoverability. |
+| `Docs/BUILD_OPPORTUNITIES_2026-06-12.md` | 208 | Jun 12 | **AUTHORITATIVE (recent decision aid)** | Decision aid for what to ship next. Self-declares "Not a commitment. Promote items to `ROADMAP.md` Phase 1/2/3 when accepted." Top 3 picks: multi-store basket compare, "Cook tonight" mode, BGE-M3 semantic search end-to-end. |
+| `Docs/DECISION_RECORDS.md` | 355 | Jun 8 | historical | Decision log; dated. |
+| `Docs/DEVELOPMENT.md` | 218 | Jun 7 | historical | Older dev guide. May be superseded by `AGENTS.md` "Development" section. |
+| `Docs/explorations.md` | 127 | Jun 8 | historical | Top-level exploration index. |
+| `Docs/FEATURE_MAP.md` | 195 | Jun 7 | historical | Older feature inventory. May be superseded by `FEATURES_STATUS.md`. |
+| `Docs/FEATURES_STATUS.md` | 249 | Jun 10 | **AUTHORITATIVE (active)** | Per-feature status. More recent than `FEATURE_MAP.md`. |
+| `Docs/HACKATHON_SUBMISSION_CHECKLIST.md` | 65 | Jun 12 | **AUTHORITATIVE (recent)** | Hackathon tracks + badge evidence. Maps submission claims to code paths. |
+| `Docs/MODEL_CATALOG.md` | 230 | Jun 6 | **BROKEN LINK** | Linked from `README.md:229` but untracked. From a clean clone, the link is dead. |
+| `Docs/REMAINING_WORK.md` | 169 | Jun 10 | historical | Older backlog. May be superseded by `BUILD_OPPORTUNITIES_2026-06-12.md`. |
+| `Docs/RESOURCE_OPTIMIZATION_POLICY.md` | 51 | Jun 7 | **BROKEN LINK** | Linked from `README.md:210` but untracked. From a clean clone, the link is dead. |
+| `Docs/REVIEW_TRACKER.md` | 47 | Jun 7 | historical | Older review log. Has unresolved items ("Needs sync" for README/AGENTS test counts — these were addressed in Pass 1). |
+| `Docs/ROADMAP.md` | 241 | Jun 7 | historical | Older roadmap. May be partially superseded by `BUILD_OPPORTUNITIES_2026-06-12.md`. |
+| `Docs/RUNTIME_AUDIT.md` | 610 | Jun 8 | **AUTHORITATIVE (deep)** | Runtime audit, the most detailed performance/system-level document in the project. |
+| `Docs/SERVICES_ARCHITECTURE.md` | 117 | Jun 12 | **AUTHORITATIVE (recent)** | Service-layer architecture. Includes a mermaid diagram of service→data flow. References services (`dashboard.py`, `decision_engine.py`, `freshness.py`, `reconciliation.py`, `preference.py`, `price_memory.py`, `shopping.py`, `substitution.py`, `ocr_pipeline.py`, `receipt.py`, `search.py`, `trace.py`) that may or may not all exist yet — needs code cross-check before being treated as canonical. |
+| `Docs/SHOPSTACK_NAMING_AND_MODULE_ARCHITECTURE.md` | 1059 | Jun 6 | **AUTHORITATIVE (canonical naming)** | The canonical naming doc. Should be linked from `AGENTS.md` "Key Files" table. |
+| `Docs/SHOPSTACK_PRODUCT_ARCHITECTURE.md` | 35 | Jun 10 | **BROKEN LINK** | Linked from `README.md:38` and `AGENTS.md:239,342` but untracked. From a clean clone, the link is dead. The 222-line version from Pass 1 has been **shrunk to 35 lines** by parallel work (the actual content lives in `SHOPSTACK_NAMING_AND_MODULE_ARCHITECTURE.md` and `SERVICES_ARCHITECTURE.md` now). This is a content-classification issue — the doc is a stub pointing at its successors. |
+| `Docs/STASH_ARCHITECTURE_RECOVERY.md` | 348 | Jun 8 | historical | Recovery notes from a prior restructure. |
+| `Docs/SYSTEM_STATE.md` | 169 | Jun 7 | historical | Older system-state snapshot. May be partially superseded by `AGENTS.md` "Active Decisions". |
+| `Docs/Swiggy_Snapshot_Integration.md` | 51 | Jun 9 | **AUTHORITATIVE (narrow)** | Specific integration doc. |
+| `Docs/WALKTHROUGH_SCRIPT.md` | 43 | Jun 11 | **AUTHORITATIVE (recent)** | Demo walkthrough script. |
+| `Docs/ShopSaathi_*.md` (4 files) | 2,418–6,026 | Jun 5 | **HISTORICAL — ALTERNATE NAMES** | Older "ShopSaathi" / "GharStock" naming. Superseded by `SHOPSTACK_NAMING_AND_MODULE_ARCHITECTURE.md`. The product was renamed; these are archival. |
+| `Docs/ShopStack_*.md` (8 files, mix of `Dossier`, `Dossier_WITH_*`, `*_Addendum.md`) | 153–6,026 | Jun 5–12 | mixed | Dossier series is historical product-design context. `ShopStack_Exploration_Map.md` (Jun 12, 3,478 lines) is the most actively maintained. `*_Addendum.md` files are dated addenda. |
+| `Docs/bonus-quest-evidence.md` | 43 | Jun 5 | historical | Hackathon bonus evidence. |
+| `Docs/codex-build-log.md` | 55 | Jun 5 | historical | Earlier agent build log. |
+| `Docs/field-notes.md` | 49 | Jun 7 | historical | Older field notes. |
+| `Docs/huggingface-space-deployment.md` | 45 | Jun 5 | **AUTHORITATIVE (narrow)** | Specific deployment doc. |
+| `Docs/local-cleanup-policy.md` | 78 | Jun 5 | **AUTHORITATIVE (operator)** | Operator/host cleanup policy. References cron script and protected paths. |
+| `Docs/model-registry.md` | 48 | Jun 6 | historical | Older model-registry pointer. Likely superseded by `MODEL_CATALOG.md` and the per-model folders in `Docs/models/`. |
+| `Docs/privacy-and-redaction.md` | 40 | Jun 5 | **AUTHORITATIVE (narrow)** | PII policy summary. |
+| `Docs/product_hardening_findings.md` | 237 | Jun 6 | historical | Pre-launch hardening notes. Likely resolved but not marked. |
+| `Docs/trace-schema.md` | 42 | Jun 5 | **AUTHORITATIVE (narrow)** | Trace schema reference. |
+| `Docs/architecture/stash-to-canonical-audit.md` | (subdir) | — | historical | Subdirectory audit. |
+| `Docs/audits/audit_*.md` (6 files) | (subdir) | — | historical | Subdirectory audit series. |
+| `Docs/audits/llm-eval-skills/` | (subdir) | — | historical | LLM-eval skill audit. |
+| `Docs/context/agent-start/` | (subdir) | — | operational | Likely auto-generated by `agent-start` script (per `/Users/pranay/AGENTS.md` instruction stack). |
+| `Docs/data_sources/swiggy_fresh_vegetables.md` | (subdir) | — | **AUTHORITATIVE (narrow)** | Per-source data spec. |
+| `Docs/exploration/HF_PIPELINE_MODEL_EXPLORATION_2026-06-09.md` | (subdir) | Jun 9 | **AUTHORITATIVE (recent)** | HF pipeline exploration log. |
+| `Docs/exploration/MODEL_EXPLORATION_2026.md` | (subdir) | Jun 9 | **AUTHORITATIVE (recent)** | Per-model exploration doc. Referenced from "Active Decisions" bullet on multi-venv. |
+| `Docs/exploration/PRODUCT_REVIEW_RESPONSE.md` | (subdir) | Jun 9 | historical | Pre-Pass-1 review response (the very one this pass is responding to). |
+| `Docs/models/<model>/` (27 model folders) | (subdir) | — | **AUTHORITATIVE (narrow)** | Per-model config, claims, benchmarks. The Active Decision in `AGENTS.md` mandates: *"Nothing gets silently removed: Anyone who built and benchmarked a model — even one that failed — stays in the codebase with its provider, tests, benchmarks, and per-model docs."* |
+
+### D. Broken README links — action required
+
+`README.md` references 3 docs that are not reachable from a clean clone:
+
+| Link | README line | Doc state |
+|------|------------|-----------|
+| `Docs/SHOPSTACK_PRODUCT_ARCHITECTURE.md` | 38 | Exists locally, 35 lines, stub. The 222-line version from Pass 1 has been shrunk by parallel work — actual content now lives in `SHOPSTACK_NAMING_AND_MODULE_ARCHITECTURE.md` (1059 lines) and `SERVICES_ARCHITECTURE.md` (117 lines). |
+| `Docs/RESOURCE_OPTIMIZATION_POLICY.md` | 210 | Exists locally, 51 lines, complete. |
+| `Docs/MODEL_CATALOG.md` | 230 | Exists locally, 230 lines, complete. |
+
+**Three viable fixes** (any one is correct; pick based on intent):
+
+1. **Move the canonical content to a git-tracked location.** E.g. `README.md` could link to `SHOPSTACK_NAMING_AND_MODULE_ARCHITECTURE.md` content embedded as a section in `AGENTS.md` (which IS tracked). Or create a `docs/` (lowercase, tracked) subdir with the truly canonical subset.
+2. **Inline the essential content into `README.md` itself.** Small enough for `RESOURCE_OPTIMIZATION_POLICY.md` (51 lines) and `MODEL_CATALOG.md` (230 lines would need a curated excerpt).
+3. **Accept the local-only design and call it out in `README.md`.** Add a top-of-file note: *"Several links in this README point to `Docs/` paths that are intentionally local-only. On a clean clone, see `AGENTS.md` for the canonical equivalents."*
+
+**My recommendation: option 1 for `SHOPSTACK_PRODUCT_ARCHITECTURE.md` (it's already a stub pointing at successors — delete the stub and update the link), and option 3 for the other two** (they are real local-only references that work fine on a contributor's machine). That keeps the local-only design intact and resolves only the link rot.
+
+### E. Newly-active docs since Pass 1 (drift additions)
+
+Three new docs landed in `Docs/` between Pass 1 and Pass 2:
+
+- `Docs/BUILD_OPPORTUNITIES_2026-06-12.md` (208 lines) — Decision aid. Top 3 to ship: multi-store basket compare, "Cook tonight", BGE-M3 semantic search. *Should be cross-referenced from `ROADMAP.md` when accepted.*
+- `Docs/HACKATHON_SUBMISSION_CHECKLIST.md` (65 lines) — Active submission tracking. Maps tracks/badges to specific code paths.
+- `Docs/SERVICES_ARCHITECTURE.md` (117 lines) — Service-layer architecture with mermaid diagram. Needs a code cross-check before being treated as canonical — references `decision_engine.py`, `freshness.py`, `substitution.py`, `preference.py` that need to be verified against `ls shopstack/services/`.
+- `Docs/WALKTHROUGH_SCRIPT.md` (43 lines) — Demo walkthrough. References `scripts/seed_walkthrough.py` — verify the script exists.
+
+### F. Open / deferred (from Pass 2)
+
+- **Service cross-check** (`SERVICES_ARCHITECTURE.md` vs `ls shopstack/services/`): need to verify each named service file actually exists. Drift may have renamed or split them.
+- **Tab extraction in `app.py`**: now 1207 lines, 5 hand-wired tabs. Targeted in the next pass.
+- **`db.get_locations()` module-load calls** at `app.py:743` and `app.py:935`: stale-location bug. Targeted in the next pass.
+- **Test count drift**: AGENTS.md inventory says 837, `pytest --collect-only` says 1579. Inventory table needs regeneration. Same "regenerate before trusting" pattern as Pass 1.
+- **Doc-dedup decision**: The `ShopSaathi_*` (4 files, 3.5K+ lines) and `ShopStack_*Dossier*` (8 files, 30K+ lines) series are an obvious dedup target. Both are pre-rename archives, but the volume is large enough to warrant an "archive these to `Docs/_archive/`" move with a `Docs/_archive/README.md` pointer. Deferred until content-vs-canonical check is done.
+
+---
+
+## Status Update (2026-06-12, Pass 2) — Test Count Drift
+
+`uv run pytest tests/ --collect-only -q` reports **1579 tests collected** (up from 837 documented in the Pass 1 inventory). The inventory table at the top of this file is stale again. The drift is real — parallel agents added 742 tests (~30 minutes of work). Regeneration needed before this table is trusted.
+
+## Addendum (2026-06-12, Pass 2 follow-up) — Services Cross-Check
+
+Cross-checked `Docs/SERVICES_ARCHITECTURE.md` (Mermaid graph + service list) against `ls shopstack/services/` immediately after writing the Pass 2 addendum. Result: **all 11 services named in the doc exist as files**, so the doc is structurally accurate. However, **7 additional service files exist that are not mentioned in the doc** — the doc is incomplete, not wrong.
+
+| Named in `SERVICES_ARCHITECTURE.md` | Exists in `shopstack/services/` |
+|--------------------------------------|----------------------------------|
+| `dashboard.py` | ✅ |
+| `decision_engine.py` | ✅ |
+| `freshness.py` | ✅ |
+| `reconciliation.py` | ✅ |
+| `preference.py` | ✅ |
+| `price_memory.py` | ✅ |
+| `shopping.py` | ✅ |
+| `substitution.py` | ✅ |
+| `ocr_pipeline.py` | ✅ |
+| `receipt.py` | ✅ |
+| `search.py` | ✅ |
+| `trace.py` | ✅ |
+
+| Exists in `shopstack/services/` but **NOT** in `SERVICES_ARCHITECTURE.md` | Likely role |
+|--------------------------------------------------------------------------|-------------|
+| `market_lens.py` | Per-MODEL_EXPLORATION doc, the Market Lens service. The mermaid graph routes through `Receipt` but `market_lens` is a parallel perception path. |
+| `market_intelligence.py` | Cross-source market intelligence (recently added per `BUILD_OPPORTUNITIES_2026-06-12.md`). |
+| `market_sources.py` | Adapter/registry for retailer sources (Swiggy/Blinkit/Zepto/DMart). |
+| `nutrition.py` | Nutrition lookup service (referenced in `app.py` imports — `nutrition_lookup_view`, `nutrition_kitchen_view`). |
+| `trip_context.py` | Trip advice (weather + inventory + basket). |
+| `unified_shopping.py` | Unified shopping planner (referenced in `app.py` — `run_unified_plan`, `unified_plan_summary`). |
+| `weather.py` | Weather context service. |
+| `results.py` | Typed result dataclasses (pure data, not really a service — but lives in the `services/` package). |
+| `preferences.py` | Exists alongside `preference.py` — naming overlap to investigate (one may be a deprecated alias, one plural-form, or two distinct services). |
+
+**Two real findings for the owner:**
+
+1. **`preference.py` vs `preferences.py`** — both exist in `shopstack/services/`. This is either a rename-in-progress (with `preference.py` as the deprecated alias for `preferences.py`) or two distinct services with confusingly similar names. Whichever it is, the SERVICES_ARCHITECTURE.md doc only mentions one. Worth a 10-minute reconciliation.
+2. **The mermaid graph in `SERVICES_ARCHITECTURE.md` is incomplete.** It shows 12 services and 4 data sinks. The codebase has 19 service files. Updating the doc to include the missing 7 (and reconciling `preference`/`preferences`) is ~30 minutes of work and would make the doc genuinely canonical.

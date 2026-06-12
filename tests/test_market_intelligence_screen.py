@@ -1,7 +1,14 @@
 from __future__ import annotations
 
 from shopstack.schemas.models import DecisionResult
-from shopstack.services.market_intelligence import MarketCluster, MarketIntelligenceGraph, MarketTruthScore
+from shopstack.services.market_intelligence import (
+    EvidenceClaim,
+    GraphActionIntent,
+    MarketCluster,
+    MarketIntelligenceGraph,
+    MarketTruthScore,
+    TruthScoreBreakdown,
+)
 
 
 def test_market_intelligence_view_renders_graph(monkeypatch):
@@ -40,6 +47,11 @@ def test_market_intelligence_view_renders_graph(monkeypatch):
                 price_memory_trend="down",
                 deal_score="good",
                 truth_score=MarketTruthScore(score=0.88, label="reliable"),
+                truth_breakdown=TruthScoreBreakdown(freshness_score=1.0, availability_score=1.0, size_confidence=0.95, price_confidence=0.9, memory_confidence=0.8),
+                evidence_claims=[
+                    EvidenceClaim(claim="Snapshot from 2026-06-01", claim_type="snapshot", source="swiggy", confidence=0.95)
+                ],
+                action_intent=GraphActionIntent(canonical_name="tomato", primary_action="buy", next_actions=["add_to_basket"], rationale="Need tomato"),
                 nodes=[],
                 edges=[],
                 warnings=["Market data is stale"],
@@ -59,3 +71,4 @@ def test_market_intelligence_view_renders_graph(monkeypatch):
     assert "Truth" in html
     assert "Reliable" in html
     assert "Why this signal?" in html
+    assert "Snapshot" in html

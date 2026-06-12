@@ -143,6 +143,30 @@ def _render_summary_card(result: dict[str, Any]) -> str:
     )
 
 
+def _render_graph_projection(result: dict[str, Any]) -> str:
+    projection = result.get("graph_projection") or {}
+    if not projection:
+        return ""
+    summary = projection.get("summary", {})
+    next_actions = ", ".join(projection.get("next_actions", [])[:3]) or "none"
+    matched = ", ".join(projection.get("matched_names", [])[:4]) or "none"
+    unmatched = ", ".join(projection.get("unmatched_names", [])[:4]) or "none"
+    return (
+        "<div class='home-card' style='margin-bottom:12px;'>"
+        "<h4>Graph Projection</h4>"
+        f"<div style='font-size:12px;color:var(--text-dim);margin-top:6px;'>{escape(projection.get('title', 'Unified Shopping'))}</div>"
+        f"<div style='display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;'>"
+        f"<div><strong>{summary.get('items', 0)}</strong> clustered</div>"
+        f"<div><strong>{summary.get('buy', 0)}</strong> buy</div>"
+        f"<div><strong>{summary.get('compare', 0)}</strong> compare</div>"
+        f"<div><strong>{summary.get('substitute', 0)}</strong> substitute</div>"
+        "</div>"
+        f"<div style='font-size:12px;color:var(--text-dim);margin-top:8px;'>Matched: {escape(matched)} · Missing: {escape(unmatched)}</div>"
+        f"<div style='font-size:12px;color:var(--text-dim);margin-top:4px;'>Next: {escape(next_actions)}</div>"
+        "</div>"
+    )
+
+
 @safe_render
 def run_unified_plan(goal: str, items_text: str) -> tuple[str, str]:
     """Execute the unified shopping flow and return (summary_html, detail_html)."""
@@ -159,15 +183,22 @@ def run_unified_plan(goal: str, items_text: str) -> tuple[str, str]:
     from shopstack.services.unified_shopping import run_unified_shopping_flow
 
     uid = current_user_id()
+    graph = None
+    try:
+        from shopstack.services.market_intelligence import build_market_intelligence_graph
+        graph = build_market_intelligence_graph(db, tools.inventory, user_id=uid)
+    except Exception:
+        logger.debug("Unified shopping graph projection unavailable", exc_info=True)
     result = run_unified_shopping_flow(
         goal=goal,
         items_text=items_text,
         db=db,
         inventory=tools.inventory,
+        graph=graph,
     )
     data = result.to_dict()
 
-    summary_html = _render_summary_card(data)
+    summary_html = _render_summary_card(data) + _render_graph_projection(data)
 
     # Group items by decision
     grouped: dict[str, list[dict]] = {}

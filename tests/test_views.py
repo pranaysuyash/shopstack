@@ -6,7 +6,15 @@ from datetime import date
 import gradio as gr
 import pytest
 
-from shopstack.schemas.models import InventoryLot, Trace
+from shopstack.schemas.models import DecisionResult, DecisionSet, InventoryLot, Trace
+from shopstack.ui.components import WORKFLOW_STEPS, workflow_header
+from shopstack.ui.renderers import render_compare_panel
+from shopstack.ui.screens.shopping import (
+    _shopping_list_view_with_cards,
+    shopping_list_create,
+    shopping_list_view,
+)
+from shopstack.ui.screens.traces import agent_trace_detail
 
 
 @pytest.fixture(scope="session")
@@ -45,7 +53,8 @@ class TestTodayDashboard:
     def test_empty_dashboard_shows_next_actions(self, app):
         results = app.today_dashboard()
         full_html = "".join(results)
-        assert "Start here" in full_html
+        assert "Next steps" in full_html
+        assert "Market Map" in full_html
         assert "Build shopping list" in full_html
         assert "Scan receipt" in full_html
         assert "Scan shelf item" in full_html
@@ -82,24 +91,24 @@ class TestTodayDashboard:
 
 class TestShoppingListView:
     def test_empty(self, app):
-        html, table, list_id, goal = app.shopping_list_view()
+        html, table, list_id, goal = shopping_list_view()
         assert "No active shopping list" in html
 
     def test_create_and_view(self, app):
-        result = app.shopping_list_create(
+        result = shopping_list_create(
             "Weekly groceries", '[{"canonical_name":"milk","requested_quantity":2}]'
         )
         assert "Created list" in result
-        html, table, list_id, goal = app.shopping_list_view()
+        html, table, list_id, goal = shopping_list_view()
         assert list_id
         assert goal == "Weekly groceries"
 
     def test_create_bare_list(self, app):
-        result = app.shopping_list_create("Quick trip", "[]")
+        result = shopping_list_create("Quick trip", "[]")
         assert "Created list" in result
 
     def test_create_list_invalid_json(self, app):
-        result = app.shopping_list_create("Quick trip", "{bad json}")
+        result = shopping_list_create("Quick trip", "{bad json}")
         assert "Invalid JSON" in result
 
     def test_create_list_with_natural_text(self, app):
@@ -112,9 +121,9 @@ class TestShoppingListView:
                 storage_location_id="fridge",
             )
         )
-        result = app.shopping_list_create("Breakfast run", "milk, bread, tomato")
+        result = shopping_list_create("Breakfast run", "milk, bread, tomato")
         assert "Created list" in result
-        cards, list_html, _table, list_id, goal, share = app._shopping_list_view_with_cards()
+        cards, list_html, _table, list_id, goal, share = _shopping_list_view_with_cards()
         assert list_id
         assert goal == "Breakfast run"
         assert "milk" in share.lower()
@@ -130,12 +139,31 @@ class TestShoppingListView:
             ),
             user_id=app.current_user_id(),
         )
-        app.shopping_list_create("Pantry top-up", "bread")
-        cards, list_html, _table, list_id, _goal, share = app._shopping_list_view_with_cards()
+        shopping_list_create("Pantry top-up", "bread")
+        cards, list_html, _table, list_id, _goal, share = _shopping_list_view_with_cards()
         assert "ShopStack list for today" in share
         assert list_id
         assert "Shopping List" in cards
         assert "Bread" in cards
+
+
+class TestCompareBridge:
+    def test_compare_panel_exposes_bridge_actions(self):
+        ds = DecisionSet(
+            decisions=[
+                DecisionResult(
+                    canonical_name="tomato",
+                    display_name="Tomato",
+                    action="compare",
+                    confidence=0.7,
+                    reasons=["Partially covered at home"],
+                )
+            ]
+        )
+        html = render_compare_panel(ds)
+        assert "Compare bridge" in html
+        assert "Open Shopping" in html
+        assert "Tomato" in html
 
 
 class TestModelBudgetView:
@@ -147,7 +175,7 @@ class TestModelBudgetView:
         assert "Max Budget" in html
 
     def test_workflow_header_is_visible_markup(self, app):
-        assert "Workflow Steps" in app.workflow_header(app.WORKFLOW_STEPS)
+        assert "Workflow Steps" in workflow_header(WORKFLOW_STEPS)
 
 
 class TestAddPurchase:
@@ -431,13 +459,13 @@ class TestAgentTrace:
         ))
         traces = app.db.get_traces()
         tid = traces[0].trace_id
-        detail = app.agent_trace_detail(tid)
+        detail = agent_trace_detail(tid)
         assert tid in detail
         assert "Model Used" in detail
         assert "Provider" in detail
 
     def test_detail_not_found(self, app):
-        detail = app.agent_trace_detail("nonexistent")
+        detail = agent_trace_detail("nonexistent")
         assert "not found" in detail.lower()
 
     def test_export_file_returns_jsonl_path(self, app):

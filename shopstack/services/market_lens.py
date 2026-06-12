@@ -68,10 +68,13 @@ def analyze_market_lens(
         result.items_found = [d["canonical_name"] for d in result.decisions]
         if result.decisions:
             for decision in result.decisions:
+                cname = decision.get("canonical_name", "")
+                if not cname:
+                    continue
                 result.tool_calls.append({
                     "tool_name": "compare_visible_item_to_inventory",
                     "args": {
-                        "canonical_name": decision.get("canonical_name", ""),
+                        "canonical_name": cname,
                         "quantity": decision.get("quantity", 1.0),
                         "unit": decision.get("unit", "unit"),
                     },
@@ -136,9 +139,16 @@ def analyze_visible_items(image_path: str, providers: Any, inventory: InventoryR
                     )
 
     decisions: list[dict[str, Any]] = []
-    if detections:
-        for detection in detections[:8]:
+    # Filter out error responses and items without labels
+    valid_detections = [
+        d for d in detections[:8]
+        if "error" not in d and d.get("label")
+    ] if detections else []
+    if valid_detections:
+        for detection in valid_detections:
             item_name = normalize_item_name(str(detection.get("label", "")))
+            if not item_name:
+                continue
             quantity = detection.get("quantity", 1.0)
             _compare = inventory.compare_visible if hasattr(inventory, "compare_visible") else inventory.compare_visible_item_to_inventory
             comparison = _compare(item_name, quantity, "unit")
