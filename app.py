@@ -834,16 +834,16 @@ document.addEventListener('keydown', function(e) {
                         )
                         app.load(field_notes_view, outputs=[notes_editor, notes_preview, notes_status])
 
-                    # ── Activity Log ──
-                    with gr.Tab("Activity Log"):
+                    # ── History ──
+                    with gr.Tab("History"):
                         gr.HTML(workflow_title_bar(
-                            "Activity Log",
-                            "Browse your household activity history, inspect details, and export your data.",
+                            "Household History",
+                            "Browse household activity, inspect details, and export records when you need them.",
                         ))
                         with gr.Row():
                             trace_search = gr.Textbox(
                                 label="Search",
-                                placeholder="Search by goal, type, or trace ID",
+                                placeholder="Search by goal, type, or record ID",
                                 scale=2,
                             )
                             trace_type_filter = gr.Dropdown(
@@ -854,10 +854,10 @@ document.addEventListener('keydown', function(e) {
                                 scale=1,
                             )
                             trace_refresh = gr.Button("Refresh", elem_classes="secondary", scale=1)
-                        trace_table = gr.DataFrame(label="Recent Traces")
+                        trace_table = gr.DataFrame(label="Recent Activity")
                         with gr.Row():
                             trace_selector = gr.Dropdown(
-                                label="Select a trace",
+                                label="Select a record",
                                 choices=[("No traces yet", "")],
                                 value="",
                                 allow_custom_value=False,
@@ -903,7 +903,7 @@ document.addEventListener('keydown', function(e) {
                             trace_selector,
                             trace_file,
                             api_name="trace_export",
-                            api_description="Export selected trace as redacted JSONL",
+                            api_description="Export selected record as redacted JSONL",
                         )
                         app.load(lambda: agent_trace_view()[0], outputs=trace_table)
                         app.load(
@@ -945,9 +945,9 @@ document.addEventListener('keydown', function(e) {
                         )
                         app.load(nutrition_kitchen_view, outputs=kitchen_nutrition)
 
-                    # ── System Status (developer mode only) ──
+                    # ── System (developer mode only) ──
                     if settings.ui_mode == "developer":
-                        with gr.Tab("System Status"):
+                        with gr.Tab("System"):
                             model_stack_html = gr.HTML("")
                             app.load(model_budget_view, outputs=model_stack_html)
 

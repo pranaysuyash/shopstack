@@ -178,6 +178,14 @@ def _load_parakeet():
         return None
 
 
+def _load_grounding_dino():
+    try:
+        from shopstack.providers.grounding_provider import GroundingDINOProvider
+        return GroundingDINOProvider
+    except ImportError:
+        return None
+
+
 # ── Provider specification table ───────────────────────────────────────
 # Adding a new provider = one entry here + a _load_* function above.
 
@@ -289,6 +297,11 @@ _PROVIDER_SPECS: dict[str, _ProviderSpec] = {
         loader=_load_parakeet,
         kwargs_fn=lambda _s: {},
         unavailable_msg="Parakeet provider not available (transformers/torch missing), falling back to mock",
+    ),
+    "grounding_dino": _ProviderSpec(
+        loader=_load_grounding_dino,
+        kwargs_fn=lambda _s: {},
+        unavailable_msg="GroundingDINO provider not available (transformers/torch missing), falling back to mock",
     ),
 }
 

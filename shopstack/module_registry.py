@@ -247,10 +247,10 @@ SOURCES = _register(ModuleMetadata(
 RUNTIME = _register(ModuleMetadata(
     slug="runtime",
     name="Runtime",
-    label="System Status",
+    label="System",
     description="Provider/model runtime diagnostics, budget status, and candidate model catalog. Developer-facing.",
     tab_ids=("memory",),
-    tab_labels={"memory": "Insights"},
+    tab_labels={"memory": "System"},
     order=TAB_ORDER.get("memory", 999),
     service_modules=(
         "shopstack.ui.screens.model_stack",

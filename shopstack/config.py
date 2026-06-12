@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     vision_backend: str = "mock"
     ocr_backend: str = "tesseract"
     segmentation_backend: str = "mock"
+    grounding_backend: str = "grounding_dino"
     image_gen_backend: str = "svg"
     embeddings_backend: str = "bge_m3"
     tool_call_parser_backend: str = "minicpm5"
@@ -78,6 +79,7 @@ class Settings(BaseSettings):
             "tts_backend": "kokoro",
             "tool_call_parser_backend": "minicpm5",
             "segmentation_backend": "rmbg",
+            "grounding_backend": "grounding_dino",
             "image_gen_backend": "svg",
         }
         for field_name, backend in preset_backends.items():
@@ -96,7 +98,7 @@ class Settings(BaseSettings):
             "tts": self.tts_backend,
             "vision": self.vision_backend,
             "object_detection": self.vision_backend,
-            "grounding": self.vision_backend,
+            "grounding": self.grounding_backend,
             "segmentation": self.segmentation_backend,
             "ocr": self.ocr_backend,
             "planner": self.planner_backend,

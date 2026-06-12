@@ -4,6 +4,7 @@ import logging
 
 from shopstack.app_context import APP_DESCRIPTION, APP_NAME, db, tools, current_user_id
 from shopstack.services.dashboard import build_dashboard_state
+from shopstack.ui.components.cards import card as ui_card
 from shopstack.ui.components.cards import render_action_grid, render_hero_panel
 from shopstack.ui.components.primitives import stat_card, item_row
 from shopstack.ui.renderers import render_cadence_insights, render_waste_warnings
@@ -48,6 +49,7 @@ def today_dashboard():
         f"{len(ds.buy)} to buy, {len(ds.skip)} to skip, {len(ds.use_soon)} to use soon.",
         APP_NAME,
     )
+    start_here = _render_today_start_here(state, ds)
     runtime_proof = runtime_proof_view()
 
     quick_actions = (
@@ -61,25 +63,25 @@ def today_dashboard():
 
     loop_actions = render_action_grid([
         {
-            "label": "Basket",
+            "label": "Shopping",
             "subtitle": "Plan what to buy, skip, or compare",
             "tab_id": "basket",
             "tone": "primary",
         },
         {
-            "label": "ShopLens",
+            "label": "Scan & Compare",
             "subtitle": "Check a shelf item before buying",
             "tab_id": "market",
             "tone": "default",
         },
         {
-            "label": "Reconcile",
+            "label": "Pantry",
             "subtitle": "Log purchases, update stock, check expiries",
             "tab_id": "reconcile",
             "tone": "default",
         },
         {
-            "label": "Memory",
+            "label": "Insights",
             "subtitle": "Notes, traces, nutrition, what we learned",
             "tab_id": "memory",
             "tone": "default",
@@ -108,7 +110,7 @@ def today_dashboard():
         and not state.recent_purchases
         and state.active_list is None
     )
-    empty_state = _render_today_empty_hints() if show_empty_hints else ""
+    onboarding = _render_today_empty_hints(state, ds) if show_empty_hints else _render_today_start_here(state, ds)
 
     svg_section = ""
 
@@ -120,7 +122,7 @@ def today_dashboard():
     )
 
     return [
-        f"{hero}{runtime_proof}{loop_actions}{quick_actions}{empty_state}",
+        f"{hero}{start_here}{quick_actions}{loop_actions}{runtime_proof}{onboarding}",
         decision_panel,
         svg_section,
         market_basket,
@@ -129,34 +131,145 @@ def today_dashboard():
     ]
 
 
-def _render_today_empty_hints() -> str:
-    return (
-        "<div class='home-card' style='margin-top:10px;'>"
-        "<h3>Start your first flow</h3>"
-        "<div class='muted' style='margin-bottom:8px;'>No inventory data yet — try one path to begin:</div>"
-        f"{render_action_grid([
+def _render_today_start_here(state, ds) -> str:
+    if state.active_list is not None:
+        item_count = len(state.active_list.items or [])
+        subtitle = (
+            f"You have an active shopping list with {item_count} item"
+            f"{'' if item_count == 1 else 's'}."
+        )
+        action_label = "Finish your list"
+        body = "Complete the list, then reconcile the purchase into inventory."
+        actions = [
             {
-                "label": "Build a basket",
-                "subtitle": "Create shopping list from free text or compare list",
+                "label": "Finish list",
+                "subtitle": "Review items and close the loop",
                 "tab_id": "basket",
                 "tone": "primary",
             },
             {
-                "label": "Scan with ShopLens",
-                "subtitle": "Capture shelf items and compare to home inventory",
+                "label": "Update pantry",
+                "subtitle": "Log what came home and where it lives",
+                "tab_id": "reconcile",
+                "tone": "default",
+            },
+            {
+                "label": "Review history",
+                "subtitle": "See what changed across the household",
+                "tab_id": "memory",
+                "tone": "default",
+            },
+        ]
+    elif ds.use_soon:
+        subtitle = f"{len(ds.use_soon)} item{'' if len(ds.use_soon) == 1 else 's'} are ready to use soon."
+        action_label = "Use what you have"
+        body = "Use soon items first, then restock only the gap you still need."
+        actions = [
+            {
+                "label": "Use soon",
+                "subtitle": "Open the pantry items to use first",
+                "tab_id": "reconcile",
+                "tone": "primary",
+            },
+            {
+                "label": "Plan shopping",
+                "subtitle": "Build a list around the missing items",
+                "tab_id": "basket",
+                "tone": "default",
+            },
+            {
+                "label": "Check prices",
+                "subtitle": "Compare before buying more",
+                "tab_id": "basket",
+                "tone": "default",
+            },
+        ]
+    elif ds.buy:
+        subtitle = f"{len(ds.buy)} item{'' if len(ds.buy) == 1 else 's'} are marked to buy."
+        action_label = "Plan the buy"
+        body = "Use the buying list, then compare price or source before checkout."
+        actions = [
+            {
+                "label": "Open shopping",
+                "subtitle": "Turn buy decisions into a list",
+                "tab_id": "basket",
+                "tone": "primary",
+            },
+            {
+                "label": "Compare prices",
+                "subtitle": "Check whether a better store exists",
+                "tab_id": "basket",
+                "tone": "default",
+            },
+            {
+                "label": "Open pantry",
+                "subtitle": "See what stock already exists at home",
+                "tab_id": "reconcile",
+                "tone": "default",
+            },
+        ]
+    else:
+        subtitle = "The household is steady right now. Keep the loop light and check history when you need it."
+        action_label = "Stay oriented"
+        body = "No urgent action is required, but the main paths remain one click away."
+        actions = [
+            {
+                "label": "Open shopping",
+                "subtitle": "Plan the next grocery run",
+                "tab_id": "basket",
+                "tone": "primary",
+            },
+            {
+                "label": "Scan a shelf item",
+                "subtitle": "Compare while you are in the store",
                 "tab_id": "market",
                 "tone": "default",
             },
             {
-                "label": "Log a purchase",
-                "subtitle": "Add purchase records and seed your pantry",
+                "label": "Review history",
+                "subtitle": "See what the household learned",
+                "tab_id": "memory",
+                "tone": "default",
+            },
+        ]
+
+    return ui_card(
+        action_label,
+        f"<div class='muted' style='margin-bottom:8px;'>{subtitle}</div>"
+        f"<div style='margin-bottom:10px;'>{body}</div>"
+        f"{render_action_grid(actions)}",
+    )
+
+
+def _render_today_empty_hints(state, ds) -> str:
+    return (
+        "<div class='home-card' style='margin-top:10px;text-align:left;'>"
+        "<h3>Start here</h3>"
+        "<div class='muted' style='margin-bottom:8px;'>No household data yet. Add one real fact and the rest of the loop can start learning.</div>"
+        "<div style='margin-bottom:10px;'>Add a purchase, build a shopping list, scan a shelf item, or paste a receipt.</div>"
+        f"{render_action_grid([
+            {
+                "label": "Add purchase",
+                "subtitle": "Seed the pantry with one real item",
+                "tab_id": "reconcile",
+                "tone": "primary",
+            },
+            {
+                "label": "Build shopping list",
+                "subtitle": "Turn free text into a real list",
+                "tab_id": "basket",
+                "tone": "default",
+            },
+            {
+                "label": "Scan receipt",
+                "subtitle": "Parse a bill into inventory facts",
                 "tab_id": "reconcile",
                 "tone": "default",
             },
             {
-                "label": "Try receipt flow",
-                "subtitle": "Paste or upload receipts to reconcile",
-                "tab_id": "reconcile",
+                "label": "Scan shelf item",
+                "subtitle": "Compare a product before you buy it",
+                "tab_id": "market",
                 "tone": "default",
             },
         ])}"

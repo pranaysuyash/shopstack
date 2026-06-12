@@ -103,8 +103,9 @@ def test_sources_has_no_tabs():
 
 
 def test_runtime_has_memory_tab():
-    """Runtime module is under the Memory tab."""
+    """Runtime module is exposed under the Memory/System area."""
     assert "memory" in RUNTIME.tab_ids
+    assert RUNTIME.label == "System"
 
 
 def test_dependencies():

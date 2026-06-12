@@ -133,6 +133,7 @@ class MockGroundingProvider(GroundingProvider):
     name = "mock_grounding"
     model_id = "mock-grounding-v1"
     parameter_count = 0.0
+    capabilities: set[str] = {"grounding"}
 
     def load(self) -> None:
         pass

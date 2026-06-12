@@ -494,6 +494,69 @@ class TestNewProviderRegistryWiring:
 
 
 # ============================================================
+#  GroundingDINOProvider
+# ============================================================
+
+
+class TestGroundingDINOProviderInit:
+    def test_not_available_when_deps_missing(self):
+        from shopstack.providers.grounding_provider import GroundingDINOProvider
+        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+            provider = GroundingDINOProvider()
+            assert not provider.available
+            assert provider.error is not None
+            assert "transformers" in (provider.error or "").lower()
+
+    def test_name_and_capabilities(self):
+        from shopstack.providers.grounding_provider import GroundingDINOProvider
+        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+            provider = GroundingDINOProvider()
+            assert provider.name == "grounding_dino"
+            assert provider.model_id == "grounding-dino-tiny"
+            assert provider.parameter_count == 0.043
+            assert "grounding" in provider.capabilities
+
+    def test_healthcheck_false_when_not_available(self):
+        from shopstack.providers.grounding_provider import GroundingDINOProvider
+        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+            provider = GroundingDINOProvider()
+            assert not provider.healthcheck()
+
+    def test_last_latency_default(self):
+        from shopstack.providers.grounding_provider import GroundingDINOProvider
+        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+            provider = GroundingDINOProvider()
+            assert provider.last_latency_ms is None
+
+    def test_ground_unavailable(self):
+        from shopstack.providers.grounding_provider import GroundingDINOProvider
+        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+            provider = GroundingDINOProvider()
+            result = provider.ground("/fake.jpg", "tomato")
+            assert "error" in result
+            assert result["found"] is False
+            assert result["model"] == "grounding_dino"
+
+    def test_ground_missing_file(self):
+        with patch.dict("sys.modules", {"transformers": MagicMock(), "torch": MagicMock()}, clear=False):
+            from shopstack.providers.grounding_provider import GroundingDINOProvider
+            provider = GroundingDINOProvider()
+            provider._available = True
+            result = provider.ground("/tmp/nonexistent_image.jpg", "tomato")
+            assert "error" in result
+            assert result["found"] is False
+            assert "not found" in result["error"].lower()
+
+    def test_ground_empty_prompt(self):
+        from shopstack.providers.grounding_provider import GroundingDINOProvider
+        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+            provider = GroundingDINOProvider()
+            result = provider.ground("/fake.jpg", "")
+            assert "error" in result
+            assert result["found"] is False
+
+
+# ============================================================
 #  Import smoke tests
 # ============================================================
 
@@ -530,3 +593,7 @@ class TestProviderImport:
     def test_qwen3_asr_import(self):
         from shopstack.providers.stt_provider import Qwen3ASRProvider
         assert Qwen3ASRProvider.name == "qwen3_asr"
+
+    def test_grounding_dino_import(self):
+        from shopstack.providers.grounding_provider import GroundingDINOProvider
+        assert GroundingDINOProvider.name == "grounding_dino"

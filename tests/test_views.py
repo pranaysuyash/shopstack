@@ -45,10 +45,10 @@ class TestTodayDashboard:
     def test_empty_dashboard_shows_next_actions(self, app):
         results = app.today_dashboard()
         full_html = "".join(results)
-        assert "Start your first flow" in full_html
-        assert "Build a basket" in full_html
-        assert "Scan with ShopLens" in full_html
-        assert "Try receipt flow" in full_html
+        assert "Start here" in full_html
+        assert "Build shopping list" in full_html
+        assert "Scan receipt" in full_html
+        assert "Scan shelf item" in full_html
 
     def test_includes_runtime_proof(self, app):
         results = app.today_dashboard()

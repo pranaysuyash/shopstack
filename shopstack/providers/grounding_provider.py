@@ -171,12 +171,25 @@ class GroundingDINOProvider:
 
             t0 = time.monotonic()
 
+            if not text_prompt or not text_prompt.strip():
+                return {
+                    "found": False,
+                    "bbox": [],
+                    "confidence": 0.0,
+                    "label": "",
+                    "all_detections": [],
+                    "error": "Empty text prompt",
+                    "model": self.name,
+                }
+
             image = Image.open(image_path).convert("RGB")
             inputs = self._processor(
                 images=image,
                 text=text_prompt,
                 return_tensors="pt",
             )
+            # Keep CPU copy of input_ids for post-processing
+            input_ids = inputs["input_ids"]
 
             # Move inputs to the correct device
             if hasattr(self._model, "device") and str(self._model.device) != "cpu":
@@ -187,7 +200,7 @@ class GroundingDINOProvider:
 
             results = self._processor.post_process_grounded_object_detection(
                 outputs,
-                inputs.input_ids if hasattr(inputs, "input_ids") else inputs.get("input_ids"),
+                input_ids,
                 box_threshold=self._box_threshold,
                 text_threshold=self._text_threshold,
                 target_sizes=[(image.height, image.width)],
