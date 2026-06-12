@@ -193,13 +193,18 @@ def render_unified_decision_card(d: DecisionResult) -> str:
 
     action_btn = ""
     if d.action in ("buy", "optional", "compare", "use_soon"):
-        # For a "one-click action" we might just render a dummy button since Gradio HTML can't easily hook into Python callbacks without custom JS.
-        # But we'll add a visual button.
+        # Visual affordance button — Gradio interactions are driven by gr.Button components,
+        # not inline JS. This button surfaces the recommended action with a data-action
+        # attribute for accessibility and future JS wiring without alert() stubs.
+        action_label = d.action.replace("_", " ").title()
         action_btn = (
             f"<div style='margin-top:8px;'>"
-            f"<button type='button' class='action-tile action-tile-default' style='padding:4px 8px;font-size:11px;' "
-            f"onclick=\"alert('Action triggered for {escape(d.canonical_name)}')\">"
-            f"Process Action</button></div>"
+            f"<button type='button' class='action-tile action-tile-default'"
+            f" style='padding:4px 8px;font-size:11px;cursor:default;'"
+            f" data-action='{escape(d.action)}'"
+            f" data-canonical='{escape(d.canonical_name)}'"
+            f" aria-label='{escape(action_label)} {escape(d.display_name)}'"
+            f">{escape(action_label)} →</button></div>"
         )
 
     return (

@@ -5,7 +5,7 @@ from html import escape
 from typing import Any
 
 
-from shopstack.app_context import db, providers
+from shopstack.app_context import db, providers, current_user_id
 from shopstack.services.ocr_pipeline import run_ocr_pipeline
 from shopstack.services.receipt import (
     ReceiptResult,
@@ -201,5 +201,5 @@ def receipt_confirm(df_data: Any, merchant: str, date_str: str, raw_text: str) -
         raw_text=raw_text,
     )
     
-    ir = confirm_receipt(db, result, user_id=db.active_household_id)
+    ir = confirm_receipt(db, result, user_id=current_user_id())
     return ir.summary_html

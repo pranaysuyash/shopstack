@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from shopstack.app_context import APP_DESCRIPTION, APP_NAME, db, tools
+from shopstack.app_context import APP_DESCRIPTION, APP_NAME, db, tools, current_user_id
 from shopstack.services.dashboard import build_dashboard_state
 from shopstack.ui.components.cards import render_action_grid, render_hero_panel
 from shopstack.ui.components.primitives import stat_card, item_row
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 @safe_render
 def today_dashboard():
-    uid = db.active_household_id
+    uid = current_user_id()
     from shopstack.decisions import (
         render_decision_panel,
         render_market_basket,

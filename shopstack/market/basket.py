@@ -472,63 +472,21 @@ def _get_produce_meta(canonical_name: str):
         return None
 
 
-_DISPLAY_TO_CANONICAL: dict[str, str] = {
-    "tomato": "tomato",
-    "tomatoes": "tomato",
-    "onion": "onion",
-    "onions": "onion",
-    "potato": "potato",
-    "potatoes": "potato",
-    "carrot": "carrot",
-    "carrots": "carrot",
-    "cucumber": "cucumber",
-    "cucumbers": "cucumber",
-    "brinjal": "brinjal",
-    "brinjals": "brinjal",
-    "eggplant": "brinjal",
-    "capsicum": "capsicum",
-    "bell pepper": "bell_pepper",
-    "cauliflower": "cauliflower",
-    "broccoli": "broccoli",
-    "ginger": "ginger",
-    "garlic": "garlic",
-    "beetroot": "beetroot",
-    "radish": "radish",
-    "okra": "ladys_finger",
-    "lady finger": "ladys_finger",
-    "bottle gourd": "bottle_gourd",
-    "bitter gourd": "bitter_gourd",
-    "ridge gourd": "ridge_gourd",
-    "drumstick": "drumstick",
-    "mint": "mint",
-    "coriander": "coriander",
-    "curry leaves": "curry_leaves",
-    "green chilli": "green_chilli",
-    "green chillies": "green_chilli",
-    "coconut": "coconut",
-    "sweet potato": "sweet_potato",
-    "yam": "yam",
-    "raw banana": "raw_banana",
-    "raw mango": "raw_mango",
-    "french beans": "french_beans",
-    "cluster beans": "cluster_beans",
-    "zucchini": "zucchini",
-    "red cabbage": "red_cabbage",
-    "baby potato": "baby_potato",
-}
-
-
 def _match_canonical(query: str, available: set[str]) -> str | None:
     lowered = query.lower().strip()
     if lowered in available:
         return lowered
-    mapped = _DISPLAY_TO_CANONICAL.get(lowered)
+    
+    from shopstack.market.normalization import resolve_canonical
+    mapped = resolve_canonical(lowered)
     if mapped and mapped in available:
         return mapped
-    for display, canonical in _DISPLAY_TO_CANONICAL.items():
-        if display in lowered or lowered in display:
-            if canonical in available:
-                return canonical
+        
+    if mapped:
+        for a in available:
+            if mapped in a or a in mapped:
+                return a
+
     partial = [
         a for a in available if lowered in a or a in lowered
     ]

@@ -1,15 +1,9 @@
 from __future__ import annotations
 
-import warnings
-warnings.warn(
-    "shopstack.data_sources.swiggy is deprecated and will be removed in a future version. "
-    "Use shopstack.market.sources.swiggy instead.",
-    DeprecationWarning,
-    stacklevel=2,
-)
 import csv
 import json
 import re
+import warnings
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -174,6 +168,11 @@ def _find_swiggy_source_file() -> Path:
 
 
 def load_swiggy_fresh_vegetables(path: Path | None = None) -> list[SwiggyVegetableRecord]:
+    warnings.warn(
+        "shopstack.data_sources.swiggy.load_swiggy_fresh_vegetables is deprecated. Use shopstack.market.sources.swiggy instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     source_path = Path(path) if path is not None else _find_swiggy_source_file()
     if source_path.suffix.lower() == ".json":
         return _load_records_from_json(source_path)
@@ -183,6 +182,11 @@ def load_swiggy_fresh_vegetables(path: Path | None = None) -> list[SwiggyVegetab
 
 
 def summarize_swiggy_snapshot(records: list[SwiggyVegetableRecord]) -> dict[str, Any]:
+    warnings.warn(
+        "shopstack.data_sources.swiggy.summarize_swiggy_snapshot is deprecated. Use shopstack.market.sources.swiggy instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     total = len(records)
     category_counts: dict[str, int] = {}
     prices_by_item: dict[str, list[float]] = {}
@@ -222,6 +226,11 @@ def import_swiggy_fresh_vegetables_snapshot(
     path: Path | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any]:
+    warnings.warn(
+        "shopstack.data_sources.swiggy.import_swiggy_fresh_vegetables_snapshot is deprecated. Use shopstack.market.sources.swiggy instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     records = load_swiggy_fresh_vegetables(path)
     imported = 0
     skipped = 0
@@ -240,3 +249,4 @@ def import_swiggy_fresh_vegetables_snapshot(
     summary["source_file"] = str(path or _find_swiggy_source_file())
     summary["source_event_id"] = SWIGGY_SOURCE_ID
     return summary
+

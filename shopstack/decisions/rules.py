@@ -42,6 +42,12 @@ def classify_all(
     market_snapshot=None,
     source_registry: Any = None,
 ) -> DecisionSet:
+    from shopstack.services.preference import PreferenceService
+    pref_service = PreferenceService(db)
+    uid = getattr(db, "current_user_id", lambda: "")() if callable(getattr(db, "current_user_id", None)) else getattr(db, "current_user_id", "")
+    staples = set(pref_service.get_staples(user_id=uid))
+    disliked = set(pref_service.get_disliked(user_id=uid))
+
     active_inv = [lot for lot in db.get_inventory() if lot.status == "active"]
     use_soon_items = _get_use_soon(inventory, _USE_SOON_DAYS).get("items", [])
     active_list = db.get_active_shopping_list()
@@ -69,6 +75,10 @@ def classify_all(
     seen: set[str] = set()
     decisions: list[DecisionResult] = []
 
+    # Import decision engine services locally to avoid circular imports
+    from shopstack.services.freshness import FreshnessReport
+    from shopstack.services.decision_engine import should_buy, should_skip, use_soon
+
     for lot in active_inv:
         cname = lot.canonical_name
         if cname in seen:
@@ -82,60 +92,120 @@ def classify_all(
         low_stock = lot.quantity <= _LOW_STOCK_THRESHOLD or lot.status == "low"
         on_list = cname in list_names
         recently_bought = lot.purchase_date and lot.purchase_date in recent_dates
+        is_staple = cname in staples
+        is_disliked = cname in disliked
 
-        action, reason_str, confidence = _classify(
-            quantity=lot.quantity,
-            unit=lot.unit,
-            low_stock=low_stock,
-            use_soon=use_soon_match,
-            on_list=on_list,
-            recently_bought=bool(recently_bought),
-            has_market=bool(market),
-            waste_risk=meta.waste_risk if meta else "unknown",
-        )
-
-        evidence_list: list[DecisionEvidence] = []
-        if recently_bought:
-            evidence_list.append(DecisionEvidence(source="purchase_history", value=lot.purchase_date.isoformat() if lot.purchase_date else "", confidence=0.9))
+        # Derive freshness report for the market record
+        fr = None
         if market:
-            evidence_list.append(DecisionEvidence(source="market", value=f"\u20b9{market.price_inr} at {market_evidence_map.get(cname, {}).get('source', 'unknown')}", confidence=0.7, captured_at=market.captured_at, is_stale=getattr(market, 'is_stale', False)))
-        
-        inventory_val = f"{lot.quantity} {lot.unit}"
-        evidence_list.append(DecisionEvidence(source="inventory", value=inventory_val, confidence=1.0))
-        
-        if on_list:
-            evidence_list.append(DecisionEvidence(source="preference", value="On shopping list", confidence=0.9))
-            
-        warnings_list: list[DecisionWarning] = []
-        if meta and meta.waste_risk == "high" and action == "buy":
-            warnings_list.append(DecisionWarning(code="waste_risk", message="High waste risk for this item", severity="warning"))
-        if market and getattr(market, 'is_stale', False):
-            warnings_list.append(DecisionWarning(code="stale_data", message="Market data is stale", severity="warning"))
+            evidence_val = market_evidence_map.get(cname, {})
+            cap_at = evidence_val.get("captured_at")
+            if cap_at:
+                if not isinstance(cap_at, str):
+                    cap_at = getattr(cap_at, "isoformat", lambda: str(cap_at))()
+                fr = FreshnessReport(
+                    status="stale" if evidence_val.get("is_stale") else "fresh",
+                    age_days=evidence_val.get("age_days"),
+                    label="",
+                    captured_at=cap_at,
+                    is_stale=bool(evidence_val.get("is_stale")),
+                    warning="",
+                )
 
-        data_freshness, data_freshness_label = _freshness_for(cname, market_evidence_map)
-        decisions.append(DecisionResult(
-            canonical_name=cname,
-            display_name=lot.display_name,
-            action=action,
-            confidence=confidence,
-            reasons=[reason_str],
-            evidence=evidence_list,
-            warnings=warnings_list,
-            source_trace="rule:classify_all:inventory_loop",
-            quantity_at_home=lot.quantity,
-            unit=lot.unit,
-            market_price=market.price_inr if market else None,
-            market_price_per_kg=market.price_per_kg if market else None,
-            market_available=bool(market),
-            market_raw_size=market.raw_size if market else "",
-            shopping_list_status="on_list" if on_list else "",
-            waste_risk=meta.waste_risk if meta else "unknown",
-            shelf_life_days=meta.shelf_life_days if meta else 0,
-            last_purchase_date=lot.purchase_date,
-            location=lot.storage_location_id or "",
-            data_freshness=data_freshness,
-            data_freshness_label=data_freshness_label,
-        ))
+        decision_res = None
+
+        if use_soon_match:
+            decision_res = use_soon(
+                canonical_name=cname,
+                display_name=lot.display_name,
+                quantity_at_home=lot.quantity,
+                unit=lot.unit,
+                shelf_life_days=meta.shelf_life_days if meta else 0,
+                purchase_date=lot.purchase_date,
+                waste_risk=meta.waste_risk if meta else "unknown",
+            )
+            if decision_res:
+                decision_res.source_trace = "rule:classify_all:inventory_loop"
+
+        if not decision_res:
+            decision_res = should_buy(
+                canonical_name=cname,
+                display_name=lot.display_name,
+                quantity_at_home=lot.quantity,
+                unit=lot.unit,
+                market_record=market,
+                freshness=fr,
+                on_shopping_list=on_list,
+                is_staple=is_staple,
+                waste_risk=meta.waste_risk if meta else "unknown",
+                purchase_cadence_days=None,
+                last_purchase_date=lot.purchase_date,
+                recently_bought=bool(recently_bought),
+                is_disliked=is_disliked,
+            )
+            if decision_res:
+                if is_staple and not any("staple" in r.lower() for r in decision_res.reasons):
+                    decision_res.reasons.append("Household staple")
+                    decision_res.confidence = min(decision_res.confidence + 0.1, 0.95)
+                decision_res.source_trace = "rule:classify_all:inventory_loop"
+
+        if not decision_res:
+            decision_res = should_skip(
+                canonical_name=cname,
+                display_name=lot.display_name,
+                quantity_at_home=lot.quantity,
+                unit=lot.unit,
+                waste_risk=meta.waste_risk if meta else "unknown",
+                on_shopping_list=on_list,
+                recently_bought=bool(recently_bought),
+                market_record=market,
+                freshness=fr,
+                is_disliked=is_disliked,
+            )
+            if decision_res:
+                decision_res.source_trace = "rule:classify_all:inventory_loop"
+
+        if not decision_res:
+            data_freshness, data_freshness_label = _freshness_for(cname, market_evidence_map)
+            decision_res = DecisionResult(
+                canonical_name=cname,
+                display_name=lot.display_name,
+                action="watch",
+                confidence=0.5,
+                reasons=["Monitor"],
+                evidence=[DecisionEvidence(source="inventory", value=f"{lot.quantity} {lot.unit}", confidence=1.0)],
+                source_trace="rule:classify_all:inventory_loop",
+                quantity_at_home=lot.quantity,
+                unit=lot.unit,
+                market_price=market.price_inr if market else None,
+                market_price_per_kg=market.price_per_kg if market else None,
+                market_available=bool(market),
+                market_raw_size=market.raw_size if market else "",
+                shopping_list_status="on_list" if on_list else "",
+                waste_risk=meta.waste_risk if meta else "unknown",
+                shelf_life_days=meta.shelf_life_days if meta else 0,
+                last_purchase_date=lot.purchase_date,
+                location=lot.storage_location_id or "",
+                data_freshness=data_freshness,
+                data_freshness_label=data_freshness_label,
+            )
+
+        # Enrich fields to be fully backwards-compatible
+        decision_res.shopping_list_status = "on_list" if on_list else ""
+        decision_res.shelf_life_days = meta.shelf_life_days if meta else 0
+        decision_res.last_purchase_date = lot.purchase_date
+        decision_res.location = lot.storage_location_id or ""
+        
+        if is_disliked and not any(w.code == "disliked_item" for w in decision_res.warnings):
+            decision_res.warnings.append(DecisionWarning(code="disliked_item", message="Disliked/avoided by household", severity="warning"))
+            
+        if meta and meta.waste_risk == "high" and decision_res.action == "buy" and not any(w.code == "waste_risk" for w in decision_res.warnings):
+            decision_res.warnings.append(DecisionWarning(code="waste_risk", message="High waste risk for this item", severity="warning"))
+            
+        if market and getattr(market, 'is_stale', False) and not any(w.code == "stale_data" for w in decision_res.warnings):
+            decision_res.warnings.append(DecisionWarning(code="stale_data", message="Market data is stale", severity="warning"))
+
+        decisions.append(decision_res)
 
     if active_list and active_list.items:
         for item in active_list.items:
@@ -151,46 +221,143 @@ def classify_all(
             qty = inv_match.quantity if inv_match else 0
             low_stock = qty <= _LOW_STOCK_THRESHOLD
             use_soon_match = item.canonical_name in use_soon_names
+            is_staple = item.canonical_name in staples
+            is_disliked = item.canonical_name in disliked
 
-            if inv_match is None:
-                action = Decision.BUY.value
-                reason_str = "On your list, not in inventory"
-                confidence = 0.9
-            else:
-                action, reason_str, confidence = _classify(
-                    quantity=qty,
-                    unit=inv_match.unit,
-                    low_stock=low_stock,
-                    use_soon=use_soon_match,
-                    on_list=True,
-                    recently_bought=False,
-                    has_market=bool(market),
+            fr = None
+            if market:
+                evidence_val = market_evidence_map.get(item.canonical_name, {})
+                cap_at = evidence_val.get("captured_at")
+                if cap_at:
+                    if not isinstance(cap_at, str):
+                        cap_at = getattr(cap_at, "isoformat", lambda: str(cap_at))()
+                    fr = FreshnessReport(
+                        status="stale" if evidence_val.get("is_stale") else "fresh",
+                        age_days=evidence_val.get("age_days"),
+                        label="",
+                        captured_at=cap_at,
+                        is_stale=bool(evidence_val.get("is_stale")),
+                        warning="",
+                    )
+
+            decision_res = None
+            if is_disliked:
+                decision_res = should_skip(
+                    canonical_name=item.canonical_name,
+                    display_name=item.canonical_name.replace("_", " ").title(),
+                    quantity_at_home=qty,
+                    unit=inv_match.unit if inv_match else "unit",
                     waste_risk=meta.waste_risk if meta else "unknown",
+                    on_shopping_list=True,
+                    recently_bought=False,
+                    market_record=market,
+                    freshness=fr,
+                    is_disliked=True,
+                )
+                if decision_res:
+                    decision_res.source_trace = "rule:classify_all:list_loop"
+
+            elif inv_match is None:
+                decision_res = should_buy(
+                    canonical_name=item.canonical_name,
+                    display_name=item.canonical_name.replace("_", " ").title(),
+                    quantity_at_home=0.0,
+                    unit="unit",
+                    market_record=market,
+                    freshness=fr,
+                    on_shopping_list=True,
+                    is_staple=is_staple,
+                    waste_risk=meta.waste_risk if meta else "unknown",
+                    is_disliked=is_disliked,
+                )
+                if decision_res:
+                    if is_staple and not any("staple" in r.lower() for r in decision_res.reasons):
+                        decision_res.reasons.append("Household staple")
+                        decision_res.confidence = min(decision_res.confidence + 0.1, 0.95)
+                    decision_res.source_trace = "rule:classify_all:list_loop"
+            else:
+                if use_soon_match:
+                    decision_res = use_soon(
+                        canonical_name=item.canonical_name,
+                        display_name=inv_match.display_name,
+                        quantity_at_home=inv_match.quantity,
+                        unit=inv_match.unit,
+                        shelf_life_days=meta.shelf_life_days if meta else 0,
+                        purchase_date=inv_match.purchase_date,
+                        waste_risk=meta.waste_risk if meta else "unknown",
+                    )
+                    if decision_res:
+                        decision_res.source_trace = "rule:classify_all:list_loop"
+
+                if not decision_res:
+                    decision_res = should_buy(
+                        canonical_name=item.canonical_name,
+                        display_name=inv_match.display_name,
+                        quantity_at_home=inv_match.quantity,
+                        unit=inv_match.unit,
+                        market_record=market,
+                        freshness=fr,
+                        on_shopping_list=True,
+                        is_staple=is_staple,
+                        waste_risk=meta.waste_risk if meta else "unknown",
+                        is_disliked=is_disliked,
+                    )
+                    if decision_res:
+                        if is_staple and not any("staple" in r.lower() for r in decision_res.reasons):
+                            decision_res.reasons.append("Household staple")
+                            decision_res.confidence = min(decision_res.confidence + 0.1, 0.95)
+                        decision_res.source_trace = "rule:classify_all:list_loop"
+
+                if not decision_res:
+                    decision_res = should_skip(
+                        canonical_name=item.canonical_name,
+                        display_name=inv_match.display_name,
+                        quantity_at_home=inv_match.quantity,
+                        unit=inv_match.unit,
+                        waste_risk=meta.waste_risk if meta else "unknown",
+                        on_shopping_list=True,
+                        recently_bought=False,
+                        market_record=market,
+                        freshness=fr,
+                        is_disliked=is_disliked,
+                    )
+                    if decision_res:
+                        decision_res.source_trace = "rule:classify_all:list_loop"
+
+            if not decision_res:
+                data_freshness, data_freshness_label = _freshness_for(item.canonical_name, market_evidence_map)
+                decision_res = DecisionResult(
+                    canonical_name=item.canonical_name,
+                    display_name=item.canonical_name.replace("_", " ").title(),
+                    action="watch",
+                    confidence=0.5,
+                    reasons=["Monitor"],
+                    evidence=[DecisionEvidence(source="shopping_list", value="on_list", confidence=1.0)],
+                    source_trace="rule:classify_all:list_loop",
+                    quantity_at_home=qty,
+                    unit=inv_match.unit if inv_match else "unit",
+                    market_price=market.price_inr if market else None,
+                    market_price_per_kg=market.price_per_kg if market else None,
+                    market_available=bool(market),
+                    market_raw_size=market.raw_size if market else "",
+                    shopping_list_status="on_list",
+                    waste_risk=meta.waste_risk if meta else "unknown",
+                    shelf_life_days=meta.shelf_life_days if meta else 0,
+                    last_purchase_date=inv_match.purchase_date if inv_match else None,
+                    location=inv_match.storage_location_id if inv_match else "",
+                    data_freshness=data_freshness,
+                    data_freshness_label=data_freshness_label,
                 )
 
-            data_freshness, data_freshness_label = _freshness_for(item.canonical_name, market_evidence_map)
-            decisions.append(DecisionResult(
-                canonical_name=item.canonical_name,
-                display_name=item.canonical_name.replace("_", " ").title(),
-                action=action,
-                confidence=confidence,
-                reasons=[reason_str],
-                evidence=[DecisionEvidence(source="preference", value="On shopping list", confidence=1.0)],
-                source_trace="rule:classify_all:list_loop",
-                quantity_at_home=qty,
-                unit=inv_match.unit if inv_match else "unit",
-                market_price=market.price_inr if market else None,
-                market_price_per_kg=market.price_per_kg if market else None,
-                market_available=bool(market),
-                market_raw_size=market.raw_size if market else "",
-                shopping_list_status="on_list",
-                waste_risk=meta.waste_risk if meta else "unknown",
-                shelf_life_days=meta.shelf_life_days if meta else 0,
-                last_purchase_date=inv_match.purchase_date if inv_match else None,
-                location=inv_match.storage_location_id if inv_match else "",
-                data_freshness=data_freshness,
-                data_freshness_label=data_freshness_label,
-            ))
+            decision_res.shopping_list_status = "on_list"
+            decision_res.shelf_life_days = meta.shelf_life_days if meta else 0
+            decision_res.last_purchase_date = inv_match.purchase_date if inv_match else None
+            decision_res.location = inv_match.storage_location_id if inv_match else ""
+
+            if is_disliked and not any(w.code == "disliked_item" for w in decision_res.warnings):
+                decision_res.warnings.append(DecisionWarning(code="disliked_item", message="Disliked/avoided by household", severity="warning"))
+
+            decisions.append(decision_res)
 
     if market_snapshot is not None:
         market_source_name = getattr(market_snapshot, 'source', 'market')
@@ -211,15 +378,15 @@ def classify_all(
             if len(all_weighted) >= 2:
                 prices = [rec.price_per_kg for rec in all_weighted if rec.price_per_kg]
                 if prices and price_ppk <= min(prices) * 1.05:
-                    action = Decision.OPTIONAL.value
+                    action = "optional"
                     reason_str = f"Good price: \u20b9{price_ppk:.0f}/kg on {market_source_name}"
                     confidence = 0.7
                 else:
-                    action = Decision.WATCH.value
+                    action = "watch"
                     reason_str = f"Available at \u20b9{price_ppk:.0f}/kg on {market_source_name}"
                     confidence = 0.5
             else:
-                action = Decision.WATCH.value
+                action = "watch"
                 reason_str = f"Available at \u20b9{price_ppk:.0f}/kg on {market_source_name}"
                 confidence = 0.5
 
@@ -227,7 +394,7 @@ def classify_all(
             decisions.append(DecisionResult(
                 canonical_name=cname,
                 display_name=cname.replace("_", " ").title(),
-                action=ACTION_MAP.get(action, "wait"),
+                action=action,
                 confidence=confidence,
                 reasons=[reason_str],
                 evidence=[DecisionEvidence(source="market", value=f"\u20b9{r.price_inr} at {market_source_name}", confidence=1.0)],
@@ -280,7 +447,11 @@ def _classify(
     recently_bought: bool,
     has_market: bool,
     waste_risk: str,
+    is_disliked: bool = False,
 ) -> tuple[str, str, float]:
+
+    if is_disliked:
+        return Decision.SKIP.value, "Disliked/avoided by household", 0.95
 
     if use_soon and quantity > 0:
         if low_stock:

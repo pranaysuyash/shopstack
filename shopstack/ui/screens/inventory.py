@@ -69,6 +69,7 @@ def add_purchase_form(
             ],
             final_response=result,
             human_confirmation="confirmed-by-user",
+            user_id=uid,
         )
     except Exception as exc:
         logger.debug("Failed to record add purchase trace: %s", exc)

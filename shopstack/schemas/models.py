@@ -438,6 +438,17 @@ class PreferenceSignal(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.now)
 
 
+class CorrectionEvent(BaseModel):
+    """Event capturing a user feedback/correction for system preferences."""
+    event_id: str = Field(default_factory=new_id)
+    canonical_name: str
+    correction_type: str  # "alias" | "brand" | "pack_size" | "preference" | "waste_pattern" | "avoid"
+    old_value: str | None = None
+    new_value: str
+    source: str = "user_correction"
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+
 class MarketSnapshotModel(BaseModel):
     snapshot_id: str = Field(default_factory=new_id)
     source: str

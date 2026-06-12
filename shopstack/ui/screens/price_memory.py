@@ -7,7 +7,7 @@ from html import escape
 import gradio as gr
 import pandas as pd
 
-from shopstack.app_context import db
+from shopstack.app_context import db, current_user_id
 from shopstack.schemas.models import PriceObservation
 from shopstack.ui.views import build_price_memory_view  # noqa: E402 — deferred to avoid circular import via shopstack.ui.screens.__init__
 from shopstack.ui.screens._utils import safe_render
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 @safe_render
 def price_memory_view(item_name: str = ""):
     """Price memory view — shows price history, unit prices, and chart data for a given item."""
-    view = build_price_memory_view(db, item_name, user_id=db.active_household_id)
+    view = build_price_memory_view(db, item_name, user_id=current_user_id())
     has_data = view.observation_count > 0
     unit_plot_df = view.df[["date", "unit_price"]].dropna() if has_data else pd.DataFrame(columns=["date", "unit_price"])
     return (

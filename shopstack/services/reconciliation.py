@@ -84,6 +84,7 @@ def reconcile_shopping_trip(
     actual_items: list[dict[str, Any]],
     tools=None,
     database=None,
+    user_id: str = "",
 ) -> ReconciliationResult:
     """Reconcile a planned shopping trip against what actually happened.
 
@@ -100,6 +101,7 @@ def reconcile_shopping_trip(
         actual_items: What the user actually did after shopping.
         tools: InventoryRepo or ToolRegistry for inventory mutations.
         database: Database for persistence.
+        user_id: Household ID for scoping the trace.
 
     Returns:
         ReconciliationResult with events, inventory updates, and price observations.
@@ -140,6 +142,13 @@ def reconcile_shopping_trip(
             source=actual.get("source", "manual"),
         )
         result.events.append(event)
+
+        if database is not None:
+            try:
+                database.add_reconciliation_event(event, user_id=user_id)
+            except Exception as exc:
+                logger.warning("Failed to persist reconciliation event for %s: %s", name, exc)
+
 
         # ── Update inventory for bought items ──
         if action_str == "bought" and tools is not None:
@@ -208,6 +217,7 @@ def reconcile_shopping_trip(
                     source_event_id=event.event_id,
                     notes=f"Reconciled from trip {trip_id}",
                 )
+                database.record_price(observation, user_id=user_id)
                 result.price_observations.append({
                     "canonical_name": name,
                     "price": observation.price,
@@ -216,6 +226,15 @@ def reconcile_shopping_trip(
                 })
             except Exception as exc:
                 logger.debug("Price observation record failed for %s: %s", name, exc)
+
+    # ── Learn preferences from the trip ──
+    if database is not None:
+        try:
+            from shopstack.services.preference import PreferenceService
+            pref_service = PreferenceService(database)
+            pref_service.learn_from_reconciliation(result.events, user_id=user_id)
+        except Exception as exc:
+            logger.warning("Failed to run preference learning after trip: %s", exc)
 
     # ── Build message with error count ──
     error_count = len(result.errors)
@@ -245,6 +264,7 @@ def reconcile_shopping_trip(
                 proposed_tool_calls=[],
                 final_response=result.message,
                 human_confirmation="auto-confirmed",
+                user_id=user_id,
             )
         except Exception as exc:
             logger.debug("Trace record failed for reconciliation: %s", exc)
@@ -258,7 +278,7 @@ def build_correction_event(
     old_value: str,
     new_value: str,
     source: str = "user_correction",
-) -> dict[str, Any]:
+) -> CorrectionEvent:
     """Build a structured correction event from user feedback.
 
     The review (§3.6) identifies corrections as the learning loop:
@@ -266,17 +286,13 @@ def build_correction_event(
     "We don't buy this brand."
     "We call this sambar onion."
 
-    Returns a dict suitable for storage and learning.
-
-    Note: Returns a dict (not a typed model) because the CorrectionEvent
-    schema is deferred until the PreferenceService is built. The dict keys
-    are documented here for forward compatibility.
+    Returns a CorrectionEvent model.
     """
-    return {
-        "event_id": new_id(),
-        "canonical_name": canonical_name,
-        "correction_type": correction_type,  # alias / brand / pack_size / preference / waste_pattern
-        "old_value": old_value,
-        "new_value": new_value,
-        "source": source,
-    }
+    from shopstack.schemas.models import CorrectionEvent
+    return CorrectionEvent(
+        canonical_name=canonical_name,
+        correction_type=correction_type,
+        old_value=old_value,
+        new_value=new_value,
+        source=source,
+    )

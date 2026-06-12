@@ -95,6 +95,7 @@ class TraceService:
         proposed_tool_calls: list | None = None,
         final_response: str = "",
         human_confirmation: str | None = None,
+        user_id: str = "",
     ) -> Trace:
         """Create a new trace record."""
         return _create_trace(
@@ -108,6 +109,7 @@ class TraceService:
             proposed_tool_calls=proposed_tool_calls,
             final_response=final_response,
             human_confirmation=human_confirmation,
+            user_id=user_id,
         )
 
     def create_market_lens_trace(
@@ -121,6 +123,7 @@ class TraceService:
         decision_items: list[dict] | None = None,
         proposed_tool_calls: list | None = None,
         human_confirmation: str | None = None,
+        user_id: str = "",
     ) -> Trace:
         """Create a trace specifically for Market Lens workflow."""
         return _create_market_lens_trace(
@@ -134,17 +137,23 @@ class TraceService:
             decision_items=decision_items,
             proposed_tool_calls=proposed_tool_calls,
             human_confirmation=human_confirmation,
+            user_id=user_id,
         )
 
     # ── Export ─────────────────────────────────────────────────────
 
-    def export_trace_to_jsonl(self, trace_id: str, redact: bool = True) -> str:
+    def export_trace_to_jsonl(self, trace_id: str, redact: bool = True, user_id: str = "") -> str:
         """Export a single trace as a redacted JSONL file.
+
+        Args:
+            trace_id: The trace to export.
+            redact: Whether to redact PII.
+            user_id: Household ID for scoping the lookup.
 
         Returns the path to the exported file, or empty string on failure.
         """
         _, out_path = tempfile.mkstemp(suffix=".jsonl")
-        success = _export_trace_by_id(self._db, trace_id, out_path, redact=redact)
+        success = _export_trace_by_id(self._db, trace_id, out_path, redact=redact, user_id=user_id)
         if not success:
             try:
                 os.remove(out_path)
@@ -154,10 +163,17 @@ class TraceService:
         return out_path
 
     def export_all_to_jsonl(
-        self, output_path: str, limit: int = 50, redact: bool = True
+        self, output_path: str, limit: int = 50, redact: bool = True, user_id: str = ""
     ) -> int:
-        """Export all recent traces as JSONL. Returns count exported."""
-        return _export_traces_to_jsonl(self._db, output_path, limit=limit, redact=redact)
+        """Export recent traces as JSONL. Returns count exported.
+
+        Args:
+            output_path: Path to write the JSONL file.
+            limit: Max number of traces to export.
+            redact: Whether to redact PII.
+            user_id: Household ID for scoping the traces.
+        """
+        return _export_traces_to_jsonl(self._db, output_path, limit=limit, redact=redact, user_id=user_id)
 
     # ── Serialization / redaction ──────────────────────────────────
 

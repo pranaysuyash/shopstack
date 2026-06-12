@@ -6,7 +6,7 @@ import re
 from html import escape
 from typing import Any
 
-from shopstack.app_context import APP_NAME, db, planner, providers, tools
+from shopstack.app_context import APP_NAME, db, planner, providers, tools, current_user_id
 from shopstack.ui.components.cards import card as ui_card
 from shopstack.ui.components.primitives import toast
 from shopstack.traces.export import create_trace
@@ -26,7 +26,7 @@ def ask_shopstack(question: str) -> dict[str, Any]:
             "message": "Ask ShopStack anything \u2014 e.g. 'Do we have milk?' or 'What should I buy today?'"
         }
 
-    uid = db.active_household_id
+    uid = current_user_id()
 
     lowered = question.lower()
 
@@ -37,6 +37,7 @@ def ask_shopstack(question: str) -> dict[str, Any]:
             response,
             "ask_shopstack",
             proposed_tool_calls=[{"tool_name": "add_inventory_item", "args": {"text": question}}],
+            user_id=uid,
         )
         return response
 
@@ -49,6 +50,7 @@ def ask_shopstack(question: str) -> dict[str, Any]:
                 mode="ai_planner",
                 proposed_tool_calls=response.get("tool_calls") if isinstance(response, dict) else None,
                 debug=response.get("debug") if isinstance(response, dict) else None,
+                user_id=uid,
             )
             return response
         except Exception as e:
@@ -121,6 +123,7 @@ def ask_shopstack(question: str) -> dict[str, Any]:
         response,
         "ask_shopstack",
         proposed_tool_calls=response.get("tool_calls") if isinstance(response, dict) else None,
+        user_id=uid,
     )
     return response
 
@@ -149,6 +152,7 @@ def ask_shopstack_from_audio(audio_path: str | None) -> str:
                 proposed_tool_calls=response.get("tool_calls") if isinstance(response, dict) else None,
                 debug=response.get("debug") if isinstance(response, dict) else None,
                 trace_input_type="voice",
+                user_id=current_user_id(),
             )
             return _render_planner_response(_render_structured_ask_summary(response))
         except Exception as exc:
@@ -158,6 +162,7 @@ def ask_shopstack_from_audio(audio_path: str | None) -> str:
                 {"error": str(exc)},
                 "ai_planner_audio_fallback",
                 trace_input_type="voice",
+                user_id=current_user_id(),
             )
             return ask_shopstack(text)
 
@@ -172,6 +177,7 @@ def _record_ask_trace(
     proposed_tool_calls: list[dict[str, Any]] | None = None,
     debug: dict[str, Any] | None = None,
     trace_input_type: str = "text",
+    user_id: str = "",
 ) -> None:
     try:
         final_response = response if isinstance(response, str) else json.dumps(response, default=str)
@@ -197,6 +203,7 @@ def _record_ask_trace(
             proposed_tool_calls=proposed_tool_calls or [{"tool_name": mode, "args": {"question": question}}],
             final_response=final_response,
             human_confirmation="responded",
+            user_id=user_id,
         )
     except Exception as e:
         logger.debug("Failed to record ask trace: %s", e)
@@ -280,6 +287,9 @@ _DEFAULT_LOCATIONS: dict[str, str] = {
 
 
 def _is_add_command(text: str) -> bool:
+    clean = text.strip().lower()
+    if clean in ("add", "added", "put", "bought", "purchased", "got"):
+        return True
     for pat in _ADD_PATTERNS:
         if pat.match(text):
             return True
@@ -310,7 +320,7 @@ def _parse_add_payload(raw: str) -> tuple[str, float, str] | None:
 
 
 def _handle_add_command(question: str) -> str:
-    uid = db.active_household_id
+    uid = current_user_id()
     for pat in _ADD_PATTERNS:
         m = pat.match(question.strip())
         if m:
@@ -345,6 +355,7 @@ def _handle_add_command(question: str) -> str:
                     ],
                     final_response=f"Added {name} to inventory",
                     human_confirmation="auto-confirmed",
+                    user_id=uid,
                 )
             except Exception:
                 logger.debug("Failed to record voice add trace", exc_info=True)

@@ -50,13 +50,24 @@ def test_reconciliation_substituted_item():
 def test_reconciliation_with_tools_and_db(db, tool_registry):
     result = reconcile_shopping_trip(
         planned_items=[{"canonical_name": "bread", "action": "buy"}],
-        actual_items=[{"canonical_name": "bread", "action": "bought", "quantity": 1.0}],
+        actual_items=[{"canonical_name": "bread", "action": "bought", "quantity": 1.0, "price_paid": 40.0}],
         tools=tool_registry,
         database=db,
     )
     assert result.count == 1
     assert len(result.inventory_updates) == 1
     assert result.inventory_updates[0]["action"] == "added"
+
+    # Verify reconciliation event is persisted
+    db_events = db.get_reconciliation_events(limit=5)
+    assert len(db_events) == 1
+    assert db_events[0].canonical_name == "bread"
+    assert db_events[0].actual_action == "bought"
+
+    # Verify price observation is persisted
+    db_prices = db.get_price_history("bread")
+    assert len(db_prices) == 1
+    assert db_prices[0].price == 40.0
 
 
 def test_reconciliation_to_dict():

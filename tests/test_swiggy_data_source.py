@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import pytest
+
 
 from shopstack.config import settings
 from shopstack.data_sources.swiggy import (
@@ -25,7 +27,8 @@ def test_parse_size_quantities() -> None:
 
 def test_load_swiggy_fresh_vegetables_json() -> None:
     path = Path(settings.data_dir) / "swiggy_fresh_vegetables_cards_6jun26.json"
-    records = load_swiggy_fresh_vegetables(path)
+    with pytest.deprecated_call():
+        records = load_swiggy_fresh_vegetables(path)
     assert len(records) > 0
     first = records[0]
     assert first.canonical_name
@@ -36,8 +39,10 @@ def test_load_swiggy_fresh_vegetables_json() -> None:
 
 def test_swiggy_snapshot_summary_contains_top_discounts() -> None:
     path = Path(settings.data_dir) / "swiggy_fresh_vegetables_cards_6jun26.json"
-    records = load_swiggy_fresh_vegetables(path)
-    summary = summarize_swiggy_snapshot(records)
+    with pytest.deprecated_call():
+        records = load_swiggy_fresh_vegetables(path)
+    with pytest.deprecated_call():
+        summary = summarize_swiggy_snapshot(records)
     assert summary["total_records"] == len(records)
     assert summary["unique_items"] > 0
     assert isinstance(summary["top_discounts"], list)
@@ -45,7 +50,8 @@ def test_swiggy_snapshot_summary_contains_top_discounts() -> None:
 
 
 def test_import_swiggy_snapshot_records(db: Database) -> None:
-    summary = import_swiggy_fresh_vegetables_snapshot(db, path=Path(settings.data_dir) / "swiggy_fresh_vegetables_cards_6jun26.json")
+    with pytest.deprecated_call():
+        summary = import_swiggy_fresh_vegetables_snapshot(db, path=Path(settings.data_dir) / "swiggy_fresh_vegetables_cards_6jun26.json")
     assert summary["imported_records"] > 0
     assert summary["skipped_records"] >= 0
     assert summary["source_event_id"] == SWIGGY_SOURCE_ID
@@ -55,3 +61,4 @@ def test_import_swiggy_snapshot_records(db: Database) -> None:
     # Verify the snapshot date is preserved.
     date_row = db.conn.execute("SELECT DISTINCT observation_date FROM price_observations WHERE source_event_id = ?", (SWIGGY_SOURCE_ID,)).fetchone()
     assert date_row is not None and date_row["observation_date"] == SWIGGY_SNAPSHOT_DATE.isoformat()
+

@@ -62,22 +62,29 @@ class SourceRegistry:
         self._repository.store(snapshot)
         return snapshot
 
-    def load_all(self, force: bool = False) -> list[tuple[str, MarketSnapshot]]:
-        """Load snapshots for all registered adapters.
+    def load_all(self, timeout_per_source: float = 5.0) -> dict[str, MarketSnapshot]:
+        """Load snapshots for all registered adapters actively.
 
-        - `force=False`: load only when cache / DB has no entry for source.
-        - `force=True`: always refresh each source.
+        Iterates registered adapters, loads each, and returns a dictionary
+        mapping source_id to MarketSnapshot. Failures are logged and skipped.
         """
-        loaded: list[tuple[str, MarketSnapshot]] = []
-        for source_id, adapter in list(self._adapters.items()):
+        import concurrent.futures
+        loaded: dict[str, MarketSnapshot] = {}
+        for source_id in list(self._adapters.keys()):
             try:
-                snapshot = self._repository.latest(source_id) if not force else None
-                if snapshot is None:
-                    snapshot = self.load(source_id)
+                # Only load if not already in the repository/cache to avoid duplicate overhead
+                snapshot = self._repository.latest(source_id)
                 if snapshot is not None:
-                    loaded.append((source_id, snapshot))
+                    loaded[source_id] = snapshot
+                    continue
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(self.load, source_id)
+                    snapshot = future.result(timeout=timeout_per_source)
+                if snapshot is not None:
+                    loaded[source_id] = snapshot
             except Exception as exc:
-                logger.warning("Failed to load market source %s: %s", source_id, exc)
+                logger.warning("Failed to actively load market source %s: %s", source_id, exc)
                 continue
         return loaded
 

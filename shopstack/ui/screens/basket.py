@@ -3,11 +3,11 @@ from __future__ import annotations
 import gradio as gr
 
 from shopstack.basket.service import optimize_baskets
-from shopstack.app_context import db, tools
+from shopstack.app_context import db, tools, current_user_id
 from shopstack.services.dashboard import build_dashboard_state
 
 def get_basket_ui_html() -> str:
-    state = build_dashboard_state(db, tools.inventory, user_id=db.active_household_id)
+    state = build_dashboard_state(db, tools.inventory, user_id=current_user_id())
     decision_set = state.decision_set
 
     from shopstack.services.market_sources import load_market_registry

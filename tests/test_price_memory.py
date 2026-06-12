@@ -59,6 +59,9 @@ class MockDB:
     def get_price_observations(self, name: str) -> list[MockPriceObservation]:
         return self._records.get(name, [])
 
+    def get_price_history(self, canonical_name: str, **kwargs) -> list[MockPriceObservation]:
+        return self._records.get(canonical_name, [])
+
 
 @pytest.fixture
 def db():
@@ -354,3 +357,91 @@ class TestPricePerKg:
             unit: str = "kg"
 
         assert PriceMemoryService._price_per_kg(Obs(price=100, quantity=0, unit="kg")) is None
+
+
+# ── Store comparison tests ────────────────────────────────────────────────────
+
+
+class TestStoreComparison:
+    @pytest.fixture
+    def multi_store_db(self):
+        db = MockDB()
+        # Tomato at multiple stores
+        for days_ago, price, store in [
+            (10, 28, "swiggy"), (8, 30, "swiggy"), (5, 32, "swiggy"),
+            (10, 25, "zepto"), (7, 27, "zepto"), (3, 26, "zepto"),
+            (10, 30, "dmart"), (6, 29, "dmart"), (2, 31, "dmart"),
+        ]:
+            db.add("tomato", price, days_ago, store=store)
+        # Onion at two stores
+        for days_ago, price, store in [
+            (10, 30, "swiggy"), (5, 32, "swiggy"),
+            (10, 28, "zepto"), (5, 29, "zepto"),
+        ]:
+            db.add("onion", price, days_ago, store=store)
+        return db
+
+    def test_store_comparison_basic(self, multi_store_db):
+        from shopstack.services.price_memory import PriceMemoryService
+        svc = PriceMemoryService(multi_store_db)
+        ranking = svc.get_store_comparison("tomato")
+        assert ranking.observations > 0
+        assert ranking.best_store != ""
+        assert ranking.best_price is not None
+        assert ranking.best_price > 0
+        assert len(ranking.store_prices) == 3
+
+    def test_best_store_is_cheapest(self, multi_store_db):
+        from shopstack.services.price_memory import PriceMemoryService
+        svc = PriceMemoryService(multi_store_db)
+        ranking = svc.get_store_comparison("tomato")
+        # Zepto has lowest median → should be best
+        assert ranking.best_store == "zepto"
+
+    def test_store_comparison_no_data(self):
+        from shopstack.services.price_memory import PriceMemoryService
+        db = MockDB()
+        svc = PriceMemoryService(db)
+        ranking = svc.get_store_comparison("nonexistent")
+        assert ranking.observations == 0
+        assert ranking.best_store == ""
+
+    def test_best_store_multiple_items(self, multi_store_db):
+        from shopstack.services.price_memory import PriceMemoryService
+        svc = PriceMemoryService(multi_store_db)
+        result = svc.get_best_store(["tomato", "onion"])
+        assert result.store != ""
+        assert result.total_items_compared == 2
+        assert result.items_with_best_price > 0
+
+    def test_best_store_empty_list(self, multi_store_db):
+        from shopstack.services.price_memory import PriceMemoryService
+        svc = PriceMemoryService(multi_store_db)
+        result = svc.get_best_store([])
+        assert result.store == ""
+
+    def test_best_store_no_data(self):
+        from shopstack.services.price_memory import PriceMemoryService
+        db = MockDB()
+        svc = PriceMemoryService(db)
+        result = svc.get_best_store(["ghost_item"])
+        assert result.store == ""
+        assert result.total_items_compared == 1
+
+    def test_store_comparison_to_dict(self, multi_store_db):
+        from shopstack.services.price_memory import PriceMemoryService
+        svc = PriceMemoryService(multi_store_db)
+        ranking = svc.get_store_comparison("tomato")
+        d = ranking.to_dict()
+        assert "best_store" in d
+        assert "store_prices" in d
+        assert d["canonical_name"] == "tomato"
+
+    def test_best_store_to_dict(self, multi_store_db):
+        from shopstack.services.price_memory import PriceMemoryService
+        svc = PriceMemoryService(multi_store_db)
+        result = svc.get_best_store(["tomato", "onion"])
+        d = result.to_dict()
+        assert "store" in d
+        assert "coverage_pct" in d
+        assert d["total_items_compared"] == 2

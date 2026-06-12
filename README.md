@@ -84,7 +84,7 @@ Run `uv run pytest tests/ --collect-only -q` for the current test count.
 ## Current Verified by Code Inspection
 
 As of the current code inspection, the following metrics are verified:
-- **10 Database Tables & 2 Views**: `inventory_lots`, `purchase_events`, `shopping_lists`, `shopping_list_items`, `household_locations`, `movement_events`, `price_observations`, `stores`, `traces`, `app_config` (Tables), `price_history`, `agent_traces` (Views).
+- **17 Database Tables & 2 Views**: `inventory_lots`, `purchase_events`, `shopping_lists`, `shopping_list_items`, `household_locations`, `movement_events`, `price_observations`, `stores`, `traces`, `app_config`, `market_snapshots`, `market_records`, `market_record_components`, `reconciliation_events`, `preference_signals`, `inventory_events`, `households` (Tables), `price_history`, `agent_traces` (Views).
 - **12 Tools**: Including `semantic_find_item`.
 
 *Note: Tests are continuously added. For the latest test count, run `uv run pytest tests/ --collect-only -q`.*
@@ -106,7 +106,8 @@ shopstack/
     mock_providers.py       # Full mock implementations for all 11 (Indian/Hinglish data)
     registry.py             # ProviderRegistry factory wired to Settings
   persistence/
-    database.py             # SQLite Database (WAL, 10 tables, 2 views, 18 seeded locations, full CRUD)
+    database.py             # SQLite Database (WAL, 17 tables, 2 views, 18 seeded locations, full CRUD)
+  services/                 # Business logic services (decision engine, shopping, dashboard, preferences, freshness)
   tools/
     registry.py             # ToolRegistry — 12 tools executing against Database
   traces/
@@ -125,7 +126,7 @@ benchmarks/                 # pytest benchmark suite (9 latency markers)
 ```
 Gradio Blocks (app.py)
   → ToolRegistry (12 tools, validates args, calls Database)
-    → Database (SQLite WAL, 10 tables, 2 views, 18 seeded locations)
+    → Database (SQLite WAL, 17 tables, 2 views, 18 seeded locations)
   → ProviderRegistry (wired from Settings)
     → MockProviders (default — 11 interfaces, all offline)
     → Market services (market source registry load + snapshot status helpers in `shopstack.services.market_sources`)

@@ -232,6 +232,7 @@ def _record_shopping_trace(
             ],
             final_response=plan_note,
             human_confirmation="auto-summarized",
+            user_id=_user_id(),
         )
     except Exception as exc:
         logger.debug("Failed to record shopping trace: %s", exc)
@@ -393,7 +394,7 @@ def mark_items_purchased(item_ids_json: str | list[str]) -> str:
 
 
 def complete_shopping_list(list_id: str) -> str:
-    result = complete_shopping_list_service(list_id, tools.inventory, db)
+    result = complete_shopping_list_service(list_id, tools.inventory, db, user_id=_user_id())
     return render_shopping_completion(result)
 
 

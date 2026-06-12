@@ -23,9 +23,12 @@ def fresh_app():
             del sys.modules[mod]
     import app as _app
     yield _app
-    # Restore the original module state so downstream tests aren't contaminated.
-    sys.modules.clear()
+    # Restore the original module state gentler without clearing C-extensions
+    for k in list(sys.modules.keys()):
+        if k not in saved_modules:
+            del sys.modules[k]
     sys.modules.update(saved_modules)
+
 
 
 def test_build_app_returns_blocks(fresh_app):

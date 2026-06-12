@@ -18,7 +18,7 @@
 app.py (Gradio Blocks)
   → shopstack.ui (views, components/cards — HTML rendering)
   → ToolRegistry (12 tools, validates args, calls DB)
-    → Database (SQLite, WAL mode, 10 tables, 2 views)
+    → Database (SQLite, WAL mode, 17 tables, 2 views)
   → ProviderRegistry (wired from config)
     → MockProviders (default, 11 interfaces)
     → LocalProvider (MLX + llama.cpp fallback, capability-optional)
@@ -60,6 +60,12 @@ shopstack/
   model_registry.py
   persistence/
     database.py         (SQLite, check_same_thread=False)
+  services/
+    decision_engine.py  (should_buy, should_skip, use_soon)
+    shopping.py         (shopping list enrichment & optimization)
+    dashboard.py        (Today dashboard state builder)
+    preference.py       (preference signals CRUD)
+    freshness.py        (freshness classifier)
   planner/
     prompts.py          (system prompt builder for tool-calling)
     parser.py           (robust JSON + tool_call extraction)

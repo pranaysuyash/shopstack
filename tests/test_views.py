@@ -13,14 +13,17 @@ from shopstack.schemas.models import InventoryLot, Trace
 def _app_session():
     """Import app module once per session with an in-memory database."""
     os.environ["SHOPSTACK_DB_PATH"] = ":memory:"
+    os.environ["SHOPSTACK_PLANNER_BACKEND"] = "mock"
     import app as _app
     return _app
+
 
 
 @pytest.fixture
 def app(_app_session):
     """Return the session-scoped app, clearing all tables between tests."""
     app_mod = _app_session
+    app_mod.db.active_household_id = ""
     # Clear all data tables so each test sees a clean state
     conn = app_mod.db.conn
     for table in ["inventory_lots", "shopping_list_items", "shopping_lists",
@@ -29,6 +32,7 @@ def app(_app_session):
         conn.execute(f"DELETE FROM {table}")
     conn.commit()
     return app_mod
+
 
 
 class TestTodayDashboard:

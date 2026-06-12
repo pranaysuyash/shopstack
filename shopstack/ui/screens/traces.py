@@ -203,7 +203,8 @@ def agent_trace_export_file(trace_id: str) -> str:
     if not trace:
         return ""
     service = get_trace_service()
-    return service.export_trace_to_jsonl(trace.trace_id, redact=True)
+    from shopstack.app_context import current_user_id
+    return service.export_trace_to_jsonl(trace.trace_id, redact=True, user_id=current_user_id())
 
 
 
@@ -217,6 +218,7 @@ def record_workflow_trace(
     proposed_tool_calls: list[dict[str, Any]],
     final_response: str,
     human_confirmation: str | None = None,
+    user_id: str = "",
 ) -> str:
     try:
         service = get_trace_service()
@@ -230,6 +232,7 @@ def record_workflow_trace(
             proposed_tool_calls=proposed_tool_calls,
             human_confirmation=human_confirmation,
             final_response=final_response,
+            user_id=user_id,
         )
         return trace.trace_id
     except Exception:

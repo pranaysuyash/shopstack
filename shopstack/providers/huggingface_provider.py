@@ -240,6 +240,8 @@ class HuggingFaceProvider:
             if isinstance(context, str):
                 result = self.complete(context, max_tokens=64, temperature=0.0)
                 text = result.get("text", "")
+                if not isinstance(text, str):
+                    text = ""
                 self._last_plan_diagnostics = {
                     "source": "planner_plan_string",
                     "status": "ok" if text else "empty",
@@ -248,6 +250,10 @@ class HuggingFaceProvider:
                 if not text:
                     return [{"tool": "respond", "args": {"message": ""}}]
                 tool_calls, diagnostics = parse_tool_calls_with_diagnostics(text)
+                if (len(tool_calls) == 1
+                    and tool_calls[0]["tool"] == "respond"
+                    and "No structured data" in tool_calls[0]["args"].get("message", "")):
+                    tool_calls = [{"tool": "respond", "args": {"message": text.strip()}}]
                 diagnostics["source"] = "planner_plan_string"
                 self._last_plan_diagnostics = diagnostics
                 self._record_plan_outcomes(span, diagnostics, text, context)
@@ -278,6 +284,8 @@ class HuggingFaceProvider:
                 result = self.complete(prompt, max_tokens=max_tokens, temperature=temperature)
 
             text = result.get("text", "")
+            if not isinstance(text, str):
+                text = ""
             if not text:
                 self._last_plan_diagnostics = {"status": "empty_output"}
                 return [{"tool": "respond", "args": {"message": ""}}]
@@ -287,6 +295,10 @@ class HuggingFaceProvider:
             self._record_plan_outcomes(span, self._last_plan_diagnostics, text, prompt)
             self._last_plan_diagnostics["provider_latency_ms"] = round((time.monotonic() - start) * 1000, 1)
             tool_calls, _ = parse_tool_calls_with_diagnostics(text)
+            if (len(tool_calls) == 1
+                and tool_calls[0]["tool"] == "respond"
+                and "No structured data" in tool_calls[0]["args"].get("message", "")):
+                tool_calls = [{"tool": "respond", "args": {"message": text.strip()}}]
             return tool_calls
 
     def _record_plan_outcomes(self, span: Any, diagnostics: dict[str, Any], text: str, prompt: str) -> None:

@@ -64,7 +64,9 @@ def canonicalize_receipt_name(raw_name: str) -> str:
     if not canonical:
         canonical = normalize_item_name(raw)
     if not canonical:
-        return ""
+        # Prevent data loss: fallback to a cleaned, lowercased version of raw name
+        cleaned = re.sub(r"[^\w\s]", " ", raw.lower()).strip()
+        canonical = re.sub(r"\s+", "_", cleaned)
     return canonical
 
 

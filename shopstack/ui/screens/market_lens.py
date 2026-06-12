@@ -5,7 +5,7 @@ import logging
 from html import escape
 from typing import Any
 
-from shopstack.app_context import db, providers, tools
+from shopstack.app_context import db, providers, tools, current_user_id
 from shopstack.services.market_lens import MarketLensResult, analyze_market_lens
 from shopstack.ui.components import render_grouped_cards
 from shopstack.traces.export import create_trace, update_trace_confirmation
@@ -56,6 +56,7 @@ def market_lens_process(image_path: str | None, audio_path: str | None) -> tuple
     ml_trace_id = ""
     if image_path or audio_path:
         try:
+            uid = current_user_id()
             trace = create_trace(
                 db,
                 input_type="vision" if image_path else "audio",
@@ -67,6 +68,7 @@ def market_lens_process(image_path: str | None, audio_path: str | None) -> tuple
                 proposed_tool_calls=service_result.tool_calls,
                 final_response=result_html,
                 human_confirmation="uncommitted",
+                user_id=uid,
             )
             ml_trace_id = trace.trace_id
         except Exception:
@@ -139,7 +141,7 @@ def market_lens_confirm_buy(ml_analysis_json: str, ml_trace_id: str) -> str:
             "priority": "must_buy",
             "reason": item.get("reason", ""),
         })
-    tools.create_or_update_shopping_list(items=list_items, user_id=db.active_household_id)
+    tools.create_or_update_shopping_list(items=list_items, user_id=current_user_id())
     if ml_trace_id:
         update_trace_confirmation(db, ml_trace_id, "confirmed-buy")
     names = ", ".join(i.get("canonical_name", "") for i in buy_items)
@@ -180,7 +182,7 @@ def market_lens_barcode_add(barcode_json: str) -> str:
             quantity=1.0,
             unit="unit",
             storage_location_id="pantry",
-            user_id=db.active_household_id,
+            user_id=current_user_id(),
         )
         lot_id = result.get("lot_id", "")
         added.append(f"{label} (lot {lot_id})")

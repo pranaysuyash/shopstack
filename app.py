@@ -69,7 +69,7 @@ from shopstack.ui.theme import CSS
 
 from pathlib import Path
 from shopstack.app_context import APP_DESCRIPTION, APP_NAME, db, providers, tools, planner, model_registry
-from shopstack.app_context import current_user_id, list_households, switch_household
+from shopstack.app_context import current_user_id, list_households, switch_household, add_household
 from shopstack.config import settings
 from shopstack.module_registry import tab_label as _tab_label
 
@@ -180,6 +180,40 @@ document.addEventListener('keydown', function(e) {
             switch_household(household_id)
             return gr.update(value=household_id), *today_dashboard()
 
+        def _show_add_form() -> gr.update:
+            return gr.update(visible=True)
+
+        def _hide_add_form() -> gr.update:
+            return gr.update(visible=False)
+
+        def _create_household(name: str) -> tuple:
+            """Create a new household, switch to it, and refresh the dashboard."""
+            name = (name or "").strip()
+            if not name:
+                return gr.update(), gr.update(visible=False), *today_dashboard()
+
+            # Slugify the name for a household ID
+            household_id = name.lower().replace(" ", "_")
+            import re
+            household_id = re.sub(r"[^a-z0-9_]", "", household_id)
+            if not household_id:
+                household_id = f"household_{abs(hash(name)) % 10000}"
+
+            created = add_household(household_id, name)
+            if not created:
+                # Household ID collision; append a suffix
+                import random
+                household_id = f"{household_id}_{random.randint(100,999)}"
+                add_household(household_id, name)
+
+            switch_household(household_id)
+            choices = [(h["name"], h["household_id"]) for h in list_households()]
+            return (
+                gr.update(choices=choices, value=household_id),
+                gr.update(visible=False),
+                *today_dashboard(),
+            )
+
         with gr.Row(variant="compact", elem_classes="household-bar"):
             household_dropdown = gr.Dropdown(
                 label="Household",
@@ -189,11 +223,28 @@ document.addEventListener('keydown', function(e) {
                 allow_custom_value=True,
                 scale=1,
             )
+            add_hh_btn = gr.Button(
+                "+",
+                scale=0,
+                min_width=40,
+                elem_classes="household-add-btn",
+            )
             gr.HTML(
                 "<div style='display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-dim);'>"
-                "Switch between households to see their inventory, lists, and traces.</div>",
+                "Switch between households or add a new one.</div>",
                 scale=3,
             )
+
+        # Hidden add-household form (shown when + is clicked)
+        with gr.Row(visible=False, variant="compact", elem_classes="household-add-form") as hh_add_row:
+            hh_name_input = gr.Textbox(
+                label="New household name",
+                placeholder="e.g. My Home, Beach House, Office",
+                scale=2,
+            )
+            hh_create_btn = gr.Button("Create", variant="primary", scale=0)
+            hh_cancel_btn = gr.Button("Cancel", scale=0, elem_classes="secondary")
+
 
         # Refresh dropdown choices on initial load
         app.load(
@@ -927,16 +978,38 @@ document.addEventListener('keydown', function(e) {
                                 api_description="Import inventory from JSON or CSV file",
                             )
 
-    # Wire household dropdown change after all output components are defined
-    household_dropdown.change(
-        _switch_and_refresh,
-        household_dropdown,
-        [household_dropdown, today_stats, today_soon, today_list, today_low, today_recent, today_changed],
-        api_name="switch_household",
-        api_description="Switch active household and refresh dashboard",
-    )
+        # Wire household dropdown change after all output components are defined
+        household_dropdown.change(
+            _switch_and_refresh,
+            household_dropdown,
+            [household_dropdown, today_stats, today_soon, today_list, today_low, today_recent, today_changed],
+            api_name="switch_household",
+            api_description="Switch active household and refresh dashboard",
+        )
+
+        # Wire add-household button and form
+        add_hh_btn.click(
+            _show_add_form,
+            outputs=hh_add_row,
+            api_name="show_add_household",
+            api_description="Show the add-household form",
+        )
+        hh_cancel_btn.click(
+            _hide_add_form,
+            outputs=hh_add_row,
+            api_name="cancel_add_household",
+            api_description="Hide the add-household form without creating",
+        )
+        hh_create_btn.click(
+            _create_household,
+            hh_name_input,
+            [household_dropdown, hh_add_row, today_stats, today_soon, today_list, today_low, today_recent, today_changed],
+            api_name="create_household",
+            api_description="Create a new household, switch to it, and refresh the dashboard",
+        )
 
     return app
+
 
 
 if __name__ == "__main__":

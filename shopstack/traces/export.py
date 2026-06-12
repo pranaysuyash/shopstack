@@ -53,9 +53,9 @@ def _normalize_tool_calls(calls: list[Any]) -> list[dict[str, Any]]:
 
 
 def export_traces_to_jsonl(
-    db: Database, output_path: str, limit: int = 50, redact: bool = True
+    db: Database, output_path: str, limit: int = 50, redact: bool = True, user_id: str = ""
 ) -> int:
-    traces = db.get_traces(limit=limit)
+    traces = db.get_traces(limit=limit, user_id=user_id)
     count = 0
     with open(output_path, "w") as f:
         for t in traces:
@@ -78,6 +78,7 @@ def create_trace(
     proposed_tool_calls: list | None = None,
     final_response: str = "",
     human_confirmation: str | None = None,
+    user_id: str = "",
 ) -> Trace:
     normalized_calls = _normalize_tool_calls(proposed_tool_calls or [])
     trace = Trace(
@@ -91,7 +92,7 @@ def create_trace(
         final_response=final_response,
         human_confirmation=human_confirmation,
     )
-    db.save_trace(trace)
+    db.save_trace(trace, user_id=user_id)
     return trace
 
 
@@ -105,12 +106,12 @@ def trace_payload_for_export(trace: Trace, redact: bool = True, db: Database | N
 
 
 def export_trace_by_id(
-    db: Database, trace_id: str, output_path: str, redact: bool = True
+    db: Database, trace_id: str, output_path: str, redact: bool = True, user_id: str = ""
 ) -> bool:
     target = (trace_id or "").strip()
     if not target:
         return False
-    target_trace = db.get_trace_by_id(target)
+    target_trace = db.get_trace_by_id(target, user_id=user_id)
     if not target_trace:
         return False
     with open(output_path, "w") as f:
@@ -129,6 +130,7 @@ def create_market_lens_trace(
     decision_items: list[dict] | None = None,
     proposed_tool_calls: list | None = None,
     human_confirmation: str | None = None,
+    user_id: str = "",
 ) -> Trace:
     items = items_detected or []
     perception: dict[str, Any] = {
@@ -149,6 +151,7 @@ def create_market_lens_trace(
         proposed_tool_calls=proposed_tool_calls or [],
         final_response=analysis_result,
         human_confirmation=human_confirmation,
+        user_id=user_id,
     )
 
 
@@ -159,6 +162,7 @@ def create_shopping_list_trace(
     proposed_tool_calls: list | None = None,
     final_response: str = "",
     human_confirmation: str | None = None,
+    user_id: str = "",
 ) -> Trace:
     safe_items = items or []
     perception: dict[str, Any] = {
@@ -177,6 +181,7 @@ def create_shopping_list_trace(
         proposed_tool_calls=proposed_tool_calls or [],
         final_response=final_response,
         human_confirmation=human_confirmation,
+        user_id=user_id,
     )
 
 
@@ -192,6 +197,7 @@ def create_add_purchase_trace(
     proposed_tool_calls: list | None = None,
     final_response: str = "",
     human_confirmation: str | None = None,
+    user_id: str = "",
 ) -> Trace:
     return create_trace(
         db,
@@ -213,6 +219,7 @@ def create_add_purchase_trace(
         proposed_tool_calls=proposed_tool_calls or [],
         final_response=final_response,
         human_confirmation=human_confirmation,
+        user_id=user_id,
     )
 
 

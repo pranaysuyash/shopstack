@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from html import escape
 
-from shopstack.app_context import db
+from shopstack.app_context import db, current_user_id
 from shopstack.memory.waste_patterns import get_waste_insights
 from shopstack.ui.screens.price_memory import price_intelligence_view
 from shopstack.ui.screens._utils import safe_render
@@ -39,7 +39,7 @@ def get_intelligence_dashboard():
         
     # 2. Preferences
     try:
-        prefs = db.get_preference_signals(user_id=db.active_household_id)
+        prefs = db.get_preference_signals(user_id=current_user_id())
         if prefs:
             pref_items = []
             for p in prefs:

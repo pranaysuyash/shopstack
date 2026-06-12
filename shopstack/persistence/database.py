@@ -825,11 +825,14 @@ class Database:
         self.conn.commit()
         return event
 
-    def get_reconciliation_events(self, limit: int = 20, user_id: str = "") -> list[ReconciliationEvent]:
-        query = "SELECT * FROM reconciliation_events"
+    def get_reconciliation_events(self, canonical_name: str | None = None, limit: int = 20, user_id: str = "") -> list[ReconciliationEvent]:
+        query = "SELECT * FROM reconciliation_events WHERE 1=1"
         params: list[str | int] = []
+        if canonical_name:
+            query += " AND canonical_name = ?"
+            params.append(canonical_name)
         if user_id:
-            query += " WHERE user_id = ?"
+            query += " AND user_id = ?"
             params.append(user_id)
         query += " ORDER BY timestamp DESC LIMIT ?"
         params.append(limit)
@@ -923,8 +926,8 @@ class Database:
                 datetime.now(timezone.utc).isoformat(),
             ),
         )
-        self.conn.execute("DELETE FROM market_records WHERE snapshot_id = ?", (snapshot.snapshot_id,))
         self.conn.execute("DELETE FROM market_record_components WHERE record_id IN (SELECT record_id FROM market_records WHERE snapshot_id = ?)", (snapshot.snapshot_id,))
+        self.conn.execute("DELETE FROM market_records WHERE snapshot_id = ?", (snapshot.snapshot_id,))
 
         for idx, record in enumerate(snapshot.normalized_records):
             if not isinstance(record, NormalizedMarketRecord):
@@ -938,7 +941,7 @@ class Database:
                     size_class, price_inr, mrp_inr, discount_percent_displayed, discount_amount_inr,
                     computed_discount_percent, availability, is_available, tag, is_ad, is_upgrade, card_index,
                     delivery_time, price_per_kg, price_per_100g, price_per_piece, normalization_warnings, variety, brand
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record_id,
@@ -1021,7 +1024,15 @@ class Database:
             (snapshot_id,),
         ).fetchall()
 
-        snapshot = self.get_market_snapshot(snapshot_id)
+        snap_row = self.conn.execute(
+            "SELECT source, source_category, captured_at FROM market_snapshots WHERE snapshot_id = ?",
+            (snapshot_id,),
+        ).fetchone()
+
+        source = snap_row["source"] if snap_row else ""
+        source_category = snap_row["source_category"] if snap_row else ""
+        captured_at = snap_row["captured_at"] if snap_row else ""
+
         records: list[NormalizedMarketRecord] = []
         for row in rows:
             comp_rows = self.conn.execute(
@@ -1039,8 +1050,8 @@ class Database:
                 warnings = []
             records.append(
                 NormalizedMarketRecord(
-                    source=snapshot.source if snapshot else "",
-                    source_category=snapshot.source_category if snapshot else "",
+                    source=source,
+                    source_category=source_category,
                     raw_name=row["raw_name"],
                     canonical_name=row["canonical_name"],
                     description=row["description"],
@@ -1065,7 +1076,7 @@ class Database:
                     is_upgrade=bool(row["is_upgrade"]),
                     card_index=row["card_index"],
                     delivery_time=row["delivery_time"],
-                    captured_at=snapshot.captured_at if snapshot else "",
+                    captured_at=captured_at,
                     snapshot_id=row["snapshot_id"],
                     price_per_kg=row["price_per_kg"],
                     price_per_100g=row["price_per_100g"],

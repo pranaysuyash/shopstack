@@ -60,6 +60,7 @@ def should_buy(
     purchase_cadence_days: float | None = None,
     last_purchase_date: date | None = None,
     recently_bought: bool = False,
+    is_disliked: bool = False,
 ) -> DecisionResult | None:
     """Decide if an item should be bought.
 
@@ -72,6 +73,7 @@ def should_buy(
       - On shopping list AND not in inventory → BUY
       - Staple running low → BUY (boosted confidence)
       - Recently purchased → DO NOT recommend buy (return None)
+      - Disliked item → reduce confidence / warn
     """
     if recently_bought:
         return None  # skip — already bought recently
@@ -138,6 +140,16 @@ def should_buy(
         ))
         confidence *= 0.85
 
+    # ── Preference adjustment ──
+    if is_disliked:
+        confidence *= 0.6
+        reasons.append("Disliked/avoided by household")
+        warnings.append(DecisionWarning(
+            code="disliked_item",
+            message="This item is marked as disliked/avoid by the household",
+            severity="warning",
+        ))
+
     # ── Freshness warning ──
     if freshness and freshness.is_stale:
         warnings.append(DecisionWarning(
@@ -196,6 +208,7 @@ def should_skip(
     recently_bought: bool = False,
     market_record=None,
     freshness: FreshnessReport | None = None,
+    is_disliked: bool = False,
 ) -> DecisionResult | None:
     """Decide if an item should be skipped (not bought today).
 
@@ -204,6 +217,7 @@ def should_skip(
       - recently purchased
       - high waste risk
       - on list but well-stocked
+      - disliked by household
 
     Returns a DecisionResult with action="skip", or None if no skip applies.
     """
@@ -218,21 +232,27 @@ def should_skip(
         confidence=0.95,
     ))
 
-    if quantity_at_home <= 0:
+    if is_disliked:
+        reasons.append("Disliked/avoided by household")
+        evidence.append(DecisionEvidence(source="preference", value="disliked", confidence=1.0))
+        confidence = 0.95
+    elif quantity_at_home <= 0:
         return None  # can't skip what you don't have
 
-    if recently_bought:
+    elif recently_bought:
         reasons.append("Recently purchased — no need to rebuy")
         evidence.append(DecisionEvidence(source="purchase_history", value="recent", confidence=0.9))
         confidence = 0.85
     elif waste_risk == "high" and quantity_at_home > 1.0:
         reasons.append(f"Stocked ({quantity_at_home} {unit}), high waste risk if you buy more")
         confidence = 0.80
-    elif on_shopping_list and quantity_at_home > _LOW_STOCK_THRESHOLD:
-        reasons.append(f"Already have {quantity_at_home} {unit} — well stocked")
-        confidence = 0.75
-    elif quantity_at_home > _LOW_STOCK_THRESHOLD and not on_shopping_list:
-        return None  # not on list and has stock — skip doesn't apply
+    elif quantity_at_home > _LOW_STOCK_THRESHOLD:
+        if on_shopping_list:
+            reasons.append(f"Already have {quantity_at_home} {unit} — well stocked")
+            confidence = 0.75
+        else:
+            reasons.append("Well stocked")
+            confidence = 0.70
     else:
         return None
 

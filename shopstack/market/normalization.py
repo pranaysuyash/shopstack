@@ -306,6 +306,40 @@ ITEM_ALIASES: dict[str, list[str]] = {
 }
 
 
+
+CANONICAL_MAP = _CANONICAL_MAP
+
+def resolve_canonical(query: str) -> str | None:
+    if not query:
+        return None
+    q = query.strip().lower()
+    
+    # 1. Exact match in CANONICAL_MAP
+    if q in CANONICAL_MAP:
+        return CANONICAL_MAP[q]
+        
+    # 2. Exact match in ITEM_ALIASES keys
+    if q in ITEM_ALIASES:
+        return q
+        
+    # 3. Substring match in CANONICAL_MAP keys
+    for key, val in CANONICAL_MAP.items():
+        if key in q or q in key:
+            return val
+            
+    # 4. Alias lookup using ITEM_ALIASES
+    q_clean = re.sub(r"[^\w\s]", " ", q).strip()
+    q_clean = re.sub(r"\s+", " ", q_clean)
+    for canonical, aliases in ITEM_ALIASES.items():
+        if q_clean == canonical or q_clean in aliases:
+            return canonical
+        for alias in aliases:
+            if alias in q_clean or q_clean in alias:
+                return canonical
+                
+    return None
+
+
 def normalize_item_name(name: str) -> str:
     """Normalize a user-supplied item name: clean punctuation + resolve aliases.
 

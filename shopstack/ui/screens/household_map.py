@@ -6,7 +6,7 @@ from datetime import date
 from html import escape
 
 from shopstack.schemas.models import new_id
-from shopstack.app_context import db, tools
+from shopstack.app_context import db, tools, current_user_id
 from shopstack.ui.screens._utils import safe_render
 
 
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 @safe_render
 def household_map_view() -> str:
     locations = db.get_locations()
-    inventory = db.get_inventory(user_id=db.active_household_id)
+    inventory = db.get_inventory(user_id=current_user_id())
     loc_counts: dict[str, int] = {}
     loc_items: dict[str, list[str]] = {}
     for lot in inventory:
@@ -96,7 +96,7 @@ def what_is_in_fridge_now() -> str:
         if loc.location_id == "fridge" or loc.parent_location_id == "fridge" or loc.location_id.startswith("fridge_")
     }
     items = [
-        i for i in db.get_inventory(user_id=db.active_household_id)
+        i for i in db.get_inventory(user_id=current_user_id())
         if (i.storage_location_id in fridge_nodes)
     ]
     if not items:
@@ -111,7 +111,7 @@ def what_is_in_fridge_now() -> str:
 
 
 def inventory_alerts(days_since_purchase: int = 3) -> str:
-    uid = db.active_household_id
+    uid = current_user_id()
     if days_since_purchase <= 0:
         days_since_purchase = 3
     low = [

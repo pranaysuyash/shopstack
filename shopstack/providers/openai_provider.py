@@ -5,7 +5,7 @@ import logging
 import time
 from typing import Any
 
-from shopstack.cost_tracker import estimate_cost_usd
+from shopstack.cost_tracker import estimate_cost_usd, estimate_model_tier
 logger = logging.getLogger(__name__)
 
 
@@ -19,7 +19,8 @@ def _check_deps() -> tuple[bool, str]:
 
 class OpenAIProvider:
     name = "openai"
-    capabilities: set[str] = {"text", "vision", "embeddings"}
+    capabilities: set[str] = {"text", "vision", "embeddings", "planning"}
+
 
     def __init__(
         self,
@@ -173,6 +174,50 @@ class OpenAIProvider:
                 span.record_exception(e)
                 return [[0.0] * 128 for _ in texts]
 
+    def plan(self, context: dict[str, Any] | str) -> list[dict[str, Any]]:
+        from shopstack.tracing import trace_call
+        from shopstack.planner.parser import parse_tool_calls_with_diagnostics
+
+        if not self._available:
+            return [{"tool": "respond", "args": {"message": self._error or "OpenAI not available"}}]
+
+        with trace_call("llm.plan", attributes={
+            "provider": self.name,
+            "model": self._model,
+        }) as span:
+            if isinstance(context, str):
+                result = self.complete(context, max_tokens=128, temperature=0.0)
+                text = result.get("text", "")
+                if not isinstance(text, str):
+                    text = ""
+                if not text:
+                    return [{"tool": "respond", "args": {"message": ""}}]
+                tool_calls, diagnostics = parse_tool_calls_with_diagnostics(text)
+                if (len(tool_calls) == 1
+                    and tool_calls[0]["tool"] == "respond"
+                    and "No structured data" in tool_calls[0]["args"].get("message", "")):
+                    tool_calls = [{"tool": "respond", "args": {"message": text.strip()}}]
+                return tool_calls
+
+            prompt = context.get("prompt") or context.get("question") or ""
+            max_tokens = context.get("max_tokens", 128)
+            temperature = context.get("temperature", 0.0)
+            if not prompt:
+                return [{"tool": "respond", "args": {"message": ""}}]
+
+            result = self.complete(prompt, max_tokens=max_tokens, temperature=temperature)
+            text = result.get("text", "")
+            if not isinstance(text, str):
+                text = ""
+            if not text:
+                return [{"tool": "respond", "args": {"message": ""}}]
+            tool_calls, diagnostics = parse_tool_calls_with_diagnostics(text)
+            if (len(tool_calls) == 1
+                and tool_calls[0]["tool"] == "respond"
+                and "No structured data" in tool_calls[0]["args"].get("message", "")):
+                tool_calls = [{"tool": "respond", "args": {"message": text.strip()}}]
+            return tool_calls
+
     @property
     def available(self) -> bool:
         return self._available
@@ -180,3 +225,4 @@ class OpenAIProvider:
     @property
     def error(self) -> str | None:
         return self._error
+

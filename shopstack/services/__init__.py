@@ -42,6 +42,10 @@ from shopstack.services.reconciliation import (
     reconcile_shopping_trip,
     build_correction_event,
 )
+from shopstack.services.preference import (
+    PreferenceService,
+    build_preference_service,
+)
 
 __all__ = [
     # Shopping
@@ -98,4 +102,7 @@ __all__ = [
     "ReconciliationResult",
     "reconcile_shopping_trip",
     "build_correction_event",
+    # Preference
+    "PreferenceService",
+    "build_preference_service",
 ]

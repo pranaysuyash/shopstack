@@ -26,6 +26,7 @@ class DashboardState:
     weather: WeatherState | None = None
     price_deals: list[dict[str, Any]] = field(default_factory=list)
     best_store: dict[str, Any] = field(default_factory=dict)
+    optimized_basket: Any | None = None
 
     @property
     def use_soon_count(self) -> int:
@@ -76,6 +77,37 @@ def build_dashboard_state(db: Database, inventory, city: str = "mumbai", user_id
     except Exception as exc:
         logger.debug("Price memory enrichment failed: %s", exc)
 
+    # Build optimized basket if active list and market snapshot are present
+    optimized_basket = None
+    if active_list and market_snapshot:
+        try:
+            from shopstack.market.basket import build_optimized_basket
+            from shopstack.services.preference import PreferenceService
+            pref_service = PreferenceService(db)
+            avoid_list = list(pref_service.get_avoid_list(user_id=user_id))
+            
+            requested_items = [
+                {
+                    "canonical_name": item.canonical_name,
+                    "requested_quantity": item.requested_quantity,
+                    "unit": item.unit,
+                }
+                for item in active_list.items
+            ]
+            inv_map = {}
+            for lot in active_inventory:
+                name = lot.canonical_name.lower().strip()
+                inv_map[name] = inv_map.get(name, 0.0) + float(lot.quantity or 0.0)
+                
+            optimized_basket = build_optimized_basket(
+                requested_items=requested_items,
+                snapshot=market_snapshot,
+                inventory_map=inv_map,
+                avoid_items=avoid_list,
+            )
+        except Exception as exc:
+            logger.debug("Optimized basket build failed: %s", exc)
+
     return DashboardState(
         decision_set=decision_set,
         market_snapshot=market_snapshot,
@@ -90,15 +122,17 @@ def build_dashboard_state(db: Database, inventory, city: str = "mumbai", user_id
         weather=weather,
         price_deals=price_deals,
         best_store=best_store,
+        optimized_basket=optimized_basket,
     )
 
 
 def _load_market_snapshot(db: Database):
     """Load market snapshot(s) — prefers multi-source registry, falls back to Swiggy-only."""
-    from shopstack.services.market_sources import load_market_registry
+    from shopstack.services.market_sources import _build_registry
 
     try:
-        registry, _ = load_market_registry(db=db, force=False)
+        registry = _build_registry(db)
+        registry.load_all(timeout_per_source=5.0)
         snapshots = registry.all_snapshots()
         if snapshots:
             latest = max(snapshots.values(), key=lambda snap: snap.captured_at)

@@ -183,8 +183,15 @@ def complete_shopping_list_service(
     list_id: str,
     inventory: InventoryRepo,
     database: Database,
+    user_id: str = "",
 ) -> ShoppingCompletionResult:
     """Complete a shopping list: convert items to inventory and mark list complete.
+
+    Args:
+        list_id: The shopping list to complete.
+        inventory: InventoryRepo for adding items.
+        database: Database for queries and mutations.
+        user_id: Household ID for scoping the trace.
 
     Returns a typed ShoppingCompletionResult. Use ``render_shopping_completion()``
     from ``shopstack.ui.renderers`` for Gradio HTML display.
@@ -247,6 +254,7 @@ def complete_shopping_list_service(
             proposed_tool_calls=[],
             final_response=f"Completed list with {len(added)} items added to inventory",
             human_confirmation="auto-confirmed",
+            user_id=user_id,
         )
     except Exception as exc:
         logger.debug("Failed to record complete list trace: %s", exc)

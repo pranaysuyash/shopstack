@@ -67,7 +67,11 @@ def _compute_unit_price(price: float, quantity: float, unit: str) -> float | Non
     )
     
     if parsed.is_weight_based and parsed.normalized_unit in ("g", "ml", "mL"):
-        return prices.get("price_per_kg") or prices.get("price_per_100g", 0) * 10
+        ppk = prices.get("price_per_kg")
+        if ppk is not None:
+            return ppk
+        p100g = prices.get("price_per_100g")
+        return (p100g * 10) if p100g is not None else None
     if parsed.is_piece_based:
         return prices.get("price_per_piece")
         
