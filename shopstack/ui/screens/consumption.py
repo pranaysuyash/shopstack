@@ -73,7 +73,6 @@ def _render_quick_consume_grid(items: list[dict[str, Any]]) -> str:
 
         qty_display = f"{qty:.1f} {unit}" if qty != int(qty) else f"{int(qty)} {unit}"
 
-        # onclick uses the Gradio API endpoint
         rows_html += (
             f"<div style='display:flex;justify-content:space-between;align-items:center;"
             f"padding:6px 0;border-bottom:1px solid var(--border);'>"
@@ -84,22 +83,66 @@ def _render_quick_consume_grid(items: list[dict[str, Any]]) -> str:
             f"</div>"
             f"<div style='display:flex;gap:4px;'>"
             f"<button onclick=\"_shopstack_consume('{lot_id}', 0.5)\" "
+            f"aria-label='Consume half of {name}' "
             f"style='font-size:10px;padding:2px 8px;border:1px solid var(--border);"
             f"border-radius:3px;cursor:pointer;background:none;'>½</button>"
             f"<button onclick=\"_shopstack_consume('{lot_id}', 1)\" "
+            f"aria-label='Consume 1 {unit} of {name}' "
             f"style='font-size:10px;padding:2px 8px;border:1px solid var(--blue);"
             f"border-radius:3px;cursor:pointer;background:none;color:var(--blue);'>Use 1</button>"
             f"<button onclick=\"_shopstack_consume('{lot_id}', {qty})\" "
+            f"aria-label='Consume all {name}' "
             f"style='font-size:10px;padding:2px 8px;border:1px solid var(--red);"
             f"border-radius:3px;cursor:pointer;background:none;color:var(--red);'>All</button>"
             f"</div></div>"
         )
+
+    consume_script = (
+        "<script>"
+        "window._shopstack_consume = function(lotId, qty) {"
+        "  fetch('/api/quick_consume', {"
+        "    method: 'POST',"
+        "    headers: {'Content-Type': 'application/json'},"
+        "    body: JSON.stringify({data: [lotId, qty]})"
+        "  })"
+        "  .then(function(r) { return r.json(); })"
+        "  .then(function(d) {"
+        "    var msg = (d.data && d.data[0]) ? '' : 'Consume failed.';"
+        "    if (d.data && d.data[0]) {"
+        "      msg = d.data[0].replace(/<[^>]*>/g, '');"
+        "    }"
+        "    var el = document.getElementById('consume-toast');"
+        "    if (el) {"
+        "      el.innerHTML = msg;"
+        "      el.style.display = 'block';"
+        "      setTimeout(function(){ el.style.display = 'none'; }, 3000);"
+        "    }"
+        "  })"
+        "  .catch(function(e) {"
+        "    var el = document.getElementById('consume-toast');"
+        "    if (el) {"
+        "      el.innerHTML = 'Network error.';"
+        "      el.style.display = 'block';"
+        "      setTimeout(function(){ el.style.display = 'none'; }, 3000);"
+        "    }"
+        "  });"
+        "};"
+        "</script>"
+    )
+
+    toast_div = (
+        "<div id='consume-toast' style='display:none;position:fixed;bottom:20px;right:20px;"
+        "z-index:500;background:var(--bg-card-strong);border:1px solid var(--green);"
+        "border-radius:10px;padding:10px 14px;font-size:13px;box-shadow:var(--shadow-lg);"
+        "max-width:360px;'></div>"
+    )
 
     return (
         "<div class='home-card'><h4>Quick Consume</h4>"
         "<div style='font-size:11px;color:var(--text-dim);margin-bottom:8px;'>"
         "Tap to log what you use.</div>"
         f"{rows_html}</div>"
+        f"{consume_script}{toast_div}"
     )
 
 

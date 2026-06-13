@@ -25,6 +25,10 @@ from shopstack.ui.screens import (
     shelf_scan_save_trace,
     shelf_scan_skip,
 )
+from shopstack.ui.components.primitives import (
+    empty_state_enhanced,
+    loading_skeleton,
+)
 from shopstack.ui.tabs.context import TabContext
 
 
@@ -43,19 +47,27 @@ def build_market_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
     """
     with gr.Tab(_tab_label("market"), id="market"):
         with gr.Tabs():
-            with gr.Tab("Market Lens"):
-                gr.Markdown("### Point your camera or upload a photo \u2014 or speak what you see")
+            with gr.Tab("While Shopping"):
+                gr.Markdown("### Check a product before you buy it")
+                gr.Markdown("Use a photo, camera, or voice note to compare what you are holding.")
                 with gr.Row():
                     image_input = gr.Image(type="filepath", label="Camera / Photo")
                     audio_input = gr.Audio(type="filepath", label="Voice Note")
                 with gr.Row():
-                    scan_btn = gr.Button("Scan & Compare to Inventory", variant="primary")
-                ml_results = gr.HTML("")
+                    scan_btn = gr.Button("Check and compare", variant="primary")
+                ml_results = gr.HTML(
+                    loading_skeleton(variant="card")
+                )
                 ml_items = gr.Textbox(label="Detected Items", visible=False)
                 ml_analysis = gr.Textbox(visible=False)
                 ml_last_trace_id = gr.State("")
                 ml_barcode_state = gr.State("[]")
-                ml_action_result = gr.HTML("")
+                ml_action_result = gr.HTML(
+                    empty_state_enhanced(
+                        "After you scan, your confirm / skip / save choices will appear here.",
+                        icon="🔎",
+                    )
+                )
                 scan_btn.click(
                     market_lens_process,
                     [image_input, audio_input],
@@ -97,8 +109,9 @@ def build_market_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                     api_description="Add detected barcode items to inventory",
                 )
 
-            with gr.Tab("Home Scan"):
-                gr.Markdown("### Scan a shelf, drawer, cabinet, bag, or box and turn it into household memory")
+            with gr.Tab("Put Away"):
+                gr.Markdown("### Scan a shelf, drawer, cabinet, bag, or box")
+                gr.Markdown("Turn what you find at home into household memory.")
                 with gr.Row():
                     hs_image_input = gr.Image(type="filepath", label="Shelf / Drawer Photo")
                     hs_audio_input = gr.Audio(type="filepath", label="Voice Correction")
@@ -119,12 +132,19 @@ def build_market_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                     label="Scene Type",
                 )
                 with gr.Row():
-                    hs_scan_btn = gr.Button("Scan Home Scene", variant="primary")
-                hs_results = gr.HTML("")
+                    hs_scan_btn = gr.Button("Scan home area", variant="primary")
+                hs_results = gr.HTML(
+                    loading_skeleton(variant="card")
+                )
                 hs_state = gr.State("")
                 hs_trace_id = gr.State("")
                 hs_annotated = gr.Image(type="filepath", label="Annotated Scan", visible=True)
-                hs_action_result = gr.HTML("")
+                hs_action_result = gr.HTML(
+                    empty_state_enhanced(
+                        "After you scan, your confirm / skip / save choices will appear here.",
+                        icon="🔎",
+                    )
+                )
                 hs_scan_btn.click(
                     shelf_scan_process,
                     [hs_image_input, hs_audio_input, hs_scene_type],

@@ -24,11 +24,12 @@ def _tab_click_attr(tab_id: str) -> str:
         return ""
     safe_tab = _safe_tab_id(tab_id)
     tab_labels = {
-        "today": "Today",
-        "basket": "Shopping",
-        "market": "Scan & Compare",
-        "reconcile": "Pantry",
-        "memory": "Insights",
+        "today": "Home",
+        "cookbook": "Recipes",
+        "basket": "Groceries",
+        "market": "While Shopping",
+        "reconcile": "At Home",
+        "memory": "Memory",
     }
     target_label = tab_labels.get(safe_tab, safe_tab)
     return (

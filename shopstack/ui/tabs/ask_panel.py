@@ -20,6 +20,7 @@ clearing the input on tab switch).
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import gradio as gr
 
@@ -37,6 +38,12 @@ class AskPanelHandles:
     """
     ask_input: gr.Textbox
     ask_output: gr.JSON
+
+
+def _ask_and_reveal(question: str) -> dict[str, Any]:
+    """Run Ask ShopStack and reveal the response panel on first answer."""
+    answer = ask_shopstack(question)
+    return gr.update(value=answer, visible=True)
 
 
 def build_ask_panel(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> AskPanelHandles:
@@ -61,23 +68,23 @@ def build_ask_panel(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> AskPa
         cross-tab interactions need them.
     """
     gr.Markdown("---")
-    gr.Markdown("### Ask a question")
+    gr.Markdown("### Ask about home, shopping, or prices")
     ask_input = gr.Textbox(
-        label="Ask anything across your inventory, lists, and prices",
+        label="Your question",
         placeholder="Do we have milk?  |  What should I buy today?  |  Where is toothpaste?",
         lines=2,
     )
     ask_btn = gr.Button("Ask")
-    ask_output = gr.JSON(label="Answer")
+    ask_output = gr.JSON(label="Answer", visible=False)
     ask_btn.click(
-        ask_shopstack,
+        _ask_and_reveal,
         ask_input,
         ask_output,
         api_name="ask",
         api_description="Ask the ShopStack agent a natural language question about inventory, shopping, or prices",
     )
     ask_input.submit(
-        ask_shopstack,
+        _ask_and_reveal,
         ask_input,
         ask_output,
         api_name="ask_submit",

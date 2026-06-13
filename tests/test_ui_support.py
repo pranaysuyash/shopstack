@@ -18,6 +18,14 @@ from shopstack.ui import (
     render_workflow_rail,
     save_field_notes,
 )
+from shopstack.ui.components.primitives import (
+    confirm_dialog,
+    confirm_hide_updates,
+    confirm_toggle_updates,
+    empty_state_enhanced,
+    loading_skeleton,
+    toast,
+)
 from shopstack.ui.theme import CSS
 
 
@@ -289,7 +297,7 @@ def test_custom_action_components_escape_and_use_canonical_classes():
     assert "&lt;b&gt;Market&lt;/b&gt;" in tile
     assert "action-tile action-tile-primary" in tile
     assert "button[role=tab]" in tile
-    assert "Scan & Compare" in tile
+    assert "While Shopping" in tile
     assert "action-grid" in grid
 
 
@@ -300,3 +308,69 @@ def test_hero_panel_escapes_and_uses_design_classes():
     assert "&lt;script&gt;x&lt;/script&gt;" in html
     assert "hero-panel" in html
     assert "hero-copy" in html
+
+
+def test_confirm_dialog_escapes_and_supports_danger_variant():
+    html = confirm_dialog("<script>alert(1)</script>", confirm_label="<b>Yes</b>")
+    assert "<script>" not in html
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+    assert "&lt;b&gt;Yes&lt;/b&gt;" in html
+    assert "role=\"alertdialog\"" in html
+    assert "var(--red)" in html  # default = danger
+
+    safe = confirm_dialog("Proceed?", variant="default")
+    assert "var(--amber)" in safe
+
+
+def test_confirm_toggle_and_hide_return_pair_of_gr_updates():
+    import gradio as gr
+    primary_update, confirm_update = confirm_toggle_updates()
+    assert isinstance(primary_update, gr.update.__class__ if hasattr(gr.update, "__class__") else object)
+    assert primary_update.visible is False
+    assert confirm_update.visible is True
+
+    restore_primary, hide_confirm = confirm_hide_updates()
+    assert restore_primary.visible is True
+    assert hide_confirm.visible is False
+
+
+def test_empty_state_enhanced_renders_icon_message_and_optional_cta():
+    html = empty_state_enhanced(
+        "No items yet",
+        icon="📦",
+        action_label="Add first item",
+        secondary_text="You can add more later",
+    )
+    assert "📦" in html
+    assert "No items yet" in html
+    assert "Add first item" in html
+    assert "You can add more later" in html
+    assert "role=\"status\"" in html
+    # escaping works
+    escaped = empty_state_enhanced("<script>", icon="x")
+    assert "<script>" not in escaped
+
+
+def test_loading_skeleton_variants_render_correct_class():
+    card = loading_skeleton(variant="card", lines=3)
+    assert "home-card" in card
+    assert "loading-pulse" in card  # backwards-compat class
+
+    metric = loading_skeleton(variant="metric")
+    assert "metric-card" in metric
+
+    text = loading_skeleton(variant="text", lines=2)
+    assert "loading-pulse" in text
+
+    table = loading_skeleton(variant="table", lines=3)
+    assert "home-card" in table
+
+
+def test_toast_uses_role_status_and_aria_live():
+    html = toast("Saved!", kind="success")
+    assert "role=\"status\"" in html
+    assert "aria-live=\"polite\"" in html
+    assert "Saved!" in html
+    # escaping
+    escaped = toast("<b>ok</b>")
+    assert "&lt;b&gt;ok&lt;/b&gt;" in escaped

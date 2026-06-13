@@ -518,6 +518,12 @@ details.home-details summary .home-details-summary {
   gap: 12px;
   flex-wrap: wrap;
 }
+details.home-details summary .home-details-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
 details.home-details summary .home-details-title {
   display: block;
   font-family: var(--font-display);
@@ -534,11 +540,29 @@ details.home-details summary .home-details-hint {
   color: var(--text-muted);
   font-weight: 600;
 }
+details.home-details summary .home-details-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+details.home-details summary .home-details-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: rgba(23, 107, 73, 0.10);
+  color: var(--green);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
 details.home-details summary .home-details-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-left: auto;
   padding: 4px 10px;
   border-radius: var(--radius-full);
   border: 1px solid var(--border);
@@ -815,6 +839,14 @@ details.home-details > *:not(summary),
 .skeleton-text  { height: 14px; margin-bottom: var(--space-sm); width: 80%; }
 .skeleton-title { height: 22px; margin-bottom: var(--space-md); width: 60%; }
 
+/* loading-pulse: used by loading_skeleton() in primitives.py */
+.loading-pulse {
+  background: linear-gradient(90deg, var(--bg-input) 25%, var(--bg-warm) 50%, var(--bg-input) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
 @keyframes skeleton-pulse {
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
@@ -959,4 +991,157 @@ details.home-details > *:not(summary),
   }
   .gr-button { width: 100% !important; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PHASE 5 ADDITIONS
+   - Locale selector (EN/हिं)
+   - Sparkline rows
+   - Cookbook cards & detail
+   - Walkthrough + shortcuts overlays (their own CSS in module HTML)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Locale selector ─────────────────────────────────────────────── */
+.locale-selector {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--bg-input, #FFF7EA);
+  border: 1px solid var(--border, #DACAB5);
+  border-radius: var(--radius-sm, 6px);
+  padding: 2px;
+  font-size: 10px;
+}
+.locale-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #5F5144);
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.locale-btn:hover {
+  background: var(--bg-warm, #FFF1D6);
+  color: var(--text, #1F1812);
+}
+.locale-btn.active {
+  background: var(--accent, #176B49);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ── Sparkline rows ──────────────────────────────────────────────── */
+.sparkline-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted, #5F5144);
+}
+.sparkline-row svg { display: block; }
+.sparkline-arrow {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+}
+.sparkline-pct {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Cookbook cards ─────────────────────────────────────────────── */
+.cb-grid { margin-top: 8px; }
+.cb-grid-inner {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+.cb-card {
+  background: var(--bg-card, #FFFCF7);
+  border: 1px solid var(--border, #DACAB5);
+  border-radius: var(--radius-md, 8px);
+  padding: 10px 12px;
+  transition: border-color 120ms;
+  cursor: pointer;
+}
+.cb-card:hover { border-color: var(--accent, #176B49); }
+.cb-card-head { margin-bottom: 6px; }
+.cb-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text, #1F1812);
+}
+.cb-meta {
+  font-size: 10px;
+  color: var(--text-dim, #6F6254);
+  margin-top: 1px;
+}
+.cb-tag {
+  display: inline-block;
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-right: 4px;
+  margin-top: 3px;
+  font-weight: 500;
+}
+.cb-veg {
+  background: var(--accent-soft, #E8F3EC);
+  color: var(--accent, #176B49);
+}
+.cb-vegan {
+  background: var(--bg-warm, #FFF1D6);
+  color: var(--text, #1F1812);
+}
+.cb-progress {
+  font-size: 11px;
+  font-weight: 500;
+  margin: 4px 0;
+}
+.cb-detail-row {
+  font-size: 10px;
+  color: var(--text-muted, #5F5144);
+  line-height: 1.4;
+}
+.cb-have { color: var(--green, #16a34a); }
+.cb-missing { color: var(--red, #dc2626); margin-top: 2px; }
+
+/* ── Cookbook detail ─────────────────────────────────────────────── */
+.cb-detail { padding: 8px 0; }
+.cb-detail-name {
+  font-size: 18px;
+  margin: 0 0 4px 0;
+  color: var(--text, #1F1812);
+}
+.cb-detail-meta {
+  font-size: 11px;
+  color: var(--text-muted, #5F5144);
+  margin-bottom: 8px;
+}
+.cb-section-h {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text, #1F1812);
+  margin: 10px 0 4px 0;
+}
+.cb-ings, .cb-steps {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text, #1F1812);
+}
+.cb-ings li { padding: 2px 0; }
+.cb-ing-have { color: var(--green, #16a34a); }
+.cb-ing-miss { color: var(--red, #dc2626); }
+.cb-mark { font-weight: 600; }
+.cb-steps {
+  list-style: decimal inside;
+  font-size: 12px;
+  color: var(--text-muted, #5F5144);
+  line-height: 1.5;
+}
+.cb-step { margin-bottom: 4px; }
 """

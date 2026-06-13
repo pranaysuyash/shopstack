@@ -8,7 +8,12 @@ The Gradio app's header has three pieces of dynamic state:
    configured MLX planner model isn't cached locally.
 3. **Theme + keyboard shortcuts** — inline JavaScript for the dark/light
    theme toggle (persisted in localStorage) and `j`/`k` / arrow-key tab
-   navigation.
+   navigation. Extended in Phase 5 with g<letter> tab jumps, the
+   `?` help overlay, and the `Shift+L` / `Shift+T` locale+theme toggles.
+4. **Language selector** (Phase 5 #9) — EN/हिं buttons in the header
+   that write the new locale to localStorage and reload the page.
+5. **Walkthrough overlay** (Phase 5 #27) — first-run 4-step tour that
+   shows on sessions 1-3 unless skipped.
 
 This module extracts these from the inline `app.py` header so that:
 - The state computation is testable in isolation.
@@ -23,6 +28,19 @@ from pathlib import Path
 
 from shopstack.app_context import providers
 from shopstack.config import settings
+from shopstack.services.i18n import (
+    DEFAULT_LOCALE,
+    render_i18n_script,
+    render_language_selector_html,
+)
+from shopstack.services.shortcuts import (
+    render_shortcuts_help_html,
+    render_shortcuts_script,
+)
+from shopstack.services.walkthrough import (
+    render_walkthrough_html,
+    render_walkthrough_script,
+)
 
 
 # ── Runtime label ──────────────────────────────────────────────────────
@@ -102,20 +120,26 @@ def model_download_status() -> str:
 
 # ── Header HTML + JS ──────────────────────────────────────────────────
 
-def header_html(brand_title: str, brand_subtitle: str) -> str:
+def header_html(brand_title: str, brand_subtitle: str, current_locale: str = DEFAULT_LOCALE) -> str:
     """Return the inline HTML for the app header.
 
     The header includes:
     - Brand title and subtitle
     - Theme toggle button (calls `toggleTheme()` defined in `header_script()`)
+    - Language selector (Phase 5 #9): EN/हिं buttons that switch the UI
+      language via the `setLocale()` JS helper.
     """
+    locale_html = render_language_selector_html(current_locale)
     return f"""
 <div class=\"app-header\">
   <div>
     <h1 class=\"brand-title\">{escape(brand_title)}</h1>
     <div class=\"brand-subtitle\">{escape(brand_subtitle)}</div>
   </div>
-  <button onclick=\"toggleTheme()\" aria-label=\"Toggle light/dark theme\" title=\"Toggle theme\" style=\"background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 10px;cursor:pointer;font-size:11px;color:var(--text-muted);\">🌓</button>
+  <div style=\"display:flex;gap:8px;align-items:center;\">
+    {locale_html}
+    <button onclick=\"toggleTheme()\" aria-label=\"Toggle light/dark theme\" title=\"Toggle theme\" style=\"background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 10px;cursor:pointer;font-size:11px;color:var(--text-muted);\">🌓</button>
+  </div>
 </div>"""
 
 
@@ -160,21 +184,31 @@ document.addEventListener('keydown', function(e) {
 </script>"""
 
 
-def header_block(brand_title: str, brand_subtitle: str) -> str:
+def header_block(brand_title: str, brand_subtitle: str, current_locale: str = DEFAULT_LOCALE) -> str:
     """Return the full header block (HTML + script + PWA links) as a single string.
 
     Includes:
-    - Header HTML (brand title, subtitle, theme toggle button)
+    - Header HTML (brand title, subtitle, language selector, theme toggle button)
     - Theme persistence + keyboard shortcut JS
+    - i18n script (locale persistence + reload)
+    - Keyboard shortcuts JS (tab jumps, help overlay, locale/theme toggles)
     - PWA manifest link + theme color meta + service worker registration
     - Apple mobile web app meta tags
+    - Walkthrough overlay (hidden until first-run JS opens it)
+    - Keyboard shortcuts help overlay (hidden until `?` is pressed)
 
     Convenience for `gr.HTML(header_block(...))` in the app composition.
     """
     return (
-        header_html(brand_title, brand_subtitle)
+        header_html(brand_title, brand_subtitle, current_locale)
         + header_script()
+        + render_i18n_script()
+        + render_shortcuts_help_html()
+        + render_shortcuts_script()
+        + render_walkthrough_html(current_locale)
+        + render_walkthrough_script()
         + _pwa_block()
+        + _pwa_css()
     )
 
 
@@ -206,3 +240,12 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>"""
+
+
+def _pwa_css() -> str:
+    """Return optional CSS for the PWA/header shell.
+
+    Kept as a dedicated helper so `header_block()` can concatenate a stable
+    set of fragments even when the PWA shell does not need extra styling.
+    """
+    return ""

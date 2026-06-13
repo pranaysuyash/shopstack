@@ -52,11 +52,11 @@ class TestTodayDashboard:
     def test_empty_dashboard_shows_next_actions(self, app):
         results = today_dashboard()
         full_html = "".join(results)
-        assert "Shopping path" in full_html
-        assert "What needs attention" in full_html
-        assert "Build shopping list" in full_html
-        assert "Scan receipt" in full_html
-        assert "Scan shelf item" in full_html
+        assert "Tonight" in full_html
+        assert "Plan the trip" in full_html
+        assert "Plan groceries" in full_html
+        assert "Check an item" in full_html
+        assert "Put groceries away" in full_html
 
     def test_hides_runtime_proof_from_home(self, app):
         results = today_dashboard()
@@ -67,9 +67,13 @@ class TestTodayDashboard:
         results = today_dashboard()
         assert "Market Map" not in results[0]
         assert "Open Market Map" not in results[0]
-        assert "Shopping" in results[0]
-        assert "Scan &amp; Compare" in results[0]
-        assert "Start here" in results[0] or "Use what you have" in results[0]
+        assert "Plan groceries" in results[0]
+        assert "Check an item" in results[0]
+        assert (
+            "Start with home life" in results[0]
+            or "Keep shopping moving" in results[0]
+            or "What&#x27;s happening at home?" in results[0]
+        )
 
     def test_shows_use_soon(self, app):
         app_db.add_inventory_lot(
@@ -77,7 +81,7 @@ class TestTodayDashboard:
             user_id=current_user_id(),
         )
         results = today_dashboard()
-        assert any("Use soon" in r for r in results)
+        assert any("Use first" in r for r in results)
 
     def test_shows_low_stock(self, app):
         app_db.add_inventory_lot(
@@ -85,7 +89,7 @@ class TestTodayDashboard:
             user_id=current_user_id(),
         )
         results = today_dashboard()
-        assert any("Low stock" in r for r in results)
+        assert any("Need shopping" in r for r in results)
 
 
 class TestShoppingListView:
@@ -161,7 +165,7 @@ class TestCompareBridge:
         )
         html = render_compare_panel(ds)
         assert "Compare bridge" in html
-        assert "Open Shopping" in html
+        assert "Open Groceries" in html
         assert "Tomato" in html
 
 
@@ -420,6 +424,15 @@ class TestHouseholdMap:
         result = household_map_view()
         for loc in app_db.get_locations()[:3]:
             assert loc.name in result
+
+    def test_lists_locations_after_first_card(self, app):
+        from shopstack.ui.screens.household_map import create_household_location
+
+        create_household_location("Advay's Almirah", "", "cabinet")
+        create_household_location("Work Desktop Below", "", "shelf")
+        result = household_map_view()
+        assert "Advay&#x27;s Almirah" in result
+        assert "Work Desktop Below" in result
 
     def test_map_does_not_use_inline_alerts(self, app):
         result = household_map_view()

@@ -88,9 +88,14 @@ class TestPWAShell:
     def test_app_py_injects_manifest_link(self):
         """The app.py header should reference /static/manifest.json
         so the browser picks it up."""
-        text = Path(__file__).resolve().parents[1] / "app.py"
-        content = text.read_text(encoding="utf-8")
-        assert "/static/manifest.json" in content, "app.py should reference the manifest"
-        assert "/static/sw.js" in content, "app.py should reference the service worker"
-        # The PWA mount wiring should be in build_app
-        assert "StaticFiles" in content or "add_route" in content or "mount" in content
+        # The PWA manifest link is now injected via shopstack/ui/header.py
+        # (Phase 4 refactor moved it out of app.py into the shared header block
+        # so the same HTML is used for tests, brand blocks, and app composition).
+        header_path = Path(__file__).resolve().parents[1] / "shopstack" / "ui" / "header.py"
+        header_content = header_path.read_text(encoding="utf-8")
+        assert "/static/manifest.json" in header_content, "header.py should reference the manifest"
+        assert "/static/sw.js" in header_content, "header.py should reference the service worker"
+        # The PWA mount wiring still lives in app.py
+        app_path = Path(__file__).resolve().parents[1] / "app.py"
+        app_content = app_path.read_text(encoding="utf-8")
+        assert "StaticFiles" in app_content or "add_route" in app_content or "mount" in app_content

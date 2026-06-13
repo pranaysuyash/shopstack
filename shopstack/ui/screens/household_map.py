@@ -157,5 +157,3 @@ def inventory_alerts(days_since_purchase: int = 3) -> str:
         alerts += "".join(f"<li>{escape(lot.display_name)}: last purchased {(date.today() - lot.purchase_date).days if lot.purchase_date else '?'} days ago</li>" for lot in stale)
         alerts += "</ul></div>"
     return f"<div class='home-card' style='text-align:left'>{alerts}</div>"
-
-

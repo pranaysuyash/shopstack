@@ -78,25 +78,25 @@ def market_intelligence_view(search: str = "", lane_filter: str = "") -> str:
 
     actions = render_action_grid([
         {
-            "label": "Shopping",
+            "label": "Groceries",
             "subtitle": "Turn buy signals into a list",
             "tab_id": "basket",
             "tone": "primary",
         },
         {
-            "label": "Pantry",
+            "label": "At Home",
             "subtitle": "Check what is already at home",
             "tab_id": "reconcile",
             "tone": "default",
         },
         {
-            "label": "Price Memory",
+            "label": "Memory",
             "subtitle": "Inspect your historical price baseline",
             "tab_id": "memory",
             "tone": "default",
         },
         {
-            "label": "Scan & Compare",
+            "label": "While Shopping",
             "subtitle": "Capture a shelf item and verify it live",
             "tab_id": "market",
             "tone": "default",

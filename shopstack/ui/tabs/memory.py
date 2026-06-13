@@ -22,6 +22,7 @@ import gradio as gr
 
 from shopstack.config import settings
 from shopstack.module_registry import tab_label as _tab_label
+from shopstack.ui.components.primitives import empty_state_enhanced, loading_skeleton, toast
 from shopstack.ui.screens import (
     agent_trace_bootstrap,
     agent_trace_export_file,
@@ -37,7 +38,6 @@ from shopstack.ui.screens import (
     model_budget_view,
     trace_bundle,
 )
-from shopstack.ui.screens._utils import workflow_title_bar
 from shopstack.ui.screens.nutrition import (
     nutrition_kitchen_view,
     nutrition_lookup_view,
@@ -61,15 +61,15 @@ def build_memory_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
     """
     with gr.Tab(_tab_label("memory"), id="memory"):
         with gr.Tabs():
-            # ── Intelligence & Insights ──
-            with gr.Tab("Intelligence"):
-                gr.Markdown("### Price & Preference Intelligence")
+            # ── Patterns (consumer label; internal: intelligence) ──
+            with gr.Tab("Patterns"):
+                gr.Markdown("### What we have learned")
                 gr.Markdown("Waste patterns, inferred preferences, and price memory analysis.")
                 with gr.Row():
-                    intel_refresh_btn = gr.Button("Refresh Intelligence", elem_classes="secondary")
-                intel_waste_html = gr.HTML("<div class='home-card'>Loading waste insights...</div>")
-                intel_pref_html = gr.HTML("<div class='home-card'>Loading preference signals...</div>")
-                intel_price_html = gr.HTML("<div class='home-card'>Loading price intelligence...</div>")
+                    intel_refresh_btn = gr.Button("Refresh patterns", elem_classes="secondary")
+                intel_waste_html = gr.HTML(loading_skeleton(variant="card"))
+                intel_pref_html = gr.HTML(loading_skeleton(variant="card"))
+                intel_price_html = gr.HTML(loading_skeleton(variant="card"))
 
                 intel_refresh_btn.click(
                     get_intelligence_dashboard,
@@ -82,19 +82,20 @@ def build_memory_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                     [intel_waste_html, intel_pref_html, intel_price_html]
                 )
 
-            # ── Field Notes ──
-            with gr.Tab("Field Notes"):
-                gr.Markdown("### Field Notes")
+            # ── Remember (consumer label; internal: field notes) ──
+            with gr.Tab("Remember"):
+                gr.Markdown("### Household notes")
                 gr.Markdown(
                     "Capture household notes, shopping decisions, price changes, and things to remember next time.")
                 notes_editor = gr.Textbox(
                     label="Editable Draft", lines=16,
-                    placeholder="# Household Notes\n\nWrite what we learned...")
+                    placeholder="# Household Notes\n\nWrite what we learned...",
+                )
                 notes_preview = gr.Markdown()
-                notes_status = gr.HTML("")
+                notes_status = gr.HTML(loading_skeleton("text"))
                 with gr.Row():
-                    notes_reload = gr.Button("Reload Draft", elem_classes="secondary")
-                    notes_save = gr.Button("Save Notes")
+                    notes_reload = gr.Button("Reload draft", elem_classes="secondary")
+                    notes_save = gr.Button("Save notes")
                 notes_reload.click(
                     field_notes_view,
                     outputs=[notes_editor, notes_preview, notes_status],
@@ -117,12 +118,12 @@ def build_memory_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                 )
                 app.load(field_notes_view, outputs=[notes_editor, notes_preview, notes_status])
 
-            # ── History ──
-            with gr.Tab("History"):
-                gr.HTML(workflow_title_bar(
-                    "Household History",
-                    "Browse household activity, inspect details, and export records when you need them.",
-                ))
+            # ── What Happened (consumer label; internal: trace history) ──
+            with gr.Tab("What Happened"):
+                gr.Markdown(
+                    "### Household history\n\n"
+                    "Browse household activity, inspect details, and export records when you need them."
+                )
                 with gr.Row():
                     trace_search = gr.Textbox(
                         label="Search",
@@ -141,16 +142,24 @@ def build_memory_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                 with gr.Row():
                     trace_selector = gr.Dropdown(
                         label="Select a record",
-                        choices=[("No traces yet", "")],
+                        choices=[("No activity yet", "")],
                         value="",
                         allow_custom_value=False,
                     )
-                trace_timeline = gr.HTML("")
+                trace_timeline = gr.HTML(
+                    empty_state_enhanced(
+                        "Select a record above to see the timeline and details.",
+                        icon="📜",
+                    )
+                )
                 trace_raw = gr.HTML("")
                 with gr.Row():
-                    trace_export = gr.Button("Export trace JSONL")
-                    trace_file = gr.File(file_count="single", visible=True,
-                                         label="Download redacted JSONL")
+                    trace_export = gr.Button("Download activity record")
+                    trace_file = gr.File(
+                        file_count="single",
+                        visible=True,
+                        label="Download record (private info removed)",
+                    )
                 trace_bootstrap_state = gr.State("")
 
                 trace_search.change(
@@ -196,13 +205,18 @@ def build_memory_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
 
             # ── Nutrition ──
             with gr.Tab("Nutrition"):
-                gr.Markdown("### Nutrition Lookup")
+                gr.Markdown("### Nutrition lookup")
                 nutrition_search = gr.Textbox(
                     label="Search Item",
-                    placeholder="e.g. milk, atta, rice, chicken, doodh, dal...",
+                    placeholder="e.g. milk, atta, rice, chicken, doodh, dal…",
                 )
-                nutrition_search_btn = gr.Button("Look Up")
-                nutrition_result = gr.HTML("")
+                nutrition_search_btn = gr.Button("Look up")
+                nutrition_result = gr.HTML(
+                    empty_state_enhanced(
+                        "Type an item and click Look up to see nutrition facts.",
+                        icon="🥗",
+                    )
+                )
                 nutrition_search_btn.click(
                     nutrition_lookup_view,
                     nutrition_search,
@@ -217,8 +231,8 @@ def build_memory_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                     api_name="nutrition_lookup_submit",
                     api_description="Lookup nutrition for submitted text",
                 )
-                gr.Markdown("### My Kitchen Nutrition")
-                kitchen_nutrition = gr.HTML("")
+                gr.Markdown("### My kitchen nutrition")
+                kitchen_nutrition = gr.HTML(loading_skeleton("card"))
                 kitchen_refresh = gr.Button("Refresh Kitchen Nutrition", elem_classes="secondary")
                 kitchen_refresh.click(
                     nutrition_kitchen_view,
@@ -230,15 +244,15 @@ def build_memory_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
 
             # ── System (developer mode only) ──
             if settings.ui_mode == "developer":
-                with gr.Tab("System"):
-                    model_stack_html = gr.HTML("")
+                with gr.Tab("Advanced"):
+                    model_stack_html = gr.HTML(loading_skeleton("card"))
                     app.load(model_budget_view, outputs=model_stack_html)
 
-            # ── Data ──
-            with gr.Tab("Data"):
+            # ── Backup ──
+            with gr.Tab("Backup"):
                 with gr.Tab("Export"):
-                    export_json_btn = gr.Button("Export Inventory as JSON")
-                    export_csv_btn = gr.Button("Export Inventory as CSV")
+                    export_json_btn = gr.Button("Back up pantry (JSON)")
+                    export_csv_btn = gr.Button("Back up pantry (CSV)")
                     export_file = gr.File(label="Download", visible=False)
                     export_json_btn.click(
                         export_data_json,
@@ -261,9 +275,17 @@ def build_memory_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                         export_file
                     )
                 with gr.Tab("Import"):
-                    import_file = gr.File(label="Upload JSON or CSV", file_count="single")
-                    import_btn = gr.Button("Import Data")
-                    import_result = gr.HTML("")
+                    import_file = gr.File(
+                        label="Choose a backup file (JSON or CSV)",
+                        file_count="single",
+                    )
+                    import_btn = gr.Button("Restore from backup")
+                    import_result = gr.HTML(
+                        empty_state_enhanced(
+                            "Choose a backup file above and click Restore to add items back into your pantry.",
+                            icon="📥",
+                        )
+                    )
                     import_btn.click(
                         import_data_file,
                         import_file,

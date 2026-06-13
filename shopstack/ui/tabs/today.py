@@ -6,16 +6,15 @@ This is the first thing the user sees when they open ShopStack. It answers
 - Low-stock alerts
 - Recent purchase activity
 - "What changed" diff vs last session
-- Embedded Ask ShopStack textbox (natural language queries)
 - **Restock predictions** with one-click "add to my shopping list" action
 
 The `today_dashboard()` screen function returns a 6-tuple of HTML strings;
 we register it as an `app.load` handler so the panel populates on page open.
 
 The Ask ShopStack sub-section is co-located with the dashboard so the user
-doesn't need a separate tab for simple questions. The submit button and
-Enter-key both fire `ask_shopstack` (returns a structured dict rendered via
-gr.JSON).
+doesn't need a separate tab for simple questions. The Ask panel is built
+by `shopstack.ui.tabs.ask_panel.build_ask_panel` (a sub-builder of this
+tab) so the wiring is testable in isolation and reusable.
 """
 from __future__ import annotations
 
@@ -27,8 +26,9 @@ from shopstack.app_context import current_user_id, db
 from shopstack.module_registry import tab_label as _tab_label
 from shopstack.services.dashboard import build_dashboard_state
 from shopstack.services.restock_action import add_prediction_to_list
-from shopstack.ui.components.primitives import toast
-from shopstack.ui.screens import ask_shopstack, today_dashboard
+from shopstack.ui.components.primitives import loading_skeleton, toast
+from shopstack.ui.screens import today_dashboard
+from shopstack.ui.tabs.ask_panel import build_ask_panel
 from shopstack.ui.tabs.context import TabContext
 
 
@@ -109,12 +109,12 @@ def build_today_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> Today
         wiring in `app.py` needs to reference.
     """
     with gr.Tab(_tab_label("today"), id="today"):
-        today_stats = gr.HTML("")
-        today_soon = gr.HTML("")
-        today_list = gr.HTML("")
-        today_low = gr.HTML("")
-        today_recent = gr.HTML("")
-        today_changed = gr.HTML("")
+        today_stats = gr.HTML(loading_skeleton("card"))
+        today_soon = gr.HTML(loading_skeleton("card"))
+        today_list = gr.HTML(loading_skeleton("card"))
+        today_low = gr.HTML(loading_skeleton("card"))
+        today_recent = gr.HTML(loading_skeleton("card"))
+        today_changed = gr.HTML(loading_skeleton("card"))
         app.load(today_dashboard, outputs=[today_stats, today_soon, today_list,
                                             today_low, today_recent, today_changed])
 
@@ -143,28 +143,8 @@ def build_today_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> Today
         )
 
         gr.Markdown("---")
-        gr.Markdown("### Ask a question")
-        ask_input = gr.Textbox(
-            label="Ask anything across your inventory, lists, and prices",
-            placeholder="Do we have milk?  |  What should I buy today?  |  Where is toothpaste?",
-            lines=2,
-        )
-        ask_btn = gr.Button("Ask")
-        ask_output = gr.JSON(label="Answer")
-        ask_btn.click(
-            ask_shopstack,
-            ask_input,
-            ask_output,
-            api_name="ask",
-            api_description="Ask the ShopStack agent a natural language question about inventory, shopping, or prices",
-        )
-        ask_input.submit(
-            ask_shopstack,
-            ask_input,
-            ask_output,
-            api_name="ask_submit",
-            api_description="Submit question via Enter key",
-        )
+        gr.Markdown("### Ask ShopStack")
+        build_ask_panel(blocks=app, app=app, ctx=ctx)
 
     return TodayTabHandles(
         today_stats=today_stats,

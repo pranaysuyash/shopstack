@@ -145,13 +145,13 @@ def render_compare_panel(ds: DecisionSet) -> str:
 
     bridge_actions = [
         {
-            "label": "Open Shopping",
+            "label": "Open Groceries",
             "subtitle": "Turn compare items into a list",
             "tab_id": "basket",
             "tone": "primary",
         },
         {
-            "label": "Open Pantry",
+            "label": "Open At Home",
             "subtitle": "Check what is already covered",
             "tab_id": "reconcile",
             "tone": "default",

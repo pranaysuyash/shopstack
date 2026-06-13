@@ -41,7 +41,6 @@ def search_input(
         "<span class='search-icon' aria-hidden='true'>&#9906;</span>"
         f"<input id='{escape(input_id)}' type='search' class='search-input-field' "
         f"placeholder='{escape(placeholder)}' value='{escape(value)}' "
-        "autocomplete='off' spellcheck='false'>"
         f"{clear_btn}"
         "</div>"
     )

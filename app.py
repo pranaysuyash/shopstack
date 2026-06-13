@@ -4,8 +4,6 @@ from html import escape
 
 import gradio as gr
 
-from shopstack.ui.screens import today_dashboard
-from shopstack.ui.components import workflow_header
 from shopstack.ui.header import (
     header_block,
     model_download_status,
@@ -15,6 +13,7 @@ from shopstack.ui.theme import CSS
 from shopstack.ui.tabs.context import TabContext
 from shopstack.ui.tabs.today import build_today_tab, TodayTabHandles
 from shopstack.ui.tabs.basket import build_basket_tab
+from shopstack.ui.tabs.cookbook import build_cookbook_tab
 from shopstack.ui.tabs.market import build_market_tab
 from shopstack.ui.tabs.reconcile import build_reconcile_tab, ReconcileTabHandles
 from shopstack.ui.tabs.memory import build_memory_tab
@@ -58,11 +57,11 @@ def build_app() -> gr.Blocks:
 
         gr.HTML(header_block(APP_NAME, APP_DESCRIPTION), padding=True)
 
-        # ── 5-tab daily loop: Today → Shopping → Scan & Compare → Pantry → Insights ──
+        # ── 6-tab daily loop: Home → Recipes → Groceries → While Shopping → At Home → Memory ──
         with gr.Tabs(elem_classes="tabs") as tabs:
 
             # ═══════════════════════════════════════════════════════════════
-            # Tab 1: Today — what matters now?
+            # Tab 1: Home — what matters now?
             # Built in shopstack/ui/tabs/today.py
             # ═══════════════════════════════════════════════════════════════
             today_handles: TodayTabHandles = build_today_tab(
@@ -76,19 +75,25 @@ def build_app() -> gr.Blocks:
             today_changed = today_handles.today_changed
 
             # ═══════════════════════════════════════════════════════════════
-            # Tab 2: Basket — what should I buy / skip / compare?
+            # Tab 2: Recipes — browse the 30-recipe library
+            # Built in shopstack/ui/tabs/cookbook.py
+            # ═══════════════════════════════════════════════════════════════
+            build_cookbook_tab(blocks=app, app=app, ctx=TabContext())
+
+            # ═══════════════════════════════════════════════════════════════
+            # Tab 3: Groceries — what should I buy / skip / compare?
             # Built in shopstack/ui/tabs/basket.py
             # ═══════════════════════════════════════════════════════════════
             build_basket_tab(blocks=app, app=app, ctx=TabContext())
 
             # ═══════════════════════════════════════════════════════════════
-            # Tab 3: ShopLens — check while shopping
+            # Tab 4: While Shopping — check items before you buy them
             # Built in shopstack/ui/tabs/market.py
             # ═══════════════════════════════════════════════════════════════
             build_market_tab(blocks=app, app=app, ctx=TabContext())
 
             # ═══════════════════════════════════════════════════════════════
-            # Tab 4: Reconcile — what actually happened?
+            # Tab 5: At Home — what actually happened?
             # Built in shopstack/ui/tabs/reconcile.py
             # ═══════════════════════════════════════════════════════════════
             reconcile_handles = build_reconcile_tab(blocks=app, app=app, ctx=TabContext())
@@ -96,7 +101,7 @@ def build_app() -> gr.Blocks:
             move_dest = reconcile_handles.move_dest
 
             # ═══════════════════════════════════════════════════════════════
-            # Tab 5: Memory — what did we learn?
+            # Tab 6: Memory — what did we learn?
             # Built in shopstack/ui/tabs/memory.py
             # ═══════════════════════════════════════════════════════════════
             build_memory_tab(blocks=app, app=app, ctx=TabContext())

@@ -290,6 +290,35 @@ def confirm_dialog(
     )
 
 
+def confirm_toggle_updates():
+    """Return the (initial_btn_update, confirm_group_update) pair for a 2-step destructive action.
+
+    Use this when wiring a primary destructive button so that the first click hides
+    the original button and shows the confirm group; the second click on the
+    confirm group fires the actual action and the cancel button restores the
+    original state.
+
+    Returns:
+        A 2-tuple of ``gr.update`` instances: (hide_primary, show_confirm_group).
+
+    Example:
+        >>> primary_btn, confirm_group, confirm_yes, confirm_no = build_destructive_confirm(...)
+        >>> primary_btn.click(confirm_toggle_updates, outputs=[primary_btn, confirm_group])
+    """
+    import gradio as gr  # local import: primitives.py is imported by non-Gradio callers
+    return gr.update(visible=False), gr.update(visible=True)
+
+
+def confirm_hide_updates():
+    """Return the (initial_btn_update, confirm_group_update) pair to restore the primary button.
+
+    Pairs with :func:`confirm_toggle_updates` for the cancel/reset leg of the
+    2-step destructive-action pattern.
+    """
+    import gradio as gr
+    return gr.update(visible=True), gr.update(visible=False)
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # Toast — success/error notification
 # ═══════════════════════════════════════════════════════════════════════

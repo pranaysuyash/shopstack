@@ -30,6 +30,13 @@ import gradio as gr
 
 from shopstack.app_context import db
 from shopstack.module_registry import tab_label as _tab_label
+from shopstack.ui.components.primitives import (
+    confirm_dialog,
+    confirm_hide_updates,
+    confirm_toggle_updates,
+    empty_state_enhanced,
+    loading_skeleton,
+)
 from shopstack.ui.screens import (
     add_purchase_batch,
     add_purchase_form,
@@ -80,7 +87,9 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                 with gr.Row():
                     p_name = gr.Textbox(label="Item Name", placeholder="e.g. Milk, Atta, Rice")
                     p_qty = gr.Number(label="Quantity", value=1.0)
-                    p_unit = gr.Textbox(label="Unit", value="unit", placeholder="kg, L, pieces")
+                    p_unit = gr.Textbox(
+                        label="Unit", value="unit", placeholder="kg, L, pieces"
+                    )
                 with gr.Row():
                     p_price = gr.Number(label="Price (\u20b9)", value=0.0)
                     p_store = gr.Textbox(label="Store", placeholder="e.g. Big Bazaar, Local Kirana")
@@ -94,11 +103,21 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                         value="pantry",
                     )
                 with gr.Row():
-                    p_date = gr.Textbox(label="Purchase Date (YYYY-MM-DD)",
-                                        placeholder=date.today().isoformat())
-                    p_category = gr.Textbox(label="Category", placeholder="e.g. Dairy, Grains, Vegetables")
-                p_submit = gr.Button("Add to Inventory")
-                p_result = gr.HTML("")
+                    p_date = gr.Textbox(
+                        label="Purchase Date (YYYY-MM-DD)",
+                        placeholder=date.today().isoformat(),
+                    )
+                    p_category = gr.Textbox(
+                        label="Category",
+                        placeholder="e.g. Dairy, Grains, Vegetables",
+                    )
+                p_submit = gr.Button("Add to Pantry")
+                p_result = gr.HTML(
+                    empty_state_enhanced(
+                        "Items you add will appear here with what was saved.",
+                        icon="\U0001f6d2",
+                    )
+                )
                 p_submit.click(
                     add_purchase_form,
                     [p_name, p_qty, p_unit, p_price, p_store, p_location, p_date, p_category],
@@ -106,7 +125,7 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                     api_name="add_purchase",
                     api_description="Record a new purchase with lot details",
                 )
-                gr.Markdown("### Quick Add Purchases")
+                gr.Markdown("### Quick add groceries")
                 gr.Markdown(
                     "One item per line: `name, qty, unit, price, store, location, category`")
                 p_batch_input = gr.Textbox(
@@ -114,8 +133,13 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                     lines=5,
                     placeholder="milk, 2, L, 64, Sharma Kirana, fridge, dairy\nrice, 5, kg, 680, DMart, pantry_mid, grains",
                 )
-                p_batch_btn = gr.Button("Add Batch")
-                p_batch_result = gr.HTML("")
+                p_batch_btn = gr.Button("Add batch")
+                p_batch_result = gr.HTML(
+                    empty_state_enhanced(
+                        "Batch results will appear here after you click Add batch.",
+                        icon="📦",
+                    )
+                )
                 p_batch_btn.click(
                     add_purchase_batch,
                     p_batch_input,
@@ -127,15 +151,26 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
             # ── Inventory ──
             with gr.Tab("Inventory"):
                 with gr.Row():
-                    inv_search = gr.Textbox(label="Search Inventory", placeholder="Type to filter...")
+                    inv_search = gr.Textbox(
+                        label="Search pantry",
+                        placeholder="Type to filter…",
+                    )
                     inv_refresh = gr.Button("Refresh", elem_classes="secondary")
                 inv_table = gr.DataFrame(label="All Inventory Items")
                 with gr.Row():
-                    cons_lot = gr.Textbox(label="Lot ID (full or prefix)", placeholder="abcdef123456")
+                    cons_lot = gr.Textbox(
+                        label="Lot ID (full or prefix)",
+                        placeholder="abcdef123456",
+                    )
                     cons_qty = gr.Number(label="Quantity to Consume", value=1.0)
-                    cons_btn = gr.Button("Consume")
-                cons_result = gr.HTML("")
-                inv_cards = gr.HTML("")
+                    cons_btn = gr.Button("Mark used")
+                cons_result = gr.HTML(
+                    empty_state_enhanced(
+                        "Mark an item as used by entering its lot ID and quantity above.",
+                        icon="✓",
+                    )
+                )
+                inv_cards = gr.HTML(loading_skeleton("card"))
                 inv_search.change(
                     inventory_view,
                     inv_search,
@@ -170,12 +205,18 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                     api_description="Consume quantity from a lot",
                 )
                 gr.Markdown(
-                    "**Quick Consume** (one per line: `lot_id: qty`, or just `lot_id` for qty 1)")
+                    "**Quick use** (one per line: `lot_id: qty`, or just `lot_id` for qty 1)")
                 batch_consume_input = gr.Textbox(
                     label="Quick Consume", lines=4,
-                    placeholder="abc123: 0.5\ndef456: 1\nghi789")
-                batch_consume_btn = gr.Button("Consume Batch")
-                batch_consume_result = gr.HTML("")
+                    placeholder="abc123: 0.5\ndef456: 1\nghi789",
+                )
+                batch_consume_btn = gr.Button("Mark batch used")
+                batch_consume_result = gr.HTML(
+                    empty_state_enhanced(
+                        "Batch consumption results will appear here.",
+                        icon="✓",
+                    )
+                )
                 batch_consume_btn.click(
                     consume_items_batch,
                     batch_consume_input,
@@ -186,12 +227,15 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                 app.load(inventory_view, outputs=inv_table)
                 app.load(inventory_cards_view, outputs=inv_cards)
 
-            # ── Use Soon ──
-            with gr.Tab("Use Soon"):
+            # ── Use First (consumer label; internal: "use_soon") ──
+            with gr.Tab("Use First"):
                 with gr.Row():
-                    use_days = gr.Slider(1, 30, value=3, step=1, label="Days threshold")
+                    use_days = gr.Slider(
+                        1, 30, value=3, step=1,
+                        label="Show items expiring within ___ days",
+                    )
                     use_refresh = gr.Button("Refresh", elem_classes="secondary")
-                use_table = gr.DataFrame(label="Items to Use Soon")
+                use_table = gr.DataFrame(label="Items to Use First")
                 use_refresh.click(
                     use_soon_view,
                     use_days,
@@ -201,13 +245,13 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                 )
                 app.load(use_soon_view, inputs=use_days, outputs=use_table)
 
-            # ── Consumption ──
-            with gr.Tab("Consume"):
-                gr.Markdown("### Consumption Tracker")
+            # ── What Got Used (consumer label; internal: consumption) ──
+            with gr.Tab("What Got Used"):
+                gr.Markdown("### What got used")
                 gr.Markdown("Log what you use. Track waste, meals, and consumption rates.")
-                cons_grid = gr.HTML("")
-                cons_history = gr.HTML("")
-                cons_rates = gr.HTML("")
+                cons_grid = gr.HTML(loading_skeleton("card"))
+                cons_history = gr.HTML(loading_skeleton("text"))
+                cons_rates = gr.HTML(loading_skeleton("text"))
                 cons_refresh = gr.Button("Refresh", elem_classes="secondary")
                 cons_refresh.click(
                     consumption_dashboard,
@@ -218,12 +262,21 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                 app.load(consumption_dashboard, outputs=[cons_grid, cons_history, cons_rates])
 
                 gr.Markdown("---")
-                gr.Markdown("### Quick Consume")
+                gr.Markdown("### Quick use")
                 with gr.Row():
-                    cons_lot_input = gr.Textbox(label="Lot ID", placeholder="e.g. abc123", scale=2)
+                    cons_lot_input = gr.Textbox(
+                        label="Lot ID",
+                        placeholder="e.g. abc123",
+                        scale=2,
+                    )
                     cons_qty_input = gr.Number(label="Quantity", value=1.0, scale=1)
-                    cons_btn = gr.Button("Consume", variant="primary", scale=0)
-                cons_result = gr.HTML("")
+                    cons_btn = gr.Button("Mark used", variant="primary", scale=0)
+                cons_result = gr.HTML(
+                    empty_state_enhanced(
+                        "Use an item by entering its lot ID and quantity above.",
+                        icon="✓",
+                    )
+                )
                 cons_btn.click(
                     quick_consume,
                     [cons_lot_input, cons_qty_input],
@@ -233,7 +286,7 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                 )
 
                 gr.Markdown("---")
-                gr.Markdown("### Batch Consume with Context")
+                gr.Markdown("### Batch use with context")
                 cons_batch_input = gr.Textbox(
                     label="Items (one per line: lot_id:qty)",
                     lines=4,
@@ -252,8 +305,13 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                         value="",
                         scale=1,
                     )
-                cons_batch_btn = gr.Button("Log Batch")
-                cons_batch_result = gr.HTML("")
+                cons_batch_btn = gr.Button("Log batch")
+                cons_batch_result = gr.HTML(
+                    empty_state_enhanced(
+                        "Batch results will appear here.",
+                        icon="📋",
+                    )
+                )
                 cons_batch_btn.click(
                     batch_consume_with_context,
                     [cons_batch_input, cons_meal, cons_waste],
@@ -262,24 +320,52 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                     api_description="Batch consume with meal context and waste tracking",
                 )
 
-            # ── Locations ──
-            with gr.Tab("Locations"):
-                map_html = gr.HTML("")
-                gr.Markdown("### Move Item Between Locations")
+            # ── Where It Lives (consumer label; internal: locations) ──
+            with gr.Tab("Where It Lives"):
+                map_html = gr.HTML(loading_skeleton("card"))
+                gr.Markdown("### Move item between locations")
                 with gr.Row():
-                    move_lot_input = gr.Textbox(label="Lot ID (or prefix)", placeholder="e.g. abc123")
+                    move_lot_input = gr.Textbox(
+                        label="Lot ID (or prefix)",
+                        placeholder="e.g. abc123",
+                    )
                     move_dest = gr.Dropdown(
                         label="Destination",
                         choices=[(l.name, l.location_id) for l in db.get_locations()],
                     )
-                    move_btn = gr.Button("Move")
-                move_result = gr.HTML("")
+                    move_btn = gr.Button("Move", variant="stop")
+                move_confirm = gr.Group(visible=False)
+                with move_confirm:
+                    gr.Markdown(
+                        "⚠ **Move this item to the chosen location?** "
+                        "Inventory location affects what counts as 'at home'."
+                    )
+                    with gr.Row():
+                        move_yes = gr.Button("Yes, move it", variant="stop")
+                        move_no = gr.Button("Cancel", elem_classes="secondary")
+                move_result = gr.HTML(
+                    empty_state_enhanced(
+                        "Move results will appear here.",
+                        icon="📍",
+                    )
+                )
                 move_btn.click(
+                    confirm_toggle_updates,
+                    outputs=[move_btn, move_confirm],
+                )
+                move_yes.click(
                     move_inventory_to_location,
                     [move_lot_input, move_dest],
                     move_result,
                     api_name="move_inventory",
                     api_description="Move one lot to a different storage location",
+                ).then(
+                    confirm_hide_updates,
+                    outputs=[move_btn, move_confirm],
+                )
+                move_no.click(
+                    confirm_hide_updates,
+                    outputs=[move_btn, move_confirm],
                 )
                 app.load(household_map_view, outputs=map_html)
 

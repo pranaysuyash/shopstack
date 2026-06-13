@@ -236,7 +236,19 @@ MODEL_REGISTRY: list[ModelEntry] = [
         runtime="transformers",
         status="candidate",
         badge_relevance="llama_champion",
-        notes="Qwen2.5-VL-7B-Instruct (Jan 2025, 6.5M downloads). Still very popular. VLM bench in flight.",
+        notes="Qwen2.5-VL-7B-Instruct (Jan 2025, 6.5M downloads). Modal VLM v8 (13-Jun-2026): 86% on synthetic product images (95% identify, 95% brand, 100% qty, 40% price, 100% expiry). Works via AutoModelForImageTextToText + transformers>=4.55.",
+    ),
+    # Vision — Qwen3-VL-8B-Instruct (NEW ACTIVE WINNER, 13-Jun-2026)
+    ModelEntry(
+        provider_group="vision",
+        model_id="qwen3-vl-8b",
+        hf_model="Qwen/Qwen3-VL-8B-Instruct",
+        params_b=8.0,
+        license_note="Apache-2.0",
+        runtime="transformers",
+        status="active",
+        badge_relevance="llama_champion",
+        notes="NEW ACTIVE — Modal A100 int4 (13-Jun-2026): 99% overall on synthetic product images (100% identify, 100% brand, 100% qty, 95% price, 100% expiry). 7.3M downloads (most popular Qwen VLM). Apache-2.0. Best vision result across all benches. Use via AutoModelForImageTextToText + transformers>=4.55.",
     ),
     # Vision — Kimi-VL-A3B-Thinking (Apr 2025, MoE vision reasoning)
     ModelEntry(
@@ -304,9 +316,9 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=4.0,
         license_note="Apache-2.0",
         runtime="mlx",
-        status="candidate",
+        status="rejected",
         badge_relevance="llama_champion",
-        notes="4-bit quantized variant of Qwen3.5-4B. ~2.3GB vs 8.9GB for full bf16. 70% on Modal A100 int4 production bench (13-Jun-2026). Superseded by Ministral-8B-Instruct (90%). Demoted.",
+        notes="REJECTED 13-Jun-2026: 70% on Modal A100 int4 production bench (Run 1+2+3). 4x slower than alternatives (28.18s vs 4.08s). Overthinking issue. Demote from default. Switch to Ministral-8B-Instruct-2410 (95%) or Ministral-3-8B-Reasoning-2512 (90%, mid-2026).",
     ),
     # Planner — Ministral-8B-Instruct (NEW WINNER, 13-Jun-2026)
     ModelEntry(

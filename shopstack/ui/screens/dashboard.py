@@ -36,15 +36,20 @@ from shopstack.ui.screens.other import inventory_alerts, what_is_in_fridge_now
 logger = logging.getLogger(__name__)
 
 
-def _details_section(title: str, body: str, description: str = "") -> str:
+def _details_section(title: str, body: str, description: str = "", count_label: str = "") -> str:
     summary_html = (
         "<div class='home-details-summary'>"
+        "<div class='home-details-copy'>"
         f"<span class='home-details-title'>{escape(title)}</span>"
         f"<span class='home-details-hint'>{escape(description)}</span>"
-        "<span class='home-details-chip'>Tap to expand</span>"
         "</div>"
-        if description
-        else f"<div class='home-details-summary'><span class='home-details-title'>{escape(title)}</span><span class='home-details-chip'>Tap to expand</span></div>"
+        "<div class='home-details-meta'>"
+        f"{f'<span class=\"home-details-count\">{escape(count_label)}</span>' if count_label else ''}"
+        "<span class='home-details-chip'>Open</span>"
+        "</div>"
+        "</div>"
+        if description or count_label
+        else f"<div class='home-details-summary'><span class='home-details-title'>{escape(title)}</span><span class='home-details-chip'>Open</span></div>"
     )
     return (
         "<details class='home-details'>"
@@ -72,43 +77,43 @@ def today_dashboard():
     market_graph = _build_market_graph(uid)
 
     hero = render_hero_panel(
-        f"Good day. {APP_DESCRIPTION}",
-        f"{len(ds.buy)} to buy, {len(ds.skip)} to skip, {len(ds.use_soon)} to use soon.",
+        "What's happening at home?",
+        "See what to cook tonight, what to buy next, and what should be used first — so the household stays steady.",
         APP_NAME,
     )
     market_chips = _render_market_summary_chips(market_graph)
 
     quick_actions = (
         "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:12px 0 16px 0;'>"
-        f"{stat_card(str(len(state.active_inventory)), 'Active items', on_click_tab='reconcile')}"
-        f"{stat_card(str(state.use_soon_count), 'Use soon', variant='warning', on_click_tab='reconcile')}"
-        f"{stat_card(str(len(state.low_items)), 'Low stock', variant='danger', on_click_tab='reconcile')}"
-        f"{stat_card(str(len(state.recent_purchases)), 'Recent buys', on_click_tab='reconcile')}"
+        f"{stat_card(str(len(state.active_inventory)), 'In pantry', on_click_tab='reconcile')}"
+        f"{stat_card(str(state.use_soon_count), 'Use first', variant='warning', on_click_tab='reconcile')}"
+        f"{stat_card(str(len(state.low_items)), 'Need shopping', variant='danger', on_click_tab='reconcile')}"
+        f"{stat_card(str(len(state.recent_purchases)), 'Just bought', on_click_tab='reconcile')}"
         "</div>"
     )
 
     loop_actions = render_action_grid([
         {
-            "label": "Shopping",
-            "subtitle": "Plan what to buy, skip, or compare",
+            "label": "Plan groceries",
+            "subtitle": "Make the list before you leave",
             "tab_id": "basket",
             "tone": "primary",
         },
         {
-            "label": "Scan & Compare",
-            "subtitle": "Check a shelf item before buying",
+            "label": "Check an item",
+            "subtitle": "Compare while you are in the store",
             "tab_id": "market",
             "tone": "default",
         },
         {
-            "label": "Pantry",
-            "subtitle": "Log purchases, update stock, check expiries",
+            "label": "Put groceries away",
+            "subtitle": "Log what came home and where it lives",
             "tab_id": "reconcile",
             "tone": "default",
         },
         {
-            "label": "Insights",
-            "subtitle": "Notes, traces, nutrition, what we learned",
+            "label": "See what changed",
+            "subtitle": "Remember what the household learned",
             "tab_id": "memory",
             "tone": "default",
         },
@@ -142,46 +147,41 @@ def today_dashboard():
     )
     onboarding = _render_today_empty_hints(state, ds) if show_empty_hints else _render_today_start_here(state, ds)
 
-    shopping_path = _details_section(
-        "Shopping path",
-        market_basket,
-        "Use this when you are ready to plan, compare, or build the list.",
+    tonight_section = _details_section(
+        "Tonight",
+        f"{cook_tonight_html}{seasonal_html}",
+        "Recipes and what the weather or expiring items suggest for tonight.",
+        f"{len(state.cook_tonight_matches)} recipe{'s' if len(state.cook_tonight_matches) != 1 else ''}",
     )
-    cook_tonight_section = _details_section(
-        "Cook tonight",
-        cook_tonight_html,
-        "Recipes that use what you have. ⏰ marks recipes that rescue expiring items.",
-    )
-    seasonal_section = _details_section(
-        "Today, at a glance",
-        seasonal_html,
-        "Weather, expiring items, and price drops rolled into one prompt.",
-    )
-    attention_panel = _details_section(
-        "What needs attention",
-        decision_panel,
-        "The decisions that most likely deserve a closer look.",
+    plan_section = _details_section(
+        "Plan the trip",
+        f"{decision_panel}{market_basket}",
+        "Use what you have first, then see what to buy next.",
+        f"{len(ds.use_soon) + len(ds.buy) + len(ds.compare) + len(ds.substitute)} item{'s' if (len(ds.use_soon) + len(ds.buy) + len(ds.compare) + len(ds.substitute)) != 1 else ''}",
     )
     list_snapshot = _details_section(
         "Shopping list",
         list_panel,
         "Your active list, if one is open.",
+        f"{len(state.active_list.items) if state.active_list else 0} item{'s' if not state.active_list or len(state.active_list.items) != 1 else ''}",
     )
     household_state = _details_section(
-        "Household state",
-        f"{inventory_overview}{fridge_html}{alert_html}{needs_confirm}{what_changed}{cook_tonight_html}",
-        "Freshness, inventory, and recent changes live here. ⏰ marks recipes that rescue expiring items.",
+        "After you shop",
+        f"{inventory_overview}{fridge_html}{alert_html}{needs_confirm}{what_changed}",
+        "Freshness, inventory, and recent changes live here.",
+        f"{len(state.active_inventory)} item{'s' if len(state.active_inventory) != 1 else ''}",
     )
     market_signals = _details_section(
-        "Market signals",
+        "Compare and history",
         f"{_render_compare_preview(market_graph)}{compare_panel}{cadence_html}{waste_html}{waste_coach_html}{restock_html}{deals_html}{drops_html}{best_store_html}{basket_summary_html}",
-        "Deeper price, compare, and substitution cues.",
+        "The deeper price, compare, and substitution cues.",
+        f"{len(market_graph.buy) + len(market_graph.compare) + len(market_graph.substitute)} signal{'s' if (len(market_graph.buy) + len(market_graph.compare) + len(market_graph.substitute)) != 1 else ''}",
     )
 
     return [
         f"{hero}{market_chips}{onboarding}{quick_actions}{loop_actions}",
-        attention_panel,
-        shopping_path,
+        tonight_section,
+        plan_section,
         list_snapshot,
         household_state,
         market_signals,
@@ -192,99 +192,99 @@ def _render_today_start_here(state, ds) -> str:
     if state.active_list is not None:
         item_count = len(state.active_list.items or [])
         subtitle = (
-            f"You have an active shopping list with {item_count} item"
+            f"You have a shopping list with {item_count} item"
             f"{'' if item_count == 1 else 's'}."
         )
-        action_label = "Finish your list"
-        body = "Complete the list, then reconcile the purchase into inventory."
+        action_label = "Keep shopping moving"
+        body = "Finish the list, then put the groceries away when you get home."
         actions = [
             {
-                "label": "Finish list",
-                "subtitle": "Review items and close the loop",
+                "label": "Open shopping list",
+                "subtitle": "See what still needs to be bought",
                 "tab_id": "basket",
                 "tone": "primary",
             },
             {
-                "label": "Update pantry",
-                "subtitle": "Log what came home and where it lives",
+                "label": "Put groceries away",
+                "subtitle": "Add what came home to the pantry",
                 "tab_id": "reconcile",
                 "tone": "default",
             },
             {
-                "label": "Review history",
-                "subtitle": "See what changed across the household",
+                "label": "See what changed",
+                "subtitle": "Check the household record",
                 "tab_id": "memory",
                 "tone": "default",
             },
         ]
     elif ds.use_soon:
         subtitle = f"{len(ds.use_soon)} item{'' if len(ds.use_soon) == 1 else 's'} are ready to use soon."
-        action_label = "Use what you have"
-        body = "Use soon items first, then restock only the gap you still need."
+        action_label = "Use these first"
+        body = "Use soon items first, then restock only what is still missing."
         actions = [
             {
-                "label": "Use soon",
-                "subtitle": "Open the pantry items to use first",
+                "label": "Open use-first items",
+                "subtitle": "See what should be used before shopping",
                 "tab_id": "reconcile",
                 "tone": "primary",
             },
             {
-                "label": "Plan shopping",
+                "label": "Plan groceries",
                 "subtitle": "Build a list around the missing items",
                 "tab_id": "basket",
                 "tone": "default",
             },
             {
-                "label": "Check prices",
-                "subtitle": "Compare before buying more",
+                "label": "Check before buying",
+                "subtitle": "Compare before you buy again",
                 "tab_id": "basket",
                 "tone": "default",
             },
         ]
     elif ds.buy:
         subtitle = f"{len(ds.buy)} item{'' if len(ds.buy) == 1 else 's'} are marked to buy."
-        action_label = "Plan the buy"
-        body = "Use the buying list, then compare price or source before checkout."
+        action_label = "Plan the trip"
+        body = "Use the list, then compare price or source before checkout."
         actions = [
             {
-                "label": "Open shopping",
+                "label": "Open shopping list",
                 "subtitle": "Turn buy decisions into a list",
                 "tab_id": "basket",
                 "tone": "primary",
             },
             {
-                "label": "Compare prices",
+                "label": "Compare stores",
                 "subtitle": "Check whether a better store exists",
                 "tab_id": "basket",
                 "tone": "default",
             },
             {
                 "label": "Open pantry",
-                "subtitle": "See what stock already exists at home",
+                "subtitle": "See what is already at home",
                 "tab_id": "reconcile",
                 "tone": "default",
             },
         ]
     else:
-        subtitle = "The household is steady right now. Keep the loop light and check history when you need it."
-        action_label = "Stay oriented"
-        body = "No urgent action is required, but the main paths remain one click away."
+        subtitle = "The household is steady right now. Keep the loop simple and only open what you need."
+        action_label = "Start with a normal home moment"
+        body = "Plan groceries, check a shelf item, put things away, or look back at what changed."
         actions = [
             {
-                "label": "Open shopping",
-                "subtitle": "Plan the next grocery run",
+                "label": "Plan groceries",
+                "subtitle": "Make the next shopping list",
                 "tab_id": "basket",
                 "tone": "primary",
             },
             {
-                "label": "Scan a shelf item",
+                "label": "Check a shelf item",
                 "subtitle": "Compare while you are in the store",
                 "tab_id": "market",
                 "tone": "default",
             },
             {
-                "label": "Review history",
-                "subtitle": "See what the household learned",
+                "label": "See what changed",
+                "subtitle": "Look back at the household record",
                 "tab_id": "memory",
                 "tone": "default",
             },
@@ -301,30 +301,30 @@ def _render_today_start_here(state, ds) -> str:
 def _render_today_empty_hints(state, ds) -> str:
     return (
         "<div class='home-card' style='margin-top:10px;text-align:left;'>"
-        "<h3>Start here</h3>"
+        "<h3>Start with home life</h3>"
         "<div class='muted' style='margin-bottom:8px;'>No household data yet. Add one real fact and the rest of the loop can start learning.</div>"
-        "<div style='margin-bottom:10px;'>Add a purchase, build a shopping list, scan a shelf item, or paste a receipt.</div>"
+        "<div style='margin-bottom:10px;'>Plan groceries, add what came home, check a shelf item, or scan a receipt.</div>"
         f"{render_action_grid([
             {
-                "label": "Add purchase",
+                "label": "Add what came home",
                 "subtitle": "Seed the pantry with one real item",
                 "tab_id": "reconcile",
                 "tone": "primary",
             },
             {
-                "label": "Build shopping list",
+                "label": "Plan groceries",
                 "subtitle": "Turn free text into a real list",
                 "tab_id": "basket",
                 "tone": "default",
             },
             {
                 "label": "Scan receipt",
-                "subtitle": "Parse a bill into inventory facts",
+                "subtitle": "Turn a bill into pantry facts",
                 "tab_id": "reconcile",
                 "tone": "default",
             },
             {
-                "label": "Scan shelf item",
+                "label": "Check a shelf item",
                 "subtitle": "Compare a product before you buy it",
                 "tab_id": "market",
                 "tone": "default",
@@ -360,7 +360,7 @@ def _render_market_next_steps(graph) -> str:
     if graph.summary.get("buy", 0):
         actions.append(
             {
-                "label": "Open Shopping",
+                "label": "Open Groceries",
                 "subtitle": "Turn buy items into the list",
                 "tab_id": "basket",
                 "tone": "primary",
@@ -439,7 +439,7 @@ def _render_market_map_teaser(state, graph) -> str:
             "tone": "primary",
         },
         {
-            "label": "Check Pantry",
+            "label": "Check At Home",
             "subtitle": "See what the household already has",
             "tab_id": "reconcile",
             "tone": "default",

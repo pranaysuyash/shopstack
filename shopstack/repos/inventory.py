@@ -24,6 +24,7 @@ class InventoryRepo:
     def __init__(self, db: Database, embedding_provider: Any = None):
         self.db = db
         self._embedding_provider = embedding_provider
+        self._find_service = None
 
     # --- Lot ID resolution ---
 
@@ -167,48 +168,17 @@ class InventoryRepo:
     # --- Search / query ---
 
     def find(self, query: str, user_id: str = "") -> dict[str, Any]:
-        q = query.lower()
-        all_inventory = self.db.get_inventory(user_id=user_id)
-        results = []
-        for lot in all_inventory:
-            if q in lot.canonical_name.lower() or q in lot.display_name.lower():
-                loc = self.db.get_location(lot.storage_location_id)
-                results.append({
-                    "lot": lot.model_dump(),
-                    "location_name": loc.name if loc else "Unknown",
-                    "location_id": lot.storage_location_id,
-                })
-        return {"results": results, "count": len(results)}
+        return self._shopfind().find_inventory_compatible(query, user_id=user_id)
 
     def semantic_find(self, query: str, user_id: str = "") -> dict[str, Any]:
-        q = query.strip()
-        if not q:
-            return {"results": [], "count": 0, "match_type": "none"}
-        from shopstack.services.search import semantic_search
-        search_results = semantic_search(
-            self.db,
-            query,
-            threshold=0.6,
-            embedding_provider=getattr(self, "_embedding_provider", None),
-        )
-        all_inventory = self.db.get_inventory(user_id=user_id)
-        lot_results = []
-        for sr in search_results:
-            matching_lots = [
-                lot for lot in all_inventory
-                if lot.canonical_name == sr.canonical_name
-            ]
-            for lot in matching_lots:
-                loc = self.db.get_location(lot.storage_location_id)
-                lot_results.append({
-                    "lot": lot.model_dump(),
-                    "location_name": loc.name if loc else "Unknown",
-                    "location_id": lot.storage_location_id,
-                    "match_type": sr.match_type,
-                    "match_score": sr.score,
-                })
-        match_type = lot_results[0]["match_type"] if lot_results else "none"
-        return {"results": lot_results, "count": len(lot_results), "match_type": match_type}
+        return self._shopfind().semantic_find_inventory_compatible(query, user_id=user_id)
+
+    def _shopfind(self):
+        if self._find_service is None:
+            from shopstack.services.find import ShopFindService
+
+            self._find_service = ShopFindService(self.db, self._embedding_provider)
+        return self._find_service
 
     # --- Inventory comparison (returns raw data, no classification) ---
 

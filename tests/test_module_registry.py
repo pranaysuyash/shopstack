@@ -118,10 +118,17 @@ def test_dependencies():
 
 
 def test_five_primary_tabs_in_order():
-    """TAB_ORDER has exactly 5 primary tabs."""
+    """TAB_ORDER has exactly 6 primary tabs."""
     from shopstack.module_registry import TAB_ORDER
-    assert len(TAB_ORDER) == 5
-    assert TAB_ORDER["today"] < TAB_ORDER["basket"] < TAB_ORDER["market"] < TAB_ORDER["reconcile"] < TAB_ORDER["memory"]
+    assert len(TAB_ORDER) == 6
+    assert (
+        TAB_ORDER["today"]
+        < TAB_ORDER["cookbook"]
+        < TAB_ORDER["basket"]
+        < TAB_ORDER["market"]
+        < TAB_ORDER["reconcile"]
+        < TAB_ORDER["memory"]
+    )
 
 
 def test_navigation_returns_tab_entries():

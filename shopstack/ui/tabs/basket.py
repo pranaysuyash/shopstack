@@ -1,20 +1,18 @@
-"""Basket tab — shopping planning, lists, price comparison, market intelligence, and receipt scanning.
+"""Basket tab — shopping planning, lists, price comparison, and receipt scanning.
 
-This is the largest top-level tab (8 sub-tabs, ~400 lines) and the one that
-covers everything the user does *before* a shopping trip: planning, list
-building, price comparison, and receipt scanning.
+This is the largest top-level tab (~400 lines) and covers everything the
+user does *before* a shopping trip: planning, list building, price
+comparison, and receipt/recipe input.
 
-Sub-tabs:
+Sub-tabs (5):
 1. **Plan** — Unified shopping plan (classify, price, substitute, score deals)
-2. **Optimizer** — Basket optimizer screen (delegated to `build_basket_screen()`)
+2. **Best Basket** — Basket optimizer screen (delegated to ``build_basket_screen()``)
 3. **Shopping List** — Create, view, complete, mark purchased, generate poster, reconcile
-4. **Price Compare** — Multi-source comparison + item lookup + basket compare
-5. **Market Map** — Market intelligence graph (focus + lane filter)
-6. **Price Check** — Price history with trend charts + price intelligence
-7. **Scan Receipt** — OCR receipt scanning with editable draft
+4. **Compare** — Multi-source comparison, market intelligence graph, price history & intelligence
+5. **Add Items** — Receipt OCR scanning and recipe-to-shopping-list conversion
 
 The tab is self-contained: no components are referenced by other parts of the
-app. All `app.load` handlers register here.
+app. All ``app.load`` handlers register here.
 """
 from __future__ import annotations
 
@@ -49,16 +47,22 @@ from shopstack.ui.screens.receipt import (
     receipt_parse_text,
     receipt_scan_ocr,
 )
+from shopstack.ui.components.primitives import (
+    confirm_hide_updates,
+    confirm_toggle_updates,
+    empty_state_enhanced,
+    loading_skeleton,
+)
 from shopstack.ui.tabs.context import TabContext
 
 
 def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None:
-    """Build the Basket tab inside the parent's `gr.Tabs` context.
+    """Build the Basket tab inside the parent's ``gr.Tabs`` context.
 
     Args:
         blocks: Alias for the parent gr.Blocks. Kept for symmetry with other
             tab builders.
-        app: The root gr.Blocks instance — needed for `app.load(...)` handlers.
+        app: The root gr.Blocks instance — needed for ``app.load(...)`` handlers.
         ctx: Shared dependencies (unused in this tab, but part of the
             uniform builder signature).
 
@@ -70,8 +74,8 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
         with gr.Tabs():
             # ── Unified Plan ──
             with gr.Tab("Plan"):
-                gr.Markdown("### Unified Shopping Plan")
-                gr.Markdown("Enter items to classify, price, find substitutions, and score deals in one pass.")
+                gr.Markdown("### Plan groceries")
+                gr.Markdown("Turn a rough idea into a list, then see what to buy, skip, or compare.")
                 with gr.Row():
                     up_goal = gr.Textbox(label="Goal", placeholder="Weekly groceries", scale=1)
                     up_items = gr.Textbox(
@@ -81,8 +85,13 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                         scale=2,
                     )
                 up_run_btn = gr.Button("Run Plan", variant="primary")
-                up_summary = gr.HTML("")
-                up_detail = gr.HTML("")
+                up_summary = gr.HTML(loading_skeleton("card"))
+                up_detail = gr.HTML(
+                    empty_state_enhanced(
+                        "Detailed plan results will appear here after you run a plan.",
+                        icon="📑",
+                    )
+                )
                 up_run_btn.click(
                     run_unified_plan,
                     [up_goal, up_items],
@@ -93,14 +102,14 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                 app.load(unified_plan_summary, outputs=up_summary)
 
             # ── Optimizer ──
-            with gr.Tab("Optimizer"):
+            with gr.Tab("Best Basket"):
                 build_basket_screen()
 
             # ── Shopping List ──
             with gr.Tab("Shopping List"):
-                sl_cards = gr.HTML("")
-                sl_substitutions = gr.HTML("")
-                sl_display = gr.HTML("")
+                sl_cards = gr.HTML(loading_skeleton("card"))
+                sl_substitutions = gr.HTML(loading_skeleton("text"))
+                sl_display = gr.HTML(loading_skeleton("card"))
                 sl_table = gr.DataFrame(label="Items")
                 sl_list_id = gr.State("")
                 sl_goal = gr.State("")
@@ -111,17 +120,21 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                         placeholder="milk, bread, tomato, onion",
                         lines=3,
                     )
-                sl_share = gr.HTML("")
+                sl_share = gr.HTML(loading_skeleton("text"))
 
                 # --- Shopping Poster Export ---
-                with gr.Accordion("Generate Shopping Poster", open=False):
+                with gr.Accordion("Print shopping list", open=False):
                     gr.Markdown(
-                        "Export your shopping decisions as a printable poster image. "
-                        "Each item is rendered as a decision card with its buy/skip/optional status."
+                        "Export the list as a printable poster image. Each item is rendered as a simple buy / skip / optional card."
                     )
                     with gr.Row():
                         poster_btn = gr.Button("\U0001f5bc Generate Poster", variant="primary", scale=1)
-                    poster_status = gr.HTML("")
+                    poster_status = gr.HTML(
+                    empty_state_enhanced(
+                        "Poster generation status will appear here.",
+                        icon="🖼️",
+                    )
+                )
                     with gr.Row():
                         poster_preview = gr.Image(
                             label="Poster Preview",
@@ -129,6 +142,7 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                             visible=True,
                             height=400,
                             scale=2,
+                            value=None,
                         )
                         poster_download = gr.File(
                             label="Download Poster",
@@ -147,42 +161,67 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                     )
 
                 # --- Reconciliation UI ---
-                with gr.Accordion("List Reconciliation (Review & Add to Inventory)", open=False):
+                with gr.Accordion("Put groceries away", open=False):
                     sl_reconciliation_table = gr.Dataframe(
                         headers=["Item", "Qty", "Unit", "Action (bought/skipped/substituted)", "Price Paid", "Substitution Note"],
                         datatype=["str", "number", "str", "str", "number", "str"],
                         column_count=6,
                         interactive=True,
-                        label="Reconciliation Draft (Edit before confirming)"
+                        label="Put-away draft (edit before confirming)"
                     )
                     with gr.Row():
                         sl_reconcile_load_btn = gr.Button("Load Active List", elem_classes="secondary")
-                        sl_reconcile_confirm_btn = gr.Button("Confirm & Complete List", variant="primary")
-                    sl_reconcile_result = gr.HTML("")
+                        sl_reconcile_confirm_btn = gr.Button("Confirm & Finish", variant="primary")
+                    sl_reconcile_result = gr.HTML(
+                    empty_state_enhanced(
+                        "Put-away results will appear here.",
+                        icon="📋",
+                    )
+                )
 
                 with gr.Row():
                     sl_item_dropdown = gr.Dropdown(
-                        label="Select items to mark as purchased",
+                        label="Items already bought",
                         choices=[],
                         value=[],
                         multiselect=True,
                         interactive=True,
                     )
                     sl_item_refresh = gr.Button("Refresh Items", elem_classes="secondary")
-                    sl_mark_purchased_btn = gr.Button("Mark Selected as Purchased", variant="primary")
-                sl_mark_result = gr.HTML("")
+                    sl_mark_purchased_btn = gr.Button("Mark as Bought", variant="stop")
+                sl_mark_confirm = gr.Group(visible=False)
+                with sl_mark_confirm:
+                    gr.Markdown("⚠ **Mark the selected items as bought?**")
+                    with gr.Row():
+                        sl_mark_yes = gr.Button("Yes, mark bought", variant="stop")
+                        sl_mark_no = gr.Button("Cancel", elem_classes="secondary")
+                sl_mark_result = gr.HTML(
+                    empty_state_enhanced(
+                        "Select items above and click Mark as Bought to record the purchase.",
+                        icon="✓",
+                    )
+                )
                 sl_item_refresh.click(
                     shopping_list_item_choices,
                     outputs=sl_item_dropdown,
                     api_name="refresh_items",
                     api_description="Refresh shopping list item selector",
                 )
+                # 2-step confirmation: first click reveals the confirm group;
+                # the yes button fires mark_items_purchased and restores state on completion.
                 sl_mark_purchased_btn.click(
+                    confirm_toggle_updates,
+                    outputs=[sl_mark_purchased_btn, sl_mark_confirm],
+                )
+                sl_mark_yes.click(
                     mark_items_purchased,
                     sl_item_dropdown,
                     sl_mark_result,
                     api_name="mark_purchased",
                     api_description="Mark selected shopping list items as purchased",
+                ).then(
+                    confirm_hide_updates,
+                    outputs=[sl_mark_purchased_btn, sl_mark_confirm],
                 ).then(
                     shopping_list_view_with_cards,
                     outputs=[sl_cards, sl_display, sl_table, sl_list_id, sl_goal, sl_share],
@@ -191,7 +230,11 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                     outputs=sl_substitutions,
                 ).then(
                     shopping_list_item_choices,
-                    outputs=sl_item_dropdown
+                    outputs=sl_item_dropdown,
+                )
+                sl_mark_no.click(
+                    confirm_hide_updates,
+                    outputs=[sl_mark_purchased_btn, sl_mark_confirm],
                 )
                 app.load(shopping_list_item_choices, outputs=sl_item_dropdown)
                 app.load(shopping_list_view_with_cards, outputs=[sl_cards, sl_display, sl_table,
@@ -199,10 +242,24 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                 app.load(shopping_list_substitutions_view, outputs=sl_substitutions)
 
                 with gr.Row():
-                    create_btn = gr.Button("Build Shopping Plan")
+                    create_btn = gr.Button("Build Shopping List")
                     refresh_btn = gr.Button("Refresh", elem_classes="secondary")
-                    complete_btn = gr.Button("Complete List & Add to Inventory", variant="primary")
-                create_output = gr.HTML("")
+                    complete_btn = gr.Button("Finish List & Add to Pantry", variant="stop")
+                complete_confirm = gr.Group(visible=False)
+                with complete_confirm:
+                    gr.Markdown(
+                        "⚠ **Finish the list and move all bought items to the pantry?** "
+                        "This commits the entire list and is hard to undo."
+                    )
+                    with gr.Row():
+                        complete_yes = gr.Button("Yes, finish the list", variant="stop")
+                        complete_no = gr.Button("Cancel", elem_classes="secondary")
+                create_output = gr.HTML(
+                    empty_state_enhanced(
+                        "Build results will appear here.",
+                        icon="🛒",
+                    )
+                )
                 create_btn.click(
                     build_shopping_list_and_refresh,
                     [goal_input, items_input],
@@ -244,12 +301,21 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                     outputs=sl_item_dropdown
                 )
 
+                # 2-step confirmation: first click reveals the confirm group;
+                # the yes button fires complete_shopping_list and restores state on completion.
                 complete_btn.click(
+                    confirm_toggle_updates,
+                    outputs=[complete_btn, complete_confirm],
+                )
+                complete_yes.click(
                     complete_shopping_list,
                     sl_list_id,
                     sl_reconcile_result,
                     api_name="complete_list",
                     api_description="Complete active shopping list and add purchased items to inventory",
+                ).then(
+                    confirm_hide_updates,
+                    outputs=[complete_btn, complete_confirm],
                 ).then(
                     shopping_list_view_with_cards,
                     outputs=[sl_cards, sl_display, sl_table, sl_list_id, sl_goal, sl_share]
@@ -260,245 +326,281 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                     shopping_list_item_choices,
                     outputs=sl_item_dropdown
                 )
-
-            # ── Price Compare (Multi-Source) ──
-            with gr.Tab("Price Compare"):
-                gr.Markdown("### Compare prices across Swiggy, Blinkit, Zepto, and DMart")
-                pc_button = gr.Button("Refresh Comparison", elem_classes="secondary")
-                pc_results = gr.HTML("")
-                pc_status = gr.HTML("")
-                pc_button.click(
-                    multi_source_price_view,
-                    outputs=pc_results,
-                    api_name="price_compare_refresh",
-                    api_description="Refresh multi-source price comparison dashboard",
-                )
-                pc_status_btn = gr.Button("Check Registry Status", elem_classes="secondary")
-                pc_status_btn.click(
-                    refresh_source_registry,
-                    outputs=pc_status,
-                    api_name="price_compare_status",
-                    api_description="Check which market sources are registered and loaded",
-                )
-                app.load(multi_source_price_view, outputs=pc_results)
-
-                gr.Markdown("---")
-                gr.Markdown("### Item Lookup")
-                with gr.Row():
-                    pc_item_input = gr.Textbox(label="Item Name", placeholder="e.g. tomato, onion, milk")
-                    pc_lookup_btn = gr.Button("Look Up")
-                pc_lookup_result = gr.HTML("")
-                pc_lookup_btn.click(
-                    single_item_compare,
-                    pc_item_input,
-                    pc_lookup_result,
-                    api_name="price_compare_item",
-                    api_description="Compare single item prices across all market sources",
+                complete_no.click(
+                    confirm_hide_updates,
+                    outputs=[complete_btn, complete_confirm],
                 )
 
-                gr.Markdown("---")
-                gr.Markdown("### Basket Compare")
-                gr.Markdown(
-                    "Enter your shopping list — one item per line, with quantity and unit. "
-                    "Get per-source totals and see where you'd save the most."
-                )
-                bc_items_input = gr.Textbox(
-                    label="Items",
-                    placeholder=(
-                        "2kg onions\n"
-                        "1L milk\n"
-                        "500g tomatoes\n"
-                        "12 eggs"
-                    ),
-                    lines=6,
-                )
-                with gr.Row():
-                    bc_button = gr.Button("Compare Basket", variant="primary")
-                    bc_example_btn = gr.Button("Load Example", elem_classes="secondary")
-                bc_results = gr.HTML("")
-                bc_button.click(
-                    basket_compare_view,
-                    bc_items_input,
-                    bc_results,
-                    api_name="price_compare_basket",
-                    api_description="Compare a multi-item basket total across all market sources",
-                )
-                bc_example_btn.click(
-                    lambda: "2kg onion\n1.5kg potato\n500g tomato\n1L milk\n12 eggs\ngreen chilli",
-                    outputs=bc_items_input,
-                    api_name="price_compare_basket_example",
-                )
-
-            # ── Market Map ──
-            with gr.Tab("Market Map"):
-                with gr.Row():
-                    market_focus = gr.Textbox(
-                        label="Focus item",
-                        placeholder="tomato, onion, milk, coriander...",
+            # ── Compare (merged: stores + market graph + price history) ──
+            with gr.Tab("Compare"):
+                with gr.Tabs():
+                    # ── Multi-source price comparison ──
+                    with gr.Tab("Stores"):
+                        gr.Markdown("### Compare stores")
+                        gr.Markdown("Compare prices across the market sources we have loaded.")
+                        pc_button = gr.Button("Refresh Comparison", elem_classes="secondary")
+                        pc_results = gr.HTML(loading_skeleton("card"))
+                        pc_status = gr.HTML(
+                    empty_state_enhanced(
+                        "Source registry status will appear here.",
+                        icon="📡",
                     )
-                    market_lane = gr.Dropdown(
-                        label="Lane",
-                        choices=[
-                            ("All", ""),
-                            ("Buy", "buy"),
-                            ("Use Soon", "use_soon"),
-                            ("Compare", "compare"),
-                            ("Substitute", "substitute"),
-                            ("Wait", "wait"),
-                            ("Skip", "skip"),
-                        ],
-                        value="",
-                        allow_custom_value=False,
+                )
+                        pc_button.click(
+                            multi_source_price_view,
+                            outputs=pc_results,
+                            api_name="price_compare_refresh",
+                            api_description="Refresh multi-source price comparison dashboard",
+                        )
+                        pc_status_btn = gr.Button("Check Registry Status", elem_classes="secondary")
+                        pc_status_btn.click(
+                            refresh_source_registry,
+                            outputs=pc_status,
+                            api_name="price_compare_status",
+                            api_description="Check which market sources are registered and loaded",
+                        )
+                        app.load(multi_source_price_view, outputs=pc_results)
+
+                        gr.Markdown("---")
+                        gr.Markdown("### Item lookup")
+                        with gr.Row():
+                            pc_item_input = gr.Textbox(label="Item Name", placeholder="e.g. tomato, onion, milk")
+                            pc_lookup_btn = gr.Button("Look Up")
+                        pc_lookup_result = gr.HTML(
+                    empty_state_enhanced(
+                        "Item comparison will appear here.",
+                        icon="🔍",
                     )
-                    market_refresh = gr.Button("Refresh", elem_classes="secondary")
-                market_graph_html = gr.HTML("")
-                market_focus.change(
-                    market_intelligence_view,
-                    [market_focus, market_lane],
-                    market_graph_html,
-                    api_name="market_intelligence_search",
-                    api_description="Search the market intelligence graph",
                 )
-                market_lane.change(
-                    market_intelligence_view,
-                    [market_focus, market_lane],
-                    market_graph_html,
-                    api_name="market_intelligence_lane",
-                    api_description="Filter the market intelligence graph by lane",
-                )
-                market_refresh.click(
-                    market_intelligence_view,
-                    [market_focus, market_lane],
-                    market_graph_html,
-                    api_name="market_intelligence_refresh",
-                    api_description="Refresh the market intelligence graph",
-                )
-                app.load(market_intelligence_view, inputs=[market_focus, market_lane], outputs=market_graph_html)
+                        pc_lookup_btn.click(
+                            single_item_compare,
+                            pc_item_input,
+                            pc_lookup_result,
+                            api_name="price_compare_item",
+                            api_description="Compare single item prices across all market sources",
+                        )
 
-            # ── Price Check ──
-            with gr.Tab("Price Check"):
-                with gr.Row():
-                    price_item = gr.Textbox(label="Item Name", placeholder="e.g. basmati rice")
-                    price_search = gr.Button("Search")
-                price_summary = gr.HTML("")
-                with gr.Row():
-                    price_plot = gr.LinePlot(
-                        label="Price Trend",
-                        x="date",
-                        y="price",
-                        title="Price over time",
-                        x_title="Date",
-                        y_title="Price (\u20b9)",
-                        height=300,
+                        gr.Markdown("---")
+                        gr.Markdown("### Basket compare")
+                        gr.Markdown(
+                            "Enter your shopping list — one item per line, with quantity and unit. "
+                            "Get per-source totals and see where you'd save the most."
+                        )
+                        bc_items_input = gr.Textbox(
+                            label="Items",
+                            placeholder=(
+                                "2kg onions\n"
+                                "1L milk\n"
+                                "500g tomatoes\n"
+                                "12 eggs"
+                            ),
+                            lines=6,
+                        )
+                        with gr.Row():
+                            bc_button = gr.Button("Compare Basket", variant="primary")
+                            bc_example_btn = gr.Button("Load Example", elem_classes="secondary")
+                        bc_results = gr.HTML(
+                    empty_state_enhanced(
+                        "Enter your basket above and click Compare Basket to see store totals.",
+                        icon="🧮",
                     )
-                    unit_price_plot = gr.LinePlot(
-                        label="Unit Price Trend",
-                        x="date",
-                        y="unit_price",
-                        title="Unit price over time",
-                        x_title="Date",
-                        y_title="Unit Price (\u20b9)",
-                        height=300,
+                )
+                        bc_button.click(
+                            basket_compare_view,
+                            bc_items_input,
+                            bc_results,
+                            api_name="price_compare_basket",
+                            api_description="Compare a multi-item basket total across all market sources",
+                        )
+                        bc_example_btn.click(
+                            lambda: "2kg onion\n1.5kg potato\n500g tomato\n1L milk\n12 eggs\ngreen chilli",
+                            outputs=bc_items_input,
+                            api_name="price_compare_basket_example",
+                        )
+
+                    # ── Market intelligence graph ──
+                    with gr.Tab("Market Graph"):
+                        with gr.Row():
+                            market_focus = gr.Textbox(
+                                label="Focus item",
+                                placeholder="tomato, onion, milk, coriander...",
+                            )
+                            market_lane = gr.Dropdown(
+                                label="Lane",
+                                choices=[
+                                    ("All", ""),
+                                    ("Buy", "buy"),
+                                    ("Use Soon", "use_soon"),
+                                    ("Compare", "compare"),
+                                    ("Substitute", "substitute"),
+                                    ("Wait", "wait"),
+                                    ("Skip", "skip"),
+                                ],
+                                value="",
+                                allow_custom_value=False,
+                            )
+                            market_refresh = gr.Button("Refresh", elem_classes="secondary")
+                        market_graph_html = gr.HTML(loading_skeleton("card"))
+                        market_focus.change(
+                            market_intelligence_view,
+                            [market_focus, market_lane],
+                            market_graph_html,
+                            api_name="market_intelligence_search",
+                            api_description="Search the market intelligence graph",
+                        )
+                        market_lane.change(
+                            market_intelligence_view,
+                            [market_focus, market_lane],
+                            market_graph_html,
+                            api_name="market_intelligence_lane",
+                            api_description="Filter the market intelligence graph by lane",
+                        )
+                        market_refresh.click(
+                            market_intelligence_view,
+                            [market_focus, market_lane],
+                            market_graph_html,
+                            api_name="market_intelligence_refresh",
+                            api_description="Refresh the market intelligence graph",
+                        )
+                        app.load(market_intelligence_view, inputs=[market_focus, market_lane], outputs=market_graph_html)
+
+                    # ── Price history & intelligence ──
+                    with gr.Tab("Price History"):
+                        with gr.Row():
+                            price_item = gr.Textbox(label="Item Name", placeholder="e.g. basmati rice")
+                            price_search = gr.Button("Search")
+                        price_summary = gr.HTML(loading_skeleton("card"))
+                        with gr.Row():
+                            price_plot = gr.LinePlot(
+                                label="Price Trend",
+                                x="date",
+                                y="price",
+                                title="Price over time",
+                                x_title="Date",
+                                y_title="Price (\u20b9)",
+                                height=300,
+                            )
+                            unit_price_plot = gr.LinePlot(
+                                label="Unit Price Trend",
+                                x="date",
+                                y="unit_price",
+                                title="Unit price over time",
+                                x_title="Date",
+                                y_title="Unit Price (\u20b9)",
+                                height=300,
+                            )
+                        price_table = gr.DataFrame(label="Price History")
+                        price_search.click(
+                            price_memory_view,
+                            price_item,
+                            [price_summary, price_plot, unit_price_plot, price_table],
+                            api_name="price_search",
+                            api_description="Load price history and trend charts for a product",
+                        )
+                        app.load(price_memory_view, inputs=price_item,
+                                 outputs=[price_summary, price_plot, unit_price_plot, price_table])
+                        gr.Markdown("### Price intelligence")
+                        pi_html = gr.HTML(loading_skeleton("card"))
+                        pi_refresh = gr.Button("Refresh", elem_classes="secondary")
+                        pi_refresh.click(
+                            price_intelligence_view,
+                            outputs=pi_html,
+                            api_name="price_intelligence_refresh",
+                            api_description="Refresh price intelligence dashboard",
+                        )
+                        app.load(price_intelligence_view, outputs=pi_html)
+
+            # ── Add Items (merged: receipt + recipe) ──
+            with gr.Tab("Add Items"):
+                with gr.Tabs():
+                    # ── Receipt scanning ──
+                    with gr.Tab("Receipt"):
+                        receipt_status = gr.HTML(loading_skeleton("text"))
+                        gr.Markdown("### Scan a receipt")
+                        gr.Markdown("Upload a receipt image (OCR) or a text file containing the receipt text.")
+                        with gr.Row():
+                            receipt_file = gr.File(label="Upload Receipt (image or .txt)", file_count="single")
+                            receipt_scan_btn = gr.Button("Scan & Parse", variant="primary")
+                        receipt_raw_text = gr.Textbox(
+                            label="Raw OCR Text / Paste Receipt Text",
+                            lines=6,
+                            placeholder="Paste receipt text here, or upload a file above and click Scan & Parse...",
+                        )
+
+                        receipt_df = gr.Dataframe(
+                            headers=["Item", "Quantity", "Unit", "Price"],
+                            datatype=["str", "number", "str", "number"],
+                            column_count=4,
+                            interactive=True,
+                            label="Editable Receipt Draft",
+                        )
+                        with gr.Row():
+                            receipt_merchant = gr.Textbox(label="Store Name", interactive=True)
+                            receipt_date = gr.Textbox(label="Purchase Date (YYYY-MM-DD)", interactive=True)
+
+                        receipt_confirm_btn = gr.Button("Confirm & Add to Inventory", variant="primary")
+                        receipt_result = gr.HTML(
+                    empty_state_enhanced(
+                        "Receipt confirmation will appear here.",
+                        icon="✅",
                     )
-                price_table = gr.DataFrame(label="Price History")
-                price_search.click(
-                    price_memory_view,
-                    price_item,
-                    [price_summary, price_plot, unit_price_plot, price_table],
-                    api_name="price_search",
-                    api_description="Load price history and trend charts for a product",
                 )
-                app.load(price_memory_view, inputs=price_item,
-                         outputs=[price_summary, price_plot, unit_price_plot, price_table])
-                gr.Markdown("### Price Intelligence")
-                pi_html = gr.HTML("")
-                pi_refresh = gr.Button("Refresh", elem_classes="secondary")
-                pi_refresh.click(
-                    price_intelligence_view,
-                    outputs=pi_html,
-                    api_name="price_intelligence_refresh",
-                    api_description="Refresh price intelligence dashboard",
-                )
-                app.load(price_intelligence_view, outputs=pi_html)
+                        receipt_scan_btn.click(
+                            receipt_scan_ocr,
+                            receipt_file,
+                            [receipt_df, receipt_merchant, receipt_date, receipt_raw_text, receipt_status],
+                            api_name="receipt_scan",
+                            api_description="Extract receipt text from uploaded file",
+                        )
+                        receipt_raw_text.change(
+                            receipt_parse_text,
+                            receipt_raw_text,
+                            [receipt_df, receipt_merchant, receipt_date],
+                            api_name="receipt_parse",
+                            api_description="Parse pasted or OCR'd receipt text into item suggestions",
+                        )
+                        receipt_confirm_btn.click(
+                            receipt_confirm,
+                            [receipt_df, receipt_merchant, receipt_date, receipt_raw_text],
+                            receipt_result,
+                            api_name="receipt_confirm",
+                            api_description="Confirm parsed receipt lines and add items to inventory",
+                        )
+                        app.load(_load_ocr_model, outputs=receipt_status)
 
-            # ── Scan Receipt ──
-            with gr.Tab("Scan Receipt"):
-                receipt_status = gr.HTML("")
-                gr.Markdown("### Scan a Receipt")
-                gr.Markdown("Upload a receipt image (OCR) or a text file containing the receipt text.")
-                with gr.Row():
-                    receipt_file = gr.File(label="Upload Receipt (image or .txt)", file_count="single")
-                    receipt_scan_btn = gr.Button("Scan & Parse", variant="primary")
-                receipt_raw_text = gr.Textbox(
-                    label="Raw OCR Text / Paste Receipt Text",
-                    lines=6,
-                    placeholder="Paste receipt text here, or upload a file above and click Scan & Parse...",
+                    # ── Recipe to shopping list ──
+                    with gr.Tab("From Recipe"):
+                        gr.Markdown("### Recipe to shopping list")
+                        gr.Markdown(
+                            "Paste a recipe's ingredients section. The system parses "
+                            "the text, diffs against your inventory, and shows what's "
+                            "missing — paste the missing list into the **Shopping List** "
+                            "tab to add it. (Text-only for now; OCR image upload is "
+                            "future work.)"
+                        )
+                        recipe_input = gr.Textbox(
+                            label="Recipe ingredients",
+                            placeholder=(
+                                "- 2 cups rice\n"
+                                "- 1 cup chickpea\n"
+                                "- 1 tsp turmeric\n"
+                                "- 1 onion, chopped\n"
+                                "- 2 tomatoes, pureed\n"
+                                "- Salt to taste"
+                            ),
+                            lines=10,
+                        )
+                        recipe_btn = gr.Button("Parse & Diff", variant="primary")
+                        recipe_result = gr.HTML(
+                    empty_state_enhanced(
+                        "Recipe diff will appear here.",
+                        icon="🍳",
+                    )
                 )
-
-                receipt_df = gr.Dataframe(
-                    headers=["Item", "Quantity", "Unit", "Price"],
-                    datatype=["str", "number", "str", "number"],
-                    column_count=4,
-                    interactive=True,
-                    label="Editable Receipt Draft",
-                )
-                with gr.Row():
-                    receipt_merchant = gr.Textbox(label="Store Name", interactive=True)
-                    receipt_date = gr.Textbox(label="Purchase Date (YYYY-MM-DD)", interactive=True)
-
-                receipt_confirm_btn = gr.Button("Confirm & Add to Inventory", variant="primary")
-                receipt_result = gr.HTML("")
-                receipt_scan_btn.click(
-                    receipt_scan_ocr,
-                    receipt_file,
-                    [receipt_df, receipt_merchant, receipt_date, receipt_raw_text, receipt_status],
-                    api_name="receipt_scan",
-                    api_description="Extract receipt text from uploaded file",
-                )
-                receipt_raw_text.change(
-                    receipt_parse_text,
-                    receipt_raw_text,
-                    [receipt_df, receipt_merchant, receipt_date],
-                    api_name="receipt_parse",
-                    api_description="Parse pasted or OCR'd receipt text into item suggestions",
-                )
-                receipt_confirm_btn.click(
-                    receipt_confirm,
-                    [receipt_df, receipt_merchant, receipt_date, receipt_raw_text],
-                    receipt_result,
-                    api_name="receipt_confirm",
-                    api_description="Confirm parsed receipt lines and add items to inventory",
-                )
-                app.load(_load_ocr_model, outputs=receipt_status)
-
-            # ── From Recipe ──
-            with gr.Tab("From Recipe"):
-                gr.Markdown("### Recipe → Shopping List")
-                gr.Markdown(
-                    "Paste a recipe's ingredients section. The system parses "
-                    "the text, diffs against your inventory, and shows what's "
-                    "missing — paste the missing list into the **Shopping List** "
-                    "tab to add it. (Phase 3 #8 — text-only for now; OCR image "
-                    "upload is future polish.)"
-                )
-                recipe_input = gr.Textbox(
-                    label="Recipe ingredients",
-                    placeholder=(
-                        "- 2 cups rice\n"
-                        "- 1 cup chickpea\n"
-                        "- 1 tsp turmeric\n"
-                        "- 1 onion, chopped\n"
-                        "- 2 tomatoes, pureed\n"
-                        "- Salt to taste"
-                    ),
-                    lines=10,
-                )
-                recipe_btn = gr.Button("Parse & Diff", variant="primary")
-                recipe_result = gr.HTML("")
-                recipe_btn.click(
-                    recipe_text_to_shopping_list,
-                    recipe_input,
-                    recipe_result,
-                    api_name="recipe_to_list",
-                    api_description="Parse pasted recipe text and diff against inventory",
-                )
+                        recipe_btn.click(
+                            recipe_text_to_shopping_list,
+                            recipe_input,
+                            recipe_result,
+                            api_name="recipe_to_list",
+                            api_description="Parse pasted recipe text and diff against inventory",
+                        )
