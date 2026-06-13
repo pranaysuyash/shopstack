@@ -35,3 +35,8 @@ Docs/
 !Docs/README.md
 docs/**
 AGENTS.md
+.playwright-mcp/
+.runtime/
+benchmarks/modal/
+benchmarks/model_lab/
+shopstack/model_lab/

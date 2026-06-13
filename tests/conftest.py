@@ -13,6 +13,18 @@ from shopstack.planner.engine import PlannerEngine
 from shopstack.providers.registry import ProviderRegistry
 from shopstack.tools.registry import ToolRegistry
 
+# Tables to clear between tests that share the session-scoped app module.
+_APP_DATA_TABLES = [
+    "inventory_lots",
+    "shopping_list_items",
+    "shopping_lists",
+    "movement_events",
+    "price_observations",
+    "purchase_events",
+    "traces",
+    "household_locations",
+]
+
 
 @pytest.fixture(autouse=True)
 def _patch_decode_barcode():
@@ -25,6 +37,37 @@ def _patch_decode_barcode():
     """
     with patch("shopstack.scanner.decode_barcode", return_value=[]):
         yield
+
+
+@pytest.fixture(scope="session")
+def _app_session():
+    """Import app module once per session with an in-memory database.
+
+    Importing ``app`` triggers ``shopstack.app_context`` which bootstraps
+    the ``ProviderRegistry`` — an expensive operation (~10s per invocation).
+    Caching at session scope avoids that cost on every test.
+    """
+    import os
+    os.environ.setdefault("SHOPSTACK_DB_PATH", ":memory:")
+    os.environ.setdefault("SHOPSTACK_PLANNER_BACKEND", "mock")
+    import app as _app
+    return _app
+
+
+@pytest.fixture()
+def app(_app_session):
+    """Return the session-scoped app module, clearing all data tables between tests."""
+    app_mod = _app_session
+    conn = app_mod.db.conn
+    conn.execute("PRAGMA foreign_keys = OFF")
+    for table in _APP_DATA_TABLES:
+        conn.execute(f"DELETE FROM {table}")
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.commit()
+    app_mod.db._seed_locations()
+    app_mod.db.active_household_id = ""
+    app_mod.db.set_config_value("active_household_id", "")
+    return app_mod
 
 
 @pytest.fixture()

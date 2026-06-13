@@ -480,6 +480,43 @@ button[role="tab"]:hover {
   box-shadow: var(--shadow-lg);
   color: var(--text);
 }
+.workspace-admin {
+  margin: 8px 0 18px;
+}
+.workspace-admin details,
+details.home-details {
+  background: var(--bg-card-strong);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 0;
+}
+details.home-details {
+  margin-bottom: 12px;
+}
+details.home-details > summary,
+.workspace-admin summary {
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 850;
+  color: var(--text);
+  padding: 16px 18px;
+}
+details.home-details > summary::-webkit-details-marker,
+.workspace-admin summary::-webkit-details-marker {
+  display: none;
+}
+details.home-details[open] > summary,
+.workspace-admin[open] > summary {
+  border-bottom: 1px solid var(--border);
+}
+details.home-details > *:not(summary),
+.workspace-admin > *:not(summary) {
+  padding-left: 18px;
+  padding-right: 18px;
+}
 .stat-card {
   background: var(--bg-card-strong);
   border: 1px solid var(--border);

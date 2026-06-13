@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -27,17 +28,28 @@ class Database:
     def __init__(self, db_path: str | None = None):
         self.db_path = db_path if db_path is not None else settings.db_path
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
-        self._conn: sqlite3.Connection | None = None
+        # Per-thread sqlite3 connections.  ``sqlite3.Connection`` is not
+        # safe to share across threads — even with ``check_same_thread=
+        # False`` concurrent ``execute`` + ``commit`` from anyio worker
+        # threads corrupts cursor state and surfaces as
+        # ``InterfaceError: bad parameter or other API misuse`` or
+        # ``NoneType`` from ``fetchone()`` deep in the call stack.
+        # Each thread opens its own connection to the same file;
+        # WAL mode serialises writes across them.
+        self._local = threading.local()
+        self._init_lock = threading.Lock()
         self._init_db()
 
     @property
     def conn(self) -> sqlite3.Connection:
-        if self._conn is None:
-            self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
-            self._conn.row_factory = sqlite3.Row
-            self._conn.execute("PRAGMA journal_mode=WAL")
-            self._conn.execute("PRAGMA foreign_keys=ON")
-        return self._conn
+        c = getattr(self._local, "conn", None)
+        if c is None:
+            c = sqlite3.connect(self.db_path, check_same_thread=True)
+            c.row_factory = sqlite3.Row
+            c.execute("PRAGMA journal_mode=WAL")
+            c.execute("PRAGMA foreign_keys=ON")
+            self._local.conn = c
+        return c
 
     def _init_db(self) -> None:
         c = self.conn
@@ -600,8 +612,22 @@ class Database:
 
     # --- Shopping List CRUD ---
 
-    def create_shopping_list(self, name: str = "Shopping List", goal: str = "", user_id: str = "") -> ShoppingList:
-        sl = ShoppingList(name=name, goal=goal)
+    def create_shopping_list(
+        self,
+        name: str = "Shopping List",
+        goal: str = "",
+        user_id: str = "",
+        list_id: str | None = None,
+    ) -> ShoppingList:
+        """Create a new shopping list. By default the list_id is auto-generated;
+        callers (e.g. backup restore) can pass ``list_id`` to preserve an
+        existing id from the source DB.
+        """
+        if list_id is not None:
+            sl = ShoppingList(name=name, goal=goal)
+            sl.list_id = list_id
+        else:
+            sl = ShoppingList(name=name, goal=goal)
         self.conn.execute(
             "INSERT INTO shopping_lists (list_id, name, created_at, updated_at, goal, is_active, user_id) VALUES (?, ?, ?, ?, ?, 1, ?)",
             (sl.list_id, sl.name, sl.created_at.isoformat(), sl.updated_at.isoformat(), sl.goal, user_id),
@@ -1170,9 +1196,10 @@ class Database:
         return records
 
     def close(self) -> None:
-        if self._conn:
-            self._conn.close()
-            self._conn = None
+        c = getattr(self._local, "conn", None)
+        if c is not None:
+            c.close()
+            self._local.conn = None
 
     def __enter__(self):
         return self

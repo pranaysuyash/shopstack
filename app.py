@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from datetime import date
+from html import escape
 
 import gradio as gr
 
-from shopstack.ui.screens import today_dashboard, shelf_scan_process, shelf_scan_confirm, shelf_scan_skip, shelf_scan_save_trace
+from shopstack.ui.screens import today_dashboard
 from shopstack.ui.components import workflow_header
 from shopstack.ui.theme import CSS
 from shopstack.ui.tabs.context import TabContext
@@ -14,42 +15,15 @@ from shopstack.ui.tabs.market import build_market_tab
 from shopstack.ui.tabs.reconcile import build_reconcile_tab, ReconcileTabHandles
 from shopstack.ui.tabs.memory import build_memory_tab
 
-# Test-compat shim: many tests use `app.<screen_function>()` as a convenience.
-# Tab builders are the production API; these re-exports exist solely so
-# existing test code (`tests/test_views.py`, `tests/test_traces.py`,
-# `tests/test_screens.py`) works without modification. When the tests are
-# migrated to import screen functions directly from `shopstack.ui.screens`,
-# this block can be removed. See the "Test compatibility" addendum in
-# AGENTS.md for the full migration plan.
-from shopstack.ui.screens import (  # noqa: E402,F401 — test-compat re-exports
-    add_purchase_form,
-    agent_trace_bootstrap,
-    agent_trace_export_file,
-    agent_trace_view,
-    ask_shopstack,
-    complete_shopping_list,
-    confirm_reconciliation,
-    consume_item,
-    field_notes_save,
-    field_notes_view,
-    generate_shopping_poster,
-    household_map_view,
-    inventory_cards_view,
-    inventory_view,
-    market_lens_confirm_buy,
-    market_lens_process,
-    market_lens_save_trace,
-    market_lens_skip,
-    model_budget_view,
-    provider_status_badge,
-    runtime_proof_view,
-    use_soon_view,
+from shopstack.ui.state.household import (
+    create_household_state,
+    hide_add_form,
+    household_choices,
+    show_add_form,
+    switch_household_state,
 )
-from shopstack.ui.screens.other import move_inventory_to_location  # noqa: E402,F401 — test-compat
-
 from pathlib import Path
-from shopstack.app_context import APP_DESCRIPTION, APP_NAME, db, providers, tools, planner, model_registry
-from shopstack.app_context import current_user_id, list_households, switch_household, add_household
+from shopstack.app_context import APP_DESCRIPTION, APP_NAME, current_user_id, db, providers, tools, planner, model_registry
 from shopstack.config import settings
 from shopstack.module_registry import tab_label as _tab_label
 
@@ -119,11 +93,7 @@ def build_app() -> gr.Blocks:
     <h1 class=\"brand-title\">{APP_NAME}</h1>
     <div class=\"brand-subtitle\">{APP_DESCRIPTION}</div>
   </div>
-  <div>
-    <div class=\"env-badge\">{runtime_label}</div>
-    {_model_download_status()}
-    <button onclick=\"toggleTheme()\" aria-label=\"Toggle light/dark theme\" title=\"Toggle theme\" style=\"margin-top:4px;background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 10px;cursor:pointer;font-size:11px;color:var(--text-muted);\">🌓</button>
-  </div>
+  <button onclick=\"toggleTheme()\" aria-label=\"Toggle light/dark theme\" title=\"Toggle theme\" style=\"background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 10px;cursor:pointer;font-size:11px;color:var(--text-muted);\">🌓</button>
 </div>"""
         header_script = """
 <script>
@@ -157,90 +127,56 @@ document.addEventListener('keydown', function(e) {
 </script>"""
         gr.HTML(header_html + header_script, padding=True)
 
-        # ── Household switcher (inline row below header) ──
-        def _household_choices() -> list[tuple[str, str]]:
-            households = list_households()
-            choices = [(h["name"], h["household_id"]) for h in households]
-            return choices
-
-        def _switch_and_refresh(household_id: str) -> tuple:
-            """Switch household, return updated dropdown value + refresh dashboard."""
-            if not household_id:
-                return gr.update(), *today_dashboard()
-            switch_household(household_id)
-            return gr.update(value=household_id), *today_dashboard()
-
-        def _show_add_form() -> gr.update:
-            return gr.update(visible=True)
-
-        def _hide_add_form() -> gr.update:
-            return gr.update(visible=False)
-
-        def _create_household(name: str) -> tuple:
-            """Create a new household, switch to it, and refresh the dashboard."""
-            name = (name or "").strip()
-            if not name:
-                return gr.update(), gr.update(visible=False), *today_dashboard()
-
-            # Slugify the name for a household ID
-            household_id = name.lower().replace(" ", "_")
-            import re
-            household_id = re.sub(r"[^a-z0-9_]", "", household_id)
-            if not household_id:
-                household_id = f"household_{abs(hash(name)) % 10000}"
-
-            created = add_household(household_id, name)
-            if not created:
-                # Household ID collision; append a suffix
-                import random
-                household_id = f"{household_id}_{random.randint(100,999)}"
-                add_household(household_id, name)
-
-            switch_household(household_id)
-            choices = [(h["name"], h["household_id"]) for h in list_households()]
-            return (
-                gr.update(choices=choices, value=household_id),
-                gr.update(visible=False),
-                *today_dashboard(),
-            )
-
-        with gr.Row(variant="compact", elem_classes="household-bar"):
-            household_dropdown = gr.Dropdown(
-                label="Household",
-                choices=_household_choices(),
-                value=current_user_id(),
-                interactive=True,
-                allow_custom_value=True,
-                scale=1,
-            )
-            add_hh_btn = gr.Button(
-                "+",
-                scale=0,
-                min_width=40,
-                elem_classes="household-add-btn",
-            )
+        with gr.Accordion("Workspace", open=False, elem_classes="workspace-admin"):
             gr.HTML(
-                "<div style='display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-dim);'>"
-                "Switch between households or add a new one.</div>",
-                scale=3,
+                f"""
+<div style=\"display:flex;flex-direction:column;gap:8px;margin-bottom:10px;\">
+  <div style=\"font-size:13px;color:var(--text-muted);\">
+    Switch households, create a new workspace, or inspect runtime details when you need the plumbing.
+  </div>
+  <div style=\"display:flex;gap:8px;flex-wrap:wrap;align-items:center;\">
+    <span class=\"badge badge-blue\">{escape(runtime_label)}</span>
+    {_model_download_status()}
+  </div>
+</div>"""
             )
 
-        # Hidden add-household form (shown when + is clicked)
-        with gr.Row(visible=False, variant="compact", elem_classes="household-add-form") as hh_add_row:
-            hh_name_input = gr.Textbox(
-                label="New household name",
-                placeholder="e.g. My Home, Beach House, Office",
-                scale=2,
+            with gr.Row(variant="compact", elem_classes="household-bar"):
+                household_dropdown = gr.Dropdown(
+                    label="Household",
+                    choices=household_choices(),
+                    value=current_user_id(),
+                    interactive=True,
+                    allow_custom_value=True,
+                    scale=1,
+                )
+                add_hh_btn = gr.Button(
+                    "+",
+                    scale=0,
+                    min_width=40,
+                    elem_classes="household-add-btn",
+                )
+                gr.HTML(
+                    "<div style='display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-dim);'>"
+                    "Switch between households or add a new one.</div>",
+                    scale=3,
+                )
+
+            # Hidden add-household form (shown when + is clicked)
+            with gr.Row(visible=False, variant="compact", elem_classes="household-add-form") as hh_add_row:
+                hh_name_input = gr.Textbox(
+                    label="New household name",
+                    placeholder="e.g. My Home, Beach House, Office",
+                    scale=2,
+                )
+                hh_create_btn = gr.Button("Create", variant="primary", scale=0)
+                hh_cancel_btn = gr.Button("Cancel", scale=0, elem_classes="secondary")
+
+            # Refresh dropdown choices on initial load
+            app.load(
+                lambda: gr.update(choices=household_choices(), value=current_user_id()),
+                outputs=household_dropdown,
             )
-            hh_create_btn = gr.Button("Create", variant="primary", scale=0)
-            hh_cancel_btn = gr.Button("Cancel", scale=0, elem_classes="secondary")
-
-
-        # Refresh dropdown choices on initial load
-        app.load(
-            lambda: gr.update(choices=_household_choices(), value=current_user_id()),
-            outputs=household_dropdown,
-        )
 
         # ── 5-tab daily loop: Today → Shopping → Scan & Compare → Pantry → Insights ──
         with gr.Tabs(elem_classes="tabs") as tabs:
@@ -287,7 +223,7 @@ document.addEventListener('keydown', function(e) {
 
         # Wire household dropdown change after all output components are defined
         household_dropdown.change(
-            _switch_and_refresh,
+            switch_household_state,
             household_dropdown,
             [household_dropdown, today_stats, today_soon, today_list, today_low, today_recent, today_changed],
             api_name="switch_household",
@@ -308,19 +244,19 @@ document.addEventListener('keydown', function(e) {
 
         # Wire add-household button and form
         add_hh_btn.click(
-            _show_add_form,
+            show_add_form,
             outputs=hh_add_row,
             api_name="show_add_household",
             api_description="Show the add-household form",
         )
         hh_cancel_btn.click(
-            _hide_add_form,
+            hide_add_form,
             outputs=hh_add_row,
             api_name="cancel_add_household",
             api_description="Hide the add-household form without creating",
         )
         hh_create_btn.click(
-            _create_household,
+            create_household_state,
             hh_name_input,
             [household_dropdown, hh_add_row, today_stats, today_soon, today_list, today_low, today_recent, today_changed],
             api_name="create_household",

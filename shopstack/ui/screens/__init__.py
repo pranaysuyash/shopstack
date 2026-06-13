@@ -121,6 +121,7 @@ __all__ = [
     "ask_shopstack",
     "add_purchase_form",
     "add_purchase_batch",
+    "suggest_location_for_item",
     "inventory_view",
     "inventory_cards_view",
     "consume_item",

@@ -18,7 +18,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from shopstack.app_context import current_user_id
 from shopstack.persistence.database import Database
 from shopstack.repos.shopping_list import ShoppingListRepo
 
@@ -27,6 +26,19 @@ logger = logging.getLogger(__name__)
 
 # Default goal text for restock-driven lists. Real users will edit this.
 _RESTOCK_GOAL = "Auto-created from restock prediction"
+
+
+def _resolve_user_id(db: Database, user_id: str | None) -> str:
+    """Resolve the active household ID.
+
+    Reads from the *passed* ``db`` (not the app_context singleton) so
+    the function is testable with a fresh Database. Falls back to an
+    empty string if no household is set — callers in production
+    should set ``active_household_id`` via the household switcher.
+    """
+    if user_id is not None:
+        return user_id
+    return getattr(db, "active_household_id", "") or ""
 
 
 def add_prediction_to_list(
@@ -44,14 +56,14 @@ def add_prediction_to_list(
         prediction: One element of ``predict_restock_needs()`` output.
             Must have ``canonical_name``; ``typical_qty`` / ``typical_unit``
             are surfaced from the prediction.
-        user_id: Active household. Defaults to ``current_user_id()``.
+        user_id: Active household. Defaults to ``db.active_household_id``.
 
     Returns:
         Dict with ``added`` (bool), ``list_id`` (str), ``item`` (dict),
         ``reason`` (str). Always succeeds if DB is reachable; the only
         failure mode is invalid input.
     """
-    uid = user_id if user_id is not None else current_user_id()
+    uid = _resolve_user_id(db, user_id)
     cname = (prediction.get("canonical_name") or "").strip()
     if not cname:
         return {"added": False, "reason": "missing canonical_name", "list_id": "", "item": {}}

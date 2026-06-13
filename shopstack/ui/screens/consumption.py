@@ -113,7 +113,7 @@ def _render_recent_events(events: list[Any]) -> str:
         name = escape(ev.canonical_name.replace("_", " ").title())
         action = escape(ev.action)
         delta = ev.quantity_delta or 0
-        ts = ev.timestamp[:16] if ev.timestamp else ""
+        ts = ev.timestamp.strftime("%Y-%m-%d %H:%M") if ev.timestamp else ""
         source = escape(ev.source or "")
         sign = "-" if delta < 0 else "+"
         color = "var(--red)" if delta < 0 else "var(--green)"
@@ -147,7 +147,11 @@ def _compute_consumption_rates(uid: str) -> list[dict[str, Any]]:
         if len(evts) < 2:
             continue
         total_consumed = sum(abs(e.quantity_delta or 0) for e in evts)
-        dates = sorted(e.timestamp[:10] for e in evts if e.timestamp)
+        dates = sorted(
+            (e.timestamp.date().isoformat() if hasattr(e.timestamp, "date") else str(e.timestamp)[:10])
+            for e in evts
+            if e.timestamp
+        )
         if len(dates) < 2:
             continue
         first_date = dates[0]

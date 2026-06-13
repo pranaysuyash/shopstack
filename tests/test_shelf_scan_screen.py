@@ -5,7 +5,18 @@ import os
 
 import pytest
 
+from shopstack.app_context import (
+    current_user_id,
+    db as app_db,
+    providers as app_providers,
+)
 from shopstack.schemas.models import Trace
+from shopstack.ui.screens.shelf_scan import (
+    shelf_scan_confirm,
+    shelf_scan_process,
+    shelf_scan_save_trace,
+    shelf_scan_skip,
+)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -38,17 +49,17 @@ def app(_app_session):
 
 def test_shelf_scan_process_and_confirm_updates_inventory(app, monkeypatch):
     monkeypatch.setattr(
-        app.providers.object_detection,
+        app_providers.object_detection,
         "detect",
         lambda _path: [{"label": "toothpaste", "confidence": 0.96, "bbox": [0.1, 0.2, 0.3, 0.4], "class_id": 0}],
     )
     monkeypatch.setattr(
-        app.providers.segmentation,
+        app_providers.segmentation,
         "segment",
         lambda _path: [{"label": "toothpaste", "score": 0.88, "mask": "mask_a", "bbox": [0.1, 0.2, 0.3, 0.4]}],
     )
     monkeypatch.setattr(
-        app.providers.ocr,
+        app_providers.ocr,
         "extract",
         lambda _path: {
             "product_name": "Toothpaste",
@@ -58,7 +69,7 @@ def test_shelf_scan_process_and_confirm_updates_inventory(app, monkeypatch):
         },
     )
 
-    html, scan_state, trace_id, annotated = app.shelf_scan_process("fake-home-scan.jpg", None, "bathroom_cabinet")
+    html, scan_state, trace_id, annotated = shelf_scan_process("fake-home-scan.jpg", None, "bathroom_cabinet")
 
     assert "Home Scan" in html
     assert trace_id
@@ -68,25 +79,25 @@ def test_shelf_scan_process_and_confirm_updates_inventory(app, monkeypatch):
     assert parsed["scene_type"] == "bathroom_cabinet"
     assert parsed["proposed_actions"]
 
-    result = app.shelf_scan_confirm(scan_state, trace_id)
+    result = shelf_scan_confirm(scan_state, trace_id)
     assert "Applied" in result or "Nothing needed" in result
-    items = app.db.get_inventory(user_id=app.current_user_id())
+    items = app_db.get_inventory(user_id=current_user_id())
     assert any(item.canonical_name == "toothpaste" for item in items)
 
 
 def test_shelf_scan_skip_and_save_trace(app, monkeypatch):
     monkeypatch.setattr(
-        app.providers.object_detection,
+        app_providers.object_detection,
         "detect",
         lambda _path: [{"label": "soap", "confidence": 0.86, "bbox": [0.1, 0.2, 0.3, 0.4], "class_id": 0}],
     )
     monkeypatch.setattr(
-        app.providers.segmentation,
+        app_providers.segmentation,
         "segment",
         lambda _path: [{"label": "soap", "score": 0.83, "mask": "mask_b", "bbox": [0.1, 0.2, 0.3, 0.4]}],
     )
     monkeypatch.setattr(
-        app.providers.ocr,
+        app_providers.ocr,
         "extract",
         lambda _path: {
             "product_name": "Soap",
@@ -96,9 +107,9 @@ def test_shelf_scan_skip_and_save_trace(app, monkeypatch):
         },
     )
 
-    _, scan_state, trace_id, _ = app.shelf_scan_process("fake-soap-scan.jpg", None, "bathroom_cabinet")
-    skip = app.shelf_scan_skip(scan_state, trace_id)
-    save = app.shelf_scan_save_trace(scan_state, trace_id)
+    _, scan_state, trace_id, _ = shelf_scan_process("fake-soap-scan.jpg", None, "bathroom_cabinet")
+    skip = shelf_scan_skip(scan_state, trace_id)
+    save = shelf_scan_save_trace(scan_state, trace_id)
 
     assert "Saved this shelf scan" in skip
     assert "saved" in save.lower()

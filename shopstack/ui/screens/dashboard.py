@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from html import escape
 import logging
 
 from shopstack.app_context import APP_DESCRIPTION, APP_NAME, db, tools, current_user_id
@@ -33,6 +34,21 @@ from shopstack.ui.screens.other import inventory_alerts, what_is_in_fridge_now
 logger = logging.getLogger(__name__)
 
 
+def _details_section(title: str, body: str, description: str = "") -> str:
+    description_html = (
+        f"<div class='muted' style='margin:8px 0 12px;'>{escape(description)}</div>"
+        if description
+        else ""
+    )
+    return (
+        "<details class='home-details'>"
+        f"<summary>{escape(title)}</summary>"
+        f"{description_html}"
+        f"{body}"
+        "</details>"
+    )
+
+
 @safe_render
 def today_dashboard():
     uid = current_user_id()
@@ -45,7 +61,6 @@ def today_dashboard():
         render_what_changed,
         render_needs_confirmation,
     )
-    from shopstack.ui.screens.model_stack import runtime_proof_view
 
     state = build_dashboard_state(db, tools.inventory, user_id=uid)
     ds = state.decision_set
@@ -56,11 +71,7 @@ def today_dashboard():
         f"{len(ds.buy)} to buy, {len(ds.skip)} to skip, {len(ds.use_soon)} to use soon.",
         APP_NAME,
     )
-    start_here = _render_today_start_here(state, ds)
     market_chips = _render_market_summary_chips(market_graph)
-    market_next_steps = _render_market_next_steps(market_graph)
-    market_map = _render_market_map_teaser(state, market_graph)
-    runtime_proof = runtime_proof_view()
 
     quick_actions = (
         "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:12px 0 16px 0;'>"
@@ -124,22 +135,39 @@ def today_dashboard():
     )
     onboarding = _render_today_empty_hints(state, ds) if show_empty_hints else _render_today_start_here(state, ds)
 
-    svg_section = ""
-
-    long_grid = (
-        f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px;margin-bottom:10px;'>{inventory_overview}{compare_panel}</div>"
-        + f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;'>{fridge_html}{alert_html}{needs_confirm}{cadence_html}{waste_html}{waste_coach_html}{restock_html}</div>"
-        + f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;'>{deals_html}{drops_html}{best_store_html}{basket_summary_html}</div>"
-        + f"{what_changed}"
+    shopping_path = _details_section(
+        "Shopping path",
+        market_basket,
+        "Use this when you are ready to plan, compare, or build the list.",
+    )
+    attention_panel = _details_section(
+        "What needs attention",
+        decision_panel,
+        "The decisions that most likely deserve a closer look.",
+    )
+    list_snapshot = _details_section(
+        "Shopping list",
+        list_panel,
+        "Your active list, if one is open.",
+    )
+    household_state = _details_section(
+        "Household state",
+        f"{inventory_overview}{fridge_html}{alert_html}{needs_confirm}{what_changed}",
+        "Freshness, inventory, and recent changes live here.",
+    )
+    market_signals = _details_section(
+        "Market signals",
+        f"{_render_compare_preview(market_graph)}{compare_panel}{cadence_html}{waste_html}{waste_coach_html}{restock_html}{deals_html}{drops_html}{best_store_html}{basket_summary_html}",
+        "Deeper price, compare, and substitution cues.",
     )
 
     return [
-        f"{hero}{market_chips}{market_next_steps}{start_here}{quick_actions}{market_map}{loop_actions}{runtime_proof}{onboarding}",
-        decision_panel,
-        svg_section,
-        market_basket,
-        list_panel,
-        long_grid,
+        f"{hero}{market_chips}{onboarding}{quick_actions}{loop_actions}",
+        attention_panel,
+        shopping_path,
+        list_snapshot,
+        household_state,
+        market_signals,
     ]
 
 

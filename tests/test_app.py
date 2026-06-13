@@ -42,7 +42,8 @@ def test_build_app_title(fresh_app):
 
 
 def test_today_dashboard_returns_correct_shape(fresh_app):
-    results = fresh_app.today_dashboard()
+    from shopstack.ui.screens import today_dashboard
+    results = today_dashboard()
     assert len(results) == 6
     for r in results:
         assert isinstance(r, str)
@@ -58,14 +59,26 @@ def test_all_view_functions_importable(fresh_app):
         "build_market_tab",
         "build_reconcile_tab",
         "build_memory_tab",
-        "shelf_scan_process",
-        "shelf_scan_confirm",
-        "shelf_scan_skip",
-        "shelf_scan_save_trace",
     ]
     for name in builders:
         assert hasattr(fresh_app, name), f"app missing {name}"
         callable(getattr(fresh_app, name))
+
+    # Shelf scan functions are screen builders, not tab builders —
+    # verify they're importable from their canonical location.
+    from shopstack.ui.screens import (
+        shelf_scan_confirm,
+        shelf_scan_process,
+        shelf_scan_save_trace,
+        shelf_scan_skip,
+    )
+    for fn in (
+        shelf_scan_process,
+        shelf_scan_confirm,
+        shelf_scan_skip,
+        shelf_scan_save_trace,
+    ):
+        assert callable(fn)
 
 
 def test_build_app_appears_to_have_tabs(fresh_app):

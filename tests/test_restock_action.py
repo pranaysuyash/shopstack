@@ -55,23 +55,21 @@ def _prediction(cname: str = "milk", **overrides) -> dict:
 class TestAddPredictionToList:
     def test_creates_list_when_none_exists(self, fresh_db):
         db, _ = fresh_db
-        db.set_config_value("active_household_id", "hh1")
+        db.active_household_id = "hh1"
         result = add_prediction_to_list(db, _prediction("milk"))
         assert result["added"] is True
         assert result["list_id"]
-        # Verify the list was created with the item
-        items = db.get_list_items(result["list_id"], user_id="hh1")
-        assert any(it.canonical_name == "milk" for it in items)
+        sl = db.get_active_shopping_list(user_id="hh1")
+        assert sl is not None
+        assert any(it.canonical_name == "milk" for it in (sl.items or []))
 
     def test_appends_to_existing_list(self, fresh_db):
         db, _ = fresh_db
-        db.set_config_value("active_household_id", "hh1")
-        # First prediction → creates the list
+        db.active_household_id = "hh1"
         add_prediction_to_list(db, _prediction("milk"))
-        # Second prediction → appends to the same list
         result = add_prediction_to_list(db, _prediction("bread"))
-        items = db.get_list_items(result["list_id"], user_id="hh1")
-        names = {it.canonical_name for it in items}
+        sl = db.get_active_shopping_list(user_id="hh1")
+        names = {it.canonical_name for it in (sl.items or [])}
         assert "milk" in names
         assert "bread" in names
 
@@ -84,31 +82,31 @@ class TestAddPredictionToList:
 
     def test_overdue_urgency_maps_to_must_buy(self, fresh_db):
         db, _ = fresh_db
-        db.set_config_value("active_household_id", "hh1")
+        db.active_household_id = "hh1"
         result = add_prediction_to_list(db, _prediction("tomato", urgency="overdue"))
         assert result["item"]["priority"] == "must_buy"
 
     def test_due_today_urgency_maps_to_must_buy(self, fresh_db):
         db, _ = fresh_db
-        db.set_config_value("active_household_id", "hh1")
+        db.active_household_id = "hh1"
         result = add_prediction_to_list(db, _prediction("milk", urgency="due_today"))
         assert result["item"]["priority"] == "must_buy"
 
     def test_due_soon_urgency_maps_to_optional(self, fresh_db):
         db, _ = fresh_db
-        db.set_config_value("active_household_id", "hh1")
+        db.active_household_id = "hh1"
         result = add_prediction_to_list(db, _prediction("rice", urgency="due_soon"))
         assert result["item"]["priority"] == "optional"
 
     def test_unknown_urgency_defaults_to_optional(self, fresh_db):
         db, _ = fresh_db
-        db.set_config_value("active_household_id", "hh1")
+        db.active_household_id = "hh1"
         result = add_prediction_to_list(db, _prediction("oil", urgency="some_future_state"))
         assert result["item"]["priority"] == "optional"
 
     def test_quantity_and_unit_propagate(self, fresh_db):
         db, _ = fresh_db
-        db.set_config_value("active_household_id", "hh1")
+        db.active_household_id = "hh1"
         result = add_prediction_to_list(
             db,
             _prediction("rice", typical_qty=5.0, typical_unit="kg"),
@@ -118,7 +116,7 @@ class TestAddPredictionToList:
 
     def test_default_quantity_is_one(self, fresh_db):
         db, _ = fresh_db
-        db.set_config_value("active_household_id", "hh1")
+        db.active_household_id = "hh1"
         result = add_prediction_to_list(
             db,
             _prediction("salt", typical_qty=None, typical_unit=None),
@@ -128,7 +126,7 @@ class TestAddPredictionToList:
 
     def test_reason_gets_prediction_suffix(self, fresh_db):
         db, _ = fresh_db
-        db.set_config_value("active_household_id", "hh1")
+        db.active_household_id = "hh1"
         result = add_prediction_to_list(
             db,
             _prediction("onion", reason="Custom reason from somewhere"),
@@ -138,16 +136,13 @@ class TestAddPredictionToList:
 
     def test_household_scoping(self, fresh_db):
         db, _ = fresh_db
-        db.set_config_value("active_household_id", "hh1")
+        db.active_household_id = "hh1"
         result1 = add_prediction_to_list(db, _prediction("milk"))
-        # Switch household and add a different item
-        db.set_config_value("active_household_id", "hh2")
+        db.active_household_id = "hh2"
         result2 = add_prediction_to_list(db, _prediction("bread"))
-        # hh1 should still see only milk
-        items1 = db.get_list_items(result1["list_id"], user_id="hh1")
-        names1 = {it.canonical_name for it in items1}
+        sl1 = db.get_active_shopping_list(user_id="hh1")
+        names1 = {it.canonical_name for it in (sl1.items or [])}
         assert names1 == {"milk"}
-        # hh2 should see only bread
-        items2 = db.get_list_items(result2["list_id"], user_id="hh2")
-        names2 = {it.canonical_name for it in items2}
+        sl2 = db.get_active_shopping_list(user_id="hh2")
+        names2 = {it.canonical_name for it in (sl2.items or [])}
         assert names2 == {"bread"}

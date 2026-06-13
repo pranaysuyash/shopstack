@@ -1,24 +1,21 @@
 """Tests for screen modules — inventory, other, market_lens, and _utils.
 
-Follows the same ``app`` fixture pattern as ``test_views.py`` for integration
-tests, and uses direct imports for pure utility functions.
-
-Note on the import pattern:
-- Functions available via ``app.*`` are the ones explicitly re-exported in
-  ``app.py`` (via ``from shopstack.ui.screens import ...``).
-- Functions missing from ``app.py`` are imported directly from their screen
-  module.  Both work because ``app.py`` already bootstraps
-  ``shopstack.app_context`` (db, tools, etc.).
+The ``app`` and ``_app_session`` fixtures are provided by conftest.py.
+Screen functions are imported directly from their modules.
 """
 
 from __future__ import annotations
 
 import json
-import os
 from datetime import date, timedelta
 
 import pytest
 
+from shopstack.app_context import (
+    current_user_id,
+    db as app_db,
+    tools as app_tools,
+)
 from shopstack.schemas.models import InventoryLot, Trace
 from shopstack.ui.screens.inventory import add_purchase_batch, consume_items_batch
 from shopstack.ui.screens.price_memory import price_intelligence_view
@@ -28,49 +25,6 @@ from shopstack.ui.screens.market_lens import (
     market_lens_save_trace,
     market_lens_barcode_add,
 )
-
-
-# ── Session-level env setter (same pattern as test_views.py) ──────────────
-
-@pytest.fixture(scope="session", autouse=True)
-def _set_test_env():
-    os.environ["SHOPSTACK_DB_PATH"] = ":memory:"
-    yield
-
-
-@pytest.fixture(scope="session")
-def _app_session():
-    """Import app module once per session with an in-memory database.
-
-    Importing ``app`` triggers ``shopstack.app_context`` which bootstraps
-    the ``ProviderRegistry`` — an expensive operation (~10s per invocation).
-    Caching it at session scope avoids the 5-10 second cost on every test.
-    """
-    import app as _app
-    return _app
-
-
-@pytest.fixture
-def app(_app_session):
-    """Return the session-scoped app, clearing all data tables between tests."""
-    """Return the session-scoped app, clearing all data tables between tests."""
-    app_mod = _app_session
-    conn = app_mod.db.conn
-    # Disable foreign keys so we can clear tables in any order
-    conn.execute("PRAGMA foreign_keys = OFF")
-    for table in ["inventory_lots", "shopping_list_items", "shopping_lists",
-                  "movement_events", "price_observations", "purchase_events",
-                  "traces", "household_locations"]:
-        conn.execute(f"DELETE FROM {table}")
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.commit()
-    # Re-seed locations so tests that depend on seeded locations still work
-    app_mod.db._seed_locations()
-    # Clear any active household so screen builder queries return all data
-    # (matching the pre-scoping test behavior). Tests that need household
-    # scoping can set app_mod.db.active_household_id explicitly.
-    app_mod.db.set_config_value("active_household_id", "")
-    return app_mod
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -90,7 +44,7 @@ class TestAddPurchaseBatch:
         result = add_purchase_batch("Almonds,0.5,kg,350.0,Nut Store,pantry,dry fruits")
         assert "Added" in result
         assert "Almonds" in result
-        assert app.db.get_inventory(user_id=app.current_user_id())
+        assert app_db.get_inventory(user_id=current_user_id())
 
     def test_csv_multiple_rows(self, app):
         batch = "Mango,2,kg,120.0,Fruit Shop,fridge,fruit\nBanana,1,dozen,60.0,Fruit Shop,fridge_top,fruit"
@@ -147,7 +101,7 @@ class TestAddPurchaseBatch:
     def test_records_price_observation(self, app):
         result = add_purchase_batch("Butter,0.5,kg,120.0,Dairy Shop,fridge,dairy")
         assert "Added" in result
-        prices = app.db.conn.execute(
+        prices = app_db.conn.execute(
             "SELECT * FROM price_observations WHERE store_name = 'Dairy Shop'"
         ).fetchall()
         assert len(prices) == 1
@@ -163,7 +117,7 @@ class TestSeedDemoInventory:
         from shopstack.ui.screens.inventory import seed_demo_inventory
         result = seed_demo_inventory()
         assert "Loaded demo stock" in result
-        items = app.db.get_inventory()
+        items = app_db.get_inventory()
         assert len(items) > 0
 
     def test_does_not_seed_twice(self, app):
@@ -175,7 +129,7 @@ class TestSeedDemoInventory:
     def test_records_price_observations(self, app):
         from shopstack.ui.screens.inventory import seed_demo_inventory
         seed_demo_inventory()
-        prices = app.db.conn.execute(
+        prices = app_db.conn.execute(
             "SELECT COUNT(*) as cnt FROM price_observations"
         ).fetchone()["cnt"]
         assert prices > 0
@@ -196,21 +150,21 @@ class TestConsumeItemsBatch:
         assert "No valid lines" in result
 
     def test_consume_one_item(self, app):
-        app.db.add_inventory_lot(
+        app_db.add_inventory_lot(
             InventoryLot(canonical_name="salt", display_name="Salt", quantity=2.0, unit="kg")
         )
-        lot_id = app.db.get_inventory()[0].lot_id
+        lot_id = app_db.get_inventory()[0].lot_id
         result = consume_items_batch(f"{lot_id}:0.5")
         assert "remaining 1.5" in result
 
     def test_consume_multiple(self, app):
-        app.db.add_inventory_lot(
+        app_db.add_inventory_lot(
             InventoryLot(canonical_name="salt", display_name="Salt", quantity=2.0, unit="kg")
         )
-        app.db.add_inventory_lot(
+        app_db.add_inventory_lot(
             InventoryLot(canonical_name="sugar", display_name="Sugar", quantity=1.0, unit="kg")
         )
-        lots = app.db.get_inventory()
+        lots = app_db.get_inventory()
         # get_inventory returns ORDER BY created_at DESC — sugar first
         result = consume_items_batch(f"{lots[0].lot_id}:1.0\n{lots[1].lot_id}:0.5")
         assert "remaining 1.5" in result
@@ -218,10 +172,10 @@ class TestConsumeItemsBatch:
 
     def test_default_quantity(self, app):
         """When no quantity specified after colon, defaults to 1."""
-        app.db.add_inventory_lot(
+        app_db.add_inventory_lot(
             InventoryLot(canonical_name="salt", display_name="Salt", quantity=3.0, unit="kg")
         )
-        lot_id = app.db.get_inventory()[0].lot_id
+        lot_id = app_db.get_inventory()[0].lot_id
         result = consume_items_batch(lot_id)  # no colon, no qty
         assert "remaining" in result
 
@@ -230,18 +184,18 @@ class TestConsumeItemsBatch:
         assert "❌" in result
 
     def test_skips_empty_lines(self, app):
-        app.db.add_inventory_lot(
+        app_db.add_inventory_lot(
             InventoryLot(canonical_name="salt", display_name="Salt", quantity=2.0, unit="kg")
         )
-        lot_id = app.db.get_inventory()[0].lot_id
+        lot_id = app_db.get_inventory()[0].lot_id
         result = consume_items_batch(f"{lot_id}:0.5\n\n\n")
         assert "remaining" in result
 
     def test_escapes_html(self, app):
-        app.db.add_inventory_lot(
+        app_db.add_inventory_lot(
             InventoryLot(canonical_name="salt", display_name="Salt", quantity=2.0, unit="kg")
         )
-        lot_id = app.db.get_inventory()[0].lot_id
+        lot_id = app_db.get_inventory()[0].lot_id
         result = consume_items_batch(f"{lot_id}:0.5")
         assert "alert(" not in result
 
@@ -256,17 +210,17 @@ class TestPriceIntelligenceView:
         assert "No price intelligence yet" in result
 
     def test_single_item_no_comparison(self, app):
-        app.tools.record_price_observation(
+        app_tools.record_price_observation(
             canonical_name="milk", price=64.0, quantity=2.0, unit="L", store_name="Shop A"
         )
         result = price_intelligence_view()
         assert "No price intelligence" in result
 
     def test_with_store_comparison(self, app):
-        app.tools.record_price_observation(
+        app_tools.record_price_observation(
             canonical_name="milk", price=64.0, quantity=2.0, unit="L", store_name="Shop A"
         )
-        app.tools.record_price_observation(
+        app_tools.record_price_observation(
             canonical_name="milk", price=100.0, quantity=2.0, unit="L", store_name="Shop B"
         )
         result = price_intelligence_view()
@@ -279,12 +233,12 @@ class TestPriceIntelligenceView:
         # Use direct DB insertion with different dates (record_price_observation
         # always uses date.today())
         from shopstack.schemas.models import PriceObservation
-        app.db.record_price(PriceObservation(
+        app_db.record_price(PriceObservation(
             canonical_name="rice", price=80.0, quantity=1.0, unit="kg",
             store_name="Store X",
             observation_date=date.today() - timedelta(days=7),
         ))
-        app.db.record_price(PriceObservation(
+        app_db.record_price(PriceObservation(
             canonical_name="rice", price=60.0, quantity=1.0, unit="kg",
             store_name="Store X",
             observation_date=date.today(),
@@ -295,10 +249,10 @@ class TestPriceIntelligenceView:
     def test_different_units_normalize(self, app):
         """Gram-based prices should be normalized to per-kg."""
         # 200g at ₹50 → ₹250/kg; 1kg at ₹300 → ₹300/kg — gap >5% so comparison shows
-        app.tools.record_price_observation(
+        app_tools.record_price_observation(
             canonical_name="paneer", price=50.0, quantity=200.0, unit="g", store_name="Store A"
         )
-        app.tools.record_price_observation(
+        app_tools.record_price_observation(
             canonical_name="paneer", price=300.0, quantity=1.0, unit="kg", store_name="Store B"
         )
         result = price_intelligence_view()
@@ -306,10 +260,10 @@ class TestPriceIntelligenceView:
 
     def test_escapes_html(self, app):
         # Need 2+ observations with different store prices to trigger comparisons
-        app.tools.record_price_observation(
+        app_tools.record_price_observation(
             canonical_name="<script>x</script>", price=50.0, quantity=1.0, unit="kg", store_name="Store A"
         )
-        app.tools.record_price_observation(
+        app_tools.record_price_observation(
             canonical_name="<script>x</script>", price=100.0, quantity=1.0, unit="kg", store_name="Store B"
         )
         result = price_intelligence_view()
@@ -321,7 +275,7 @@ class TestCreateHouseholdLocation:
         from shopstack.ui.screens.other import create_household_location
         result = create_household_location("Pantry Shelf", "", "shelf")
         assert "Created location" in result
-        locs = app.db.get_locations()
+        locs = app_db.get_locations()
         names = [loc.name for loc in locs]
         assert "Pantry Shelf" in names
 
@@ -338,11 +292,11 @@ class TestCreateHouseholdLocation:
 
     def test_nested_under_parent(self, app):
         from shopstack.ui.screens.other import create_household_location
-        locs = app.db.get_locations()
+        locs = app_db.get_locations()
         parent_id = locs[0].location_id
         result = create_household_location("New Drawer", parent_id, "drawer")
         assert "Created location" in result
-        created = [loc for loc in app.db.get_locations() if loc.name == "New Drawer"]
+        created = [loc for loc in app_db.get_locations() if loc.name == "New Drawer"]
         assert len(created) == 1
         assert created[0].parent_location_id == parent_id
 
@@ -375,29 +329,29 @@ class TestMoveInventoryToLocation:
 
     def test_move_successful(self, app):
         from shopstack.ui.screens.other import move_inventory_to_location
-        app.db.add_inventory_lot(
+        app_db.add_inventory_lot(
             InventoryLot(
                 canonical_name="rice", display_name="Basmati Rice",
                 quantity=2.0, unit="kg", storage_location_id="pantry",
             )
         )
-        lot = app.db.get_inventory()[0]
+        lot = app_db.get_inventory()[0]
         # Find a different location to move to
-        locs = app.db.get_locations()
+        locs = app_db.get_locations()
         target = [loc for loc in locs if loc.location_id != "pantry"][0]
         result = move_inventory_to_location(lot.lot_id, target.location_id)
         assert "Moved item" in result
 
     def test_escapes_html(self, app):
         from shopstack.ui.screens.other import move_inventory_to_location
-        app.db.add_inventory_lot(
+        app_db.add_inventory_lot(
             InventoryLot(
                 canonical_name="rice", display_name="Rice",
                 quantity=1.0, unit="kg", storage_location_id="pantry",
             )
         )
-        lot = app.db.get_inventory()[0]
-        locs = app.db.get_locations()
+        lot = app_db.get_inventory()[0]
+        locs = app_db.get_locations()
         target = [loc for loc in locs if loc.location_id != "pantry"][0]
         result = move_inventory_to_location(lot.lot_id, target.location_id)
         assert "alert(" not in result
@@ -411,13 +365,13 @@ class TestWhatsInFridgeNow:
 
     def test_shows_fridge_items(self, app):
         from shopstack.ui.screens.other import what_is_in_fridge_now
-        app.db.add_inventory_lot(
+        app_db.add_inventory_lot(
             InventoryLot(
                 canonical_name="milk", display_name="Milk",
                 quantity=2.0, unit="L", storage_location_id="fridge",
             )
         )
-        app.db.add_inventory_lot(
+        app_db.add_inventory_lot(
             InventoryLot(
                 canonical_name="curd", display_name="Curd",
                 quantity=0.5, unit="kg", storage_location_id="fridge",
@@ -429,7 +383,7 @@ class TestWhatsInFridgeNow:
 
     def test_does_not_show_pantry_items(self, app):
         from shopstack.ui.screens.other import what_is_in_fridge_now
-        app.db.add_inventory_lot(
+        app_db.add_inventory_lot(
             InventoryLot(
                 canonical_name="rice", display_name="Rice",
                 quantity=5.0, unit="kg", storage_location_id="pantry",
@@ -442,7 +396,7 @@ class TestWhatsInFridgeNow:
     def test_shows_nested_fridge_locations(self, app):
         """Items in fridge_top or fridge_door should also show up."""
         from shopstack.ui.screens.other import what_is_in_fridge_now
-        app.db.add_inventory_lot(
+        app_db.add_inventory_lot(
             InventoryLot(
                 canonical_name="eggs", display_name="Eggs",
                 quantity=12.0, unit="pieces", storage_location_id="fridge_top",
@@ -453,7 +407,7 @@ class TestWhatsInFridgeNow:
 
     def test_escapes_html(self, app):
         from shopstack.ui.screens.other import what_is_in_fridge_now
-        app.db.add_inventory_lot(
+        app_db.add_inventory_lot(
             InventoryLot(
                 canonical_name="milk", display_name="Milk",
                 quantity=2.0, unit="L", storage_location_id="fridge",
@@ -471,7 +425,7 @@ class TestInventoryAlerts:
 
     def test_low_stock_alert(self, app):
         from shopstack.ui.screens.other import inventory_alerts
-        app.db.add_inventory_lot(
+        app_db.add_inventory_lot(
             InventoryLot(canonical_name="salt", display_name="Salt", quantity=0.3, unit="kg")
         )
         result = inventory_alerts()
@@ -480,7 +434,7 @@ class TestInventoryAlerts:
 
     def test_low_status_alert(self, app):
         from shopstack.ui.screens.other import inventory_alerts
-        app.db.add_inventory_lot(
+        app_db.add_inventory_lot(
             InventoryLot(canonical_name="oil", display_name="Oil", quantity=0.8, unit="L", status="low")
         )
         result = inventory_alerts()
@@ -489,7 +443,7 @@ class TestInventoryAlerts:
     def test_stale_item_alert(self, app):
         from shopstack.ui.screens.other import inventory_alerts
         old_date = date.today() - timedelta(days=10)
-        app.db.add_inventory_lot(
+        app_db.add_inventory_lot(
             InventoryLot(canonical_name="bread", display_name="Bread", quantity=1.0, unit="loaf", purchase_date=old_date)
         )
         result = inventory_alerts(days_since_purchase=5)
@@ -499,7 +453,7 @@ class TestInventoryAlerts:
         """Should use default of 3 days."""
         from shopstack.ui.screens.other import inventory_alerts
         old_date = date.today() - timedelta(days=4)
-        app.db.add_inventory_lot(
+        app_db.add_inventory_lot(
             InventoryLot(canonical_name="bread", display_name="Bread", quantity=1.0, unit="loaf", purchase_date=old_date)
         )
         result = inventory_alerts()  # uses default days=3
@@ -509,7 +463,7 @@ class TestInventoryAlerts:
         """days_since_purchase <= 0 should be clamped to 3."""
         from shopstack.ui.screens.other import inventory_alerts
         old_date = date.today() - timedelta(days=1)
-        app.db.add_inventory_lot(
+        app_db.add_inventory_lot(
             InventoryLot(canonical_name="bread", display_name="Bread", quantity=1.0, unit="loaf", purchase_date=old_date)
         )
         result = inventory_alerts(days_since_purchase=0)
@@ -519,7 +473,7 @@ class TestInventoryAlerts:
     def test_multiple_alert_types(self, app):
         from shopstack.ui.screens.other import inventory_alerts
         old_date = date.today() - timedelta(days=7)
-        app.db.add_inventory_lot(
+        app_db.add_inventory_lot(
             InventoryLot(canonical_name="milk", display_name="Milk", quantity=0.3, unit="L", purchase_date=old_date)
         )
         result = inventory_alerts(days_since_purchase=3)
@@ -527,7 +481,7 @@ class TestInventoryAlerts:
 
     def test_escapes_html(self, app):
         from shopstack.ui.screens.other import inventory_alerts
-        app.db.add_inventory_lot(
+        app_db.add_inventory_lot(
             InventoryLot(canonical_name="salt", display_name="Salt", quantity=0.3, unit="kg")
         )
         result = inventory_alerts()
@@ -561,7 +515,7 @@ class TestMarketLensConfirmBuy:
         })
         result = market_lens_confirm_buy(data, "")
         assert "Added 2 item(s)" in result
-        sl = app.db.get_active_shopping_list()
+        sl = app_db.get_active_shopping_list()
         assert sl is not None
         names = [i.canonical_name for i in sl.items]
         assert "milk" in names
@@ -588,8 +542,8 @@ class TestMarketLensSkip:
         assert "Saved skip decision" in result
 
     def test_skip_with_trace(self, app):
-        app.db.save_trace(Trace(input_type="vision", user_goal="market_lens", final_response="test"))
-        trace = app.db.get_traces()[0]
+        app_db.save_trace(Trace(input_type="vision", user_goal="market_lens", final_response="test"))
+        trace = app_db.get_traces()[0]
         result = market_lens_skip('{"items":[]}', trace.trace_id)
         assert "Saved skip decision" in result
 
@@ -600,8 +554,8 @@ class TestMarketLensSaveTrace:
         assert "No trace to save" in result
 
     def test_saves_trace(self, app):
-        app.db.save_trace(Trace(input_type="vision", user_goal="market_lens", final_response="test"))
-        trace = app.db.get_traces()[0]
+        app_db.save_trace(Trace(input_type="vision", user_goal="market_lens", final_response="test"))
+        trace = app_db.get_traces()[0]
         result = market_lens_save_trace('{"items":[]}', trace.trace_id)
         assert "Trace" in result
         assert "saved" in result.lower()
@@ -625,7 +579,7 @@ class TestMarketLensBarcodeAdd:
         result = market_lens_barcode_add(data)
         assert "Added 1 barcode" in result
         assert "Test Product" in result
-        items = app.db.get_inventory(user_id=app.current_user_id())
+        items = app_db.get_inventory(user_id=current_user_id())
         assert any("test product" in i.canonical_name for i in items)
 
     def test_adds_multiple_barcodes(self, app):
@@ -809,12 +763,12 @@ class TestRenderListSummary:
         assert "List is empty" in result
 
     def test_with_items(self, app):
-        app.tools.create_or_update_shopping_list(
+        app_tools.create_or_update_shopping_list(
             items=[{"canonical_name": "milk", "requested_quantity": 2.0}],
             goal="Weekly shop",
-            user_id=app.current_user_id(),
+            user_id=current_user_id(),
         )
-        sl = app.db.get_active_shopping_list(user_id=app.current_user_id())
+        sl = app_db.get_active_shopping_list(user_id=current_user_id())
         from shopstack.ui.screens._utils import render_list_summary
         result = render_list_summary(sl)
         assert "shopping list" in result.lower()
@@ -878,11 +832,11 @@ class TestRenderLowStock:
         assert render_low_stock([]) == ""
 
     def test_with_items(self, app):
-        app.db.add_inventory_lot(
+        app_db.add_inventory_lot(
             InventoryLot(canonical_name="salt", display_name="Salt", quantity=0.3, unit="kg")
         )
         from shopstack.ui.screens._utils import render_low_stock
-        result = render_low_stock(app.db.get_inventory())
+        result = render_low_stock(app_db.get_inventory())
         assert "Salt" in result
         assert "0.3" in result
 
@@ -895,11 +849,11 @@ class TestRenderRecentPurchases:
     def test_with_purchases(self, app):
         from shopstack.schemas.models import PurchaseEvent
         from shopstack.ui.screens._utils import render_recent_purchases
-        app.db.add_purchase_event(PurchaseEvent(
+        app_db.add_purchase_event(PurchaseEvent(
             canonical_name="milk", quantity=2.0, unit="L",
             total_price=64.0, store_name="Store A",
         ))
-        purchases = app.db.get_purchase_events(limit=5)
+        purchases = app_db.get_purchase_events(limit=5)
         assert purchases  # data exists
         result = render_recent_purchases(purchases)
         assert "milk" in result.lower()

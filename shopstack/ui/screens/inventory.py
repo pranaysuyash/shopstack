@@ -7,9 +7,10 @@ from html import escape
 from typing import Any
 
 from shopstack.app_context import db, tools
+from shopstack.services.storage_suggest import suggest_storage_location
 from shopstack.traces.export import create_trace
 from shopstack.ui.components.cards import empty_state, list_to_table
-from shopstack.ui.components.primitives import item_row
+from shopstack.ui.components.primitives import item_row, toast
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,23 @@ def _search_inventory_items(search: str) -> tuple[list[Any], str]:
         seen.add(lot_id)
 
     return semantic_matches, "semantic" if semantic_matches else "none"
+
+
+def suggest_location_for_item(name: str, category: str) -> str:
+    """Gradio handler: suggest a storage location for a new inventory item.
+
+    Returns a short toast that includes the suggested location ID and a
+    human-readable reason. The UI can use the location_id as the
+    storage_location_id field value via a follow-up `.then()` chain.
+    """
+    suggestion = suggest_storage_location(
+        canonical_name=(name or "").strip().lower(),
+        category=(category or "").strip(),
+    )
+    return toast(
+        f"Suggested: {suggestion.storage_location_id} ({suggestion.reason})",
+        kind="info",
+    )
 
 
 def add_purchase_form(
