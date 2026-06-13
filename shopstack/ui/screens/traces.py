@@ -86,9 +86,15 @@ def _trace_timeline_html(trace) -> str:
     planner_debug = d_dict.get("planner_debug") or d_dict.get("debug") or {}
     if not isinstance(planner_debug, dict):
         planner_debug = {}
-    provider_debug = planner_debug.get("provider") if isinstance(planner_debug.get("provider"), dict) else {}
-    parser_debug = planner_debug.get("parser") if isinstance(planner_debug.get("parser"), dict) else {}
-    execution_debug = planner_debug.get("execution") if isinstance(planner_debug.get("execution"), dict) else {}
+    provider_debug: dict[str, Any] = (  # type: ignore[assignment]
+        planner_debug.get("provider") if isinstance(planner_debug.get("provider"), dict) else {}
+    )
+    parser_debug: dict[str, Any] = (  # type: ignore[assignment]
+        planner_debug.get("parser") if isinstance(planner_debug.get("parser"), dict) else {}
+    )
+    execution_debug: dict[str, Any] = (  # type: ignore[assignment]
+        planner_debug.get("execution") if isinstance(planner_debug.get("execution"), dict) else {}
+    )
     
     final_action = d_dict.get("action", "No decision recorded")
     confidence = d_dict.get("confidence", 0.0)

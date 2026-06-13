@@ -6,6 +6,16 @@ of a recipe, the parser (in ``shopstack.services.recipe_text_parser``)
 turns it into structured rows, and the screen diffs against the
 household's inventory to surface what's missing.
 
+This module provides TWO Gradio-friendly entry points:
+
+  * :func:`recipe_text_to_shopping_list` — read-only diff view
+    (the original v1; renders a "have / need" table for the user
+    to read).
+  * :func:`recipe_text_add_missing_to_list` — one-click action
+    that pushes the missing ingredients into the active shopping
+    list and returns a status toast (added 2026-06-13; closes the
+    loop the v1 left open).
+
 Future: extend the same screen with an image upload that runs the
 existing OCR pipeline first and then feeds the OCR text into this same
 parser. The screen's input is just text.
@@ -19,7 +29,7 @@ from typing import Any
 
 from shopstack.app_context import db, tools
 from shopstack.repos.inventory import InventoryRepo
-from shopstack.services.recipe_text_parser import parse_recipe_text
+from shopstack.services.recipe_text_parser import parse_recipe_text, text_to_shopping_items
 from shopstack.services.recipes import missing_to_shopping_items
 from shopstack.ui.components.primitives import toast
 from shopstack.persistence.database import Database as _Database
@@ -105,4 +115,167 @@ def _active_household_id() -> str:
     return current_user_id()
 
 
-__all__ = ["recipe_text_to_shopping_list"]
+def recipe_text_add_missing_to_list(raw_text: str) -> str:
+    """Parse ``raw_text``, add missing ingredients to the active shopping list.
+
+    Closes the loop that the original v1 left open: the user pastes
+    a recipe, taps this button, and the missing items show up in
+    their shopping list with a status toast confirming the count.
+
+    Flow:
+      1. Parse the text via :func:`text_to_shopping_items` (the
+         same canonical-name-aware parser the diff view uses).
+      2. Compute the household's current pantry to filter out
+         items the user already has.
+      3. Resolve the active shopping list (auto-create if none
+         exists, mirroring :func:`cookbook.shop_missing`).
+      4. Insert each missing item via ``db.add_list_item``.
+      5. Return a toast with the count and a one-line summary.
+
+    Best-effort: any DB error returns an error toast so the UI
+    never crashes. The original v1 doc's "user can paste the
+    missing list into the shopping-list form" is now unnecessary
+    — the action does it in one click.
+
+    Args:
+        raw_text: Free-form recipe ingredients (the same input
+            the diff view parses).
+
+    Returns:
+        HTML status string for the Gradio HTML output component.
+    """
+    if not raw_text or not raw_text.strip():
+        return toast("Paste a recipe first.", kind="warning")
+
+    # Step 1: parse to canonical shopping items
+    try:
+        items = text_to_shopping_items(raw_text)
+    except Exception as exc:
+        logger.warning("recipe_text_add_missing_to_list: parse failed: %s", exc)
+        return toast(f"Couldn't parse that recipe: {exc}", kind="error")
+    if not items:
+        return toast(
+            "No ingredients detected in that text. Try a list with lines like "
+            "'- 2 cups rice' or '- 1 onion'.",
+            kind="warning",
+        )
+
+    # Step 2: figure out what the household already has, so we only add missing
+    try:
+        uid = _active_household_id()
+        have_map: dict[str, float] = {}
+        for lot in db.get_inventory(user_id=uid):
+            cname = (lot.canonical_name or "").strip().lower()
+            if not cname:
+                continue
+            have_map[cname] = have_map.get(cname, 0.0) + float(lot.quantity or 0)
+        # Reuse the cookbook matcher to get the structured miss/have split.
+        from shopstack.services.recipes import Recipe as _Recipe
+        from shopstack.services.recipes import RecipeIngredient as _Ing
+        # Build a synthetic single-recipe Recipe to feed the cookbook matcher.
+        # This gives us a "consistent missing-only" computation.
+        synthetic = _Recipe(
+            id="__recipe_text__",
+            name="Recipe Text",
+            cuisine="",
+            dietary=[],
+            prep_minutes=0,
+            cook_minutes=0,
+            serves=1,
+            tags=[],
+            ingredients=[
+                _Ing(canonical_name=str(it.get("canonical_name", "")).strip().lower(),
+                     quantity=float(it.get("requested_quantity") or 1),
+                     unit=str(it.get("unit") or "unit"))
+                for it in items
+            ],
+            instructions=[],
+        )
+        # Translate the household's have_map into synthetic InventoryLot-like
+        # objects so the matcher's lookup works.
+        from dataclasses import dataclass
+        @dataclass
+        class _Lot:
+            canonical_name: str
+            quantity: float
+        synthetic_inv = [_Lot(canonical_name=k, quantity=v) for k, v in have_map.items()]
+        from shopstack.services.recipes import match_recipe as _match_recipe
+        match = _match_recipe(synthetic, synthetic_inv, None)
+        missing_items = [
+            {
+                "canonical_name": ing.canonical_name,
+                "requested_quantity": ing.quantity,
+                "unit": ing.unit,
+            }
+            for ing in match.missing
+        ]
+    except Exception as exc:
+        logger.warning("recipe_text_add_missing_to_list: diff failed: %s", exc)
+        # If the diff fails, fall back to adding ALL parsed items
+        # (the user can de-dup manually).
+        missing_items = items
+
+    if not missing_items:
+        return toast(
+            "✓ You already have every ingredient for that recipe. Nothing to add.",
+            kind="success",
+        )
+
+    # Step 3: resolve the active shopping list (auto-create if needed)
+    try:
+        active = db.get_active_shopping_list(user_id=uid)
+        list_id = active.list_id if active else None
+        if not list_id:
+            new_list = db.create_shopping_list(
+                name="Shopping List",
+                goal=f"Auto-created from recipe text",
+                user_id=uid,
+            )
+            list_id = new_list.list_id
+    except Exception as exc:
+        logger.warning("recipe_text_add_missing_to_list: list resolve failed: %s", exc)
+        return toast(
+            f"Could not resolve a shopping list: {exc}",
+            kind="error",
+        )
+
+    # Step 4: insert each missing item
+    added = 0
+    for it in missing_items:
+        cname = (it.get("canonical_name") or "").strip()
+        if not cname:
+            continue
+        try:
+            db.add_list_item(
+                list_id=list_id,
+                item=ShoppingListItem(
+                    canonical_name=cname,
+                    requested_quantity=float(it.get("requested_quantity") or 1),
+                    unit=it.get("unit") or "unit",
+                ),
+            )
+            added += 1
+        except Exception as exc:
+            logger.debug("add_list_item failed for %s: %s", cname, exc)
+
+    if added == 0:
+        return toast(
+            "⚠ Nothing new to add (some ingredients may already be on the list).",
+            kind="warning",
+        )
+    sample = ", ".join(
+        (it.get("canonical_name") or "").replace("_", " ").title()
+        for it in missing_items[:3]
+    )
+    more = "" if len(missing_items) <= 3 else f" (+{len(missing_items) - 3} more)"
+    return toast(
+        f"✓ Added {added} missing item{'s' if added != 1 else ''} to your shopping list: "
+        f"{sample}{more}.",
+        kind="success",
+    )
+
+
+__all__ = [
+    "recipe_text_to_shopping_list",
+    "recipe_text_add_missing_to_list",
+]

@@ -286,6 +286,21 @@ class Database:
                 notes TEXT DEFAULT ''
             );
 
+            -- ── Phase 10: household_members (multi-household permissioning) ──
+            -- A user is *in* zero or more households with a role.
+            -- One row per (household_id, user_id) pair. Composite
+            -- primary key prevents duplicate memberships.
+            CREATE TABLE IF NOT EXISTS household_members (
+                household_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'member',
+                joined_at TEXT NOT NULL,
+                PRIMARY KEY (household_id, user_id),
+                FOREIGN KEY (household_id) REFERENCES households(household_id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_household_members_user
+                ON household_members(user_id);
+
             CREATE VIEW IF NOT EXISTS price_history AS
                 SELECT * FROM price_observations;
 
@@ -306,6 +321,7 @@ class Database:
         """)
         self._migrate_market_snapshot_schema()
         self._migrate_add_user_scoping()
+        self._migrate_backfill_household_owners()
         self._seed_locations()
         self._seed_default_household()
         self._apply_trace_retention_policy()
@@ -334,6 +350,33 @@ class Database:
                 if "duplicate column name" in message or "already exists" in message:
                     continue
                 raise
+
+    def _migrate_backfill_household_owners(self) -> None:
+        """Backfill owner memberships for any pre-existing households.
+
+        For each household that exists in the ``households``
+        table but has no members, add the default user as
+        the owner. This keeps the migration idempotent: running
+        on a fresh install is a no-op (the seeder does it);
+        running on an existing install backfills the gap.
+        """
+        from datetime import datetime
+        now = datetime.now().isoformat()
+        rows = self.conn.execute(
+            "SELECT h.household_id FROM households h "
+            "WHERE NOT EXISTS (SELECT 1 FROM household_members m "
+            "WHERE m.household_id = h.household_id)"
+        ).fetchall()
+        for row in rows:
+            hid = row["household_id"]
+            self.conn.execute(
+                "INSERT OR IGNORE INTO household_members "
+                "(household_id, user_id, role, joined_at) "
+                "VALUES (?, ?, ?, ?)",
+                (hid, hid, "owner", now),
+            )
+        if rows:
+            self.conn.commit()
 
     # ── Active household tracking ────────────────────────────────
 
@@ -393,22 +436,172 @@ class Database:
         except Exception:
             return False
 
+    # ── Household members (Phase 10 #1) ──────────────────────────
+
+    def list_household_members(self, household_id: str) -> list[dict[str, str]]:
+        """Return all members of a household, oldest first.
+
+        Each dict: ``{"household_id", "user_id", "role", "joined_at"}``.
+        Empty list when the household has no members.
+        """
+        rows = self.conn.execute(
+            "SELECT household_id, user_id, role, joined_at "
+            "FROM household_members WHERE household_id = ? "
+            "ORDER BY joined_at ASC",
+            (household_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def list_households_for_user(self, user_id: str) -> list[dict[str, str]]:
+        """Return all households a user is a member of.
+
+        Each dict: ``{"household_id", "name", "role", "joined_at"}``.
+        Empty list when the user is in no households.
+        """
+        rows = self.conn.execute(
+            "SELECT h.household_id, h.name, m.role, m.joined_at "
+            "FROM households h JOIN household_members m "
+            "ON h.household_id = m.household_id "
+            "WHERE m.user_id = ? "
+            "ORDER BY m.joined_at ASC",
+            (user_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_household_member(
+        self, household_id: str, user_id: str
+    ) -> dict[str, str] | None:
+        """Return the membership row for (household, user), or None."""
+        row = self.conn.execute(
+            "SELECT household_id, user_id, role, joined_at "
+            "FROM household_members "
+            "WHERE household_id = ? AND user_id = ?",
+            (household_id, user_id),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def add_household_member(
+        self, household_id: str, user_id: str, role: str = "member"
+    ) -> bool:
+        """Add ``user_id`` to ``household_id`` with the given role.
+
+        Roles: ``"owner"`` (full control), ``"member"`` (read+write),
+        ``"guest"`` (read-only). Returns True if added, False if
+        already a member or the household doesn't exist.
+        """
+        from datetime import datetime
+        if role not in ("owner", "member", "guest"):
+            return False
+        # Verify household exists
+        exists = self.conn.execute(
+            "SELECT 1 FROM households WHERE household_id = ?", (household_id,)
+        ).fetchone()
+        if not exists:
+            return False
+        try:
+            self.conn.execute(
+                "INSERT INTO household_members (household_id, user_id, role, joined_at) "
+                "VALUES (?, ?, ?, ?)",
+                (household_id, user_id, role, datetime.now().isoformat()),
+            )
+            self.conn.commit()
+            return True
+        except Exception:
+            return False
+
+    def remove_household_member(self, household_id: str, user_id: str) -> bool:
+        """Remove ``user_id`` from ``household_id``.
+
+        Refuses to remove the last owner. Returns True on
+        success, False if the user wasn't a member or
+        removing them would orphan the household.
+        """
+        # Disallow removing the last owner
+        if self.get_household_member(household_id, user_id) is None:
+            return False
+        if self._is_last_owner(household_id, user_id):
+            return False
+        try:
+            self.conn.execute(
+                "DELETE FROM household_members "
+                "WHERE household_id = ? AND user_id = ?",
+                (household_id, user_id),
+            )
+            self.conn.commit()
+            return True
+        except Exception:
+            return False
+
+    def update_household_member_role(
+        self, household_id: str, user_id: str, new_role: str
+    ) -> bool:
+        """Change ``user_id``'s role in ``household_id``.
+
+        Refuses to demote the last owner. Returns True on
+        success, False if the role is invalid or the demotion
+        would orphan the household.
+        """
+        if new_role not in ("owner", "member", "guest"):
+            return False
+        if self.get_household_member(household_id, user_id) is None:
+            return False
+        if new_role != "owner" and self._is_last_owner(household_id, user_id):
+            return False
+        try:
+            self.conn.execute(
+                "UPDATE household_members SET role = ? "
+                "WHERE household_id = ? AND user_id = ?",
+                (new_role, household_id, user_id),
+            )
+            self.conn.commit()
+            return True
+        except Exception:
+            return False
+
+    def _is_last_owner(self, household_id: str, user_id: str) -> bool:
+        """True if ``user_id`` is the only owner of ``household_id``."""
+        member = self.get_household_member(household_id, user_id)
+        if not member or member.get("role") != "owner":
+            return False
+        rows = self.conn.execute(
+            "SELECT user_id FROM household_members "
+            "WHERE household_id = ? AND role = 'owner'",
+            (household_id,),
+        ).fetchall()
+        return len(rows) == 1 and rows[0]["user_id"] == user_id
+
     def _seed_default_household(self) -> None:
-        """Ensure the default household exists in the households table."""
+        """Ensure the default household + owner member exist.
+
+        Phase 10 #1: when the default household is created, we
+        also add the default user_id as its owner. This means
+        every existing user (and every fresh install) has at
+        least one household they own — no permission denials
+        on first run.
+        """
         household_id = settings.default_household_user_id
         existing = self.conn.execute(
             "SELECT COUNT(*) FROM households WHERE household_id = ?", (household_id,)
         ).fetchone()[0]
-        if existing > 0:
-            return
-        from datetime import datetime
-        now = datetime.now().isoformat()
+        if existing == 0:
+            now = datetime.now().isoformat()
+            self.conn.execute(
+                "INSERT INTO households (household_id, name, created_at, updated_at, notes) VALUES (?, ?, ?, ?, ?)",
+                (household_id, "Default Household", now, now,
+                 "Default household created automatically. Use the household switcher to add more."),
+            )
+        # Always ensure the default user is at least a member
+        # of the default household (idempotent — INSERT OR IGNORE).
+        # The ``datetime`` reference below relies on the module-level
+        # import (line 6) — a local import in the ``if`` block above
+        # would shadow it and cause an UnboundLocalError on the second
+        # call (when ``existing > 0`` skips the import).
         self.conn.execute(
-            "INSERT INTO households (household_id, name, created_at, updated_at, notes) VALUES (?, ?, ?, ?, ?)",
-            (household_id, "Default Household", now, now,
-             "Default household created automatically. Use the household switcher to add more."),
+            "INSERT OR IGNORE INTO household_members "
+            "(household_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)",
+            (household_id, household_id, "owner", datetime.now().isoformat()),
         )
-        # Also mark it as active
+        # Mark as active
         self.set_config_value("active_household_id", household_id)
         self.conn.commit()
 

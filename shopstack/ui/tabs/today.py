@@ -133,6 +133,46 @@ def build_today_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> Today
         )
         app.load(_today_intel, outputs=today_intel_html)
 
+        # ── Phase 10 Restock next 7 days card ────────────────────
+        gr.Markdown("### 📦 Restock next 7 days")
+        gr.Markdown(
+            "Items you'll likely run out of soon, with a one-tap "
+            "**Add to my list** action for each. Sorted soonest first."
+        )
+        from shopstack.services.restock_card import (
+            restock_card_screen as _restock_card,
+            add_restock_to_list as _add_restock,
+        )
+        restock_card_html = gr.HTML(loading_skeleton("card"))
+        def _restock_refresh() -> str:
+            try:
+                return _restock_card()
+            except Exception as exc:
+                return f"<div>Restock card unavailable: {exc}</div>"
+        restock_refresh = gr.Button("🔄 Refresh", elem_classes="secondary", size="sm")
+        restock_refresh.click(
+            _restock_refresh, outputs=restock_card_html,
+            api_name="restock_refresh",
+            api_description="Refresh the restock next 7 days card",
+        )
+        app.load(_restock_refresh, outputs=restock_card_html)
+        # Quick-add row: textbox + button for one-tap add
+        with gr.Row():
+            restock_item_input = gr.Textbox(
+                label="Quick add: type an item name to add to your list",
+                placeholder="e.g. milk, bread, rice",
+                scale=4,
+            )
+            restock_add_btn = gr.Button("Add to my shopping list", variant="primary", scale=1)
+        restock_quick_output = gr.HTML("")
+        restock_add_btn.click(
+            _add_restock,
+            restock_item_input,
+            restock_quick_output,
+            api_name="restock_quick_add",
+            api_description="Add a restock prediction to the active shopping list by name",
+        )
+
         gr.Markdown("---")
         gr.Markdown("### Detailed signals")
         today_stats = gr.HTML(loading_skeleton("card"))

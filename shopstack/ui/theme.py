@@ -1332,5 +1332,121 @@ details.home-details > *:not(summary),
 .sp-delta { font-weight: 600; }
 .sp-delta-up { color: var(--red, #A63F31); }
 .sp-delta-down { color: var(--green, #176B49); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PHASE 10 ADDITIONS
+   - Restock next 7 days card (restock-*)
+   - Household members (perm-*)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Restock next 7 days card ───────────────────────────────── */
+.restock-card {
+  background: var(--bg-card, #FFFCF7);
+  border: 1px solid var(--border, #DACAB5);
+  border-radius: var(--radius-md, 8px);
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+.restock-empty {
+  text-align: center;
+  color: var(--text-dim, #6F6254);
+  font-size: 0.8125rem;
+  padding: 12px;
+}
+.restock-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+.restock-card-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text, #1F1812);
+}
+.restock-card-count {
+  font-size: 0.6875rem;
+  color: var(--text-muted, #5F5144);
+  font-variant-numeric: tabular-nums;
+}
+.restock-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 4px 10px;
+  background: var(--bg, #FFF8ED);
+  border-radius: var(--radius-sm, 6px);
+  margin-bottom: 3px;
+}
+.restock-name {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text, #1F1812);
+}
+.restock-meta {
+  font-size: 0.6875rem;
+  color: var(--text-muted, #5F5144);
+  font-variant-numeric: tabular-nums;
+}
+.restock-days {
+  font-weight: 600;
+  margin-right: 2px;
+}
+.restock-more {
+  font-size: 0.6875rem;
+  color: var(--text-dim, #6F6254);
+  text-align: center;
+  margin-top: 4px;
+}
+
+/* ── Household members panel ─────────────────────────────────── */
+.perm-empty {
+  text-align: center;
+  color: var(--text-dim, #6F6254);
+  font-size: 0.8125rem;
+  padding: 8px;
+}
+.perm-member-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border, #DACAB5);
+  font-size: 0.8125rem;
+}
+.perm-member-name {
+  color: var(--text, #1F1812);
+  font-weight: 500;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+}
+.perm-member-joined {
+  font-size: 0.6875rem;
+  color: var(--text-dim, #6F6254);
+  font-variant-numeric: tabular-nums;
+}
+.perm-role-badge {
+  display: inline-block;
+  font-size: 0.625rem;
+  padding: 1px 8px;
+  border-radius: 3px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.perm-hh-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.perm-hh-chip {
+  background: var(--bg-warm, #FFF1D6);
+  color: var(--text-muted, #5F5144);
+  font-size: 0.6875rem;
+  padding: 2px 8px;
+  border-radius: 3px;
+}
 """
 

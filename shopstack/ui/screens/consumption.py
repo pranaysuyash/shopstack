@@ -15,6 +15,7 @@ from html import escape
 from typing import Any
 
 from shopstack.app_context import db, tools, current_user_id
+from shopstack.services.dashboard import clear_dashboard_cache
 from shopstack.ui.screens._utils import safe_render
 from shopstack.ui.components.cards import card as ui_card
 from shopstack.ui.components.primitives import aria_live_screen
@@ -274,6 +275,7 @@ def quick_consume(lot_id: str, qty: float) -> str:
     if "error" in result:
         return f"<div style='color:var(--red);'>{escape(str(result['error']))}</div>"
 
+    clear_dashboard_cache(uid)
     remaining = result.get("remaining", 0)
     name = result.get("canonical_name", lot_id[:8]).replace("_", " ").title()
     return (
@@ -325,7 +327,7 @@ def batch_consume_with_context(lines_text: str, meal_context: str, is_waste: str
     if not summary:
         return "<div style='color:var(--red);'>No valid entries.</div>"
 
-    ctx_label = " (wasted)" if is_waste_flag else f" ({meal})"
+    clear_dashboard_cache(uid)
     return (
         f"<div style='margin-top:8px;line-height:1.6;font-size: 0.75rem;'>"
         f"<div style='color:var(--text-dim);margin-bottom:4px;'>Context: {escape(meal)}"

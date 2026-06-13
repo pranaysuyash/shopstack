@@ -8,12 +8,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from shopstack.persistence.database import Database
 from shopstack.schemas.models import (
     InventoryLot,
-    ShoppingList,
     ShoppingListItem,
     Trace,
     ToolCall,
     HouseholdLocation,
-    MovementEvent
 )
 
 def seed():

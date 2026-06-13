@@ -110,8 +110,8 @@ def show_classification(db: Database, tools: ToolRegistry) -> None:
     if relevant:
         print()
         for d in relevant:
-            icon = {"buy": "✓", "skip": "–", "optional": "?"}.get(d.decision, " ")
-            print(f"    [{icon}] {d.display_name:25s} → {d.decision:10s}  {d.reason[:65]}")
+            icon = {"buy": "✓", "skip": "–", "optional": "?"}.get(d.action, " ")
+            print(f"    [{icon}] {d.display_name:25s} → {d.action:10s}  {d.reason[:65]}")
 
 
 def show_inventory_summary(db: Database) -> None:

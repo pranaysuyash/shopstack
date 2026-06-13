@@ -35,7 +35,6 @@ import gradio as gr
 
 from shopstack.app_context import (
     add_household,
-    current_user_id,
     list_households,
     switch_household,
 )

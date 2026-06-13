@@ -227,6 +227,112 @@ def build_household_settings(app: gr.Blocks) -> HouseholdSettingsHandles:
         app.load(_community_status, outputs=[community_status_html])
         app.load(_community_stats, outputs=[community_stats_html])
 
+        # ── Phase 10 #1 Household members (multi-household permissioning) ──
+        gr.Markdown("---")
+        gr.Markdown("### 👥 Household members")
+        gr.Markdown(
+            "Members can read your household's data. **Owners** can also "
+            "add/remove members and change roles. The last owner cannot "
+            "be removed (would orphan the household)."
+        )
+        from shopstack.ui.screens.households import (
+            households_panel_screen as _hh_panel,
+            add_member_screen as _hh_add,
+            remove_member_screen as _hh_remove,
+            change_role_screen as _hh_change,
+        )
+        members_html = gr.HTML(_hh_panel())
+        members_refresh = gr.Button(
+            "🔄 Refresh", elem_classes="secondary", size="sm"
+        )
+        members_refresh.click(
+            _hh_panel, outputs=members_html,
+            api_name="hh_members_refresh",
+            api_description="Refresh the household members list",
+        )
+        app.load(_hh_panel, outputs=members_html)
+        with gr.Row():
+            member_uid_input = gr.Textbox(
+                label="Add member (user id)",
+                placeholder="e.g. alice, bob, tenant_1",
+                scale=2,
+            )
+            member_role_input = gr.Dropdown(
+                label="Role",
+                choices=[("Owner", "owner"), ("Member", "member"),
+                         ("Guest (read-only)", "guest")],
+                value="member",
+                scale=1,
+            )
+            member_add_btn = gr.Button("Add", variant="primary", scale=0)
+        member_add_status = gr.HTML("")
+        # The active household id is read from the dropdown / config.
+        # For the v1 we use the current active household (read by the
+        # permission service from the dropdown state).
+        active_hh_id = gr.State("")  # populated by app.load
+        def _do_add_member(uid: str, role: str):
+            from shopstack.app_context import current_user_id, db
+            actor = current_user_id() or ""
+            hid = db.get_config_value("active_household_id", "") or ""
+            members, status = _hh_add(hid, uid, role, actor)
+            return members, status
+        member_add_btn.click(
+            _do_add_member,
+            [member_uid_input, member_role_input],
+            [members_html, member_add_status],
+            api_name="hh_add_member",
+            api_description="Add a member to the active household",
+        )
+        with gr.Row():
+            member_remove_input = gr.Textbox(
+                label="Remove member (user id)",
+                placeholder="user_id to remove",
+                scale=3,
+            )
+            member_remove_btn = gr.Button("Remove", elem_classes="secondary", scale=0)
+        member_remove_status = gr.HTML("")
+        def _do_remove_member(uid: str):
+            from shopstack.app_context import current_user_id, db
+            actor = current_user_id() or ""
+            hid = db.get_config_value("active_household_id", "") or ""
+            members, status = _hh_remove(hid, uid, actor)
+            return members, status
+        member_remove_btn.click(
+            _do_remove_member,
+            member_remove_input,
+            [members_html, member_remove_status],
+            api_name="hh_remove_member",
+            api_description="Remove a member from the active household",
+        )
+        with gr.Row():
+            member_change_uid = gr.Textbox(
+                label="Change role for user_id",
+                placeholder="user_id",
+                scale=2,
+            )
+            member_change_role = gr.Dropdown(
+                label="New role",
+                choices=[("Owner", "owner"), ("Member", "member"),
+                         ("Guest (read-only)", "guest")],
+                value="member",
+                scale=1,
+            )
+            member_change_btn = gr.Button("Change role", variant="primary", scale=0)
+        member_change_status = gr.HTML("")
+        def _do_change_role(uid: str, new_role: str):
+            from shopstack.app_context import current_user_id, db
+            actor = current_user_id() or ""
+            hid = db.get_config_value("active_household_id", "") or ""
+            members, status = _hh_change(hid, uid, new_role, actor)
+            return members, status
+        member_change_btn.click(
+            _do_change_role,
+            [member_change_uid, member_change_role],
+            [members_html, member_change_status],
+            api_name="hh_change_role",
+            api_description="Change a member's role in the active household",
+        )
+
     return HouseholdSettingsHandles(
         household_dropdown=household_dropdown,
         add_hh_btn=add_hh_btn,

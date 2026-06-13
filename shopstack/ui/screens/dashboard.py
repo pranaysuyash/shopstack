@@ -418,3 +418,111 @@ def _render_compare_preview(graph) -> str:
         + "".join(rows)
         + "</div>"
     )
+
+
+def _render_market_next_steps(graph) -> str:
+    """Render next-step action cards based on the market graph signals."""
+    actions = []
+    if graph.summary.get("buy", 0):
+        actions.append(
+            {
+                "label": "Open Groceries",
+                "subtitle": "Turn buy items into the list",
+                "tab_id": "basket",
+                "tone": "primary",
+            }
+        )
+    if graph.summary.get("compare", 0):
+        actions.append(
+            {
+                "label": "Review Compare",
+                "subtitle": "Check overlap and substitutions",
+                "tab_id": "basket",
+                "tone": "default",
+            }
+        )
+    if graph.summary.get("substitute", 0):
+        actions.append(
+            {
+                "label": "Review Substitutes",
+                "subtitle": "See better replacements",
+                "tab_id": "basket",
+                "tone": "default",
+            }
+        )
+    if graph.summary.get("stale", 0):
+        actions.append(
+            {
+                "label": "Inspect Freshness",
+                "subtitle": "Treat stale cards as references",
+                "tab_id": "basket",
+                "tone": "default",
+            }
+        )
+
+    if not actions:
+        return (
+            "<div class='home-card' style='text-align:left;margin-top:8px;'>"
+            "<h3>Next steps</h3>"
+            "<div class='muted'>No market actions to prioritize yet.</div>"
+            "</div>"
+        )
+
+    top_signals = []
+    if graph.compare:
+        top_signals.append(f"{graph.compare[0].display_name}: compare")
+    if graph.substitute:
+        top_signals.append(f"{graph.substitute[0].display_name}: substitute")
+    if graph.buy:
+        top_signals.append(f"{graph.buy[0].display_name}: buy")
+
+    return ui_card(
+        "Next steps",
+        f"<div class='muted' style='margin-bottom:8px;'>"
+        f"{' · '.join(top_signals) if top_signals else 'The graph is quiet right now.'}"
+        f"</div>"
+        f"{render_action_grid(actions)}",
+    )
+
+
+def _render_market_map_teaser(state, graph) -> str:
+    """Render a teaser card for the market map with freshness and signal summary."""
+    freshness = graph.snapshot_freshness_label or graph.snapshot_freshness or "unknown"
+    compare_preview = _render_compare_preview(graph)
+    body = (
+        f"{graph.summary.get('items_scored', 0)} items scored · "
+        f"{graph.summary.get('buy', 0)} buy · "
+        f"{graph.summary.get('compare', 0)} compare · "
+        f"{graph.summary.get('substitute', 0)} substitute"
+    )
+    if state.market_snapshot is None and graph.summary.get("items_scored", 0) == 0:
+        body = "No market snapshot is loaded yet. Add one and the graph will start ranking buy / compare / substitute signals."
+
+    actions = [
+        {
+            "label": "Open Market Map",
+            "subtitle": "Inspect the living market graph",
+            "tab_id": "basket",
+            "tone": "primary",
+        },
+        {
+            "label": "Check Pantry",
+            "subtitle": "See what the household already has",
+            "tab_id": "reconcile",
+            "tone": "default",
+        },
+        {
+            "label": "Open Memory",
+            "subtitle": "Compare against your price baseline",
+            "tab_id": "memory",
+            "tone": "default",
+        },
+    ]
+
+    return ui_card(
+        "Market Map",
+        f"<div class='muted' style='margin-bottom:8px;'>{freshness}</div>"
+        f"<div style='margin-bottom:10px;'>{body}</div>"
+        f"{compare_preview}"
+        f"{render_action_grid(actions)}",
+    )

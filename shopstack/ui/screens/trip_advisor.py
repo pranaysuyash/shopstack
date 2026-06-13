@@ -37,16 +37,16 @@ def trip_advisor_screen(
         user_id = current_user_id() or ""
         # Active list size
         try:
-            lists = db.get_shopping_lists(user_id=user_id) or []
+            lists = db.get_shopping_lists(user_id=user_id) or []  # type: ignore[attr-defined]
             active_list_size = sum(
-                len(db.get_shopping_list_items(list_id=l.get("list_id") or l.get("id", "")) or [])
+                len(db.get_shopping_list_items(list_id=l.get("list_id") or l.get("id", "")) or [])  # type: ignore[attr-defined]
                 for l in lists
             )
         except Exception:
             active_list_size = 0
         # Use-soon count (items expiring in 2-3 days)
         try:
-            use_soon = db.get_use_soon_items(user_id=user_id) or []
+            use_soon = db.get_use_soon_items(user_id=user_id) or []  # type: ignore[attr-defined]
             use_soon_count = len(use_soon)
         except Exception:
             use_soon_count = 0

@@ -7,13 +7,13 @@ from html import escape
 
 from shopstack.schemas.models import new_id
 from shopstack.app_context import db, tools, current_user_id
+from shopstack.services.dashboard import clear_dashboard_cache
 from shopstack.ui.components.primitives import (
     aria_live_screen,
     item_row,
     stat_card,
 )
 from shopstack.ui.screens._utils import safe_render
-from shopstack.ui.components.primitives import aria_live_screen
 
 
 logger = logging.getLogger(__name__)
@@ -87,12 +87,14 @@ def move_inventory_to_location(lot_id_prefix: str, to_location_id: str) -> str:
         return "<div style='color:var(--text-dim);'>Select a lot first.</div>"
     if not to_location_id:
         return "<div style='color:var(--red);'>Choose destination location.</div>"
+    uid = current_user_id()
     result = tools.move_inventory_item(lot_id_prefix, to_location_id)
     if "error" in result:
         return f"<div style='color:var(--red);'>Move failed: {escape(str(result['error']))}</div>"
     movement = result.get("movement", {})
     from_loc = movement.get("from_location_id") or "unknown"
     to_loc = movement.get("to", to_location_id)
+    clear_dashboard_cache(uid)
     return f"<div style='color:var(--green);'>Moved item {escape(str(result.get('movement', {}).get('lot_id', '')))} from {escape(str(from_loc))} to {escape(str(to_loc))}.</div>"
 
 

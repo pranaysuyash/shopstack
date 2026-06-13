@@ -92,7 +92,12 @@ def build_cookbook_filter_row() -> CookbookFilterHandles:
             label="Open recipe",
             choices=[],
             value="",
-            allow_custom_value=False,
+            # Gradio 6.x emits a UserWarning when the value is not in
+            # choices. We start with an empty choices list and inject
+            # the real ones via the initial-load handler. ``allow_custom_value``
+            # silences the warning and lets us keep the "Open recipe"
+            # placeholder behavior until the grid finishes loading.
+            allow_custom_value=True,
             scale=2,
         )
         refresh_recipes = gr.Button("Refresh list", elem_classes="secondary", scale=1)

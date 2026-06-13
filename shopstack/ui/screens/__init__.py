@@ -36,6 +36,7 @@ from shopstack.ui.screens.inventory import (
     consume_item,
     consume_items_batch,
     seed_demo_inventory,
+    suggest_location_for_item,
     use_soon_view,
 )
 from shopstack.ui.screens.traces import (
@@ -88,7 +89,10 @@ from shopstack.ui.screens.intelligence import (
 )
 from shopstack.ui.screens.nutrition import nutrition_lookup_view, nutrition_kitchen_view  # noqa: F401 — public API re-export
 from shopstack.ui.screens.unified_shopping import run_unified_plan, unified_plan_summary
-from shopstack.ui.screens.recipe_text import recipe_text_to_shopping_list
+from shopstack.ui.screens.recipe_text import (
+    recipe_text_to_shopping_list,
+    recipe_text_add_missing_to_list,
+)
 from shopstack.ui.screens.consumption import (
     consumption_dashboard,
     quick_consume,
@@ -124,6 +128,7 @@ __all__ = [
     "add_purchase_batch",
     "suggest_location_for_item",
     "recipe_text_to_shopping_list",
+    "recipe_text_add_missing_to_list",
     "inventory_view",
     "inventory_cards_view",
     "consume_item",

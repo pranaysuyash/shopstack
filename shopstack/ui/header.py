@@ -125,26 +125,72 @@ def header_html(brand_title: str, brand_subtitle: str, current_locale: str = DEF
 
     The header includes:
     - Brand title and subtitle
+    - Active household indicator (added 2026-06-13): a small badge
+      showing the current household's display name. Helps users
+      notice when they're in a different household than they think.
     - Theme toggle button (calls `toggleTheme()` defined in `header_script()`)
     - Language selector (Phase 5 #9): EN/हिं buttons that switch the UI
       language via the `setLocale()` JS helper.
     """
     locale_html = render_language_selector_html(current_locale)
+    household_html = household_indicator_html()
     return f"""
 <!-- WCAG 2.4.1 Bypass Blocks — skip-to-content link (first focusable element) -->
 <a class=\"skip-link\" href=\"#main-content\">Skip to content</a>
 <!-- WCAG 4.1.3 Status Messages — live region for dynamic content announcements -->
 <div id=\"ss-live-region\" class=\"sr-only-live\" aria-live=\"polite\" aria-atomic=\"true\"></div>
-<div class=\"app-header\">
+<div class=\"app-header">
   <div>
     <h1 class=\"brand-title\">{escape(brand_title)}</h1>
     <div class=\"brand-subtitle\">{escape(brand_subtitle)}</div>
   </div>
-  <div style=\"display:flex;gap:8px;align-items:center;\">
+  <div style=\"display:flex;gap:8px;align-items:center;flex-wrap:wrap;\">
+    {household_html}
     {locale_html}
     <button onclick="toggleTheme()" aria-label="Toggle light/dark theme" title="Toggle theme" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;cursor:pointer;font-size: 0.875rem;color:var(--text-muted);min-height:44px;min-width:44px;">🌓</button>
   </div>
 </div>"""
+
+
+def household_indicator_html() -> str:
+    """Return a small badge showing the active household's display name.
+
+    Added 2026-06-13 to surface the household context that's otherwise
+    buried in the workspace admin accordion. The badge shows the
+    *display name* (e.g., "My Home") not the slug (e.g., "default_household").
+
+    Behavior:
+    - Looks up the active household via ``list_households()``.
+    - Falls back to the household_id if no display name is registered.
+    - Returns an empty string if no active household can be resolved
+      (defensive: never breaks the page render).
+    - Safe to call at import time (no side effects).
+    """
+    try:
+        from shopstack.app_context import current_user_id, list_households
+        active_id = current_user_id() or ""
+        if not active_id:
+            return ""
+        # Find the display name for the active household.
+        display_name = active_id
+        for h in list_households():
+            if h.get("household_id") == active_id:
+                display_name = h.get("name") or active_id
+                break
+        return (
+            f"<span class=\"hh-indicator\" "
+            f"aria-label=\"Active household: {escape(display_name)}\" "
+            f"title=\"Active household: {escape(display_name)}\" "
+            f"style=\"display:inline-flex;align-items:center;gap:6px;"
+            f"padding:6px 10px;border-radius:var(--radius-sm);"
+            f"background:var(--bg-card);border:1px solid var(--border);"
+            f"font-size: 0.75rem;color:var(--text-muted);min-height:32px;\">"
+            f"🏠&nbsp;{escape(display_name)}"
+            f"</span>"
+        )
+    except Exception:
+        # Never let a household-resolution failure break the page.
+        return ""
 
 
 def header_script() -> str:
@@ -266,7 +312,7 @@ def _pwa_block() -> str:
     """
     return """
 <!-- PWA: manifest + theme color (Phase 4 #5) -->
-<link rel="manifest" href="/manifest.json">
+<link rel="manifest" href="/static/manifest.json">
 <meta name="theme-color" content="#0f172a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -274,7 +320,7 @@ def _pwa_block() -> str:
 // Register service worker for PWA shell caching (Phase 4 #5)
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
-    navigator.serviceWorker.register('/sw.js', { scope: '/' })
+    navigator.serviceWorker.register('/static/sw.js', { scope: '/' })
       .then(function(reg) {
         console.log('[ShopStack PWA] service worker registered, scope:', reg.scope);
       })

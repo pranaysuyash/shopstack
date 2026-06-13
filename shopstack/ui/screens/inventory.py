@@ -16,6 +16,7 @@ from shopstack.ui.components.primitives import (
     form_error,
     item_row,
     toast,
+    toast_floating,
 )
 
 logger = logging.getLogger(__name__)
@@ -264,10 +265,11 @@ def seed_demo_inventory() -> str:
             )
         added.append(f"{name} ({lot_id[:8]})")
 
+    clear_dashboard_cache(_user_id())
     return (
         f"<div style='color:var(--green);'>Loaded demo stock ({len(added)} items): "
         f"{', '.join(escape(a) for a in added)}.</div>"
-    )
+    ) + toast_floating(f"Loaded {len(added)} demo items into pantry", kind="success")
 
 
 def inventory_view(search: str = "") -> list[list[str]]:
@@ -345,7 +347,7 @@ def consume_item(lot_id: str, qty: float) -> str:
     if "error" in result:
         return f"<div style='color:var(--red);'>Error: {escape(str(result['error']))}</div>"
     clear_dashboard_cache(uid)
-    return f"<div style='color:var(--green);'>Consumed {escape(str(qty))}. Remaining: {escape(str(result.get('remaining', 0)))}</div>"
+    return f"<div style='color:var(--green);'>Consumed {escape(str(qty))}. Remaining: {escape(str(result.get('remaining', 0)))}</div>" + toast_floating(f"Consumed {qty} — {result.get('remaining', 0)} left", kind="success")
 
 
 @aria_live_screen()
@@ -377,7 +379,7 @@ def consume_items_batch(lines_text: str) -> str:
     if not summary:
         return "<div style='color:var(--red);'>No consumable lot ids found.</div>"
     clear_dashboard_cache(uid)
-    return "<div style='margin-top:8px;line-height:1.5;font-size: 0.75rem;'>" + "<br>".join(summary) + "</div>"
+    return "<div style='margin-top:8px;line-height:1.5;font-size: 0.75rem;'>" + "<br>".join(summary) + "</div>" + toast_floating(f"Consumed {len(summary)} item(s)", kind="success")
 
 
 def use_soon_view(days: int = 3) -> list[list[str]]:
