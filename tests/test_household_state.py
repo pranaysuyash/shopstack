@@ -7,27 +7,13 @@ Verifies:
 
 The state module is pure (no Gradio component references) so it can be
 tested without rendering any Gradio UI.
+
+Uses the consolidated ``app`` fixture from ``conftest.py`` (session-scoped
+import with table truncation between tests).
 """
 from __future__ import annotations
 
-import os
-
 import gradio as gr
-import pytest
-
-os.environ.setdefault("SHOPSTACK_DB_PATH", ":memory:")
-
-
-@pytest.fixture
-def app():
-    """Import app fresh for each test, giving a clean :memory: DB."""
-    import sys
-    _preserved = {"shopstack.schemas", "shopstack.schemas.models"}
-    for mod in list(sys.modules.keys()):
-        if mod in ("app",) or (mod.startswith("shopstack") and mod not in _preserved):
-            del sys.modules[mod]
-    import app as _app
-    return _app
 
 
 class TestSlugifyHouseholdId:

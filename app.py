@@ -127,57 +127,6 @@ document.addEventListener('keydown', function(e) {
 </script>"""
         gr.HTML(header_html + header_script, padding=True)
 
-        with gr.Accordion("Workspace", open=False, elem_classes="workspace-admin"):
-            gr.HTML(
-                f"""
-<div style=\"display:flex;flex-direction:column;gap:8px;margin-bottom:10px;\">
-  <div style=\"font-size:13px;color:var(--text-muted);\">
-    Switch households, create a new workspace, or inspect runtime details when you need the plumbing.
-  </div>
-  <div style=\"display:flex;gap:8px;flex-wrap:wrap;align-items:center;\">
-    <span class=\"badge badge-blue\">{escape(runtime_label)}</span>
-    {_model_download_status()}
-  </div>
-</div>"""
-            )
-
-            with gr.Row(variant="compact", elem_classes="household-bar"):
-                household_dropdown = gr.Dropdown(
-                    label="Household",
-                    choices=household_choices(),
-                    value=current_user_id(),
-                    interactive=True,
-                    allow_custom_value=True,
-                    scale=1,
-                )
-                add_hh_btn = gr.Button(
-                    "+",
-                    scale=0,
-                    min_width=40,
-                    elem_classes="household-add-btn",
-                )
-                gr.HTML(
-                    "<div style='display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-dim);'>"
-                    "Switch between households or add a new one.</div>",
-                    scale=3,
-                )
-
-            # Hidden add-household form (shown when + is clicked)
-            with gr.Row(visible=False, variant="compact", elem_classes="household-add-form") as hh_add_row:
-                hh_name_input = gr.Textbox(
-                    label="New household name",
-                    placeholder="e.g. My Home, Beach House, Office",
-                    scale=2,
-                )
-                hh_create_btn = gr.Button("Create", variant="primary", scale=0)
-                hh_cancel_btn = gr.Button("Cancel", scale=0, elem_classes="secondary")
-
-            # Refresh dropdown choices on initial load
-            app.load(
-                lambda: gr.update(choices=household_choices(), value=current_user_id()),
-                outputs=household_dropdown,
-            )
-
         # ── 5-tab daily loop: Today → Shopping → Scan & Compare → Pantry → Insights ──
         with gr.Tabs(elem_classes="tabs") as tabs:
 
@@ -220,6 +169,59 @@ document.addEventListener('keydown', function(e) {
             # Built in shopstack/ui/tabs/memory.py
             # ═══════════════════════════════════════════════════════════════
             build_memory_tab(blocks=app, app=app, ctx=TabContext())
+
+        with gr.Accordion("Workspace", open=False, elem_classes="workspace-admin"):
+            gr.HTML(
+                f"""
+<div style=\"display:flex;flex-direction:column;gap:8px;margin-bottom:10px;\">
+  <div style=\"font-size:13px;color:var(--text-muted);\">
+    Switch households, create a new workspace, or inspect runtime details when you need the plumbing.
+  </div>
+  <div style=\"display:flex;gap:8px;flex-wrap:wrap;align-items:center;\">
+    <span class=\"badge badge-blue\">{escape(runtime_label)}</span>
+    {_model_download_status()}
+  </div>
+</div>"""
+            )
+            gr.Markdown(
+                "Use this only when you need admin control. The main tabs above are the day-to-day product flow."
+            )
+            with gr.Row(variant="compact", elem_classes="household-bar"):
+                household_dropdown = gr.Dropdown(
+                    label="Household",
+                    choices=household_choices(),
+                    value=current_user_id(),
+                    interactive=True,
+                    allow_custom_value=True,
+                    scale=1,
+                )
+                add_hh_btn = gr.Button(
+                    "+",
+                    scale=0,
+                    min_width=40,
+                    elem_classes="household-add-btn",
+                )
+                gr.HTML(
+                    "<div style='display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-dim);'>"
+                    "Switch between households or add a new one.</div>",
+                    scale=3,
+                )
+
+            # Hidden add-household form (shown when + is clicked)
+            with gr.Row(visible=False, variant="compact", elem_classes="household-add-form") as hh_add_row:
+                hh_name_input = gr.Textbox(
+                    label="New household name",
+                    placeholder="e.g. My Home, Beach House, Office",
+                    scale=2,
+                )
+                hh_create_btn = gr.Button("Create", variant="primary", scale=0)
+                hh_cancel_btn = gr.Button("Cancel", scale=0, elem_classes="secondary")
+
+            # Refresh dropdown choices on initial load
+            app.load(
+                lambda: gr.update(choices=household_choices(), value=current_user_id()),
+                outputs=household_dropdown,
+            )
 
         # Wire household dropdown change after all output components are defined
         household_dropdown.change(

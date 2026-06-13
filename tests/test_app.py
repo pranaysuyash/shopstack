@@ -4,44 +4,19 @@ import os
 from pathlib import Path
 
 import gradio as gr
-import pytest
 
 
-@pytest.fixture(scope="module")
-def fresh_app():
-    os.environ["SHOPSTACK_DB_PATH"] = ":memory:"
-    import importlib
-    import sys
-    # Save the entire module state before manipulation so we can restore it
-    # after this module's tests finish. Without restoration, the aggressive
-    # sys.modules cleanup below poisons the cache for every subsequent test
-    # file that imports shopstack packages.
-    saved_modules = dict(sys.modules)
-    _preserved = {"shopstack.schemas", "shopstack.schemas.models"}
-    for mod in list(sys.modules.keys()):
-        if mod in ("app",) or (mod.startswith("shopstack") and mod not in _preserved):
-            del sys.modules[mod]
-    import app as _app
-    yield _app
-    # Restore the original module state gentler without clearing C-extensions
-    for k in list(sys.modules.keys()):
-        if k not in saved_modules:
-            del sys.modules[k]
-    sys.modules.update(saved_modules)
+def test_build_app_returns_blocks(app):
+    built = app.build_app()
+    assert isinstance(built, gr.Blocks)
 
 
-
-def test_build_app_returns_blocks(fresh_app):
-    app = fresh_app.build_app()
-    assert isinstance(app, gr.Blocks)
-
-
-def test_build_app_title(fresh_app):
-    app = fresh_app.build_app()
-    assert app.title == "ShopStack"
+def test_build_app_title(app):
+    built = app.build_app()
+    assert built.title == "ShopStack"
 
 
-def test_today_dashboard_returns_correct_shape(fresh_app):
+def test_today_dashboard_returns_correct_shape(app):
     from shopstack.ui.screens import today_dashboard
     results = today_dashboard()
     assert len(results) == 6
@@ -49,10 +24,7 @@ def test_today_dashboard_returns_correct_shape(fresh_app):
         assert isinstance(r, str)
 
 
-def test_all_view_functions_importable(fresh_app):
-    # Tab builders compose view functions; the canonical symbols are the
-    # tab builders, not loose `app.<name>` aliases. Verify the builders
-    # exist on the app module — that's the new contract.
+def test_all_view_functions_importable(app):
     builders = [
         "build_today_tab",
         "build_basket_tab",
@@ -61,11 +33,9 @@ def test_all_view_functions_importable(fresh_app):
         "build_memory_tab",
     ]
     for name in builders:
-        assert hasattr(fresh_app, name), f"app missing {name}"
-        callable(getattr(fresh_app, name))
+        assert hasattr(app, name), f"app missing {name}"
+        callable(getattr(app, name))
 
-    # Shelf scan functions are screen builders, not tab builders —
-    # verify they're importable from their canonical location.
     from shopstack.ui.screens import (
         shelf_scan_confirm,
         shelf_scan_process,
@@ -81,22 +51,14 @@ def test_all_view_functions_importable(fresh_app):
         assert callable(fn)
 
 
-def test_build_app_appears_to_have_tabs(fresh_app):
-    app = fresh_app.build_app()
-    children = list(app.children)
+def test_build_app_appears_to_have_tabs(app):
+    built = app.build_app()
+    children = list(built.children)
     assert len(children) > 0
 
 
-def test_generate_shopping_poster_e2e(fresh_app):
-    """End-to-end: seed demo data → generate shopping poster → verify output.
-
-    Seeds an in-memory database with stores, inventory items, and an active
-    shopping list, then calls ``generate_shopping_poster()`` (simulating the
-    Gradio button click) and verifies the output.
-    """
-    import os
+def test_generate_shopping_poster_e2e(app):
     from datetime import date, timedelta
-    from pathlib import Path
 
     from shopstack.app_context import db
     from shopstack.schemas.models import InventoryLot, ShoppingListItem, Store
@@ -104,7 +66,6 @@ def test_generate_shopping_poster_e2e(fresh_app):
     uid = db.active_household_id
     assert uid, "Default household should be available for user_id scoping"
 
-    # ── Seed test data ──────────────────────────────────────────
     db.add_store(Store(
         store_id="test_store", name="Test Store",
         location="Test", store_type="supermarket",
@@ -140,17 +101,14 @@ def test_generate_shopping_poster_e2e(fresh_app):
         )
         db.add_list_item(sl.list_id, item)
 
-    # ── Call poster generation (simulates Gradio button click) ──
     from shopstack.ui.screens import generate_shopping_poster
     poster_path, status_html = generate_shopping_poster()
 
     assert status_html, "Status HTML should not be empty"
 
     if poster_path:
-        # Provider is available — verify the output file
         assert os.path.isfile(poster_path), f"Poster file should exist: {poster_path}"
 
-        # File is either SVG (text) or PNG (binary with cairosvg/svglib)
         is_svg = poster_path.endswith(".svg")
         is_png = poster_path.endswith(".png")
         assert is_svg or is_png, f"Expected .svg or .png, got {Path(poster_path).suffix}"
@@ -162,26 +120,22 @@ def test_generate_shopping_poster_e2e(fresh_app):
             assert "tomato" in content.lower()
             assert "bread" in content.lower()
         else:
-            # PNG — verify valid image structure
             try:
                 from PIL import Image
                 img = Image.open(poster_path).convert("RGB")
                 w, h = img.size
                 assert w > 0 and h > 0, f"Poster image has invalid dimensions: {w}x{h}"
             except ImportError:
-                pass  # Skip pixel-level check when PIL unavailable
+                pass
 
-        # Status should indicate success
-        assert "saved" in status_html.lower() or "\u2713" in status_html
+        assert "saved" in status_html.lower() or "✓" in status_html
 
-        # Clean up
         os.unlink(poster_path)
         try:
             Path(poster_path).parent.rmdir()
         except OSError:
             pass
     else:
-        # Provider not available — status should explain
         assert "provider" in status_html.lower() or "available" in status_html.lower()
 
 
