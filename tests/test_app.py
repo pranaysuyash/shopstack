@@ -49,23 +49,21 @@ def test_today_dashboard_returns_correct_shape(fresh_app):
 
 
 def test_all_view_functions_importable(fresh_app):
-    views = [
-        "today_dashboard",
-        "runtime_proof_view",
-        "shopping_list_view_with_cards",
-        "build_shopping_list_and_refresh",
-        "add_purchase_form",
-        "inventory_view",
-        "consume_item",
-        "use_soon_view",
-        "household_map_view",
-        "agent_trace_view",
-        "agent_trace_bootstrap",
-        "price_memory_view",
-        "field_notes_view",
-        "field_notes_save",
+    # Tab builders compose view functions; the canonical symbols are the
+    # tab builders, not loose `app.<name>` aliases. Verify the builders
+    # exist on the app module — that's the new contract.
+    builders = [
+        "build_today_tab",
+        "build_basket_tab",
+        "build_market_tab",
+        "build_reconcile_tab",
+        "build_memory_tab",
+        "shelf_scan_process",
+        "shelf_scan_confirm",
+        "shelf_scan_skip",
+        "shelf_scan_save_trace",
     ]
-    for name in views:
+    for name in builders:
         assert hasattr(fresh_app, name), f"app missing {name}"
         callable(getattr(fresh_app, name))
 
@@ -130,7 +128,8 @@ def test_generate_shopping_poster_e2e(fresh_app):
         db.add_list_item(sl.list_id, item)
 
     # ── Call poster generation (simulates Gradio button click) ──
-    poster_path, status_html = fresh_app.generate_shopping_poster()
+    from shopstack.ui.screens import generate_shopping_poster
+    poster_path, status_html = generate_shopping_poster()
 
     assert status_html, "Status HTML should not be empty"
 

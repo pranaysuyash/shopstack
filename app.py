@@ -4,85 +4,48 @@ from datetime import date
 
 import gradio as gr
 
-from shopstack.ui.screens import (
-    today_dashboard,
-    shopping_list_view,
-    shopping_list_create,
-    shopping_list_view_with_cards,
-    build_shopping_list_and_refresh,
-    complete_shopping_list,
-    shopping_list_item_choices,
-    mark_items_purchased,
-    get_reconciliation_draft,
-    confirm_reconciliation,
-    get_intelligence_dashboard,
-    run_unified_plan,
-    unified_plan_summary,
-    consumption_dashboard,
-    quick_consume,
-    batch_consume_with_context,
-    consumption_history,
-    consumption_rates,
-    market_lens_process,
-    market_lens_confirm_buy,
-    market_lens_skip,
-    market_lens_save_trace,
-    market_lens_barcode_add,
-    shelf_scan_process,
-    shelf_scan_confirm,
-    shelf_scan_skip,
-    shelf_scan_save_trace,
-    ask_shopstack,
-    add_purchase_form,
-    inventory_view,
-    inventory_cards_view,
-    consume_item,
-    consume_items_batch,
-    add_purchase_batch,
-    use_soon_view,
-    model_budget_view,
-    provider_status_badge,
-    runtime_proof_view,
-    price_memory_view,
-    price_intelligence_view,
-    market_intelligence_view,
-    household_map_view,
-    agent_trace_view,
-    agent_trace_detail,
-    agent_trace_bootstrap,
-    agent_trace_export_file,
-    agent_trace_refresh,
-    agent_trace_search_filter,
-    trace_bundle,
-    field_notes_view,
-    field_notes_save,
-    export_data_json,
-    export_data_csv,
-    import_data_file,
-    generate_shopping_poster,
-)
-from shopstack.ui.screens.other import move_inventory_to_location
-from shopstack.ui.screens.receipt import (
-    receipt_scan_ocr,
-    receipt_parse_text,
-    receipt_confirm,
-    _load_ocr_model,
-)
-from shopstack.ui.screens.nutrition import nutrition_lookup_view, nutrition_kitchen_view
-from shopstack.ui.screens.price_compare import (
-    multi_source_price_view,
-    single_item_compare,
-    refresh_source_registry,
-    basket_compare_view,
-)
-from shopstack.ui.screens.basket import build_basket_screen
-from shopstack.ui.components import WORKFLOW_STEPS, workflow_header, workflow_title_bar
+from shopstack.ui.screens import today_dashboard, shelf_scan_process, shelf_scan_confirm, shelf_scan_skip, shelf_scan_save_trace
+from shopstack.ui.components import workflow_header
 from shopstack.ui.theme import CSS
 from shopstack.ui.tabs.context import TabContext
 from shopstack.ui.tabs.today import build_today_tab, TodayTabHandles
 from shopstack.ui.tabs.basket import build_basket_tab
 from shopstack.ui.tabs.market import build_market_tab
 from shopstack.ui.tabs.reconcile import build_reconcile_tab, ReconcileTabHandles
+from shopstack.ui.tabs.memory import build_memory_tab
+
+# Test-compat shim: many tests use `app.<screen_function>()` as a convenience.
+# Tab builders are the production API; these re-exports exist solely so
+# existing test code (`tests/test_views.py`, `tests/test_traces.py`,
+# `tests/test_screens.py`) works without modification. When the tests are
+# migrated to import screen functions directly from `shopstack.ui.screens`,
+# this block can be removed. See the "Test compatibility" addendum in
+# AGENTS.md for the full migration plan.
+from shopstack.ui.screens import (  # noqa: E402,F401 — test-compat re-exports
+    add_purchase_form,
+    agent_trace_bootstrap,
+    agent_trace_export_file,
+    agent_trace_view,
+    ask_shopstack,
+    complete_shopping_list,
+    confirm_reconciliation,
+    consume_item,
+    field_notes_save,
+    field_notes_view,
+    generate_shopping_poster,
+    household_map_view,
+    inventory_cards_view,
+    inventory_view,
+    market_lens_confirm_buy,
+    market_lens_process,
+    market_lens_save_trace,
+    market_lens_skip,
+    model_budget_view,
+    provider_status_badge,
+    runtime_proof_view,
+    use_soon_view,
+)
+from shopstack.ui.screens.other import move_inventory_to_location  # noqa: E402,F401 — test-compat
 
 from pathlib import Path
 from shopstack.app_context import APP_DESCRIPTION, APP_NAME, db, providers, tools, planner, model_registry
@@ -317,220 +280,10 @@ document.addEventListener('keydown', function(e) {
             move_dest = reconcile_handles.move_dest
 
             # ═══════════════════════════════════════════════════════════════
-            # Tab 5: Insights — what did we learn?
+            # Tab 5: Memory — what did we learn?
+            # Built in shopstack/ui/tabs/memory.py
             # ═══════════════════════════════════════════════════════════════
-            with gr.Tab(_tab_label("memory"), id="memory"):
-                with gr.Tabs():
-                    # ── Intelligence & Insights ──
-                    with gr.Tab("Intelligence"):
-                        gr.Markdown("### Price & Preference Intelligence")
-                        gr.Markdown("Waste patterns, inferred preferences, and price memory analysis.")
-                        with gr.Row():
-                            intel_refresh_btn = gr.Button("Refresh Intelligence", elem_classes="secondary")
-                        intel_waste_html = gr.HTML("<div class='home-card'>Loading waste insights...</div>")
-                        intel_pref_html = gr.HTML("<div class='home-card'>Loading preference signals...</div>")
-                        intel_price_html = gr.HTML("<div class='home-card'>Loading price intelligence...</div>")
-                        
-                        intel_refresh_btn.click(
-                            get_intelligence_dashboard,
-                            None,
-                            [intel_waste_html, intel_pref_html, intel_price_html]
-                        )
-                        app.load(
-                            get_intelligence_dashboard,
-                            None,
-                            [intel_waste_html, intel_pref_html, intel_price_html]
-                        )
-
-                    # ── Field Notes ──
-                    with gr.Tab("Field Notes"):
-                        gr.Markdown("### Field Notes")
-                        gr.Markdown(
-                            "Capture household notes, shopping decisions, price changes, and things to remember next time.")
-                        notes_editor = gr.Textbox(
-                            label="Editable Draft", lines=16,
-                            placeholder="# Household Notes\n\nWrite what we learned...")
-                        notes_preview = gr.Markdown()
-                        notes_status = gr.HTML("")
-                        with gr.Row():
-                            notes_reload = gr.Button("Reload Draft", elem_classes="secondary")
-                            notes_save = gr.Button("Save Notes")
-                        notes_reload.click(
-                            field_notes_view,
-                            outputs=[notes_editor, notes_preview, notes_status],
-                            api_name="notes_reload",
-                            api_description="Reload persisted field notes and preview",
-                        )
-                        notes_save.click(
-                            field_notes_save,
-                            notes_editor,
-                            outputs=[notes_editor, notes_preview, notes_status],
-                            api_name="notes_save",
-                            api_description="Save field notes draft",
-                        )
-                        notes_editor.change(
-                            lambda text: text,
-                            notes_editor,
-                            notes_preview,
-                            api_name="notes_live_preview",
-                            api_description="Update markdown preview while typing notes",
-                        )
-                        app.load(field_notes_view, outputs=[notes_editor, notes_preview, notes_status])
-
-                    # ── History ──
-                    with gr.Tab("History"):
-                        gr.HTML(workflow_title_bar(
-                            "Household History",
-                            "Browse household activity, inspect details, and export records when you need them.",
-                        ))
-                        with gr.Row():
-                            trace_search = gr.Textbox(
-                                label="Search",
-                                placeholder="Search by goal, type, or record ID",
-                                scale=2,
-                            )
-                            trace_type_filter = gr.Dropdown(
-                                label="Input type",
-                                choices=[("All", ""), ("Text", "text"), ("Voice", "voice"), ("Image", "image")],
-                                value="",
-                                allow_custom_value=False,
-                                scale=1,
-                            )
-                            trace_refresh = gr.Button("Refresh", elem_classes="secondary", scale=1)
-                        trace_table = gr.DataFrame(label="Recent Activity")
-                        with gr.Row():
-                            trace_selector = gr.Dropdown(
-                                label="Select a record",
-                                choices=[("No traces yet", "")],
-                                value="",
-                                allow_custom_value=False,
-                            )
-                        trace_timeline = gr.HTML("")
-                        trace_raw = gr.HTML("")
-                        with gr.Row():
-                            trace_export = gr.Button("Export trace JSONL")
-                            trace_file = gr.File(file_count="single", visible=True,
-                                                 label="Download redacted JSONL")
-                        trace_bootstrap_state = gr.State("")
-
-                        trace_search.change(
-                            agent_trace_search_filter,
-                            [trace_search, trace_type_filter],
-                            [trace_selector, trace_timeline, trace_raw],
-                            api_name="trace_search",
-                            api_description="Search and filter traces",
-                        )
-                        trace_type_filter.change(
-                            agent_trace_search_filter,
-                            [trace_search, trace_type_filter],
-                            [trace_selector, trace_timeline, trace_raw],
-                            api_name="trace_filter",
-                            api_description="Filter traces by input type",
-                        )
-                        trace_selector.change(
-                            trace_bundle,
-                            trace_selector,
-                            [trace_timeline, trace_raw],
-                            api_name="trace_select",
-                            api_description="Load timeline and redacted payload for selected trace",
-                        )
-                        trace_refresh.click(
-                            agent_trace_refresh,
-                            outputs=[trace_selector, trace_timeline, trace_raw, trace_bootstrap_state,
-                                     trace_table],
-                            api_name="trace_refresh",
-                            api_description="Refresh trace list and selected timeline",
-                        )
-                        trace_export.click(
-                            agent_trace_export_file,
-                            trace_selector,
-                            trace_file,
-                            api_name="trace_export",
-                            api_description="Export selected record as redacted JSONL",
-                        )
-                        app.load(lambda: agent_trace_view()[0], outputs=trace_table)
-                        app.load(
-                            lambda: agent_trace_bootstrap(),
-                            outputs=[trace_selector, trace_timeline, trace_raw, trace_bootstrap_state],
-                        )
-
-                    # ── Nutrition ──
-                    with gr.Tab("Nutrition"):
-                        gr.Markdown("### Nutrition Lookup")
-                        nutrition_search = gr.Textbox(
-                            label="Search Item",
-                            placeholder="e.g. milk, atta, rice, chicken, doodh, dal...",
-                        )
-                        nutrition_search_btn = gr.Button("Look Up")
-                        nutrition_result = gr.HTML("")
-                        nutrition_search_btn.click(
-                            nutrition_lookup_view,
-                            nutrition_search,
-                            nutrition_result,
-                            api_name="nutrition_lookup",
-                            api_description="Lookup nutrition for searched item",
-                        )
-                        nutrition_search.submit(
-                            nutrition_lookup_view,
-                            nutrition_search,
-                            nutrition_result,
-                            api_name="nutrition_lookup_submit",
-                            api_description="Lookup nutrition for submitted text",
-                        )
-                        gr.Markdown("### My Kitchen Nutrition")
-                        kitchen_nutrition = gr.HTML("")
-                        kitchen_refresh = gr.Button("Refresh Kitchen Nutrition", elem_classes="secondary")
-                        kitchen_refresh.click(
-                            nutrition_kitchen_view,
-                            outputs=kitchen_nutrition,
-                            api_name="nutrition_kitchen_refresh",
-                            api_description="Refresh kitchen nutrition aggregate view",
-                        )
-                        app.load(nutrition_kitchen_view, outputs=kitchen_nutrition)
-
-                    # ── System (developer mode only) ──
-                    if settings.ui_mode == "developer":
-                        with gr.Tab("System"):
-                            model_stack_html = gr.HTML("")
-                            app.load(model_budget_view, outputs=model_stack_html)
-
-                    # ── Data ──
-                    with gr.Tab("Data"):
-                        with gr.Tab("Export"):
-                            export_json_btn = gr.Button("Export Inventory as JSON")
-                            export_csv_btn = gr.Button("Export Inventory as CSV")
-                            export_file = gr.File(label="Download", visible=False)
-                            export_json_btn.click(
-                                export_data_json,
-                                outputs=export_file,
-                                api_name="export_json",
-                                api_description="Export inventory state to JSON",
-                            ).then(
-                                lambda f: gr.update(value=f, visible=True) if f else gr.update(visible=False),
-                                export_file,
-                                export_file
-                            )
-                            export_csv_btn.click(
-                                export_data_csv,
-                                outputs=export_file,
-                                api_name="export_csv",
-                                api_description="Export inventory state to CSV",
-                            ).then(
-                                lambda f: gr.update(value=f, visible=True) if f else gr.update(visible=False),
-                                export_file,
-                                export_file
-                            )
-                        with gr.Tab("Import"):
-                            import_file = gr.File(label="Upload JSON or CSV", file_count="single")
-                            import_btn = gr.Button("Import Data")
-                            import_result = gr.HTML("")
-                            import_btn.click(
-                                import_data_file,
-                                import_file,
-                                import_result,
-                                api_name="import_data",
-                                api_description="Import inventory from JSON or CSV file",
-                            )
+            build_memory_tab(blocks=app, app=app, ctx=TabContext())
 
         # Wire household dropdown change after all output components are defined
         household_dropdown.change(

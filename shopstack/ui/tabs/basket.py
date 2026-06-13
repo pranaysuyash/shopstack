@@ -36,6 +36,7 @@ from shopstack.ui.screens import (
     run_unified_plan,
     shopping_list_item_choices,
     shopping_list_view_with_cards,
+    shopping_list_substitutions_view,
     single_item_compare,
     unified_plan_summary,
 )
@@ -97,6 +98,7 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
             # ── Shopping List ──
             with gr.Tab("Shopping List"):
                 sl_cards = gr.HTML("")
+                sl_substitutions = gr.HTML("")
                 sl_display = gr.HTML("")
                 sl_table = gr.DataFrame(label="Items")
                 sl_list_id = gr.State("")
@@ -184,12 +186,16 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                     shopping_list_view_with_cards,
                     outputs=[sl_cards, sl_display, sl_table, sl_list_id, sl_goal, sl_share],
                 ).then(
+                    shopping_list_substitutions_view,
+                    outputs=sl_substitutions,
+                ).then(
                     shopping_list_item_choices,
                     outputs=sl_item_dropdown
                 )
                 app.load(shopping_list_item_choices, outputs=sl_item_dropdown)
                 app.load(shopping_list_view_with_cards, outputs=[sl_cards, sl_display, sl_table,
                                                                   sl_list_id, sl_goal, sl_share])
+                app.load(shopping_list_substitutions_view, outputs=sl_substitutions)
 
                 with gr.Row():
                     create_btn = gr.Button("Build Shopping Plan")
@@ -202,6 +208,9 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                     [create_output, sl_cards, sl_display, sl_table, sl_list_id, sl_goal, sl_share],
                     api_name="build_list",
                     api_description="Build a shopping list for current goal and refresh cards/table",
+                ).then(
+                    shopping_list_substitutions_view,
+                    outputs=sl_substitutions,
                 ).then(
                     shopping_list_item_choices,
                     outputs=sl_item_dropdown
@@ -227,6 +236,9 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                     shopping_list_view_with_cards,
                     outputs=[sl_cards, sl_display, sl_table, sl_list_id, sl_goal, sl_share]
                 ).then(
+                    shopping_list_substitutions_view,
+                    outputs=sl_substitutions,
+                ).then(
                     shopping_list_item_choices,
                     outputs=sl_item_dropdown
                 )
@@ -240,6 +252,9 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                 ).then(
                     shopping_list_view_with_cards,
                     outputs=[sl_cards, sl_display, sl_table, sl_list_id, sl_goal, sl_share]
+                ).then(
+                    shopping_list_substitutions_view,
+                    outputs=sl_substitutions,
                 ).then(
                     shopping_list_item_choices,
                     outputs=sl_item_dropdown

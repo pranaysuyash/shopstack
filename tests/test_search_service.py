@@ -21,8 +21,11 @@ def test_semantic_search_prefix_match(db, tool_registry):
     )
     results = semantic_search(db, "tom")
     assert len(results) >= 1
-    prefix = [r for r in results if r.match_type == "prefix"]
-    assert len(prefix) >= 1
+    # "tom" is a substring of "tomato" — with Hinglish canonicalization this
+    # now resolves to an exact match (resolve_canonical does substring
+    # canonicalization). We accept either exact or prefix as a valid match.
+    assert any(r.match_type in ("exact", "prefix") for r in results)
+    assert any(r.canonical_name == "tomato" for r in results)
 
 
 def test_semantic_search_empty_query(db):

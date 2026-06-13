@@ -381,6 +381,47 @@ def render_price_deals(deals: list[dict[str, Any]]) -> str:
     return f"{_CARD_OPEN}<h3>Price Deals</h3>{''.join(rows)}</div>"
 
 
+def render_price_drops(alerts: list[dict[str, Any]]) -> str:
+    """Render price-drop alerts — items currently cheaper than the household's
+    historical median. Sourced from ``DashboardState.price_drops``."""
+    if not alerts:
+        return ""
+
+    rows = []
+    for a in alerts[:6]:
+        name = escape(a.get("display_name") or a.get("canonical_name", "").replace("_", " ").title())
+        source = a.get("source", "")
+        current = float(a.get("current_price", 0))
+        median = float(a.get("median_price", 0))
+        drop_pct = float(a.get("drop_pct", 0))
+        drop_amount = float(a.get("drop_amount", 0))
+        rows.append(
+            f"<div style='padding:5px 0;border-bottom:1px solid var(--border);'>"
+            f"<strong>{name}</strong> "
+            f"<span style='color:var(--text-dim);font-size:10px;'>"
+            f"at {escape(source.title())}</span>"
+            f"<br>"
+            f"<span style='color:var(--green);font-weight:600;'>"
+            f"&#8377;{current:.0f}</span>"
+            f" <span style='color:var(--text-dim);font-size:10px;'>"
+            f"(was &#8377;{median:.0f})</span>"
+            f" &middot; "
+            f"<span style='color:var(--green);font-size:10px;'>"
+            f"↓ {drop_pct:.0f}% (save &#8377;{drop_amount:.0f})</span>"
+            f"</div>"
+        )
+
+    return (
+        f"{_CARD_OPEN}<h3>📉 Price Drops</h3>"
+        f"<div style='font-size:11px;color:var(--text-dim);margin-bottom:4px;'>"
+        f"Items currently below your historical median."
+        f"</div>"
+        f"{''.join(rows)}</div>"
+    )
+
+    return f"{_CARD_OPEN}<h3>Price Deals</h3>{''.join(rows)}</div>"
+
+
 def render_best_store(store_data: dict[str, Any]) -> str:
     """Render best store recommendation."""
     if not store_data or not store_data.get("store"):

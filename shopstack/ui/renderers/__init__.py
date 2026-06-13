@@ -9,6 +9,11 @@ from shopstack.ui.renderers.decision_cards import (
     render_waste_warnings,
     render_swiggy_soldout_warning,
     render_needs_confirmation,
+    render_restock_predictions,
+    render_price_deals,
+    render_price_drops,
+    render_best_store,
+    render_optimized_basket_summary,
 )
 from shopstack.ui.renderers.image_cards import (
     CardTheme,
@@ -36,6 +41,11 @@ __all__ = [
     "render_waste_warnings",
     "render_swiggy_soldout_warning",
     "render_needs_confirmation",
+    "render_restock_predictions",
+    "render_price_deals",
+    "render_price_drops",
+    "render_best_store",
+    "render_optimized_basket_summary",
     "CardTheme",
     "DEFAULT_THEME",
     "cards_to_grid",

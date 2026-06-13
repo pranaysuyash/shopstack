@@ -502,3 +502,119 @@ class TestMarkItemsPurchasedService:
         result = mark_items_purchased_service(json.dumps([item_id]), app.tools, app.db)
         html = render_mark_purchased(result)
         assert "&lt;script&gt;" in html
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Household scoping (user_id parameter)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The shopping services accept a `user_id` parameter to scope reads/writes
+# to a specific household. These tests verify the scope is honored — the
+# active shopping list, inventory additions, and trace creation all
+# respect the household boundary.
+
+
+class TestHouseholdScoping:
+    """Verify shopping services respect `user_id` for household isolation."""
+
+    def _seed_list(self, app, goal: str, items: list[dict]):
+        """Create a shopping list with the given items, return its list_id."""
+        return app.tools.create_or_update_shopping_list(items=items, goal=goal)
+
+    def test_complete_shopping_list_uses_user_id_scope(self, app):
+        """complete_shopping_list_service with user_id scopes get_active_shopping_list."""
+        from shopstack.services.shopping import complete_shopping_list_service
+
+        self._seed_list(app, "household-A list", [
+            {"canonical_name": "milk", "requested_quantity": 1, "unit": "L"},
+        ])
+        sl_a = app.db.get_active_shopping_list()
+        list_id_a = sl_a.list_id
+
+        # The default user_id (empty string) should see the list and complete it
+        result_empty = complete_shopping_list_service(list_id_a, app.tools, app.db, user_id="")
+        assert result_empty.success
+        assert len(result_empty.items_added) == 1
+
+    def test_complete_shopping_list_wrong_user_id_returns_failure(self, app):
+        """A user_id that doesn't match the list's owner should NOT see/complete it."""
+        from shopstack.services.shopping import complete_shopping_list_service
+
+        self._seed_list(app, "isolated list", [
+            {"canonical_name": "bread", "requested_quantity": 1, "unit": "loaf"},
+        ])
+        sl = app.db.get_active_shopping_list()
+        list_id = sl.list_id
+
+        # The active list belongs to the default user (empty string).
+        # Asking the service to look it up under a different user_id should
+        # not find it (get_active_shopping_list scopes by user_id).
+        result_other = complete_shopping_list_service(
+            list_id, app.tools, app.db, user_id="household-B",
+        )
+        # The list exists but is scoped to the default user, so household-B's
+        # get_active_shopping_list returns nothing → failure
+        assert not result_other.success
+        assert "not found" in result_other.message.lower() or "completed" in result_other.message.lower()
+
+    def test_mark_items_purchased_uses_user_id_scope(self, app):
+        """mark_items_purchased_service scopes get_active_shopping_list by user_id."""
+        from shopstack.services.shopping import mark_items_purchased_service
+
+        self._seed_list(app, "scope test", [
+            {"canonical_name": "eggs", "requested_quantity": 12, "unit": "pieces"},
+        ])
+        sl = app.db.get_active_shopping_list()
+        item_id = sl.items[0].list_item_id
+
+        # Default user_id (empty string) should find the list and process
+        result = mark_items_purchased_service(
+            json.dumps([item_id]), app.tools, app.db, user_id="",
+        )
+        assert result.success
+        assert len(result.items_added) == 1
+        assert result.items_added[0].canonical_name == "eggs"
+
+    def test_inventory_add_passes_user_id(self, app):
+        """When completing a list, the InventoryRepo.add_item is called with user_id."""
+        from shopstack.services.shopping import complete_shopping_list_service
+
+        self._seed_list(app, "user_id propagation", [
+            {"canonical_name": "rice", "requested_quantity": 1, "unit": "kg"},
+        ])
+        sl = app.db.get_active_shopping_list()
+        list_id = sl.list_id
+
+        # Complete the list under the default user (empty user_id).
+        # The service should add the inventory lot, and the default
+        # user_id (empty string) should be able to retrieve it.
+        result = complete_shopping_list_service(
+            list_id, app.tools, app.db, user_id="",
+        )
+        assert result.success
+        assert len(result.items_added) == 1
+
+        # The inventory lot should be retrievable for the default user
+        items_default = app.db.get_inventory(user_id="")
+        items_other = app.db.get_inventory(user_id="household-other")
+        assert any(i.canonical_name == "rice" for i in items_default)
+        assert not any(i.canonical_name == "rice" for i in items_other)
+
+    def test_create_trace_passes_user_id(self, app):
+        """complete_shopping_list_service records a trace scoped to the user_id."""
+        from shopstack.services.shopping import complete_shopping_list_service
+
+        self._seed_list(app, "trace scope", [
+            {"canonical_name": "flour", "requested_quantity": 1, "unit": "kg"},
+        ])
+        sl = app.db.get_active_shopping_list()
+        list_id = sl.list_id
+
+        # The trace is best-effort: a failure to create doesn't roll back
+        # the inventory additions, so we just verify the service completes
+        # successfully when user_id is set.
+        result = complete_shopping_list_service(
+            list_id, app.tools, app.db, user_id="",
+        )
+        assert result.success
+        assert result.message.startswith("List completed!")

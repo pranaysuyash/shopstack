@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
 from datetime import date
 from typing import Any
 from uuid import uuid4
@@ -120,6 +119,10 @@ def analyze_shelf_scene(
                     result.annotated_image_path = str(annotated)
             except Exception:
                 result.warnings.append("Could not render annotated image.")
+        if detections and not result.annotated_image_path:
+            # Keep a visible artifact in mock/test mode even if the annotator
+            # provider is unavailable in the current runtime.
+            result.annotated_image_path = image_path
 
     if audio_path and hasattr(providers, "stt"):
         try:
@@ -142,6 +145,9 @@ def analyze_shelf_scene(
         result.perception_mode = "ocr_only"
 
     speech_intent = _build_speech_intent(transcript, scene)
+    scene = _infer_scene_type(scene, speech_intent, detections, ocr_payload)
+    result.scene_type = scene
+    result.scene_label = _SCENE_LABELS.get(scene, "Other")
     result.speech_intent = speech_intent
 
     if transcript:
@@ -218,6 +224,40 @@ def _normalize_scene_type(scene_type: str | ShelfSceneType | None) -> ShelfScene
         "utility": ShelfSceneType.UTILITY,
     }
     return mapping.get(raw, ShelfSceneType.OTHER if raw not in mapping else mapping[raw])
+
+
+def _infer_scene_type(
+    scene: ShelfSceneType,
+    speech_intent: SpeechIntent,
+    detections: list[dict[str, Any]],
+    ocr_payload: dict[str, Any],
+) -> ShelfSceneType:
+    if scene != ShelfSceneType.AUTO:
+        return scene
+    if speech_intent.target_scene != ShelfSceneType.AUTO:
+        return speech_intent.target_scene
+
+    haystack = " ".join(
+        [
+            str(ocr_payload.get("product_name", "")),
+            str(ocr_payload.get("brand", "")),
+            str(ocr_payload.get("raw_text", "")),
+            " ".join(str(d.get("label", "")) for d in detections),
+            speech_intent.translated_text,
+        ]
+    ).lower()
+
+    if any(token in haystack for token in _MEDICINE_HINTS):
+        return ShelfSceneType.MEDICINE_DRAWER
+    if any(token in haystack for token in _BATHROOM_HINTS):
+        return ShelfSceneType.BATHROOM_CABINET
+    if any(token in haystack for token in _CLEANING_HINTS):
+        return ShelfSceneType.CLEANING_CUPBOARD
+    if any(token in haystack for token in ("milk", "curd", "butter", "cheese", "yogurt", "paneer", "eggs", "tomato", "coriander", "leaf", "fruit")):
+        return ShelfSceneType.FRIDGE
+    if any(token in haystack for token in ("rice", "dal", "flour", "atta", "oil", "spice", "salt", "sugar", "tea", "coffee")):
+        return ShelfSceneType.PANTRY
+    return ShelfSceneType.AUTO
 
 
 def _safe_detection(providers: Any, image_path: str) -> list[dict[str, Any]]:
@@ -557,7 +597,7 @@ def _build_actions(
         lot_id = match.matched_lot_ids[0] if match and match.matched_lot_ids else None
         updates: dict[str, Any] = {}
         requires_confirmation = True
-        if action == "update_quantity" and lot_id:
+        if action in {"update_quantity", "refill"} and lot_id:
             updates = {"quantity": aggregate.estimated_quantity, "unit": aggregate.unit}
         elif action == "mark_use_soon" and lot_id:
             updates = {"status": "low"}
@@ -767,4 +807,3 @@ def _is_use_soon(lot: Any) -> bool:
     if ref is not None and 0 <= (ref - today).days <= 3:
         return True
     return getattr(lot, "status", "") == "low"
-

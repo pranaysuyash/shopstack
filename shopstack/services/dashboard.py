@@ -25,6 +25,7 @@ class DashboardState:
     waste_data: list[dict[str, Any]] = field(default_factory=list)
     weather: WeatherState | None = None
     price_deals: list[dict[str, Any]] = field(default_factory=list)
+    price_drops: list[dict[str, Any]] = field(default_factory=list)
     best_store: dict[str, Any] = field(default_factory=dict)
     optimized_basket: Any | None = None
     restock_predictions: list[dict[str, Any]] = field(default_factory=list)
@@ -123,6 +124,30 @@ def build_dashboard_state(db: Database, inventory, city: str = "mumbai", user_id
     except Exception as exc:
         logger.debug("Restock prediction failed: %s", exc)
 
+    # Price drop alerts — items where current market price is significantly
+    # below the household's historical median. Distinct from ``price_deals``
+    # (which only covers "buy" decisions) — these are for any item in the
+    # current snapshot, not just the user's planned basket.
+    price_drops: list[dict[str, Any]] = []
+    if market_snapshot is not None:
+        try:
+            from shopstack.services.price_alerts import detect_price_drops
+            from shopstack.services.price_memory import PriceMemoryService
+
+            pm_alerts = PriceMemoryService(db)
+            for alert in detect_price_drops(market_snapshot, pm_alerts):
+                price_drops.append({
+                    "canonical_name": alert.canonical_name,
+                    "display_name": alert.display_name,
+                    "source": alert.source,
+                    "current_price": alert.current_price,
+                    "median_price": alert.median_price,
+                    "drop_pct": alert.drop_pct,
+                    "drop_amount": alert.drop_amount,
+                })
+        except Exception as exc:
+            logger.debug("Price drop detection failed: %s", exc)
+
     return DashboardState(
         decision_set=decision_set,
         market_snapshot=market_snapshot,
@@ -136,6 +161,7 @@ def build_dashboard_state(db: Database, inventory, city: str = "mumbai", user_id
         waste_data=waste_data,
         weather=weather,
         price_deals=price_deals,
+        price_drops=price_drops,
         best_store=best_store,
         optimized_basket=optimized_basket,
         restock_predictions=restock_predictions,

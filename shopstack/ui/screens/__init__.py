@@ -12,6 +12,7 @@ from shopstack.ui.screens.shopping import (
     get_reconciliation_draft,
     confirm_reconciliation,
     generate_shopping_poster,
+    shopping_list_substitutions_view,
 )
 from shopstack.ui.screens.market_lens import (
     market_lens_process,
@@ -107,6 +108,7 @@ __all__ = [
     "get_reconciliation_draft",
     "confirm_reconciliation",
     "generate_shopping_poster",
+    "shopping_list_substitutions_view",
     "market_lens_process",
     "market_lens_confirm_buy",
     "market_lens_skip",

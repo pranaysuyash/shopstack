@@ -15,6 +15,10 @@ from shopstack.services.shopping import (
     complete_shopping_list_service,
     mark_items_purchased_service,
 )
+from shopstack.services.shopping_substitutions import (
+    get_substitutions_for_list,
+    render_substitutions_html,
+)
 from shopstack.ui.components.cards import list_to_table
 from shopstack.ui.components.primitives import empty_state_enhanced, item_row, toast
 from shopstack.ui.renderers import render_mark_purchased, render_shopping_completion
@@ -573,6 +577,47 @@ def confirm_reconciliation(df_data: Any, list_id: str) -> str:
 def shopping_list_view_with_cards() -> tuple[str, str, list[list[str]], str, str, str]:
     """Public handler for refreshing shopping list view with cards."""
     return _shopping_list_view_with_cards()
+
+
+def shopping_list_substitutions_view() -> str:
+    """Render substitution suggestions for the active shopping list.
+
+    Loads the active list, queries the multi-source market registry for
+    available snapshots, runs ``find_substitutions`` per item, and returns
+    HTML for an inline substitution panel. Returns an empty string when
+    there is no active list, no market data, or no sold-out items to
+    surface alternatives for.
+    """
+    sl = db.get_active_shopping_list(user_id=_user_id())
+    if not sl or not sl.items:
+        return ""
+
+    rows = [
+        {
+            "canonical_name": lot.canonical_name,
+            "requested_quantity": lot.requested_quantity or 1.0,
+            "unit": lot.unit or "unit",
+            "display_name": (lot.canonical_name or "").replace("_", " ").title(),
+        }
+        for lot in sl.items
+        if lot.status not in ("bought", "skipped")
+    ]
+    if not rows:
+        return ""
+
+    try:
+        from shopstack.services.market_sources import load_market_registry
+
+        registry, _ = load_market_registry(force=False)
+    except Exception as exc:
+        logger.debug("Could not load market registry for substitutions: %s", exc)
+        return ""
+
+    if registry is None:
+        return ""
+
+    items = get_substitutions_for_list(rows, registry)
+    return render_substitutions_html(items)
 
 
 def build_shopping_list_and_refresh(

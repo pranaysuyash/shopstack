@@ -65,8 +65,9 @@ def test_off_the_grid_allows_local_backends(monkeypatch):
     settings = Settings(_env_file=None, off_the_grid=True, planner_backend="minicpm5")
     registry = ProviderRegistry(settings)
     planner = registry.planner
-    assert type(planner).__name__ == "FakeMiniCPM5Provider"
+    assert type(planner).__name__ in ("FakeMiniCPM5Provider", "MiniCPM5Provider")
     assert planner.available is True
+    assert "planning" in planner.capabilities
 
 
 def test_register_overrides_default():

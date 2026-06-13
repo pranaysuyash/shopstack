@@ -9,7 +9,6 @@ from shopstack.app_context import db, providers, tools, current_user_id
 from shopstack.schemas.shelf import ProposedInventoryAction, ShelfIntelligenceResult
 from shopstack.services.shelf_intelligence import analyze_shelf_scene
 from shopstack.traces.export import create_trace, update_trace_confirmation
-from shopstack.ui.screens._utils import WORKFLOW_STEPS
 
 logger = logging.getLogger(__name__)
 
@@ -70,13 +69,8 @@ def shelf_scan_process(
             },
             proposed_tool_calls=[
                 {
-                    "tool_name": action.action,
-                    "args": action.field_updates or {
-                        "canonical_name": action.canonical_name,
-                        "quantity": action.quantity,
-                        "unit": action.unit,
-                        "target_location_id": action.target_location_id,
-                    },
+                    "tool_name": _tool_name_for_action(action.action),
+                    "args": _tool_args_for_action(action),
                 }
                 for action in result.proposed_actions
             ],
@@ -156,7 +150,7 @@ def _apply_action(action: ProposedInventoryAction) -> str:
         lot_id = result.get("lot_id", "")
         return f"added {action.display_name} ({lot_id[:8]})"
 
-    if action.action == "update_quantity" and action.lot_id:
+    if action.action in {"update_quantity", "refill"} and action.lot_id:
         result = tools.update_inventory_item(
             action.lot_id,
             {
@@ -189,6 +183,55 @@ def _apply_action(action: ProposedInventoryAction) -> str:
         return ""
 
     return ""
+
+
+def _tool_name_for_action(action_name: str) -> str:
+    if action_name == "add_new_lot":
+        return "add_inventory_item"
+    if action_name in {"update_quantity", "refill", "mark_use_soon"}:
+        return "update_inventory_item"
+    if action_name == "move_location":
+        return "move_inventory_item"
+    return "confirm_scan"
+
+
+def _tool_args_for_action(action: ProposedInventoryAction) -> dict[str, Any]:
+    if action.action == "add_new_lot":
+        return dict(action.field_updates or {
+            "canonical_name": action.canonical_name,
+            "display_name": action.display_name,
+            "quantity": action.quantity,
+            "unit": action.unit,
+            "storage_location_id": action.target_location_id or "kitchen",
+            "category": action.field_updates.get("category", "") if action.field_updates else "",
+        })
+
+    if action.action in {"update_quantity", "refill", "mark_use_soon"}:
+        updates = dict(action.field_updates or {})
+        if action.action == "mark_use_soon":
+            updates.setdefault("status", "low")
+        elif not updates:
+            updates = {
+                "quantity": action.quantity,
+                "unit": action.unit,
+            }
+        return {
+            "lot_id": action.lot_id or "",
+            "updates": updates,
+        }
+
+    if action.action == "move_location":
+        return {
+            "lot_id": action.lot_id or "",
+            "to_location_id": action.target_location_id or "kitchen",
+        }
+
+    return {
+        "canonical_name": action.canonical_name,
+        "quantity": action.quantity,
+        "unit": action.unit,
+        "target_location_id": action.target_location_id,
+    }
 
 
 def _render_shelf_scan(result: ShelfIntelligenceResult) -> str:
@@ -279,13 +322,13 @@ def _render_instance_card(instance: Any) -> str:
         f"{freshness}{expiry}</div>"
         f"<div style='margin-top:6px;font-size:11px;color:var(--text-dim);'>"
         f"{escape(instance.zone_guess or 'unknown zone')}</div>"
-        "</div>"
+        f"</div>"
     )
 
 
 def _render_aggregate_card(aggregate: Any) -> str:
     return (
-        "<div class='stat-card' style='text-align:left;'>"
+        f"<div class='stat-card' style='text-align:left;'>"
         f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
         f"<strong>{escape(aggregate.display_name)}</strong>"
         f"<span class='badge badge-blue'>{escape(aggregate.recommendation)}</span></div>"
@@ -304,7 +347,7 @@ def _render_aggregate_card(aggregate: Any) -> str:
             f"Warnings: {escape('; '.join(aggregate.warnings[:2]))}</div>"
             if aggregate.warnings else ""
         )
-        "</div>"
+        + "</div>"
     )
 
 
@@ -330,4 +373,3 @@ def _render_review_card(text: str) -> str:
         f"<div style='font-size:12px;color:var(--text-dim);'>{escape(text)}</div>"
         "</div>"
     )
-

@@ -20,6 +20,14 @@ from datetime import date, timedelta
 import pytest
 
 from shopstack.schemas.models import InventoryLot, Trace
+from shopstack.ui.screens.inventory import add_purchase_batch, consume_items_batch
+from shopstack.ui.screens.price_memory import price_intelligence_view
+from shopstack.ui.screens.market_lens import (
+    market_lens_confirm_buy,
+    market_lens_skip,
+    market_lens_save_trace,
+    market_lens_barcode_add,
+)
 
 
 # ── Session-level env setter (same pattern as test_views.py) ──────────────
@@ -71,32 +79,32 @@ def app(_app_session):
 
 class TestAddPurchaseBatch:
     def test_empty_input(self, app):
-        result = app.add_purchase_batch("")
+        result = add_purchase_batch("")
         assert "Add at least one row" in result
 
     def test_whitespace_only(self, app):
-        result = app.add_purchase_batch("   \n\n  ")
+        result = add_purchase_batch("   \n\n  ")
         assert "Add at least one row" in result
 
     def test_csv_single_row(self, app):
-        result = app.add_purchase_batch("Almonds,0.5,kg,350.0,Nut Store,pantry,dry fruits")
+        result = add_purchase_batch("Almonds,0.5,kg,350.0,Nut Store,pantry,dry fruits")
         assert "Added" in result
         assert "Almonds" in result
         assert app.db.get_inventory(user_id=app.current_user_id())
 
     def test_csv_multiple_rows(self, app):
         batch = "Mango,2,kg,120.0,Fruit Shop,fridge,fruit\nBanana,1,dozen,60.0,Fruit Shop,fridge_top,fruit"
-        result = app.add_purchase_batch(batch)
+        result = add_purchase_batch(batch)
         assert "Added 2" in result
 
     def test_csv_minimal_columns(self, app):
         """Only name, qty, unit — rest get defaults."""
-        result = app.add_purchase_batch("Sugar,1,kg")
+        result = add_purchase_batch("Sugar,1,kg")
         assert "Added" in result
 
     def test_csv_skip_empty_lines(self, app):
         batch = "Tea,0.2,kg\n\nCoffee,0.25,kg\n  \n"
-        result = app.add_purchase_batch(batch)
+        result = add_purchase_batch(batch)
         assert "Added 2" in result
 
     def test_json_array(self, app):
@@ -104,40 +112,40 @@ class TestAddPurchaseBatch:
             {"display_name": "Cashews", "quantity": 0.5, "unit": "kg", "price": 450.0, "store": "Dry Fruit Store"},
             {"display_name": "Pista", "quantity": 0.3, "unit": "kg", "price": 320.0, "store": "Dry Fruit Store"},
         ])
-        result = app.add_purchase_batch(payload)
+        result = add_purchase_batch(payload)
         assert "Added 2" in result
 
     def test_json_single_object(self, app):
         payload = json.dumps({"display_name": "Honey", "quantity": 1.0, "unit": "L", "price": 280.0, "store": "Organic Store"})
-        result = app.add_purchase_batch(payload)
+        result = add_purchase_batch(payload)
         assert "Added" in result
         assert "Honey" in result
 
     def test_json_with_name_alias(self, app):
         """Accepts 'name' or 'canonical_name' as fallback keys."""
         payload = json.dumps([{"name": "Almonds", "quantity": 0.5}])
-        result = app.add_purchase_batch(payload)
+        result = add_purchase_batch(payload)
         assert "Added" in result
 
     def test_json_with_canonical_name(self, app):
         payload = json.dumps([{"canonical_name": "Almonds", "quantity": 0.5}])
-        result = app.add_purchase_batch(payload)
+        result = add_purchase_batch(payload)
         assert "Added" in result
 
     def test_invalid_json(self, app):
-        result = app.add_purchase_batch("{bad json}")
+        result = add_purchase_batch("{bad json}")
         assert "Could not parse" in result
 
     def test_no_valid_rows(self, app):
-        result = app.add_purchase_batch(" , , \n  ,  ")
+        result = add_purchase_batch(" , , \n  ,  ")
         assert "No items were added" in result
 
     def test_skips_empty_name(self, app):
-        result = app.add_purchase_batch(",1,kg")
+        result = add_purchase_batch(",1,kg")
         assert "No items were added" in result
 
     def test_records_price_observation(self, app):
-        result = app.add_purchase_batch("Butter,0.5,kg,120.0,Dairy Shop,fridge,dairy")
+        result = add_purchase_batch("Butter,0.5,kg,120.0,Dairy Shop,fridge,dairy")
         assert "Added" in result
         prices = app.db.conn.execute(
             "SELECT * FROM price_observations WHERE store_name = 'Dairy Shop'"
@@ -145,7 +153,7 @@ class TestAddPurchaseBatch:
         assert len(prices) == 1
 
     def test_escapes_html(self, app):
-        result = app.add_purchase_batch("<script>alert('x')</script>,1,kg")
+        result = add_purchase_batch("<script>alert('x')</script>,1,kg")
         assert "Added" in result
         assert "&lt;script&gt;" in result
 
@@ -180,11 +188,11 @@ class TestSeedDemoInventory:
 
 class TestConsumeItemsBatch:
     def test_empty_input(self, app):
-        result = app.consume_items_batch("")
+        result = consume_items_batch("")
         assert "Add at least one lot" in result
 
     def test_whitespace_only(self, app):
-        result = app.consume_items_batch("   \n  ")
+        result = consume_items_batch("   \n  ")
         assert "No valid lines" in result
 
     def test_consume_one_item(self, app):
@@ -192,7 +200,7 @@ class TestConsumeItemsBatch:
             InventoryLot(canonical_name="salt", display_name="Salt", quantity=2.0, unit="kg")
         )
         lot_id = app.db.get_inventory()[0].lot_id
-        result = app.consume_items_batch(f"{lot_id}:0.5")
+        result = consume_items_batch(f"{lot_id}:0.5")
         assert "remaining 1.5" in result
 
     def test_consume_multiple(self, app):
@@ -204,7 +212,7 @@ class TestConsumeItemsBatch:
         )
         lots = app.db.get_inventory()
         # get_inventory returns ORDER BY created_at DESC — sugar first
-        result = app.consume_items_batch(f"{lots[0].lot_id}:1.0\n{lots[1].lot_id}:0.5")
+        result = consume_items_batch(f"{lots[0].lot_id}:1.0\n{lots[1].lot_id}:0.5")
         assert "remaining 1.5" in result
         assert "remaining 0.0" in result
 
@@ -214,11 +222,11 @@ class TestConsumeItemsBatch:
             InventoryLot(canonical_name="salt", display_name="Salt", quantity=3.0, unit="kg")
         )
         lot_id = app.db.get_inventory()[0].lot_id
-        result = app.consume_items_batch(lot_id)  # no colon, no qty
+        result = consume_items_batch(lot_id)  # no colon, no qty
         assert "remaining" in result
 
     def test_unknown_lot_id(self, app):
-        result = app.consume_items_batch("nonexistent_lot_id:1")
+        result = consume_items_batch("nonexistent_lot_id:1")
         assert "❌" in result
 
     def test_skips_empty_lines(self, app):
@@ -226,7 +234,7 @@ class TestConsumeItemsBatch:
             InventoryLot(canonical_name="salt", display_name="Salt", quantity=2.0, unit="kg")
         )
         lot_id = app.db.get_inventory()[0].lot_id
-        result = app.consume_items_batch(f"{lot_id}:0.5\n\n\n")
+        result = consume_items_batch(f"{lot_id}:0.5\n\n\n")
         assert "remaining" in result
 
     def test_escapes_html(self, app):
@@ -234,7 +242,7 @@ class TestConsumeItemsBatch:
             InventoryLot(canonical_name="salt", display_name="Salt", quantity=2.0, unit="kg")
         )
         lot_id = app.db.get_inventory()[0].lot_id
-        result = app.consume_items_batch(f"{lot_id}:0.5")
+        result = consume_items_batch(f"{lot_id}:0.5")
         assert "alert(" not in result
 
 
@@ -244,14 +252,14 @@ class TestConsumeItemsBatch:
 
 class TestPriceIntelligenceView:
     def test_empty_state(self, app):
-        result = app.price_intelligence_view()
+        result = price_intelligence_view()
         assert "No price intelligence yet" in result
 
     def test_single_item_no_comparison(self, app):
         app.tools.record_price_observation(
             canonical_name="milk", price=64.0, quantity=2.0, unit="L", store_name="Shop A"
         )
-        result = app.price_intelligence_view()
+        result = price_intelligence_view()
         assert "No price intelligence" in result
 
     def test_with_store_comparison(self, app):
@@ -261,7 +269,7 @@ class TestPriceIntelligenceView:
         app.tools.record_price_observation(
             canonical_name="milk", price=100.0, quantity=2.0, unit="L", store_name="Shop B"
         )
-        result = app.price_intelligence_view()
+        result = price_intelligence_view()
         assert "Best Price Across Stores" in result
         assert "milk" in result.lower()
         assert "Shop A" in result
@@ -281,7 +289,7 @@ class TestPriceIntelligenceView:
             store_name="Store X",
             observation_date=date.today(),
         ))
-        result = app.price_intelligence_view()
+        result = price_intelligence_view()
         assert "Price Drop" in result or "price dropped" in result
 
     def test_different_units_normalize(self, app):
@@ -293,7 +301,7 @@ class TestPriceIntelligenceView:
         app.tools.record_price_observation(
             canonical_name="paneer", price=300.0, quantity=1.0, unit="kg", store_name="Store B"
         )
-        result = app.price_intelligence_view()
+        result = price_intelligence_view()
         assert "Best Price" in result
 
     def test_escapes_html(self, app):
@@ -304,7 +312,7 @@ class TestPriceIntelligenceView:
         app.tools.record_price_observation(
             canonical_name="<script>x</script>", price=100.0, quantity=1.0, unit="kg", store_name="Store B"
         )
-        result = app.price_intelligence_view()
+        result = price_intelligence_view()
         assert "&lt;script&gt;" in result
 
 
@@ -532,16 +540,16 @@ class TestInventoryAlerts:
 
 class TestMarketLensConfirmBuy:
     def test_requires_analysis(self, app):
-        result = app.market_lens_confirm_buy("", "trace123")
+        result = market_lens_confirm_buy("", "trace123")
         assert "Scan something first" in result
 
     def test_invalid_json(self, app):
-        result = app.market_lens_confirm_buy("not json", "")
+        result = market_lens_confirm_buy("not json", "")
         assert "Could not parse" in result
 
     def test_no_buy_items(self, app):
         data = json.dumps({"items": [{"canonical_name": "milk", "decision": "skip"}]})
-        result = app.market_lens_confirm_buy(data, "")
+        result = market_lens_confirm_buy(data, "")
         assert "No BUY items found" in result
 
     def test_adds_buy_items_to_list(self, app):
@@ -551,7 +559,7 @@ class TestMarketLensConfirmBuy:
                 {"canonical_name": "bread", "decision": "buy", "suggested_quantity": 1.0, "unit": "loaf", "reason": "Staple"},
             ]
         })
-        result = app.market_lens_confirm_buy(data, "")
+        result = market_lens_confirm_buy(data, "")
         assert "Added 2 item(s)" in result
         sl = app.db.get_active_shopping_list()
         assert sl is not None
@@ -565,56 +573,56 @@ class TestMarketLensConfirmBuy:
                 {"canonical_name": "<script>x</script>", "decision": "buy", "suggested_quantity": 1.0},
             ]
         })
-        result = app.market_lens_confirm_buy(data, "")
+        result = market_lens_confirm_buy(data, "")
         assert "&lt;script&gt;" in result
         assert "<script>" not in result
 
 
 class TestMarketLensSkip:
     def test_requires_analysis(self, app):
-        result = app.market_lens_skip("", "")
+        result = market_lens_skip("", "")
         assert "Scan something first" in result
 
     def test_skip_without_trace(self, app):
-        result = app.market_lens_skip('{"items":[]}', "")
+        result = market_lens_skip('{"items":[]}', "")
         assert "Saved skip decision" in result
 
     def test_skip_with_trace(self, app):
         app.db.save_trace(Trace(input_type="vision", user_goal="market_lens", final_response="test"))
         trace = app.db.get_traces()[0]
-        result = app.market_lens_skip('{"items":[]}', trace.trace_id)
+        result = market_lens_skip('{"items":[]}', trace.trace_id)
         assert "Saved skip decision" in result
 
 
 class TestMarketLensSaveTrace:
     def test_requires_trace(self, app):
-        result = app.market_lens_save_trace("", "")
+        result = market_lens_save_trace("", "")
         assert "No trace to save" in result
 
     def test_saves_trace(self, app):
         app.db.save_trace(Trace(input_type="vision", user_goal="market_lens", final_response="test"))
         trace = app.db.get_traces()[0]
-        result = app.market_lens_save_trace('{"items":[]}', trace.trace_id)
+        result = market_lens_save_trace('{"items":[]}', trace.trace_id)
         assert "Trace" in result
         assert "saved" in result.lower()
 
 
 class TestMarketLensBarcodeAdd:
     def test_no_barcode_data(self, app):
-        result = app.market_lens_barcode_add("")
+        result = market_lens_barcode_add("")
         assert "No barcode data" in result
 
     def test_empty_array(self, app):
-        result = app.market_lens_barcode_add("[]")
+        result = market_lens_barcode_add("[]")
         assert "No barcode data" in result
 
     def test_invalid_json(self, app):
-        result = app.market_lens_barcode_add("bad json")
+        result = market_lens_barcode_add("bad json")
         assert "Could not parse" in result
 
     def test_adds_single_barcode(self, app):
         data = json.dumps([{"code": "8901234567890", "label": "Product code Test Product", "type": "EAN13"}])
-        result = app.market_lens_barcode_add(data)
+        result = market_lens_barcode_add(data)
         assert "Added 1 barcode" in result
         assert "Test Product" in result
         items = app.db.get_inventory(user_id=app.current_user_id())
@@ -625,18 +633,18 @@ class TestMarketLensBarcodeAdd:
             {"code": "8901234567890", "label": "Product code Milk", "type": "EAN13"},
             {"code": "8909876543210", "label": "Product code Eggs", "type": "EAN13"},
         ])
-        result = app.market_lens_barcode_add(data)
+        result = market_lens_barcode_add(data)
         assert "Added 2 barcode" in result
 
     def test_fallback_label(self, app):
         """When label has no 'Product code ' prefix, falls back to barcode-item-XXXX."""
         data = json.dumps([{"code": "12345", "label": "", "type": "QR"}])
-        result = app.market_lens_barcode_add(data)
+        result = market_lens_barcode_add(data)
         assert "Added" in result
 
     def test_escapes_html(self, app):
         data = json.dumps([{"code": "123", "label": "<script>alert('x')</script>", "type": "QR"}])
-        result = app.market_lens_barcode_add(data)
+        result = market_lens_barcode_add(data)
         assert "&lt;script&gt;" in result
 
 

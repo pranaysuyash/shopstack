@@ -8,7 +8,12 @@ from shopstack.ui.components.cards import card as ui_card
 from shopstack.ui.components.cards import badge_html
 from shopstack.ui.components.cards import render_action_grid, render_hero_panel
 from shopstack.ui.components.primitives import stat_card, item_row
-from shopstack.ui.renderers import render_cadence_insights, render_waste_warnings
+from shopstack.ui.renderers import (
+    render_cadence_insights,
+    render_waste_warnings,
+    render_price_drops,
+)
+from shopstack.services.waste_coach import render_waste_coach_html
 from shopstack.ui.renderers.decision_cards import (
     render_restock_predictions,
     render_price_deals,
@@ -105,8 +110,10 @@ def today_dashboard():
     needs_confirm = render_needs_confirmation(db)
     cadence_html = render_cadence_insights(state.cadence_data)
     waste_html = render_waste_warnings(state.waste_data)
+    waste_coach_html = render_waste_coach_html(state.waste_data)
     restock_html = render_restock_predictions(state.restock_predictions)
     deals_html = render_price_deals(state.price_deals)
+    drops_html = render_price_drops(state.price_drops)
     best_store_html = render_best_store(state.best_store)
     basket_summary_html = render_optimized_basket_summary(state.optimized_basket)
 
@@ -121,8 +128,8 @@ def today_dashboard():
 
     long_grid = (
         f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px;margin-bottom:10px;'>{inventory_overview}{compare_panel}</div>"
-        + f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;'>{fridge_html}{alert_html}{needs_confirm}{cadence_html}{waste_html}{restock_html}</div>"
-        + f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;'>{deals_html}{best_store_html}{basket_summary_html}</div>"
+        + f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;'>{fridge_html}{alert_html}{needs_confirm}{cadence_html}{waste_html}{waste_coach_html}{restock_html}</div>"
+        + f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;'>{deals_html}{drops_html}{best_store_html}{basket_summary_html}</div>"
         + f"{what_changed}"
     )
 
