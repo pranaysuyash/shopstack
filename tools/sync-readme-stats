@@ -1,19 +1,33 @@
 #!/usr/bin/env python3
-"""Update README.md status sections with live test/benchmark counts.
+"""Update README.md and AGENTS.md with live test/benchmark counts.
+
+This script keeps two pieces of project documentation in sync with reality:
+
+1. **README.md** — replaces the comment after `uv run pytest tests/ -v`
+   and `uv run pytest benchmarks/ -v -m benchmark` with the live pytest
+   summary line ("N passed in T.Ts").
+
+2. **AGENTS.md** — the "Test Inventory" table. For each `tests/test_*.py`
+   row, replaces the count in the "Tests" column with the live count from
+   `pytest --collect-only`. Adds new test files as new rows (with scope
+   marked "NEW — needs scope description" so the human can fill in the
+   hand-written scope). Preserves the hand-written "Scope" column for
+   existing rows. Updates the "Total" row.
 
 Non-blocking: if uv/pytest aren't available (e.g., CI, fresh checkout),
-the script exits 0 and leaves README unchanged.
+the script exits 0 and leaves both files unchanged.
 """
 import os
+import re
 import shutil
 import subprocess
-import re
 import sys
 from pathlib import Path
 from typing import Optional
 
 REPO = Path(__file__).resolve().parent.parent
 README = REPO / "README.md"
+AGENTS = REPO / "AGENTS.md"
 
 
 def _find_uv() -> Optional[str]:
@@ -38,7 +52,7 @@ def _pytest(uv: str, target: str, extra_args: Optional[list] = None) -> Optional
             cmd,
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=120,
             cwd=REPO,
             env=env,
         )
@@ -48,49 +62,220 @@ def _pytest(uv: str, target: str, extra_args: Optional[list] = None) -> Optional
 
 
 def extract_summary(output: str) -> str:
+    """Pull "N passed in T.Ts" out of pytest output, or empty string."""
     m = re.search(r"(\d+) passed.*?in [\d.]+[sm]", output)
     return m.group(0) if m else ""
 
 
+def collect_per_file_counts(output: str) -> dict[str, int]:
+    """Parse pytest --collect-only output to per-file test counts.
+
+    Returns a dict mapping `tests/test_foo.py` to its test count. Files
+    with 0 tests are omitted. The total can be computed as sum(values()).
+    """
+    counts: dict[str, int] = {}
+    for line in output.splitlines():
+        if "::" in line:
+            path = line.split("::")[0].strip()
+            if path.endswith(".py") and path.startswith("tests/"):
+                counts[path] = counts.get(path, 0) + 1
+    return counts
+
+
+# ── README.md sync ────────────────────────────────────────────────────
+
+def sync_readme(test_summary: str, bench_summary: str) -> bool:
+    """Update README.md comment lines with live counts. Returns True if changed."""
+    if not test_summary and not bench_summary:
+        return False
+    text = README.read_text()
+    changed = False
+    if test_summary:
+        new_text = re.sub(
+            r"uv run pytest tests/ -v          # .*$",
+            f"uv run pytest tests/ -v          # {test_summary}",
+            text,
+            flags=re.MULTILINE,
+        )
+        if new_text != text:
+            text = new_text
+            changed = True
+    if bench_summary:
+        new_text = re.sub(
+            r"uv run pytest benchmarks/ -v -m benchmark  # .*$",
+            f"uv run pytest benchmarks/ -v -m benchmark  # {bench_summary}",
+            text,
+            flags=re.MULTILINE,
+        )
+        if new_text != text:
+            text = new_text
+            changed = True
+    if changed:
+        README.write_text(text)
+    return changed
+
+
+# ── AGENTS.md test inventory sync ─────────────────────────────────────
+
+# Pattern that matches one row of the inventory table.
+# Group 1: test file path (with backticks)
+# Group 2: current count (number)
+# Group 3: scope (rest of line, after the second `|`)
+_TABLE_ROW_RE = re.compile(
+    r"^\| `(?P<path>tests/test_[^`]+\.py)` \| (?P<count>\d+) \| (?P<scope>.+) \|$",
+    re.MULTILINE,
+)
+
+# Pattern that matches the Total row (different column for the total).
+_TOTAL_ROW_RE = re.compile(
+    r"^\| \*\*Total\*\* \| \*\*(?P<count>\d+)\*\* \| (?P<scope>.+) \|$",
+    re.MULTILINE,
+)
+
+# Marker for new test files (no hand-written scope yet).
+_NEW_FILE_MARKER = "**NEW — needs scope description**"
+
+
+def sync_agents_inventory(per_file: dict[str, int]) -> bool:
+    """Update the AGENTS.md test inventory table with live per-file counts.
+
+    Strategy:
+    1. Parse the existing table into a dict of (path, count, scope).
+    2. Update counts for files that still exist.
+    3. Add new rows for files that don't appear in the table yet.
+       New rows get a marker scope; the human should fill in the real scope.
+    4. Update the Total row.
+    5. Sort the table rows by file path for stable diffs.
+
+    Files that no longer exist (count is 0 from the live run) are kept
+    with their existing count, marked with a warning in scope. The human
+    can decide to delete them. This avoids silent data loss.
+    """
+    text = AGENTS.read_text()
+
+    # ── Find the table ──
+    table_start = text.find("## Test Inventory")
+    if table_start == -1:
+        print("sync-agents-inventory: '## Test Inventory' heading not found", file=sys.stderr)
+        return False
+    # The table ends at the next "## " heading (or EOF).
+    after_table = text.find("\n## ", table_start + len("## Test Inventory"))
+    if after_table == -1:
+        after_table = len(text)
+    table_block = text[table_start:after_table]
+
+    # ── Parse existing rows ──
+    existing: dict[str, tuple[int, str]] = {}
+    total_match: Optional[re.Match] = None
+    for line in table_block.splitlines():
+        m = _TABLE_ROW_RE.match(line)
+        if m:
+            existing[m.group("path")] = (int(m.group("count")), m.group("scope").strip())
+            continue
+        m = _TOTAL_ROW_RE.match(line)
+        if m:
+            total_match = m
+
+    if total_match is None:
+        print("sync-agents-inventory: Total row not found", file=sys.stderr)
+        return False
+
+    # ── Update counts ──
+    new_total = sum(per_file.values())
+    updated: dict[str, tuple[int, str]] = {}
+    for path, (old_count, scope) in existing.items():
+        if path in per_file:
+            new_count = per_file[path]
+        else:
+            # File no longer exists; keep it with the old count and add a
+            # warning marker so the human notices.
+            new_count = old_count
+            if "REMOVED" not in scope and "(removed)" not in scope:
+                scope = f"{scope} *(file removed — verify)*"
+        updated[path] = (new_count, scope)
+
+    # ── Add new files ──
+    new_files_added: list[str] = []
+    for path, count in per_file.items():
+        if path not in updated:
+            updated[path] = (count, _NEW_FILE_MARKER)
+            new_files_added.append(path)
+
+    # ── Rebuild the table rows ──
+    sorted_paths = sorted(updated.keys())
+    new_rows = [
+        "| File | Tests | Scope |",
+        "|------|-------|-------|",
+    ]
+    for path in sorted_paths:
+        count, scope = updated[path]
+        new_rows.append(f"| `{path}` | {count} | {scope} |")
+    new_rows.append(
+        f"| **Total** | **{new_total}** | Regenerate before trusting: `uv run pytest tests/ --collect-only -q` |"
+    )
+
+    # ── Splice the new table into the file ──
+    pre = text[:table_start]
+    # Preserve everything up to and including the table header line and the
+    # "|----|-------|-------|" separator that follows it.
+    header_end = table_block.find("\n", table_block.find("\n|------"))
+    # The header_end is at the end of the separator line. We want to keep
+    # "## Test Inventory\n\n| File | Tests | Scope |\n|------|...|\n" intact.
+    # Find the position of the separator line.
+    sep_start = table_block.find("|------|-------|-------|")
+    if sep_start == -1:
+        print("sync-agents-inventory: separator line not found", file=sys.stderr)
+        return False
+    sep_end = table_block.find("\n", sep_start)
+    if sep_end == -1:
+        sep_end = len(table_block)
+    prefix_block = table_block[: sep_end + 1]  # includes the trailing \n
+    post = text[after_table:]
+    new_block = prefix_block + "\n".join(new_rows[2:]) + "\n"  # skip header+sep, add rows
+    new_text = pre + new_block + post
+
+    if new_text != text:
+        AGENTS.write_text(new_text)
+
+    return new_text != text or bool(new_files_added)
+
+
+# ── Main ─────────────────────────────────────────────────────────────
+
 def main() -> int:
     uv = _find_uv()
     if uv is None:
-        print("sync-readme-stats: uv not found — skipping README sync", file=sys.stderr)
+        print("sync-readme-stats: uv not found — skipping all syncs", file=sys.stderr)
         return 0
 
-    test_output = _pytest(uv, "tests/")
+    # Collect everything in one pytest run (faster than multiple invocations).
+    test_output = _pytest(uv, "tests/", ["--collect-only", "--no-header"])
     bench_output = _pytest(uv, "benchmarks/", ["-m", "benchmark"])
 
     if test_output is None and bench_output is None:
-        print("sync-readme-stats: pytest not available — skipping README sync", file=sys.stderr)
+        print("sync-readme-stats: pytest not available — skipping all syncs", file=sys.stderr)
         return 0
 
     test_summary = extract_summary(test_output) if test_output else ""
     bench_summary = extract_summary(bench_output) if bench_output else ""
 
     if not test_summary and not bench_summary:
-        print("sync-readme-stats: no test/benchmark output — skipping README sync", file=sys.stderr)
+        print("sync-readme-stats: no test/benchmark output — skipping all syncs", file=sys.stderr)
         return 0
 
-    readme_text = README.read_text()
+    per_file = collect_per_file_counts(test_output) if test_output else {}
 
-    if test_summary:
-        readme_text = re.sub(
-            r"uv run pytest tests/ -v          # .*$",
-            f"uv run pytest tests/ -v          # {test_summary}",
-            readme_text,
-            flags=re.MULTILINE,
-        )
-    if bench_summary:
-        readme_text = re.sub(
-            r"uv run pytest benchmarks/ -v -m benchmark  # .*$",
-            f"uv run pytest benchmarks/ -v -m benchmark  # {bench_summary}",
-            readme_text,
-            flags=re.MULTILINE,
-        )
+    readme_changed = sync_readme(test_summary, bench_summary)
+    agents_changed = sync_agents_inventory(per_file)
 
-    README.write_text(readme_text)
-    print(f"README synced: tests={test_summary}, benchmarks={bench_summary}")
+    if readme_changed or agents_changed:
+        new_total = sum(per_file.values())
+        print(
+            f"README synced: tests={test_summary}, benchmarks={bench_summary}; "
+            f"AGENTS inventory synced: {len(per_file)} files, {new_total} tests"
+        )
+    else:
+        print("sync-readme-stats: nothing to update")
     return 0
 
 

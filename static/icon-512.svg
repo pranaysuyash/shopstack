@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="86" fill="#0f172a"/>
+  <g transform="translate(256, 256)">
+    <circle r="150" fill="none" stroke="#4ade80" stroke-width="16"/>
+    <path d="M -75 -22 L 0 64 L 75 -22" fill="none" stroke="#4ade80" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle r="28" fill="#4ade80"/>
+  </g>
+  <text x="256" y="460" text-anchor="middle" font-family="ui-sans-serif, system-ui" font-size="40" font-weight="700" fill="#e2e8f0">ShopStack</text>
+</svg>

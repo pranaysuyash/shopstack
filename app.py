@@ -1,12 +1,16 @@
 from __future__ import annotations
 
-from datetime import date
 from html import escape
 
 import gradio as gr
 
 from shopstack.ui.screens import today_dashboard
 from shopstack.ui.components import workflow_header
+from shopstack.ui.header import (
+    header_block,
+    model_download_status,
+    runtime_label,
+)
 from shopstack.ui.theme import CSS
 from shopstack.ui.tabs.context import TabContext
 from shopstack.ui.tabs.today import build_today_tab, TodayTabHandles
@@ -22,110 +26,37 @@ from shopstack.ui.state.household import (
     show_add_form,
     switch_household_state,
 )
-from pathlib import Path
 from shopstack.app_context import APP_DESCRIPTION, APP_NAME, current_user_id, db, providers, tools, planner, model_registry
 from shopstack.config import settings
 from shopstack.module_registry import tab_label as _tab_label
 
 
-def _model_download_status() -> str:
-    """Check whether the configured MLX planner model is cached locally.
-    Returns an HTML snippet if a download is pending, or empty string if cached.
-    """
-    try:
-        import os as _os
-
-        mlx_model = settings.local_mlx_model
-        if not mlx_model:
-            return ""
-
-        # Check HF hub cache
-        hf_home = _os.environ.get("HF_HOME", _os.path.expanduser("~/.cache/huggingface"))
-        hf_cache = Path(hf_home) / "hub"
-        model_dir_name = "models--" + mlx_model.replace("/", "--")
-        model_cache_dir = hf_cache / model_dir_name
-
-        if model_cache_dir.is_dir():
-            snapshots_dir = model_cache_dir / "snapshots"
-            if snapshots_dir.is_dir():
-                for snap in snapshots_dir.iterdir():
-                    if snap.is_dir() and any(
-                        f.suffix in (".safetensors", ".gguf")
-                        for f in snap.iterdir()
-                    ):
-                        return ""
-            return ""
-
-        return (
-            "<div style='font-size:11px;color:var(--amber);margin-top:4px;'>"
-            f"<span>\u23F3 {mlx_model.split('/')[-1]} download pending (first query triggers it)</span>"
-            "</div>"
-        )
-    except Exception:
-        return ""
-
-
-def _runtime_label() -> str:
-    try:
-        runtime = providers.get_runtime_diagnostics()
-        loaded_real = [
-            r for r in runtime.providers
-            if getattr(r, "loaded", False) and getattr(r, "backend", "") != "mock"
-        ]
-        blocked = [r for r in runtime.providers if getattr(r, "blocked_by_off_grid", False)]
-        if loaded_real and any(getattr(r, "backend", "") in {"openai", "huggingface", "whisper"} for r in loaded_real):
-            return "Cloud runtime"
-        if loaded_real:
-            return "Local runtime"
-        if blocked:
-            return "Off-grid mock mode"
-        return "Local mock mode"
-    except Exception:
-        return "Local runtime"
-
-
 def build_app() -> gr.Blocks:
-    runtime_label = _runtime_label()
     with gr.Blocks(title=APP_NAME) as app:
-        header_html = f"""
-<div class=\"app-header\">
-  <div>
-    <h1 class=\"brand-title\">{APP_NAME}</h1>
-    <div class=\"brand-subtitle\">{APP_DESCRIPTION}</div>
-  </div>
-  <button onclick=\"toggleTheme()\" aria-label=\"Toggle light/dark theme\" title=\"Toggle theme\" style=\"background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 10px;cursor:pointer;font-size:11px;color:var(--text-muted);\">🌓</button>
-</div>"""
-        header_script = """
-<script>
-(function() {
-  var t = localStorage.getItem('shopstack-theme');
-  if (t) {
-    document.documentElement.setAttribute('data-theme', t);
-  }
-})();
-function toggleTheme() {
-  var e = document.documentElement;
-  var t = e.getAttribute('data-theme');
-  var n = (t === 'dark' ? 'light' : 'dark');
-  e.setAttribute('data-theme', n);
-  localStorage.setItem('shopstack-theme', n);
-}
-document.addEventListener('keydown', function(e) {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-  var tabs = Array.from(document.querySelectorAll('[data-testid^=tab-], .tabs > button[role=tab]'));
-  var idx = tabs.findIndex(t => t.getAttribute('aria-selected') === 'true');
-  if (e.key === 'j' || e.key === 'ArrowRight') {
-    e.preventDefault();
-    var next = (idx + 1) % tabs.length;
-    tabs[next] && tabs[next].click();
-  } else if (e.key === 'k' || e.key === 'ArrowLeft') {
-    e.preventDefault();
-    var prev = (idx - 1 + tabs.length) % tabs.length;
-    tabs[prev] && tabs[prev].click();
-  }
-});
-</script>"""
-        gr.HTML(header_html + header_script, padding=True)
+        current_runtime_label = runtime_label()
+        # ── Phase 4 #5 PWA: serve manifest + service worker at /static/* ──
+        # Gradio doesn't auto-serve a /static/ directory, so we mount
+        # Starlette's StaticFiles against the underlying FastAPI app.
+        # This makes the PWA shell (manifest, sw.js, icons) reachable
+        # at predictable URLs that the service worker can register.
+        from pathlib import Path as _Path
+        from starlette.staticfiles import StaticFiles as _StaticFiles
+
+        _STATIC_DIR = _Path(__file__).resolve().parent / "static"
+        if _STATIC_DIR.is_dir():
+            try:
+                app.app.mount(
+                    "/static",
+                    _StaticFiles(directory=str(_STATIC_DIR), html=False),
+                    name="shopstack_static",
+                )
+            except Exception as exc:  # noqa: BLE001 — best-effort PWA bootstrap
+                import logging
+                logging.getLogger(__name__).warning(
+                    "PWA static mount failed: %s", exc
+                )
+
+        gr.HTML(header_block(APP_NAME, APP_DESCRIPTION), padding=True)
 
         # ── 5-tab daily loop: Today → Shopping → Scan & Compare → Pantry → Insights ──
         with gr.Tabs(elem_classes="tabs") as tabs:
@@ -170,21 +101,21 @@ document.addEventListener('keydown', function(e) {
             # ═══════════════════════════════════════════════════════════════
             build_memory_tab(blocks=app, app=app, ctx=TabContext())
 
-        with gr.Accordion("Workspace", open=False, elem_classes="workspace-admin"):
+        with gr.Accordion("Household settings", open=False, elem_classes="workspace-admin"):
             gr.HTML(
                 f"""
 <div style=\"display:flex;flex-direction:column;gap:8px;margin-bottom:10px;\">
   <div style=\"font-size:13px;color:var(--text-muted);\">
-    Switch households, create a new workspace, or inspect runtime details when you need the plumbing.
+    Switch households, create a new home, or open advanced runtime details when you need them.
   </div>
   <div style=\"display:flex;gap:8px;flex-wrap:wrap;align-items:center;\">
-    <span class=\"badge badge-blue\">{escape(runtime_label)}</span>
-    {_model_download_status()}
+    <span class=\"badge badge-blue\">{escape(current_runtime_label)}</span>
+    {model_download_status()}
   </div>
 </div>"""
             )
             gr.Markdown(
-                "Use this only when you need admin control. The main tabs above are the day-to-day product flow."
+                "Keep this tucked away unless you need household switching or advanced diagnostics. The main tabs above are the day-to-day product flow."
             )
             with gr.Row(variant="compact", elem_classes="household-bar"):
                 household_dropdown = gr.Dropdown(

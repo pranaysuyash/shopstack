@@ -493,6 +493,8 @@ class Database:
     # --- Inventory CRUD ---
 
     def add_inventory_lot(self, lot: InventoryLot, user_id: str = "") -> InventoryLot:
+        if not user_id:
+            user_id = self.active_household_id
         self.conn.execute(
             """INSERT INTO inventory_lots
                (lot_id, canonical_name, display_name, category, quantity, unit,
@@ -779,6 +781,8 @@ class Database:
     # --- Traces ---
 
     def save_trace(self, trace: Trace, user_id: str = "") -> Trace:
+        if not user_id:
+            user_id = self.active_household_id
         self.conn.execute(
             "INSERT OR REPLACE INTO traces (trace_id, input_type, user_goal, redacted_user_request, perception, inventory_context, decision, proposed_tool_calls, human_confirmation, final_response, timestamp, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (

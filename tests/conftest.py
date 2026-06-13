@@ -23,6 +23,7 @@ _APP_DATA_TABLES = [
     "purchase_events",
     "traces",
     "household_locations",
+    "stores",
 ]
 
 
@@ -56,7 +57,12 @@ def _app_session():
 
 @pytest.fixture()
 def app(_app_session):
-    """Return the session-scoped app module, clearing all data tables between tests."""
+    """Return the session-scoped app module, clearing all data tables between tests.
+
+    Resets ``active_household_id`` to the default household ("default_household")
+    so household-scoped screens find a valid context. Setting it to "" would
+    break every screen that filters by household.
+    """
     app_mod = _app_session
     conn = app_mod.db.conn
     conn.execute("PRAGMA foreign_keys = OFF")
@@ -65,8 +71,8 @@ def app(_app_session):
     conn.execute("PRAGMA foreign_keys = ON")
     conn.commit()
     app_mod.db._seed_locations()
-    app_mod.db.active_household_id = ""
-    app_mod.db.set_config_value("active_household_id", "")
+    app_mod.db._seed_default_household()
+    app_mod.db.active_household_id = "default_household"
     return app_mod
 
 

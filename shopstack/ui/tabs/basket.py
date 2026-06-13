@@ -35,8 +35,9 @@ from shopstack.ui.screens import (
     refresh_source_registry,
     run_unified_plan,
     shopping_list_item_choices,
-    shopping_list_view_with_cards,
     shopping_list_substitutions_view,
+    shopping_list_view_with_cards,
+    recipe_text_to_shopping_list,
     single_item_compare,
     unified_plan_summary,
 )
@@ -469,3 +470,35 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                     api_description="Confirm parsed receipt lines and add items to inventory",
                 )
                 app.load(_load_ocr_model, outputs=receipt_status)
+
+            # ── From Recipe ──
+            with gr.Tab("From Recipe"):
+                gr.Markdown("### Recipe → Shopping List")
+                gr.Markdown(
+                    "Paste a recipe's ingredients section. The system parses "
+                    "the text, diffs against your inventory, and shows what's "
+                    "missing — paste the missing list into the **Shopping List** "
+                    "tab to add it. (Phase 3 #8 — text-only for now; OCR image "
+                    "upload is future polish.)"
+                )
+                recipe_input = gr.Textbox(
+                    label="Recipe ingredients",
+                    placeholder=(
+                        "- 2 cups rice\n"
+                        "- 1 cup chickpea\n"
+                        "- 1 tsp turmeric\n"
+                        "- 1 onion, chopped\n"
+                        "- 2 tomatoes, pureed\n"
+                        "- Salt to taste"
+                    ),
+                    lines=10,
+                )
+                recipe_btn = gr.Button("Parse & Diff", variant="primary")
+                recipe_result = gr.HTML("")
+                recipe_btn.click(
+                    recipe_text_to_shopping_list,
+                    recipe_input,
+                    recipe_result,
+                    api_name="recipe_to_list",
+                    api_description="Parse pasted recipe text and diff against inventory",
+                )

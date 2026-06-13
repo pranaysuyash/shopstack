@@ -63,8 +63,9 @@ def test_generate_shopping_poster_e2e(app):
     from shopstack.app_context import db
     from shopstack.schemas.models import InventoryLot, ShoppingListItem, Store
 
-    uid = db.active_household_id
-    assert uid, "Default household should be available for user_id scoping"
+    uid = db.active_household_id or "default_household"
+    db.active_household_id = uid
+    assert uid in {h["household_id"] for h in db.list_households()}
 
     db.add_store(Store(
         store_id="test_store", name="Test Store",

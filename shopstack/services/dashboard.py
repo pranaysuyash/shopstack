@@ -26,6 +26,8 @@ class DashboardState:
     weather: WeatherState | None = None
     price_deals: list[dict[str, Any]] = field(default_factory=list)
     price_drops: list[dict[str, Any]] = field(default_factory=list)
+    cook_tonight_matches: list[dict[str, Any]] = field(default_factory=list)
+    seasonal_recommendation: dict[str, Any] = field(default_factory=dict)
     best_store: dict[str, Any] = field(default_factory=dict)
     optimized_basket: Any | None = None
     restock_predictions: list[dict[str, Any]] = field(default_factory=list)
@@ -148,6 +150,66 @@ def build_dashboard_state(db: Database, inventory, city: str = "mumbai", user_id
         except Exception as exc:
             logger.debug("Price drop detection failed: %s", exc)
 
+    # Cook tonight — recipe recommendations based on current inventory +
+    # use-soon items. Uses the recipe DB (30 Indian staples). Tied to
+    # inventory + use-soon so it directly closes the loop on "what to
+    # cook tonight given what's about to go bad".
+    cook_tonight_matches: list[dict[str, Any]] = []
+    try:
+        from shopstack.services.recipes import find_recipes_for_inventory
+        from shopstack.persistence.database import Database as _Database
+
+        # Determine dietary preference from preference_signals
+        dietary = "omnivore"
+        try:
+            for sig in db.get_preference_signals(user_id=user_id):
+                if sig.canonical_name and sig.canonical_name.startswith("_diet:"):
+                    dietary = sig.canonical_name.split(":", 1)[1]
+                    break
+        except Exception:
+            pass
+
+        use_soon_items = (use_soon or {}).get("items", []) if isinstance(use_soon, dict) else []
+        matches = find_recipes_for_inventory(
+            all_inventory,
+            use_soon_items,
+            dietary_preference=dietary,
+            max_recipes=4,
+        )
+        for m in matches:
+            cook_tonight_matches.append({
+                "recipe_id": m.recipe.id,
+                "name": m.recipe.name,
+                "cuisine": m.recipe.cuisine,
+                "prep_minutes": m.recipe.prep_minutes,
+                "cook_minutes": m.recipe.cook_minutes,
+                "serves": m.recipe.serves,
+                "score": round(m.score, 2),
+                "completion_pct": m.completion_pct,
+                "use_soon_count": m.use_soon_count,
+                "use_soon_names": [i.canonical_name for i in m.use_soon_hits],
+                "have_count": m.have_count,
+                "missing_count": m.missing_count,
+                "missing_names": [i.canonical_name for i in m.missing],
+            })
+    except Exception as exc:
+        logger.debug("Cook tonight recommendations failed: %s", exc)
+
+    # Seasonal / weather-aware recommendation (Phase 4 #19). Connects
+    # weather + use-soon + price-drops into one actionable "what should
+    # I do today" prompt. Highest-priority recommendation wins.
+    seasonal_recommendation: dict[str, Any] = {}
+    try:
+        from shopstack.services.seasonal import recommend_seasonal
+        rec = recommend_seasonal(
+            weather=weather,
+            use_soon_items=(use_soon or {}).get("items", []) if isinstance(use_soon, dict) else None,
+            price_drops=price_drops or None,
+        )
+        seasonal_recommendation = rec.to_dict()
+    except Exception as exc:
+        logger.debug("Seasonal recommendation failed: %s", exc)
+
     return DashboardState(
         decision_set=decision_set,
         market_snapshot=market_snapshot,
@@ -162,6 +224,8 @@ def build_dashboard_state(db: Database, inventory, city: str = "mumbai", user_id
         weather=weather,
         price_deals=price_deals,
         price_drops=price_drops,
+        cook_tonight_matches=cook_tonight_matches,
+        seasonal_recommendation=seasonal_recommendation,
         best_store=best_store,
         optimized_basket=optimized_basket,
         restock_predictions=restock_predictions,

@@ -288,7 +288,8 @@ def test_custom_action_components_escape_and_use_canonical_classes():
     assert "<img>" not in tile
     assert "&lt;b&gt;Market&lt;/b&gt;" in tile
     assert "action-tile action-tile-primary" in tile
-    assert "data-testid=tab-market" in tile
+    assert "button[role=tab]" in tile
+    assert "Scan & Compare" in tile
     assert "action-grid" in grid
 
 

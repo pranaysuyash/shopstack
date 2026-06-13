@@ -74,6 +74,7 @@ from shopstack.ui.screens.price_compare import (
     refresh_source_registry,
     basket_compare_view,
 )
+from shopstack.ui.screens.recipe_text import recipe_text_to_shopping_list
 from shopstack.ui.screens.market_intelligence import market_intelligence_view
 from shopstack.ui.screens.receipt import (
     receipt_scan_ocr,
@@ -88,6 +89,7 @@ from shopstack.ui.screens.intelligence import (
 )
 from shopstack.ui.screens.nutrition import nutrition_lookup_view, nutrition_kitchen_view  # noqa: F401 — public API re-export
 from shopstack.ui.screens.unified_shopping import run_unified_plan, unified_plan_summary
+from shopstack.ui.screens.recipe_text import recipe_text_to_shopping_list
 from shopstack.ui.screens.consumption import (
     consumption_dashboard,
     quick_consume,
@@ -122,6 +124,7 @@ __all__ = [
     "add_purchase_form",
     "add_purchase_batch",
     "suggest_location_for_item",
+    "recipe_text_to_shopping_list",
     "inventory_view",
     "inventory_cards_view",
     "consume_item",

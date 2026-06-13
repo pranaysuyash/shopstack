@@ -378,7 +378,31 @@ MODEL_REGISTRY: list[ModelEntry] = [
         runtime="transformers",
         status="candidate",
         badge_relevance="llama_champion",
-        notes="Qwen3.5-9B (Feb 2026, 8.5M downloads). Most popular Qwen text+vision. Run 3 bench in flight on Modal A100.",
+        notes="Qwen3.5-9B (Feb 2026, 8.5M downloads). Modal bench (13-Jun-2026): 70% (17.35s — overthinking). Demote from consideration. Qwen2.5-7B better at 80% (3.10s).",
+    ),
+    # Planner — Ministral-3-8B-Reasoning-2512 (NEW MID-2026 WINNER, 13-Jun-2026)
+    ModelEntry(
+        provider_group="planner",
+        model_id="ministral-3-8b-reasoning-2512",
+        hf_model="mistralai/Ministral-3-8B-Reasoning-2512",
+        params_b=8.0,
+        license_note="Apache-2.0",
+        runtime="transformers",
+        status="active",
+        badge_relevance="llama_champion",
+        notes="NEW ACTIVE — Modal A100 int4 (13-Jun-2026): 90% tool-calling, 4.79s mean, Apache-2.0. Best mid-2026 candidate. Tied with Run 1/2 winner (Ministral-8B-Instruct-2410 at 95%). Use as new default candidate.",
+    ),
+    # Planner — Ministral-3-3B-Instruct-2512 (NEW BEST 3B, 13-Jun-2026)
+    ModelEntry(
+        provider_group="planner",
+        model_id="ministral-3-3b-instruct-2512",
+        hf_model="mistralai/Ministral-3-3B-Instruct-2512",
+        params_b=3.0,
+        license_note="Apache-2.0",
+        runtime="transformers",
+        status="active",
+        badge_relevance="llama_champion",
+        notes="NEW ACTIVE — Modal A100 int4 (13-Jun-2026): 85% tool-calling, 2.31s mean (fastest serious 3B), Apache-2.0. 669k downloads. Best 3B option, replacing Qwen2.5-3B.",
     ),
     # Planner — Qwen3.6-27B-FP8 (Apr 2026, 4.7M downloads, under 32B cap)
     ModelEntry(

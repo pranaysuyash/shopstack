@@ -13,6 +13,8 @@ from shopstack.ui.renderers import (
     render_cadence_insights,
     render_waste_warnings,
     render_price_drops,
+    render_cook_tonight,
+    render_seasonal,
 )
 from shopstack.services.waste_coach import render_waste_coach_html
 from shopstack.ui.renderers.decision_cards import (
@@ -35,15 +37,18 @@ logger = logging.getLogger(__name__)
 
 
 def _details_section(title: str, body: str, description: str = "") -> str:
-    description_html = (
-        f"<div class='muted' style='margin:8px 0 12px;'>{escape(description)}</div>"
+    summary_html = (
+        "<div class='home-details-summary'>"
+        f"<span class='home-details-title'>{escape(title)}</span>"
+        f"<span class='home-details-hint'>{escape(description)}</span>"
+        "<span class='home-details-chip'>Tap to expand</span>"
+        "</div>"
         if description
-        else ""
+        else f"<div class='home-details-summary'><span class='home-details-title'>{escape(title)}</span><span class='home-details-chip'>Tap to expand</span></div>"
     )
     return (
         "<details class='home-details'>"
-        f"<summary>{escape(title)}</summary>"
-        f"{description_html}"
+        f"<summary>{summary_html}</summary>"
         f"{body}"
         "</details>"
     )
@@ -125,6 +130,8 @@ def today_dashboard():
     restock_html = render_restock_predictions(state.restock_predictions)
     deals_html = render_price_deals(state.price_deals)
     drops_html = render_price_drops(state.price_drops)
+    cook_tonight_html = render_cook_tonight(state.cook_tonight_matches)
+    seasonal_html = render_seasonal(state.seasonal_recommendation)
     best_store_html = render_best_store(state.best_store)
     basket_summary_html = render_optimized_basket_summary(state.optimized_basket)
 
@@ -140,6 +147,16 @@ def today_dashboard():
         market_basket,
         "Use this when you are ready to plan, compare, or build the list.",
     )
+    cook_tonight_section = _details_section(
+        "Cook tonight",
+        cook_tonight_html,
+        "Recipes that use what you have. ⏰ marks recipes that rescue expiring items.",
+    )
+    seasonal_section = _details_section(
+        "Today, at a glance",
+        seasonal_html,
+        "Weather, expiring items, and price drops rolled into one prompt.",
+    )
     attention_panel = _details_section(
         "What needs attention",
         decision_panel,
@@ -152,8 +169,8 @@ def today_dashboard():
     )
     household_state = _details_section(
         "Household state",
-        f"{inventory_overview}{fridge_html}{alert_html}{needs_confirm}{what_changed}",
-        "Freshness, inventory, and recent changes live here.",
+        f"{inventory_overview}{fridge_html}{alert_html}{needs_confirm}{what_changed}{cook_tonight_html}",
+        "Freshness, inventory, and recent changes live here. ⏰ marks recipes that rescue expiring items.",
     )
     market_signals = _details_section(
         "Market signals",

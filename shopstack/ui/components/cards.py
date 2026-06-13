@@ -23,9 +23,22 @@ def _tab_click_attr(tab_id: str) -> str:
     if not tab_id:
         return ""
     safe_tab = _safe_tab_id(tab_id)
+    tab_labels = {
+        "today": "Today",
+        "basket": "Shopping",
+        "market": "Scan & Compare",
+        "reconcile": "Pantry",
+        "memory": "Insights",
+    }
+    target_label = tab_labels.get(safe_tab, safe_tab)
     return (
-        f" onclick=\"var el=document.querySelector('[data-testid=tab-{safe_tab}]');"
-        f"if(el)el.click();\""
+        " onclick=\"(function(){"
+        f"var label={target_label!r};"
+        "var tabs=Array.from(document.querySelectorAll('button[role=tab], [role=tab]'));"
+        "var el=tabs.find(function(btn){return (btn.textContent||'').trim()===label;})"
+        "||document.querySelector('[data-testid=tab-" + safe_tab + "]');"
+        "if(el)el.click();"
+        "})();\""
     )
 
 

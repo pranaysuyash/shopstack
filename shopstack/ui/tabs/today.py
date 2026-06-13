@@ -143,14 +143,14 @@ def build_today_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> Today
         )
 
         gr.Markdown("---")
-        gr.Markdown("### Ask ShopStack")
+        gr.Markdown("### Ask a question")
         ask_input = gr.Textbox(
             label="Ask anything across your inventory, lists, and prices",
             placeholder="Do we have milk?  |  What should I buy today?  |  Where is toothpaste?",
             lines=2,
         )
         ask_btn = gr.Button("Ask")
-        ask_output = gr.JSON(label="Structured Response")
+        ask_output = gr.JSON(label="Answer")
         ask_btn.click(
             ask_shopstack,
             ask_input,

@@ -504,6 +504,52 @@ details.home-details > summary,
   color: var(--text);
   padding: 16px 18px;
 }
+details.home-details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+details.home-details summary .home-details-summary {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+details.home-details summary .home-details-title {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 850;
+  color: var(--text);
+}
+details.home-details summary .home-details-hint {
+  display: block;
+  flex: 1 1 280px;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+details.home-details summary .home-details-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.65);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
 details.home-details > summary::-webkit-details-marker,
 .workspace-admin summary::-webkit-details-marker {
   display: none;

@@ -15,6 +15,8 @@ from shopstack.ui.renderers.decision_cards import (
     render_best_store,
     render_optimized_basket_summary,
 )
+from shopstack.ui.renderers.cook_tonight import render_cook_tonight
+from shopstack.ui.renderers.seasonal import render_seasonal
 from shopstack.ui.renderers.image_cards import (
     CardTheme,
     DEFAULT_THEME,
@@ -46,6 +48,8 @@ __all__ = [
     "render_price_drops",
     "render_best_store",
     "render_optimized_basket_summary",
+    "render_cook_tonight",
+    "render_seasonal",
     "CardTheme",
     "DEFAULT_THEME",
     "cards_to_grid",
