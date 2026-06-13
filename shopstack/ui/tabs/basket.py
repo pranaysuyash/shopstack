@@ -17,6 +17,7 @@ app. All ``app.load`` handlers register here.
 from __future__ import annotations
 
 import gradio as gr
+from typing import Any
 
 from shopstack.module_registry import tab_label as _tab_label
 from shopstack.ui.screens import (
