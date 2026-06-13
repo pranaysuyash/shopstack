@@ -5,7 +5,6 @@ ItemRow, StatCard, DataTable, ConfirmDialog, Toast, LoadingSkeleton.
 Every component returns an HTML string. No Gradio dependencies.
 All user/data-derived strings are escaped via html.escape().
 """
-
 from __future__ import annotations
 
 from html import escape
@@ -371,7 +370,11 @@ def loading_skeleton(
         variant: ``card``, ``table``, ``metric``, or ``text``
         lines: Number of skeleton lines (for card and text)
     """
-    pulse = "loading-pulse"
+    # Use the canonical "skeleton" CSS class so the @keyframes
+    # skeleton-pulse animation defined in theme.py applies.
+    # We add the legacy "loading-pulse" class alongside for backward
+    # compatibility with any external CSS that might still match it.
+    pulse = "skeleton loading-pulse"
 
     if variant == "card":
         skeleton_lines = "".join(

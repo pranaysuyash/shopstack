@@ -138,7 +138,7 @@ def header_html(brand_title: str, brand_subtitle: str, current_locale: str = DEF
   </div>
   <div style=\"display:flex;gap:8px;align-items:center;\">
     {locale_html}
-    <button onclick=\"toggleTheme()\" aria-label=\"Toggle light/dark theme\" title=\"Toggle theme\" style=\"background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 10px;cursor:pointer;font-size:11px;color:var(--text-muted);\">🌓</button>
+    <button onclick="toggleTheme()" aria-label="Toggle light/dark theme" title="Toggle theme" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;cursor:pointer;font-size:14px;color:var(--text-muted);min-height:44px;min-width:44px;">🌓</button>
   </div>
 </div>"""
 

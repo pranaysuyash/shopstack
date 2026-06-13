@@ -132,9 +132,9 @@ def build_app() -> gr.Blocks:
                     scale=1,
                 )
                 add_hh_btn = gr.Button(
-                    "+",
+                    "Add household",
                     scale=0,
-                    min_width=40,
+                    min_width=140,
                     elem_classes="household-add-btn",
                 )
                 gr.HTML(

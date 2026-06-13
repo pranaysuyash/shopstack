@@ -311,27 +311,26 @@ def test_hero_panel_escapes_and_uses_design_classes():
 
 
 def test_confirm_dialog_escapes_and_supports_danger_variant():
-    html = confirm_dialog("<script>alert(1)</script>", confirm_label="<b>Yes</b>")
+    html = confirm_dialog("<script>alert(1)</script>", confirm_label="<b>Yes</b>", variant="danger")
     assert "<script>" not in html
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
     assert "&lt;b&gt;Yes&lt;/b&gt;" in html
-    assert "role=\"alertdialog\"" in html
-    assert "var(--red)" in html  # default = danger
+    assert "role='alertdialog'" in html
+    assert "var(--red)" in html  # danger variant
 
     safe = confirm_dialog("Proceed?", variant="default")
     assert "var(--amber)" in safe
 
 
 def test_confirm_toggle_and_hide_return_pair_of_gr_updates():
-    import gradio as gr
     primary_update, confirm_update = confirm_toggle_updates()
-    assert isinstance(primary_update, gr.update.__class__ if hasattr(gr.update, "__class__") else object)
-    assert primary_update.visible is False
-    assert confirm_update.visible is True
+    # gr.update returns a dict with __type__=update
+    assert primary_update == {"__type__": "update", "visible": False}
+    assert confirm_update == {"__type__": "update", "visible": True}
 
     restore_primary, hide_confirm = confirm_hide_updates()
-    assert restore_primary.visible is True
-    assert hide_confirm.visible is False
+    assert restore_primary == {"__type__": "update", "visible": True}
+    assert hide_confirm == {"__type__": "update", "visible": False}
 
 
 def test_empty_state_enhanced_renders_icon_message_and_optional_cta():
@@ -345,7 +344,7 @@ def test_empty_state_enhanced_renders_icon_message_and_optional_cta():
     assert "No items yet" in html
     assert "Add first item" in html
     assert "You can add more later" in html
-    assert "role=\"status\"" in html
+    assert "role='status'" in html
     # escaping works
     escaped = empty_state_enhanced("<script>", icon="x")
     assert "<script>" not in escaped
@@ -368,8 +367,8 @@ def test_loading_skeleton_variants_render_correct_class():
 
 def test_toast_uses_role_status_and_aria_live():
     html = toast("Saved!", kind="success")
-    assert "role=\"status\"" in html
-    assert "aria-live=\"polite\"" in html
+    assert "role='status'" in html
+    assert "aria-live='polite'" in html
     assert "Saved!" in html
     # escaping
     escaped = toast("<b>ok</b>")

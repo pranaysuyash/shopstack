@@ -2,10 +2,11 @@
 
 Verifies:
 - The builder adds the expected components to the parent Blocks
-- The button click event fires `ask_shopstack`
-- The textbox submit event (Enter key) also fires `ask_shopstack`
+- The button click event fires the Ask handler chain
+- The textbox submit event (Enter key) also fires the Ask handler chain
 - The panel returns `AskPanelHandles` with both components exposed
-- The API endpoints are registered with the right names
+- The output is an `gr.HTML` (consumer-friendly answer) not `gr.JSON`
+- The renderer surfaces messages, decisions, and find-item results
 """
 from __future__ import annotations
 
@@ -22,7 +23,9 @@ def test_build_ask_panel_returns_handles():
         handles = build_ask_panel(blocks=blocks, app=blocks, ctx=TabContext())
     assert isinstance(handles, AskPanelHandles)
     assert isinstance(handles.ask_input, gr.Textbox)
-    assert isinstance(handles.ask_output, gr.JSON)
+    # The Ask output is now gr.HTML (was gr.JSON) so we can render a
+    # consumer-friendly answer instead of the raw response tree.
+    assert isinstance(handles.ask_output, gr.HTML)
 
 
 def test_build_ask_panel_registers_click_and_submit_events():
@@ -54,3 +57,54 @@ def test_ask_panel_handles_dataclass_fields():
     import dataclasses
     fields = {f.name for f in dataclasses.fields(AskPanelHandles)}
     assert fields == {"ask_input", "ask_output"}
+
+
+def test_ask_output_renders_friendly_html_for_string_answer():
+    """A bare string answer is rendered as a card, not a JSON dump."""
+    from shopstack.ui.tabs.ask_panel import _render_answer
+    html = _render_answer("You have 2 packets of milk in the fridge.")
+    assert "<div class='home-card'" in html
+    assert "milk" in html
+    # The raw `trace_id` and `debug` keys must never appear as JSON.
+    assert '"trace_id"' not in html
+    assert "{'intent'" not in html
+
+
+def test_ask_output_renders_decision_set():
+    """A decision-set response is rendered as friendly cards."""
+    from shopstack.ui.tabs.ask_panel import _render_answer
+    response = {
+        "intent": "decisions",
+        "decisions": [
+            {
+                "canonical_name": "milk",
+                "display_name": "Milk",
+                "action": "use_soon",
+                "reasons": ["Expires tomorrow"],
+            }
+        ],
+    }
+    html = _render_answer(response)
+    assert "Milk" in html
+    assert "Use soon" in html or "use_soon" in html.lower()
+
+
+def test_ask_output_renders_empty_intent_gracefully():
+    """An empty-intent response is rendered without leaking internals."""
+    from shopstack.ui.tabs.ask_panel import _render_answer
+    html = _render_answer({"intent": "empty", "message": "Type a question."})
+    assert "Type a question." in html
+
+
+def test_ask_output_hides_trace_id_and_debug_keys():
+    """The renderer must NOT surface trace_id or debug payloads."""
+    from shopstack.ui.tabs.ask_panel import _render_answer
+    response = {
+        "intent": "ok",
+        "message": "Done.",
+        "trace_id": "abc-123-secret",
+        "debug": {"parser": {"status": "ok"}},
+    }
+    html = _render_answer(response)
+    assert "abc-123-secret" not in html
+    assert "parser" not in html  # debug block hidden

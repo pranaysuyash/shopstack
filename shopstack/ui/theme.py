@@ -360,6 +360,8 @@ button, .gr-button, [role="button"], .action-tile {
   font-weight: 650 !important;
   padding: 10px var(--space-lg) var(--space-md) !important;
   border-radius: var(--radius-sm) var(--radius-sm) 0 0 !important;
+  /* WCAG 2.5.8 — keep tab tap targets >= 44 px on desktop too. */
+  min-height: 44px;
   transition: background var(--transition-base) var(--ease-out),
               color var(--transition-base) var(--ease-out),
               box-shadow var(--transition-base) var(--ease-out);
@@ -669,6 +671,18 @@ details.home-details > *:not(summary),
   font-size: var(--text-lg);
   margin: var(--space-sm) 0 0;
   max-width: 780px;
+}
+
+/* ── Ask answer output (aria-live region for screen readers) ─────── */
+
+.ask-output {
+  /* The home-card wrapper inside carries role="status"; promote it to
+     an aria-live region so screen readers announce the new answer. */
+  margin-top: var(--space-sm);
+}
+.ask-output[aria-live] {
+  /* Make sure the live region is announced. */
+  outline: none;
 }
 
 /* ── Action tiles ────────────────────────────────────────────────── */
@@ -986,8 +1000,11 @@ details.home-details > *:not(summary),
   .tab-nav button, .tabs button[role="tab"], button[role="tab"] {
     flex: 1 0 auto !important;
     min-width: 0 !important;
-    padding: 7px 6px !important;
+    padding: 12px 8px !important;
     font-size: var(--text-xs) !important;
+    /* WCAG 2.5.8 — Target Size (Minimum): 24×24 px is the AAA-compliant
+       minimum, but for a tab bar we aim for 44 px tap target. */
+    min-height: 44px;
   }
   .gr-button { width: 100% !important; }
 }

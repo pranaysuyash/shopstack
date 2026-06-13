@@ -8,7 +8,8 @@ from typing import Any
 
 from shopstack.app_context import APP_NAME, db, planner, providers, tools, current_user_id
 from shopstack.ui.components.cards import card as ui_card
-from shopstack.ui.components.primitives import toast
+from shopstack.ui.components.primitives import empty_state_enhanced, toast
+from shopstack.ui.renderers.image_cards import render_decision_card as render_unified_decision_card
 from shopstack.traces.export import create_trace
 from shopstack.ui.screens._utils import (
     extract_query_for_action,
@@ -224,6 +225,103 @@ def _render_structured_ask_summary(response: dict[str, Any]) -> str:
     return (
         f"Tool calls: {len(tool_calls)}; Outcomes: {len(outcomes)}; "
         f"Parser status: {debug.get('parser', {}).get('status', 'unknown')}"
+    )
+
+
+def _render_ask_answer_html(response: Any) -> str:
+    """Render an ``ask_shopstack`` response as a consumer-friendly HTML answer.
+
+    Surfaces the user-facing intent, message, and (when present) decision
+    cards. Internal implementation details (trace_id, debug payloads) are
+    hidden so the Ask panel reads like an answer, not a JSON tree.
+
+    Args:
+        response: The raw dict/string returned by :func:`ask_shopstack` or
+            a related handler.
+
+    Returns:
+        HTML snippet suitable for ``gr.HTML``.
+    """
+    if response is None:
+        return empty_state_enhanced(
+            "Ask a question to see an answer here.",
+            icon="💬",
+        )
+
+    if isinstance(response, str):
+        # Bare string answer — wrap as a card.
+        safe = escape(response)
+        return (
+            "<div class='home-card' style='text-align:left;'>"
+            f"<div style='font-size:14px;line-height:1.5;'>{safe}</div>"
+            "</div>"
+        )
+
+    if not isinstance(response, dict):
+        safe = escape(str(response))
+        return (
+            "<div class='home-card' style='text-align:left;'>"
+            f"<div>{safe}</div>"
+            "</div>"
+        )
+
+    # Direct message wins (intent=empty, planner message, etc.).
+    msg = response.get("message") or response.get("answer") or response.get("response")
+    intent = response.get("intent", "")
+
+    if msg and not response.get("decisions"):
+        return (
+            "<div class='home-card' style='text-align:left;'>"
+            f"<div style='font-size:14px;line-height:1.5;'>{escape(str(msg))}</div>"
+            + (f"<div class='muted' style='margin-top:6px;font-size:11px;'>Intent: {escape(str(intent))}</div>" if intent else "")
+            + "</div>"
+        )
+
+    # Decision-set style: render via the existing card renderer.
+    decisions = response.get("decisions")
+    if isinstance(decisions, list) and decisions:
+        cards = []
+        for d in decisions[:6]:
+            try:
+                from shopstack.schemas.models import DecisionResult
+                dr = DecisionResult(**d) if not isinstance(d, DecisionResult) else d
+                cards.append(render_unified_decision_card(dr))
+            except Exception:
+                continue
+        if cards:
+            body = "".join(cards)
+            return (
+                "<div class='home-card' style='text-align:left;'>"
+                f"<h3>What I found</h3>{body}</div>"
+            )
+
+    # Find-item results: show top hits as a small list.
+    results = response.get("results")
+    if isinstance(results, list) and results:
+        rows = "".join(
+            "<div class='item-row'>"
+            f"<div>{escape(str(r.get('display_name', r.get('canonical_name', ''))))}</div>"
+            f"<div style='color:var(--text-muted);font-size:12px;'>"
+            f"{r.get('quantity', '')} {escape(str(r.get('unit', '')))}"
+            f"{' &middot; ' + escape(str(r.get('storage_location_id', ''))) if r.get('storage_location_id') else ''}"
+            "</div></div>"
+            for r in results[:6]
+        )
+        if rows:
+            return (
+                "<div class='home-card' style='text-align:left;'>"
+                f"<h3>What I found</h3>{rows}</div>"
+            )
+
+    # Fall back to a friendly message rather than dumping raw JSON.
+    if msg:
+        return (
+            "<div class='home-card' style='text-align:left;'>"
+            f"<div style='font-size:14px;line-height:1.5;'>{escape(str(msg))}</div></div>"
+        )
+    return empty_state_enhanced(
+        "I didn't get a clear answer. Try rephrasing the question.",
+        icon="🤔",
     )
 
 

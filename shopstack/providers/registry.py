@@ -81,6 +81,21 @@ def _load_huggingface():
         return None
 
 
+def _load_modal():
+    """Lazy-load the Modal provider (Phase 6 #18).
+
+    Returns the class so the registry can instantiate it; the
+    class itself is in :mod:`shopstack.providers.modal_provider`.
+    The loader never raises; it returns ``None`` on import error
+    so the registry can fall back to the mock provider.
+    """
+    try:
+        from shopstack.providers.modal_provider import ModalPlannerProvider
+        return ModalPlannerProvider
+    except ImportError:
+        return None
+
+
 def _load_sensevoice():
     try:
         from shopstack.providers.stt_provider import SenseVoiceSTTProvider
@@ -243,6 +258,18 @@ _PROVIDER_SPECS: dict[str, _ProviderSpec] = {
         loader=_load_huggingface,
         kwargs_fn=lambda s: {"api_key": s.hf_api_key},
         unavailable_msg="HuggingFace provider not available (huggingface_hub package missing), falling back to mock",
+        supports_off_grid=False,
+    ),
+    "modal": _ProviderSpec(
+        # ── Phase 6 #18: Modal cloud-GPU provider ─────────────
+        # Calls a user-deployed Modal function via HTTP webhook.
+        # No `modal` SDK needed at runtime — the function URL is
+        # enough. See shopstack/providers/modal_provider.py.
+        loader=lambda: _load_modal(),
+        kwargs_fn=lambda s: {
+            "url": getattr(s, "modal_planner_url", "") or "",
+        },
+        unavailable_msg="Modal provider not available (modal_provider import failed), falling back to mock",
         supports_off_grid=False,
     ),
     "sensevoice": _ProviderSpec(
