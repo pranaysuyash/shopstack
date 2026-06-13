@@ -166,23 +166,23 @@ def render_weather_card(weather: WeatherState | None) -> str:
         f"{weather.condition_icon} Weather",
         (
             f"<div style='display:flex;gap:16px;align-items:flex-start;'>"
-            f"<div style='font-size:28px;font-weight:700;font-family:var(--font-display);'>"
+            f"<div style='font-size: 1.75rem;font-weight:700;font-family:var(--font-display);'>"
             f"{weather.temperature_c:.0f}&deg;C"
             f"</div>"
             f"<div style='flex:1;'>"
-            f"<div style='font-size:13px;color:var(--text-muted);'>"
+            f"<div style='font-size: 0.8125rem;color:var(--text-muted);'>"
             f"Feels like {weather.feels_like_c:.0f}&deg;C &middot; "
             f"{escape(weather.condition.replace('_', ' '))}"
             f"</div>"
-            f"<div style='font-size:12px;color:var(--text-dim);margin-top:4px;'>"
+            f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>"
             f"Humidity {weather.humidity_pct:.0f}% &middot; Wind {weather.wind_kmh:.0f} km/h"
             f"</div>"
             f"</div>"
             f"</div>"
-            f"<div style='margin-top:10px;padding-top:8px;border-top:1px solid var(--border);font-size:13px;color:{friendly_color};font-weight:600;'>"
+            f"<div style='margin-top:10px;padding-top:8px;border-top:1px solid var(--border);font-size: 0.8125rem;color:{friendly_color};font-weight:600;'>"
             f"{friendly_label}"
             f"</div>"
-            f"<div style='margin-top:6px;font-size:12px;color:var(--text-dim);'>"
+            f"<div style='margin-top:6px;font-size: 0.75rem;color:var(--text-dim);'>"
             f"{escape(weather.recommendation)}"
             f"</div>"
         ),
@@ -208,7 +208,7 @@ def format_trip_advice_html(advice: TripAdvice) -> str:
     savings_line = ""
     if advice.estimated_savings > 0:
         savings_line = (
-            f"<div style='margin-top:6px;font-size:12px;color:var(--green);'>"
+            f"<div style='margin-top:6px;font-size: 0.75rem;color:var(--green);'>"
             f"Estimated saving: \u20b9{advice.estimated_savings:.0f}"
             f"</div>"
         )
@@ -219,7 +219,7 @@ def format_trip_advice_html(advice: TripAdvice) -> str:
         if len(advice.items_to_buy) > 6:
             items_str += f" +{len(advice.items_to_buy) - 6} more"
         items_line = (
-            f"<div style='margin-top:6px;font-size:12px;color:var(--text-dim);'>"
+            f"<div style='margin-top:6px;font-size: 0.75rem;color:var(--text-dim);'>"
             f"Items: {items_str}"
             f"</div>"
         )
@@ -229,11 +229,11 @@ def format_trip_advice_html(advice: TripAdvice) -> str:
         (
             f"<div style='display:flex;align-items:center;gap:10px;margin-bottom:8px;'>"
             f"<span style='display:inline-block;padding:3px 10px;border-radius:999px;"
-            f"background:{badge_color};color:#fff;font-size:12px;font-weight:700;'>"
+            f"background:{badge_color};color:#fff;font-size: 0.75rem;font-weight:700;'>"
             f"{badge_text}</span>"
-            f"<span style='font-size:11px;color:var(--text-faint);'>{escape(confidence_label)}</span>"
+            f"<span style='font-size: 0.6875rem;color:var(--text-faint);'>{escape(confidence_label)}</span>"
             f"</div>"
-            f"<div style='font-size:13px;color:var(--text);'>{escape(advice.reason)}</div>"
+            f"<div style='font-size: 0.8125rem;color:var(--text);'>{escape(advice.reason)}</div>"
             f"{savings_line}{items_line}"
         ),
     )

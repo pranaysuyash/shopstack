@@ -183,7 +183,7 @@ class KokoroTTSProvider(TTSProvider):
 
 
 class Qwen3TTSProvider(TTSProvider):
-    """TTS provider using Qwen3-TTS-0.6B via the official qwen-tts SDK.
+    """TTS provider using Qwen3-TTS via the official qwen-tts SDK.
 
     Qwen3-TTS uses a discrete multi-codebook language model architecture
     for end-to-end speech synthesis. It uses a 12Hz acoustic tokenizer
@@ -196,12 +196,20 @@ class Qwen3TTSProvider(TTSProvider):
     Primary path: ``qwen_tts.Qwen3TTSModel.from_pretrained()`` +
     ``model.generate_custom_voice()`` returning ``(wavs, sr)``.
 
+    **Model variants (13-Jun-2026 Modal bench):**
+    - Qwen3-TTS-12Hz-1.7B-CustomVoice: ✅ 5/5 synth, 5.87s mean, 24kHz.
+      Apache-2.0, 1.9M downloads, 12Hz codec, energy 2.5x Kokoro.
+    - Qwen3-TTS-12Hz-0.6B-Base: smaller, no CustomVoice support.
+
+    Use 1.7B-CustomVoice for production. It's the "quality path" in the
+    dual-provider design (Kokoro = fast path, 0.158s; Qwen3 = quality path, 5.87s).
+
     Fallback: Uses gTTS when qwen_tts SDK is unavailable.
     """
 
     name = "qwen3_tts"
-    model_id = "qwen3-tts-0.6b"
-    parameter_count = 0.6
+    model_id = "qwen3-tts-1.7b"
+    parameter_count = 1.7
     license_note = "Apache-2.0"
     runtime_type = "custom"
     supports_off_grid = True
@@ -213,7 +221,7 @@ class Qwen3TTSProvider(TTSProvider):
 
     def __init__(
         self,
-        model_name: str = "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
+        model_name: str = "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
         device: str = "auto",
         cache_dir: str | None = None,
         voice: str = DEFAULT_VOICE,

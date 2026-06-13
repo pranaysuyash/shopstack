@@ -181,7 +181,7 @@ def format_nutrition_html(summary: NutritionSummary) -> str:
 
     disclaimer = (
         "<div style='margin-top:16px;padding:8px 12px;border-radius:6px;"
-        "background:var(--surface);font-size:11px;color:var(--text-dim);'>"
+        "background:var(--surface);font-size: 0.6875rem;color:var(--text-dim);'>"
         "&#9432; Nutrition data is approximate household guidance, not medical advice."
         "</div>"
     )
@@ -211,7 +211,7 @@ def format_nutrition_html(summary: NutritionSummary) -> str:
                 "</tr>"
             )
         items_html = (
-            "<table style='border-collapse:collapse;width:100%;font-size:12px;'>"
+            "<table style='border-collapse:collapse;width:100%;font-size: 0.75rem;'>"
             "<tr>"
             "<th style='text-align:left;border-bottom:1px solid var(--border);padding:6px 8px'>Item</th>"
             "<th style='text-align:left;border-bottom:1px solid var(--border);padding:6px 8px'>Qty</th>"
@@ -228,7 +228,7 @@ def format_nutrition_html(summary: NutritionSummary) -> str:
     if summary.missing_items:
         names = ", ".join(escape(n) for n in summary.missing_items[:10])
         missing_html = (
-            "<div style='margin-top:8px;font-size:12px;color:var(--text-dim);'>"
+            "<div style='margin-top:8px;font-size: 0.75rem;color:var(--text-dim);'>"
             f"<strong>No nutrition data:</strong> {names}"
             "</div>"
         )
@@ -287,7 +287,7 @@ def lookup_nutrition_html(query: str) -> str:
 
     disclaimer = (
         "<div style='margin-top:12px;padding:8px 12px;border-radius:6px;"
-        "background:var(--surface);font-size:11px;color:var(--text-dim);'>"
+        "background:var(--surface);font-size: 0.6875rem;color:var(--text-dim);'>"
         "&#9432; Nutrition data is approximate household guidance, not medical advice."
         "</div>"
     )

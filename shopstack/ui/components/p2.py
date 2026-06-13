@@ -229,9 +229,9 @@ def price_chart_empty_state(item_name: str = "") -> str:
     return (
         "<div class='home-card' style='text-align:center;padding:40px 20px;'>"
         "<div class='section-kicker'>Price Trend</div>"
-        f"<div class='muted' style='font-size:14px;margin-top:8px;'>"
+        f"<div class='muted' style='font-size: 0.875rem;margin-top:8px;'>"
         f"No price data yet for {label}.</div>"
-        "<div class='muted' style='font-size:12px;margin-top:4px;'>"
+        "<div class='muted' style='font-size: 0.75rem;margin-top:4px;'>"
         "Record purchases with price to build trend history.</div>"
         "</div>"
     )
@@ -323,11 +323,11 @@ def location_card(
     icon = type_icons.get(location_type.lower(), "")
     if icon or location_type:
         type_badge = (
-            f"<span class='chip' style='font-size:10px;'>"
+            f"<span class='chip' style='font-size: 0.625rem;'>"
             f"{icon} {safe_type}</span>"
         )
 
-    hierarchy = f"<span style='color:var(--text-dim);font-size:11px;'>&#x2192; {safe_parent}</span>" if parent_name else ""
+    hierarchy = f"<span style='color:var(--text-dim);font-size: 0.6875rem;'>&#x2192; {safe_parent}</span>" if parent_name else ""
 
     count_badge = ""
     if item_count > 0:
@@ -338,7 +338,7 @@ def location_card(
     items_html = ""
     if items_preview:
         items_html = (
-            "<div style='margin-top:8px;font-size:11px;color:var(--text-dim);'>"
+            "<div style='margin-top:8px;font-size: 0.6875rem;color:var(--text-dim);'>"
             + "".join(f"<div class='item-row' style='padding:2px 0;'>{escape(item)}</div>" for item in items_preview[:8])
             + (
                 f"<div class='muted' style='margin-top:4px;'>"
@@ -358,7 +358,7 @@ def location_card(
         "<div style='display:flex;justify-content:space-between;align-items:center;'>"
         "<div>"
         f"<div style='font-weight:600;color:var(--text);'>{safe_name}</div>"
-        f"<div style='font-size:11px;color:var(--text-dim);'>{type_badge} {hierarchy}</div>"
+        f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>{type_badge} {hierarchy}</div>"
         "</div>"
         f"<div>{count_badge}</div>"
         "</div>"

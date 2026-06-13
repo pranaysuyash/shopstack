@@ -188,8 +188,8 @@ class TestQwen3TTSProviderInit:
         with patch.dict("sys.modules", {"qwen_tts": None}, clear=False):
             provider = Qwen3TTSProvider(prefer_gtts_fallback=False)
             assert provider.name == "qwen3_tts"
-            assert provider.model_id == "qwen3-tts-0.6b"
-            assert provider.parameter_count == 0.6
+            assert provider.model_id == "qwen3-tts-1.7b"
+            assert provider.parameter_count == 1.7
             assert "tts" in provider.capabilities
 
     def test_synthesize_empty_text(self):

@@ -88,8 +88,8 @@ def _render_barcode_section(result: MarketLensResult) -> str:
         barcode_parts.append(
             f"<div class='stat-card' style='margin-bottom:8px;'>"
             f"<div style='font-weight:600;'>{escape(code['label'])}</div>"
-            f"<div style='font-size:11px;color:var(--text-dim);'>Type: {escape(str(code['type']))} | Code: {escape(code['code'])}</div>"
-            f"<div style='margin-top:6px;color:var(--text-dim);font-size:11px;'>Barcode scanned — use the button below to add to inventory.</div>"
+            f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>Type: {escape(str(code['type']))} | Code: {escape(code['code'])}</div>"
+            f"<div style='margin-top:6px;color:var(--text-dim);font-size: 0.6875rem;'>Barcode scanned — use the button below to add to inventory.</div>"
             f"</div>"
         )
     return "<div class='home-card'><h3>Barcode detected</h3>" + "".join(barcode_parts) + "</div>"
@@ -105,7 +105,7 @@ def _render_swiggy_section(decisions: list[dict[str, Any]]) -> str:
         if d.get("swiggy_available") is False:
             swiggy_rows.append(
                 f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'>"
-                f"<strong>{name}</strong> <span style='color:var(--red);font-size:11px;'>Sold out on Swiggy</span>"
+                f"<strong>{name}</strong> <span style='color:var(--red);font-size: 0.6875rem;'>Sold out on Swiggy</span>"
                 f"</div>"
             )
         elif d.get("swiggy_price"):
@@ -145,7 +145,7 @@ def _render_market_lens_source_metadata(result: MarketLensResult) -> str:
         "<div class='home-card' style='margin-bottom:10px;'>"
         f"<h4>Market Lens context</h4>"
         f"<div style='margin-bottom:6px;'><strong>Source mode:</strong> {escape(result.source_mode.title())}</div>"
-        f"<div style='font-size:12px;color:var(--text-dim);'>"
+        f"<div style='font-size: 0.75rem;color:var(--text-dim);'>"
         f"{escape(result.freshness_label)}</div>{warning_html}"
         "</div>"
     )

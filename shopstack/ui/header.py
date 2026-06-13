@@ -110,7 +110,7 @@ def model_download_status() -> str:
             return ""
 
         return (
-            "<div style='font-size:11px;color:var(--amber);margin-top:4px;'>"
+            "<div style='font-size: 0.6875rem;color:var(--amber);margin-top:4px;'>"
             f"<span>\u23F3 {mlx_model.split('/')[-1]} download pending (first query triggers it)</span>"
             "</div>"
         )
@@ -131,6 +131,10 @@ def header_html(brand_title: str, brand_subtitle: str, current_locale: str = DEF
     """
     locale_html = render_language_selector_html(current_locale)
     return f"""
+<!-- WCAG 2.4.1 Bypass Blocks — skip-to-content link (first focusable element) -->
+<a class=\"skip-link\" href=\"#main-content\">Skip to content</a>
+<!-- WCAG 4.1.3 Status Messages — live region for dynamic content announcements -->
+<div id=\"ss-live-region\" class=\"sr-only-live\" aria-live=\"polite\" aria-atomic=\"true\"></div>
 <div class=\"app-header\">
   <div>
     <h1 class=\"brand-title\">{escape(brand_title)}</h1>
@@ -138,7 +142,7 @@ def header_html(brand_title: str, brand_subtitle: str, current_locale: str = DEF
   </div>
   <div style=\"display:flex;gap:8px;align-items:center;\">
     {locale_html}
-    <button onclick="toggleTheme()" aria-label="Toggle light/dark theme" title="Toggle theme" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;cursor:pointer;font-size:14px;color:var(--text-muted);min-height:44px;min-width:44px;">🌓</button>
+    <button onclick="toggleTheme()" aria-label="Toggle light/dark theme" title="Toggle theme" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;cursor:pointer;font-size: 0.875rem;color:var(--text-muted);min-height:44px;min-width:44px;">🌓</button>
   </div>
 </div>"""
 
@@ -167,6 +171,45 @@ function toggleTheme() {
   e.setAttribute('data-theme', n);
   localStorage.setItem('shopstack-theme', n);
 }
+
+/* WCAG 4.1.3 Status Messages — announce to screen readers */
+function announceToScreenReader(message) {
+  var region = document.getElementById('ss-live-region');
+  if (region) {
+    region.textContent = '';
+    /* Brief delay so the DOM mutation triggers a new announcement */
+    setTimeout(function() { region.textContent = message; }, 80);
+  }
+}
+
+/* Show a toast notification and announce to screen readers.
+   Reuses the existing .toast / .toast-{kind} CSS classes from theme.py.
+   The container is appended to body and positioned via the fixed toast CSS. */
+function showToast(msg, kind) {
+  kind = kind || 'info';
+  var icons = { success: '\u2713', error: '\u2717', info: '\u2139', warning: '\u26A0' };
+  var container = document.getElementById('ss-toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'ss-toast-container';
+    container.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:600;display:flex;flex-direction:column-reverse;gap:8px;';
+    document.body.appendChild(container);
+  }
+  var el = document.createElement('div');
+  el.className = 'toast toast-' + kind;
+  el.setAttribute('role', 'status');
+  el.setAttribute('aria-live', 'polite');
+  el.innerHTML = '<span aria-hidden="true">' + (icons[kind] || icons.info) + '</span><span>' + msg + '</span>';
+  container.appendChild(el);
+  announceToScreenReader((kind === 'success' ? 'Success: ' : kind === 'error' ? 'Error: ' : '') + msg);
+  setTimeout(function() {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(12px)';
+    el.style.transition = 'opacity 200ms, transform 200ms';
+    setTimeout(function() { el.remove(); }, 220);
+  }, 3000);
+}
+
 document.addEventListener('keydown', function(e) {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   var tabs = Array.from(document.querySelectorAll('[data-testid^=tab-], .tabs > button[role=tab]'));
@@ -217,12 +260,13 @@ def _pwa_block() -> str:
 
     The PWA shell is cached by the service worker registered here, so
     the app can be installed as a PWA on mobile. The service worker
-    itself is served from `/static/sw.js` (mounted by the Starlette
-    StaticFiles in `app.py`'s PWA bootstrap).
+    itself is served from ``/sw.js`` (mounted by
+    :func:`shopstack.ui.pwa_mount.mount_pwa_static` at root path,
+    bypassing Gradio 6.x's ``/static/*`` interception).
     """
     return """
 <!-- PWA: manifest + theme color (Phase 4 #5) -->
-<link rel="manifest" href="/static/manifest.json">
+<link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#0f172a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -230,7 +274,7 @@ def _pwa_block() -> str:
 // Register service worker for PWA shell caching (Phase 4 #5)
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
-    navigator.serviceWorker.register('/static/sw.js', { scope: '/' })
+    navigator.serviceWorker.register('/sw.js', { scope: '/' })
       .then(function(reg) {
         console.log('[ShopStack PWA] service worker registered, scope:', reg.scope);
       })

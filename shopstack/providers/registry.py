@@ -128,6 +128,14 @@ def _load_bge_m3():
         return None
 
 
+def _load_nomic():
+    try:
+        from shopstack.providers.embeddings_provider import NomicEmbeddingProvider
+        return NomicEmbeddingProvider
+    except ImportError:
+        return None
+
+
 def _load_minicpmv():
     try:
         from shopstack.providers.vision_provider import MiniCPMVProvider
@@ -164,6 +172,14 @@ def _load_rmbg():
     try:
         from shopstack.providers.segmentation_provider import RMBGSegmentationProvider
         return RMBGSegmentationProvider
+    except ImportError:
+        return None
+
+
+def _load_birefnet():
+    try:
+        from shopstack.providers.segmentation_provider import BiRefNetSegmentationProvider
+        return BiRefNetSegmentationProvider
     except ImportError:
         return None
 
@@ -292,6 +308,11 @@ _PROVIDER_SPECS: dict[str, _ProviderSpec] = {
         kwargs_fn=lambda _s: {},
         unavailable_msg="BGE-M3 provider not available (sentence-transformers missing), falling back to mock",
     ),
+    "nomic": _ProviderSpec(
+        loader=_load_nomic,
+        kwargs_fn=lambda _s: {},
+        unavailable_msg="Nomic-Embed provider not available (sentence-transformers missing), falling back to mock",
+    ),
     "minicpmv": _ProviderSpec(
         loader=_load_minicpmv,
         kwargs_fn=lambda _s: {},
@@ -326,6 +347,11 @@ _PROVIDER_SPECS: dict[str, _ProviderSpec] = {
         loader=_load_rmbg,
         kwargs_fn=lambda _s: {},
         unavailable_msg="RMBG provider not available (transformers/torch missing), falling back to mock",
+    ),
+    "birefnet": _ProviderSpec(
+        loader=_load_birefnet,
+        kwargs_fn=lambda _s: {},
+        unavailable_msg="BiRefNet provider not available (torch/torchvision/huggingface_hub missing), falling back to mock",
     ),
     "parakeet": _ProviderSpec(
         loader=_load_parakeet,
@@ -536,7 +562,7 @@ class ProviderRegistry:
             }
 
         requested_backend = pending_backend or self._backend_requests.get(name, "mock")
-        normalized_requested = requested_backend.lower() if requested_backend else ""
+        _normalized_requested = requested_backend.lower() if requested_backend else ""
         is_real_request_for_mock_provider = (
             not is_mock_backend
             and self._fallback_backends.get(name) == requested_backend

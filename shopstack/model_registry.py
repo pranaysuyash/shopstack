@@ -32,8 +32,8 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=1.7,
         license_note="Apache-2.0",
         runtime="transformers",
-        status="active",
-        notes="top candidate for household commands — provider wired as qwen3_asr backend",
+        status="candidate",
+        notes="top candidate for household commands — provider wired as qwen3_asr backend. Bench pending. Demoted to candidate because SenseVoiceSmall is the default. Switch via stt_backend config.",
     ),
     # STT — Voxtral-Mini-4B-Realtime-2602 (Jan 2026, 1.1M downloads, Mistral's new SOTA)
     ModelEntry(
@@ -76,8 +76,8 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=0.6,
         license_note="CC-BY-4.0",
         runtime="transformers",
-        status="active",
-        notes="lightweight streaming ASR — provider wired as parakeet backend",
+        status="candidate",
+        notes="lightweight streaming ASR — provider wired as parakeet backend. Demoted to candidate (SenseVoiceSmall is the default).",
     ),
     ModelEntry(
         provider_group="stt",
@@ -87,7 +87,7 @@ MODEL_REGISTRY: list[ModelEntry] = [
         license_note="MIT",
         runtime="transformers",
         status="active",
-        notes="very fast, multilingual — wired as sensevoice backend (default)",
+        notes="very fast, multilingual — wired as sensevoice backend (default). Modal STT v3 (13-Jun-2026): 75.2% WER, 46.4% slot retention on 20 Hinglish audios. The only working STT in the 32B cap.",
     ),
     ModelEntry(
         provider_group="stt",
@@ -117,8 +117,20 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=0.6,
         license_note="Apache-2.0",
         runtime="custom",
+        status="candidate",
+        notes="0.6B variant of Qwen3-TTS. Demoted to candidate (1.7B CustomVoice is the new default; see qwen3-tts-1.7b below). Smaller model, similar SDK, ~3x faster than 1.7B.",
+    ),
+    # TTS — Qwen3-TTS-12Hz-1.7B-CustomVoice (NEW ACTIVE WINNER 13-Jun-2026)
+    ModelEntry(
+        provider_group="tts",
+        model_id="qwen3-tts-1.7b-customvoice",
+        hf_model="Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
+        params_b=1.7,
+        license_note="Apache-2.0",
+        runtime="custom",
         status="active",
-        notes="lightweight TTS candidate — uses qwen_tts SDK (not transformers). Default voice Ryan.",
+        badge_relevance="llama_champion",
+        notes="Qwen3-TTS-12Hz-1.7B-CustomVoice (Aug 2025, 1.9M downloads). **Modal A10G TTS compare bench WINNER (13-Jun-2026): 20/20 synth, 5.99s mean, 24kHz, 0.1183 energy (2.5x more dynamic than Kokoro).** Quality path: 14x slower than Kokoro but expressive. Provider wired as qwen3_tts backend, default voice 'Ryan'.",
     ),
     ModelEntry(
         provider_group="tts",
@@ -186,9 +198,9 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=8.0,
         license_note="Apache-2.0",
         runtime="transformers",
-        status="active",
+        status="candidate",
         badge_relevance="llama_champion",
-        notes="strong VLM for household items — provider wired as minicpmv backend",
+        notes="strong VLM for household items — provider wired as minicpmv backend. Demoted to candidate (Qwen3-VL-8B is the new default; see qwen3-vl-8b below).",
     ),
     # Vision — Qwen2.5-VL-3B (lighter alternative via MLX)
     ModelEntry(
@@ -198,9 +210,9 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=3.0,
         license_note="Apache-2.0",
         runtime="mlx",
-        status="active",
+        status="candidate",
         badge_relevance="off_the_grid",
-        notes="3B params, 0.9s load via MLX. Excellent throughput (43-80 tok/s) at 1/3 the params of MiniCPM-V. Use for high-volume vision tasks.",
+        notes="3B params, 0.9s load via MLX. Excellent throughput (43-80 tok/s) at 1/3 the params of MiniCPM-V. Demoted to candidate (Qwen3-VL-8B is the new default; see qwen3-vl-8b). Use via MLX for high-volume vision tasks.",
     ),
     # Vision — MiniCPM-V-4.6 (NEW MID-2026 SOTA, VLM bench candidate)
     ModelEntry(
@@ -270,9 +282,9 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=1.0,
         license_note="Apache-2.0",
         runtime="transformers",
-        status="active",
+        status="candidate",
         badge_relevance="well_tuned",
-        notes="lightweight planner / parser — provider wired as minicpm5 backend",
+        notes="lightweight planner / parser — provider wired as minicpm5 backend for tool_call_parser_backend. Demoted to candidate (Ministral-8B-Instruct-2410 is the main planner; see below).",
     ),
     ModelEntry(
         provider_group="planner",
@@ -320,7 +332,7 @@ MODEL_REGISTRY: list[ModelEntry] = [
         badge_relevance="llama_champion",
         notes="REJECTED 13-Jun-2026: 70% on Modal A100 int4 production bench (Run 1+2+3). 4x slower than alternatives (28.18s vs 4.08s). Overthinking issue. Demote from default. Switch to Ministral-8B-Instruct-2410 (95%) or Ministral-3-8B-Reasoning-2512 (90%, mid-2026).",
     ),
-    # Planner — Ministral-8B-Instruct (NEW WINNER, 13-Jun-2026)
+    # Planner — Ministral-8B-Instruct-2410 (RUN 1+2 WINNER, 13-Jun-2026)
     ModelEntry(
         provider_group="planner",
         model_id="ministral-8b-instruct",
@@ -328,11 +340,11 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=8.0,
         license_note="Apache-2.0",
         runtime="transformers",
-        status="candidate",
+        status="active",
         badge_relevance="llama_champion",
-        notes="Run 1+2 winner on Modal A100 int4 (13-Jun-2026): 90% (10 prompts) / 95% (20 prompts), 4.08s mean latency, 5.75GB GPU. Tied with Gemma-3-4B (also 95%). Oct 2024 release. SUPERSEDED by Ministral-3-8B-Instruct-2512 (Run 3 candidate).",
+        notes="Run 1+2 winner on Modal A100 int4 (13-Jun-2026): 90% (10 prompts) / **95% (20 prompts)**, 4.08s mean latency. Tied with Gemma-3-4B. Oct 2024 release. **CURRENT DEFAULT PLANNER** (config.py:28). MLX variant: mlx-community/Ministral-8B-Instruct-2410-4bit. Demoted Ministral-3-8B-Instruct-2512 (the same-arch non-reasoning variant at 70% loses to the 2512-Reasoning variant at 90%).",
     ),
-    # Planner — Ministral-3-8B-Instruct-2512 (NEW MID-2026 SOTA, Run 3 candidate)
+    # Planner — Ministral-3-8B-Instruct-2512 (Oct 2025, non-reasoning)
     ModelEntry(
         provider_group="planner",
         model_id="ministral-3-8b-instruct-2512",
@@ -342,7 +354,7 @@ MODEL_REGISTRY: list[ModelEntry] = [
         runtime="transformers",
         status="candidate",
         badge_relevance="llama_champion",
-        notes="Mistral's Oct 2025 release. 169k downloads. mistral3 arch. REPLACES the older Ministral-8B-Instruct-2410. Run 3 Modal bench in flight.",
+        notes="Mistral's Oct 2025 release. 169k downloads. mistral3 arch. Modal A100 int4 (13-Jun-2026): 70% tool-calling, 2.59s mean. **Loses to Ministral-3-8B-Reasoning-2512 (90%) by 20 points** — the reasoning variant is materially better. Demoted.",
     ),
     # Planner — Ministral-3-3B-Instruct-2512 (NEW MID-2026 SOTA, Run 3 candidate)
     ModelEntry(
@@ -400,9 +412,9 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=8.0,
         license_note="Apache-2.0",
         runtime="transformers",
-        status="active",
+        status="candidate",
         badge_relevance="llama_champion",
-        notes="NEW ACTIVE — Modal A100 int4 (13-Jun-2026): 90% tool-calling, 4.79s mean, Apache-2.0. Best mid-2026 candidate. Tied with Run 1/2 winner (Ministral-8B-Instruct-2410 at 95%). Use as new default candidate.",
+        notes="Modal A100 int4 (13-Jun-2026): 90% tool-calling, 4.79s mean, Apache-2.0. Best mid-2026 candidate. Tied with Run 1/2 winner (Ministral-8B-Instruct-2410 at 95%). A/B candidate — switch via planner_backend config. mistral3 arch.",
     ),
     # Planner — Ministral-3-3B-Instruct-2512 (NEW BEST 3B, 13-Jun-2026)
     ModelEntry(
@@ -412,9 +424,9 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=3.0,
         license_note="Apache-2.0",
         runtime="transformers",
-        status="active",
+        status="candidate",
         badge_relevance="llama_champion",
-        notes="NEW ACTIVE — Modal A100 int4 (13-Jun-2026): 85% tool-calling, 2.31s mean (fastest serious 3B), Apache-2.0. 669k downloads. Best 3B option, replacing Qwen2.5-3B.",
+        notes="Modal A100 int4 (13-Jun-2026): 85% tool-calling, 2.31s mean (fastest serious 3B), Apache-2.0. 669k downloads. Best 3B option. Demoted to candidate (Ministral-8B-Instruct-2410 is the main planner). LoRA v2 was trained on this base (80% on prod).",
     ),
     # Planner — Qwen3.6-27B-FP8 (Apr 2026, 4.7M downloads, under 32B cap)
     ModelEntry(
@@ -563,10 +575,10 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=0.3,
         license_note="Apache-2.0",
         runtime="transformers",
-        status="active",
-        notes="background removal for item cards — provider wired as rmbg backend",
+        status="candidate",
+        notes="RMBG-1.4 (Jun 2024, 8M downloads). Background removal. Supplanted by BiRefNet on Modal seg bench (13-Jun-2026).",
     ),
-    # Segmentation — BiRefNet (Jul 2024, 683k downloads, SOTA)
+    # Segmentation — BiRefNet (Jul 2024, 683k downloads, WINNER 13-Jun-2026)
     ModelEntry(
         provider_group="segmentation",
         model_id="birefnet",
@@ -574,9 +586,9 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=0.3,
         license_note="MIT",
         runtime="transformers",
-        status="candidate",
+        status="active",
         badge_relevance="llama_champion",
-        notes="BiRefNet (Jul 2024, 683k downloads). SOTA background removal. Bench pending.",
+        notes="BiRefNet (Jul 2024, 683k downloads). **Modal A10G seg bench WINNER (13-Jun-2026): IoU 0.8555, pixel acc 0.9699, 0.432s/image, 20 synthetic product images.** Provider wired as birefnet backend. Now the default segmentation provider. RMBG-2.0 was gated. RMBG-1.4 had all_tied_weights_keys issue with newer transformers. GSF-ai/Birefnet-General couldn't load.",
     ),
     ModelEntry(
         provider_group="segmentation",
@@ -586,9 +598,21 @@ MODEL_REGISTRY: list[ModelEntry] = [
         license_note="Apache-2.0",
         runtime="transformers",
         status="candidate",
-        notes="HF frontier segmentation candidate (2026). Use for better shelf/item masks and video frame sweeps; benchmark pending.",
+        notes="HF frontier segmentation candidate (2026). GATED — needs user approval at https://huggingface.co/briaai/RMBG-2.0. Once approved, expect ~5-10% IoU improvement over BiRefNet (2.0 is a generational upgrade).",
     ),
-    # Embeddings
+    # Embeddings — Nomic-Embed-Text-v1.5 (Aug 2024, 2.3M downloads, WINNER 13-Jun-2026)
+    ModelEntry(
+        provider_group="embeddings",
+        model_id="nomic-embed-text-v1.5",
+        hf_model="nomic-ai/nomic-embed-text-v1.5",
+        params_b=0.137,
+        license_note="Apache-2.0",
+        runtime="transformers",
+        status="active",
+        badge_relevance="llama_champion",
+        notes="Nomic-Embed-Text-v1.5 (Aug 2024, 2.3M downloads). **Modal A10G embed bench WINNER (13-Jun-2026): Top-1 58%, Top-3 90%, dim 768.** Apache-2.0 (more permissive than BGE-M3 MIT). Provider wired as nomic backend. Supplants BGE-M3 (48% top-1).",
+    ),
+    # Embeddings — BGE-M3 (Apr 2024, 28.7M downloads, was default, demoted)
     ModelEntry(
         provider_group="embeddings",
         model_id="bge-m3",
@@ -596,8 +620,8 @@ MODEL_REGISTRY: list[ModelEntry] = [
         params_b=0.6,
         license_note="MIT",
         runtime="transformers",
-        status="active",
-        notes="multilingual embeddings — provider wired as bge_m3 backend (28.7M downloads, still most popular)",
+        status="candidate",
+        notes="BGE-M3 (Apr 2024, 28.7M downloads, most popular multilingual). Modal A10G embed bench: 48% top-1 (vs Nomic 58%). Demoted to candidate. Provider wired as bge_m3 backend (kept for compatibility).",
     ),
     # Embeddings — Qwen3-Embedding-0.6B (Jun 2025, 8.7M downloads, most popular Qwen)
     ModelEntry(
@@ -609,7 +633,7 @@ MODEL_REGISTRY: list[ModelEntry] = [
         runtime="transformers",
         status="candidate",
         badge_relevance="llama_champion",
-        notes="Qwen3-Embedding-0.6B (Jun 2025, 8.7M downloads). Most popular Qwen embedding. Embedding bench pending.",
+        notes="Qwen3-Embedding-0.6B (Jun 2025, 8.7M downloads). Most popular Qwen embedding. **Modal A10G embed bench (13-Jun-2026): 50% top-1, 84% top-3, dim 1024.** Solid but loses to Nomic (58% top-1, smaller dim).",
     ),
     # Embeddings — Qwen3-Embedding-8B (Jun 2025, 1.9M downloads)
     ModelEntry(
@@ -620,7 +644,18 @@ MODEL_REGISTRY: list[ModelEntry] = [
         license_note="Apache-2.0",
         runtime="transformers",
         status="candidate",
-        notes="Qwen3-Embedding-8B (Jun 2025, 1.9M downloads). Higher-quality. Embedding bench pending.",
+        notes="Qwen3-Embedding-8B (Jun 2025, 1.9M downloads). Higher-quality. Bench pending. Would consume most of the 32B cap alone.",
+    ),
+    # Embeddings — mxbai-embed-large-v1 (Mar 2024, 6M downloads)
+    ModelEntry(
+        provider_group="embeddings",
+        model_id="mxbai-embed-large",
+        hf_model="mixedbread-ai/mxbai-embed-large-v1",
+        params_b=0.335,
+        license_note="Apache-2.0",
+        runtime="transformers",
+        status="candidate",
+        notes="mxbai-embed-large-v1 (Mar 2024, 6M downloads). **Modal A10G embed bench (13-Jun-2026): 56% top-1, 82% top-3, dim 1024.** Strong but loses to Nomic (58% top-1, 90% top-3, smaller dim).",
     ),
     # Embeddings — Jina v5 text-nano (Jan 2026, 543k downloads, multimodal)
     ModelEntry(

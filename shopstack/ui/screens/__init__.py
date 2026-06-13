@@ -74,7 +74,6 @@ from shopstack.ui.screens.price_compare import (
     refresh_source_registry,
     basket_compare_view,
 )
-from shopstack.ui.screens.recipe_text import recipe_text_to_shopping_list
 from shopstack.ui.screens.market_intelligence import market_intelligence_view
 from shopstack.ui.screens.receipt import (
     receipt_scan_ocr,

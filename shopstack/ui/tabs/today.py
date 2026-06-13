@@ -98,17 +98,43 @@ def build_today_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> Today
 
     Args:
         blocks: Alias for the parent gr.Blocks. Kept for symmetry with other
-            tab builders and to make the call-site read consistently.
+        tab builders and to make the call-site read consistently.
         app: The root ``gr.Blocks`` instance — needed for ``app.load(...)`` to
-            register handlers that fire on page open.
+        register handlers that fire on page open.
         ctx: Shared dependencies (unused in this tab, but part of the
-            uniform builder signature).
+        uniform builder signature).
 
     Returns:
         TodayTabHandles: the six output components the household-switch
         wiring in `app.py` needs to reference.
     """
     with gr.Tab(_tab_label("today"), id="today"):
+        # ── Phase 9 Today Intelligence (unified action surface) ──
+        # Sits above the per-signal sections because it answers
+        # the user's actual question: "what should I do right now?"
+        gr.Markdown("### 🎯 Today intelligence")
+        gr.Markdown(
+            "The top 5 things worth doing right now — use-soon, "
+            "restock-due, price-drops, and overpriced-vs-community "
+            "rolled up into one ranked list. Trip advisor call below."
+        )
+        from shopstack.ui.screens.today_intelligence import today_intelligence_screen
+        def _today_intel() -> str:
+            try:
+                return today_intelligence_screen()
+            except Exception as exc:
+                return f"<div>Today intelligence unavailable: {exc}</div>"
+        today_intel_html = gr.HTML(loading_skeleton("card"))
+        today_intel_refresh = gr.Button("🔄 Refresh", elem_classes="secondary", size="sm")
+        today_intel_refresh.click(
+            _today_intel, outputs=today_intel_html,
+            api_name="today_intel_refresh",
+            api_description="Refresh the unified Today intelligence block",
+        )
+        app.load(_today_intel, outputs=today_intel_html)
+
+        gr.Markdown("---")
+        gr.Markdown("### Detailed signals")
         today_stats = gr.HTML(loading_skeleton("card"))
         today_soon = gr.HTML(loading_skeleton("card"))
         today_list = gr.HTML(loading_skeleton("card"))
@@ -140,6 +166,7 @@ def build_today_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> Today
             restock_add_output,
             api_name="restock_add_to_list",
             api_description="Add the selected restock prediction to the active shopping list",
+            js="() => showToast('Adding to shopping list...', 'info')",
         )
 
         gr.Markdown("---")

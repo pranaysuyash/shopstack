@@ -253,7 +253,7 @@ def _render_ask_answer_html(response: Any) -> str:
         safe = escape(response)
         return (
             "<div class='home-card' style='text-align:left;'>"
-            f"<div style='font-size:14px;line-height:1.5;'>{safe}</div>"
+            f"<div style='font-size: 0.875rem;line-height:1.5;'>{safe}</div>"
             "</div>"
         )
 
@@ -272,8 +272,8 @@ def _render_ask_answer_html(response: Any) -> str:
     if msg and not response.get("decisions"):
         return (
             "<div class='home-card' style='text-align:left;'>"
-            f"<div style='font-size:14px;line-height:1.5;'>{escape(str(msg))}</div>"
-            + (f"<div class='muted' style='margin-top:6px;font-size:11px;'>Intent: {escape(str(intent))}</div>" if intent else "")
+            f"<div style='font-size: 0.875rem;line-height:1.5;'>{escape(str(msg))}</div>"
+            + (f"<div class='muted' style='margin-top:6px;font-size: 0.6875rem;'>Intent: {escape(str(intent))}</div>" if intent else "")
             + "</div>"
         )
 
@@ -301,7 +301,7 @@ def _render_ask_answer_html(response: Any) -> str:
         rows = "".join(
             "<div class='item-row'>"
             f"<div>{escape(str(r.get('display_name', r.get('canonical_name', ''))))}</div>"
-            f"<div style='color:var(--text-muted);font-size:12px;'>"
+            f"<div style='color:var(--text-muted);font-size: 0.75rem;'>"
             f"{r.get('quantity', '')} {escape(str(r.get('unit', '')))}"
             f"{' &middot; ' + escape(str(r.get('storage_location_id', ''))) if r.get('storage_location_id') else ''}"
             "</div></div>"
@@ -317,7 +317,7 @@ def _render_ask_answer_html(response: Any) -> str:
     if msg:
         return (
             "<div class='home-card' style='text-align:left;'>"
-            f"<div style='font-size:14px;line-height:1.5;'>{escape(str(msg))}</div></div>"
+            f"<div style='font-size: 0.875rem;line-height:1.5;'>{escape(str(msg))}</div></div>"
         )
     return empty_state_enhanced(
         "I didn't get a clear answer. Try rephrasing the question.",

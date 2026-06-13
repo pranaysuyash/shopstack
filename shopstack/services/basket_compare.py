@@ -462,7 +462,7 @@ def _savings_callout(comparison: BasketComparison) -> str:
         return (
             f"<div class='home-card' style='margin-bottom:12px;'>"
             f"<h3 style='margin:0 0 4px 0;'>Basket Comparison</h3>"
-            f"<div style='font-size:13px;'>"
+            f"<div style='font-size: 0.8125rem;'>"
             f"All loaded sources price this basket within ₹0–₹10 of each other."
             f"</div></div>"
         )
@@ -472,13 +472,13 @@ def _savings_callout(comparison: BasketComparison) -> str:
     return (
         f"<div class='home-card' style='margin-bottom:12px;'>"
         f"<h3 style='margin:0 0 4px 0;'>Basket Comparison</h3>"
-        f"<div style='font-size:14px;'>"
+        f"<div style='font-size: 0.875rem;'>"
         f"<strong>Cheapest:</strong> {escape(label)} · "
         f"<strong>Save up to:</strong> "
         f"<span style='color:var(--green);font-weight:600;'>"
         f"₹{comparison.total_savings_inr:.0f} ({comparison.savings_pct:.0f}%)"
         f"</span></div>"
-        f"<div style='font-size:11px;color:var(--text-dim);margin-top:4px;'>"
+        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:4px;'>"
         f"{comparison.matched_count}/{comparison.total_requested} items matched across sources"
         f"</div></div>"
     )
@@ -495,16 +495,16 @@ def _source_totals_row(comparison: BasketComparison) -> str:
         border = "var(--green)" if is_cheapest else "var(--border)"
         bg = "rgba(74,222,128,0.06)" if is_cheapest else "var(--card-bg, transparent)"
         stale_badge = (
-            " <span style='color:var(--red);font-size:10px;'>· stale</span>"
+            " <span style='color:var(--red);font-size: 0.625rem;'>· stale</span>"
             if s.is_stale
             else ""
         )
         parts.append(
             f"<div style='flex:1;min-width:140px;padding:10px;"
             f"border:2px solid {border};border-radius:6px;background:{bg};'>"
-            f"<div style='font-size:11px;color:var(--text-dim);'>{escape(s.label)}</div>"
-            f"<div style='font-size:20px;font-weight:600;'>₹{s.basket_total:.0f}</div>"
-            f"<div style='font-size:10px;color:var(--text-dim);'>"
+            f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>{escape(s.label)}</div>"
+            f"<div style='font-size: 1.25rem;font-weight:600;'>₹{s.basket_total:.0f}</div>"
+            f"<div style='font-size: 0.625rem;color:var(--text-dim);'>"
             f"{s.coverage_pct:.0f}% covered · {len(s.line_totals)} items"
             f"{stale_badge}</div></div>"
         )
@@ -522,7 +522,7 @@ def _line_rows(comparison: BasketComparison) -> str:
                 f"<tr>"
                 f"<td style='padding:6px;'>"
                 f"{escape(line.canonical_name.replace('_', ' ').title())}"
-                f"<br><span style='font-size:10px;color:var(--text-dim);'>"
+                f"<br><span style='font-size: 0.625rem;color:var(--text-dim);'>"
                 f"{line.requested_quantity:.1f} {escape(line.unit)}</span></td>"
                 f"<td colspan='{n_sources}' style='padding:6px;color:var(--text-dim);'>"
                 f"not available at {unavail}</td>"
@@ -554,7 +554,7 @@ def _line_rows(comparison: BasketComparison) -> str:
             diff = line.worst_total - line.cheapest_total
             if diff > 0:
                 savings_html = (
-                    f"<br><span style='color:var(--green);font-size:10px;'>"
+                    f"<br><span style='color:var(--green);font-size: 0.625rem;'>"
                     f"save ₹{diff:.0f}</span>"
                 )
 
@@ -562,7 +562,7 @@ def _line_rows(comparison: BasketComparison) -> str:
             f"<tr>"
             f"<td style='padding:6px;'>"
             f"<strong>{escape(line.canonical_name.replace('_', ' ').title())}</strong>"
-            f"<br><span style='font-size:10px;color:var(--text-dim);'>"
+            f"<br><span style='font-size: 0.625rem;color:var(--text-dim);'>"
             f"{line.requested_quantity:.1f} {escape(line.unit)}</span>"
             f"{savings_html}</td>"
             f"{''.join(cells)}"
@@ -577,7 +577,7 @@ def _freshness_footer(comparison: BasketComparison) -> str:
         return ""
     names = ", ".join(escape(s.label) for s in stale)
     return (
-        f"<div style='font-size:10px;color:var(--red);margin-top:8px;'>"
+        f"<div style='font-size: 0.625rem;color:var(--red);margin-top:8px;'>"
         f"⚠️ Snapshot data may be outdated for: {names}. "
         f"Verify prices before checkout.</div>"
     )
@@ -615,13 +615,13 @@ def render_basket_comparison_html(comparison: BasketComparison) -> str:
         )
 
     header_cells = "".join(
-        f"<th style='padding:6px;text-align:right;font-size:11px;"
+        f"<th style='padding:6px;text-align:right;font-size: 0.6875rem;"
         f"color:var(--text-dim);'>{escape(s.label)}</th>"
         for s in comparison.per_source
     )
     table = (
         f"<div class='home-card'>"
-        f"<table style='width:100%;border-collapse:collapse;font-size:12px;'>"
+        f"<table style='width:100%;border-collapse:collapse;font-size: 0.75rem;'>"
         f"<thead><tr style='border-bottom:2px solid var(--border);'>"
         f"<th style='text-align:left;padding:6px;'>Item</th>"
         f"{header_cells}"

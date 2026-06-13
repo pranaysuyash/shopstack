@@ -82,11 +82,11 @@ def _render_answer(answer: dict[str, Any] | Any) -> str:
             location = escape(str(r.get("location_name", "")))
             qty_str = f"{qty} {escape(unit)}" if unit else str(qty)
             match_type = r.get("match_type", "")
-            badge = f" <span class='badge badge-green' style='font-size:9px;'>{escape(match_type)}</span>" if match_type else ""
+            badge = f" <span class='badge badge-green' style='font-size: 0.5625rem;'>{escape(match_type)}</span>" if match_type else ""
             rows.append(
                 f"<div class='item-row'>"
                 f"<div><div style='font-weight:600;'>{name}{badge}</div>"
-                f"<div style='font-size:11px;color:var(--text-dim);'>{location}</div></div>"
+                f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>{location}</div></div>"
                 f"<span style='font-weight:500;'>{qty_str}</span></div>"
             )
         return (
@@ -108,7 +108,7 @@ def _render_answer(answer: dict[str, Any] | Any) -> str:
             rows.append(
                 f"<div class='item-row'>"
                 f"<div><div style='font-weight:600;'>{name}</div>"
-                f"<div style='font-size:11px;color:var(--text-dim);'>{reason_text}</div></div>"
+                f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>{reason_text}</div></div>"
                 f"<span class='badge {badge_cls}'>{escape(badge_label)}</span></div>"
             )
         return (
@@ -135,7 +135,7 @@ def _render_answer(answer: dict[str, Any] | Any) -> str:
                     parts.append(
                         f"<div class='item-row'>"
                         f"<span style='color:{color};font-weight:700;'>{status}</span>"
-                        f"<span style='font-size:12px;'>{action}</span></div>"
+                        f"<span style='font-size: 0.75rem;'>{action}</span></div>"
                     )
         if parts:
             return (
@@ -156,8 +156,8 @@ def _render_answer(answer: dict[str, Any] | Any) -> str:
             val_str = str(val)
         parts.append(
             f"<div style='padding:3px 0;border-bottom:1px solid var(--border);'>"
-            f"<span style='font-weight:600;font-size:12px;'>{escape(key.replace('_', ' ').title())}</span> "
-            f"<span style='font-size:12px;color:var(--text-dim);'>{escape(val_str[:200])}</span></div>"
+            f"<span style='font-weight:600;font-size: 0.75rem;'>{escape(key.replace('_', ' ').title())}</span> "
+            f"<span style='font-size: 0.75rem;color:var(--text-dim);'>{escape(val_str[:200])}</span></div>"
         )
     if parts:
         return f"<div class='home-card' style='text-align:left;'>{''.join(parts)}</div>"
@@ -232,12 +232,21 @@ def build_ask_panel(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> AskPa
         elem_classes="ask-output",
         visible=True,
     )
+    # ── Phase 8 #16: "What the parser understood" preview ─────────
+    # Shows the user's utterance run through the fine-tuned intent
+    # classifier — useful when the answer is "I don't understand" and
+    # the user wants to see what the system thought they said.
+    ask_parser_preview = gr.HTML("", elem_id="ask-parser-preview")
     ask_btn.click(
         _ask_and_reveal,
         ask_input,
         ask_output,
         api_name="ask",
         api_description="Ask the ShopStack agent a natural language question about inventory, shopping, or prices",
+    ).then(
+        _parser_preview_and_reveal,
+        ask_input,
+        ask_parser_preview,
     )
     ask_input.submit(
         _ask_and_reveal,
@@ -245,6 +254,81 @@ def build_ask_panel(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> AskPa
         ask_output,
         api_name="ask_submit",
         api_description="Submit question via Enter key",
+    ).then(
+        _parser_preview_and_reveal,
+        ask_input,
+        ask_parser_preview,
+    )
+
+    # ── Phase 8 #23 Voice memo (continuous-listening) ─────────────
+    gr.Markdown("---")
+    gr.Markdown("### 🎙️ Voice memo")
+    gr.Markdown(
+        "Push to record, speak one or more commands ('add milk', "
+        "'consume bread'), then release. Each utterance is parsed "
+        "and dispatched. Say 'stop' to end the session."
+    )
+    from shopstack.services.voice_memo import end_session as _end_vm
+    from shopstack.services.voice_memo import start_session as _start_vm
+    from shopstack.services.voice_memo import capture_chunk as _capture_vm
+    from shopstack.services.voice_memo import render_session_summary_html as _render_vm
+
+    voice_memo_state = gr.State(_start_vm())
+    with gr.Row():
+        voice_record = gr.Audio(
+            sources=["microphone"],
+            type="filepath",
+            label="Hold to record",
+        )
+        voice_process_btn = gr.Button("Process audio", variant="primary")
+    voice_session_html = gr.HTML("<div class='vm-empty'>No voice memo captured yet.</div>")
+    voice_reset_btn = gr.Button("End session", elem_classes="secondary")
+
+    def _process_voice(audio_path, session):
+        from shopstack.app_context import db as _db
+        from shopstack.app_context import providers as _providers
+        if not audio_path:
+            return session, "<div class='vm-empty'>No audio captured. Press the mic and try again.</div>"
+        # Find an STT provider (whisper, local_whisper, sensevoice, mock_stt)
+        stt = None
+        try:
+            for name in ("whisper", "local_whisper", "sensevoice", "qwen3_asr", "mock_stt"):
+                stt = _providers.get(name)
+                if stt is not None:
+                    break
+        except Exception:
+            stt = None
+        if stt is None:
+            return session, "<div class='vm-empty'>No STT provider loaded — voice memo needs an STT backend.</div>"
+        # Best-effort dispatcher: append to a local list, no real DB write
+        # (the user reviews in the voice session summary).
+        log: list[dict] = []
+        from shopstack.services.voice_memo import make_recording_dispatcher
+        _capture_vm(session, audio_path, stt,
+                    dispatcher=make_recording_dispatcher(log))
+        return session, _render_vm(_end_vm(session))
+
+    def _reset_voice():
+        return _start_vm(), "<div class='vm-empty'>New session started.</div>"
+
+    voice_process_btn.click(
+        _process_voice,
+        [voice_record, voice_memo_state],
+        [voice_memo_state, voice_session_html],
+        api_name="voice_memo_process",
+        api_description="Transcribe the latest audio chunk and dispatch commands",
+    )
+    voice_reset_btn.click(
+        _reset_voice,
+        outputs=[voice_memo_state, voice_session_html],
+        api_name="voice_memo_reset",
+        api_description="End the current voice memo session and start a new one",
     )
 
     return AskPanelHandles(ask_input=ask_input, ask_output=ask_output)
+
+
+def _parser_preview_and_reveal(utterance: str) -> str:
+    """Render the "what the parser understood" panel."""
+    from shopstack.ui.screens.parser_preview import parser_preview_screen
+    return parser_preview_screen(utterance or "")

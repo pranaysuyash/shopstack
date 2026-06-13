@@ -40,7 +40,7 @@ def recipe_text_to_shopping_list(raw_text: str) -> str:
         return (
             "<div class='home-card' style='text-align:center;padding:16px;color:var(--text-dim);'>"
             "Paste a recipe's ingredients section. Example:<br>"
-            "<code style='font-size:12px;'>"
+            "<code style='font-size: 0.75rem;'>"
             "- 2 cups rice<br>- 1 cup chickpea<br>- 1 tsp turmeric"
             "</code></div>"
         )
@@ -84,11 +84,11 @@ def recipe_text_to_shopping_list(raw_text: str) -> str:
     return (
         f"<div class='home-card'>"
         f"<h3 style='margin:0 0 8px 0;'>📋 Recipe → Shopping List</h3>"
-        f"<div style='font-size:11px;color:var(--text-dim);margin-bottom:6px;'>"
+        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>"
         f"Parsed {len(parsed)} ingredient(s). {have_count} at home, "
         f"<strong style='color:var(--red);'>{missing_count} to buy</strong>."
         f"</div>"
-        f"<table style='width:100%;font-size:12px;border-collapse:collapse;'>"
+        f"<table style='width:100%;font-size: 0.75rem;border-collapse:collapse;'>"
         f"<thead><tr style='border-bottom:2px solid var(--border);'>"
         f"<th style='text-align:left;padding:4px 8px;'>Item</th>"
         f"<th style='text-align:right;padding:4px 8px;'>Qty</th>"

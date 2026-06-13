@@ -1,0 +1,21 @@
+# Pre-commit hooks for ShopStack
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+#
+# The WCAG audit runs the static 13-criterion checker. Score threshold
+# is enforced in CI (.github/workflows/wcag.yml); this hook gives the
+# same feedback locally before pushing.
+
+repos:
+  - repo: local
+    hooks:
+      - id: wcag-audit
+        name: WCAG 2.1 AA audit
+        description: Run the static WCAG 2.1 AA audit and fail if score drops below 85.
+        entry: uv run python -m shopstack.tools.audit_wcag
+        language: system
+        pass_filenames: false
+        always_run: true
+        # Don't fail the commit on a score drop; surface the report.
+        # CI is the gate. To enforce locally, change to:
+        #   args: ["--strict"]

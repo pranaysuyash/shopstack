@@ -33,7 +33,7 @@ def source_freshness_html(source_id: str = "swiggy") -> str:
     label = freshness.get("label", "")
     prefix = "Market data may be stale" if freshness.get("is_stale") else "Market snapshot"
     return (
-        f"<div style='font-size:11px;color:{color};margin-top:6px;'>"
+        f"<div style='font-size: 0.6875rem;color:{color};margin-top:6px;'>"
         f"{escape(prefix)}: {escape(label)}. Prices and availability are point-in-time signals."
         f"</div>"
     )
@@ -55,8 +55,8 @@ def safe_render(fn: Callable) -> Callable:
             error_html = (
                 "<div class='home-card' style='border-left:3px solid var(--red);text-align:left;'>"
                 f"<div style='color:var(--red);font-weight:600;'>&#9888; Something went wrong</div>"
-                f"<div style='margin-top:6px;font-size:12px;'>{escape(str(exc))}</div>"
-                f"<div style='margin-top:4px;font-size:11px;color:var(--text-dim);'>{escape(tb_line)}</div>"
+                f"<div style='margin-top:6px;font-size: 0.75rem;'>{escape(str(exc))}</div>"
+                f"<div style='margin-top:4px;font-size: 0.6875rem;color:var(--text-dim);'>{escape(tb_line)}</div>"
                 "</div>"
             )
             return error_html
@@ -119,7 +119,7 @@ def rows_to_html(rows: list[dict[str, Any]], headers: list[str]) -> str:
             + "</tr>"
         )
     return (
-        "<table style='border-collapse:collapse;width:100%;font-size:12px;'>"
+        "<table style='border-collapse:collapse;width:100%;font-size: 0.75rem;'>"
         f"<tr>{head_html}</tr>"
         f"{body_html}"
         "</table>"

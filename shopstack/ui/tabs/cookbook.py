@@ -4,7 +4,7 @@ The Cookbook is a *library* of all recipes (30 Indian staples) with
 filterable, browsable cards. Distinct from the Cook Tonight card on
 the Today dashboard (which shows a top-4 ranked subset):
 
-  * Today → 🍳 Cook Tonight → 4 recommendations, ranked, "use these
+  * Today → 🍳 Cook Tonight → 4 recomendaciones, ranked, "use these
     tonight" framing.
   * Cookbook tab → all recipes, filterable by cuisine / dietary /
     quick / search, with detail view and "shop missing" action.
@@ -17,6 +17,10 @@ surface for when the user has more time.
 The service side (``shopstack/services/cookbook.py``) is fully built
 and tested. This tab is a thin Gradio adapter: filter row + grid +
 detail + shop-missing status.
+
+The filter row itself is a sub-builder at
+``shopstack/ui.tabs.cookbook_filter.build_cookbook_filter_row`` so
+the 5 filter components are independently testable in isolation.
 """
 from __future__ import annotations
 
@@ -24,39 +28,28 @@ import gradio as gr
 
 from shopstack.module_registry import tab_label as _tab_label
 from shopstack.ui.screens.cookbook import (
-    cookbook_browse,
-    cookbook_cuisine_choices,
     cookbook_shop_missing,
     cookbook_view_recipe,
 )
 from shopstack.ui.tabs.context import TabContext
-
-
-def _DIETARY_CHOICES() -> list[tuple[str, str]]:
-    # The values are the strings the parse_filter helper recognizes.
-    return [
-        ("All", "all"),
-        ("Vegetarian", "vegetarian"),
-        ("Vegan", "vegan"),
-        ("Omnivore", "omnivore"),
-    ]
+from shopstack.ui.tabs.cookbook_filter import build_cookbook_filter_row
 
 
 def build_cookbook_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None:
     """Build the Cookbook tab inside the parent's ``gr.Tabs`` context.
 
     Layout:
-      * Filter row (cuisine dropdown, dietary dropdown, quick-only
-        checkbox, search text).
+      * Markdown intro.
+      * Filter row (sub-builder) — cuisine / dietary / quick / search
+        + recipe selector + refresh button.
       * Grid (HTML) — list of recipe cards with completion %.
       * Detail (HTML) — selected recipe ingredients + instructions.
       * Status (HTML) — toast area for the shop-missing action.
 
-    All four interactive controls funnel into the same handler so a
-    change in any of them re-renders the grid. Selecting a recipe
-    (via its Dropdown) renders the detail. The shop-missing button
-    posts the missing ingredients to the active list and shows a
-    status toast.
+    The 4 filter controls funnel into the same handler so a change in
+    any of them re-renders the grid. Selecting a recipe renders the
+    detail. The shop-missing button posts the missing ingredients to
+    the active list and shows a status toast.
     """
     with gr.Tab(_tab_label("cookbook"), id="cookbook"):
         gr.Markdown("### Browse recipes")
@@ -67,43 +60,13 @@ def build_cookbook_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> No
             "shopping list in one click."
         )
 
-        with gr.Row():
-            cuisine_filter = gr.Dropdown(
-                label="Cuisine",
-                choices=cookbook_cuisine_choices(),
-                value="all",
-                allow_custom_value=False,
-                scale=1,
-            )
-            dietary_filter = gr.Dropdown(
-                label="Dietary",
-                choices=_DIETARY_CHOICES(),
-                value="all",
-                allow_custom_value=False,
-                scale=1,
-            )
-            quick_only = gr.Checkbox(
-                label="Quick (<30 min)",
-                value=False,
-                scale=1,
-            )
-            search_box = gr.Textbox(
-                label="Search",
-                placeholder="e.g. dal, paneer, chicken...",
-                scale=2,
-            )
-
-        # Hidden state to pass filter values into the detail and
-        # shop-missing actions without forcing the user to re-apply.
-        with gr.Row():
-            recipe_selector = gr.Dropdown(
-                label="Open recipe",
-                choices=[],
-                value="",
-                allow_custom_value=False,
-                scale=2,
-            )
-            refresh_recipes = gr.Button("Refresh list", elem_classes="secondary", scale=1)
+        filters = build_cookbook_filter_row()
+        cuisine_filter = filters.cuisine_filter
+        dietary_filter = filters.dietary_filter
+        quick_only = filters.quick_only
+        search_box = filters.search_box
+        recipe_selector = filters.recipe_selector
+        refresh_recipes = filters.refresh_recipes
 
         grid_html = gr.HTML("<div class='home-card'>Loading recipes…</div>")
         detail_html = gr.HTML("<div class='home-card'>Select a recipe above to see ingredients and steps.</div>")
@@ -177,7 +140,7 @@ def _refresh_grid_and_selector(
 
     grid = _browse(dietary=dietary, cuisine=cuisine, quick_only=quick_only, search=search)
 
-    # Build the selector list from the SAME filtered set so the user
+    # Build the selector list from the same filtered set so the user
     # can only open recipes that pass their filter. We re-derive the
     # match list (one extra ``match_recipe`` pass per recipe) — cheap
     # for 30 recipes and keeps the public ``cookbook_browse`` contract

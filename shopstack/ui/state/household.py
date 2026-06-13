@@ -87,12 +87,12 @@ def switch_household_state(household_id: str) -> tuple:
     return gr.update(value=household_id), *today_dashboard()
 
 
-def show_add_form() -> gr.update:
+def show_add_form() -> dict:
     """Return a `gr.update()` that shows the add-household form."""
     return gr.update(visible=True)
 
 
-def hide_add_form() -> gr.update:
+def hide_add_form() -> dict:
     """Return a `gr.update()` that hides the add-household form."""
     return gr.update(visible=False)
 

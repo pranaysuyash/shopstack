@@ -267,15 +267,27 @@ def classify_intent(utterance: str) -> dict[str, Any]:
 
 
 def _strip_keywords(text: str) -> str:
-    """Best-effort: remove known keywords from ``text`` to surface the item."""
+    """Best-effort: remove known keywords + numbers + units from ``text``.
+
+    What gets stripped:
+    - Action keywords (add, kharid, remove, hata, etc.).
+    - Digits (ASCII + Devanagari → ASCII).
+    - Unit keywords (kg, kilo, litre, packet, etc.).
+
+    What stays: anything else, which is the *item name* the
+    user mentioned (e.g. "tomato", "besan", "shimla mirch").
+    """
     raw = text.lower()
     all_kws: list[str] = []
     for grp in (ADD_KEYWORDS, REMOVE_KEYWORDS, CONSUME_KEYWORDS, MOVE_KEYWORDS, FIND_KEYWORDS):
         all_kws.extend(grp)
-    # Remove each keyword (whole-word boundary)
-    out = raw
+    for unit_kws in UNIT_KEYWORDS.values():
+        all_kws.extend(unit_kws)
+    out = _to_ascii_digits(raw)
     for kw in all_kws:
         out = re.sub(r"\b" + re.escape(kw) + r"\b", " ", out)
+    # Drop any leftover numbers
+    out = re.sub(r"\b\d+(?:\.\d+)?\b", " ", out)
     out = re.sub(r"\s+", " ", out).strip(" .,;:-")
     return out
 

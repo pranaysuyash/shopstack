@@ -491,7 +491,8 @@ class FluxImageProvider:
         svg_parts = [
             '<svg xmlns="http://www.w3.org/2000/svg" '
             'xmlns:xlink="http://www.w3.org/1999/xlink" '
-            f'width="100%" height="100%" viewBox="0 0 {svg_w} {svg_h}">',
+            f'width="100%" height="100%" viewBox="0 0 {svg_w} {svg_h}" '
+            'role="img" aria-label="Annotated image with detection boxes">',
             f'<image xlink:href="file://{escape(image_path)}" '
             f'width="{svg_w}" height="{svg_h}" '
             'preserveAspectRatio="xMidYMid meet"/>',

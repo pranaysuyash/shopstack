@@ -202,13 +202,19 @@ def capture_chunk(
     except Exception as exc:
         session.notes.append(f"Parser failed on {text!r}: {exc}")
         return utt
+    intent = parsed.get("intent", "general_query")
+    args = parsed.get("args", {})
+    confidence = float(parsed.get("confidence", 0.0))
+    # Skip recording/dispatching general_query (no actionable intent).
+    if intent == "general_query":
+        return utt
     cmd = ParsedCommand(
         utterance=utt,
-        intent=parsed.get("intent", "general_query"),
-        args=parsed.get("args", {}),
-        confidence=float(parsed.get("confidence", 0.0)),
+        intent=intent,
+        args=args,
+        confidence=confidence,
     )
-    if dispatcher is not None and cmd.intent != "general_query":
+    if dispatcher is not None:
         try:
             result = dispatcher(parsed)
             if result.get("ok"):

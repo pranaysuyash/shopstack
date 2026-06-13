@@ -286,6 +286,8 @@ class LocalProvider:
 
     @property
     def model_id(self) -> str:
+        if not self._available:
+            return ""
         return self._mlx_model if self._backend == "mlx" else f"{self._model_repo}/{self._model_file}"
 
     @property
@@ -299,8 +301,10 @@ class LocalProvider:
     @property
     def quantization(self) -> str:
         if self._backend == "llama.cpp":
-            if "Q4" in self._model_file: return "Q4"
-            if "Q8" in self._model_file: return "Q8"
+            if "Q4" in self._model_file:
+                return "Q4"
+            if "Q8" in self._model_file:
+                return "Q8"
         return "unknown"
 
     @property
@@ -540,24 +544,12 @@ class LocalProvider:
         return self._error
 
     @property
-    def backend(self) -> str:
-        return self._backend
-
-    @property
     def last_latency_ms(self) -> float | None:
         return self._last_latency_ms
 
     @property
     def last_token_count(self) -> int | None:
         return self._last_token_count
-
-    @property
-    def model_id(self) -> str:
-        if self._backend == "mlx":
-            return self._mlx_model
-        if self._backend == "llama.cpp":
-            return f"{self._model_repo}/{self._model_file}"
-        return ""
 
     def runtime_report(self) -> dict[str, Any]:
         """Return operator-facing local runtime health without loading a model."""

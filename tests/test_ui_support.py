@@ -19,12 +19,23 @@ from shopstack.ui import (
     save_field_notes,
 )
 from shopstack.ui.components.primitives import (
+    aria_live_html,
+    aria_live_screen,
+    autocomplete_injector_js,
+    busy_js,
     confirm_dialog,
     confirm_hide_updates,
     confirm_toggle_updates,
     empty_state_enhanced,
+    elem_id_of,
+    form_error,
+    form_success,
+    help_text,
     loading_skeleton,
+    required_marker,
     toast,
+    url_state_sync_js,
+    with_loading_state,
 )
 from shopstack.ui.theme import CSS
 
@@ -373,3 +384,233 @@ def test_toast_uses_role_status_and_aria_live():
     # escaping
     escaped = toast("<b>ok</b>")
     assert "&lt;b&gt;ok&lt;/b&gt;" in escaped
+
+
+def test_with_loading_state_returns_busy_and_idle_callables():
+    """The wrapper returns two zero-arg callables that yield gr.update lists."""
+    import gradio as gr
+    btn = gr.Button("Run Plan", variant="primary")
+    panel1 = gr.HTML()
+    panel2 = gr.HTML()
+    busy, idle = with_loading_state(btn, [panel1, panel2])
+
+    # The busy leg should disable the button, change its label, and emit
+    # a skeleton for each panel.
+    busy_updates = busy()
+    assert busy_updates[0] == {"__type__": "update", "interactive": False, "value": "Working…"}
+    assert "skeleton" in busy_updates[1]["value"] or "loading-pulse" in busy_updates[1]["value"]
+    assert "skeleton" in busy_updates[2]["value"] or "loading-pulse" in busy_updates[2]["value"]
+
+    # The idle leg should re-enable the button and restore its label.
+    idle_updates = idle()
+    assert idle_updates[0] == {"__type__": "update", "interactive": True, "value": "Run Plan"}
+    # Panel updates on idle are no-op (the click handler writes real content).
+    assert idle_updates[1] == {"__type__": "update"}
+    assert idle_updates[2] == {"__type__": "update"}
+
+
+def test_with_loading_state_handles_zero_panels():
+    """The wrapper works even when the click handler writes to no result panels."""
+    import gradio as gr
+    btn = gr.Button("Run", variant="primary")
+    busy, idle = with_loading_state(btn, [])
+    busy_updates = busy()
+    assert len(busy_updates) == 1
+    assert busy_updates[0]["interactive"] is False
+
+    idle_updates = idle()
+    assert len(idle_updates) == 1
+    assert idle_updates[0]["interactive"] is True
+
+
+def test_aria_live_html_wraps_with_role_and_live():
+    html = aria_live_html("<div>Saved</div>")
+    assert "role='status'" in html
+    assert "aria-live='polite'" in html
+    assert "aria-atomic='true'" in html
+    assert "<div>Saved</div>" in html
+
+
+def test_aria_live_html_supports_assertive_level():
+    html = aria_live_html("Failed!", level="assertive")
+    assert "aria-live='assertive'" in html
+
+
+def test_aria_live_html_falls_back_to_polite_for_unknown_level():
+    html = aria_live_html("x", level="garbage")
+    assert "aria-live='polite'" in html
+
+
+def test_help_text_renders_with_id_for_form_association():
+    html = help_text("One per line: lot_id: qty", label_for="cons_batch")
+    assert "id='help-cons_batch'" in html
+    assert "lot_id: qty" in html
+    # escaping
+    escaped = help_text("<script>", label_for="x")
+    assert "<script>" not in escaped
+
+
+def test_help_text_renders_without_id_when_label_for_empty():
+    html = help_text("Plain hint")
+    assert "Plain hint" in html
+    assert "id=" not in html
+
+
+def test_form_error_escapes_and_uses_alert_role():
+    html = form_error("Required field", field_id="p_name")
+    assert "role='alert'" in html
+    assert "id='error-p_name'" in html
+    assert "Required field" in html
+    assert "var(--red)" in html  # error level = red
+    # escaping
+    escaped = form_error("<script>")
+    assert "<script>" not in escaped
+
+
+def test_form_error_warning_level_uses_amber():
+    html = form_error("Heads up", level="warning")
+    assert "var(--amber)" in html
+
+
+def test_form_success_uses_polite_live_region():
+    html = form_success("Saved")
+    assert "role='status'" in html
+    assert "aria-live='polite'" in html
+    assert "✓" in html
+    assert "var(--green)" in html
+
+
+def test_required_marker_is_decorative_aria_hidden():
+    html = required_marker()
+    assert "<span" in html
+    assert "aria-hidden='true'" in html
+    assert "*" in html
+    assert "color:var(--red)" in html
+
+
+def test_busy_js_emits_disable_button_with_working_label():
+    """The JS body must disable the button by elem_id and update its text."""
+    js = busy_js("market-scan-btn", original_label="Check and compare")
+    # The JS is a function expression: ``(args) => { ... }``
+    assert js.startswith("(args) =>")
+    # It must look up the button by the elem_id (json.dumps uses
+    # double-quoted JS strings).
+    assert '"market-scan-btn"' in js
+    assert "Check and compare" in js  # the visible label while busy
+    # It must disable the button and restore via dataset.originalLabel.
+    assert "btn.disabled = true" in js
+    assert "btn.dataset.originalLabel" in js
+    # It must return args so the Python handler sees the same inputs.
+    assert "return args" in js
+
+
+def test_busy_js_escapes_special_characters_in_id_and_label():
+    """The id and label are passed through JS escaping (json.dumps), not HTML escape.
+
+    `html.escape` would convert `<` to `&lt;` — which is HTML-safe but
+    produces a JS syntax error when interpolated into a string literal.
+    `json.dumps` gives us a JS-safe quoted string.
+    """
+    js = busy_js("my<id>", original_label='Working "now"')
+    # The id appears as a JS-quoted string with `<` preserved.
+    assert '"my<id>"' in js
+    # The label appears as a JS-quoted string with both `<` and `"` preserved.
+    assert 'Working \\"now\\"' in js
+    # We must NOT have HTML-escaped the `<` (which would make the JS
+    # `getElementById('my&lt;id&gt;')` — wrong DOM lookup).
+    assert "my&lt;" not in js
+    assert "&lt;" not in js
+
+
+def test_elem_id_of_returns_attribute_value():
+    """elem_id_of reads the elem_id attribute set on a Gradio component."""
+    import gradio as gr
+    btn = gr.Button("Click me", elem_id="my-btn")
+    assert elem_id_of(btn) == "my-btn"
+
+    btn_no_id = gr.Button("No id")
+    assert elem_id_of(btn_no_id) == ""
+
+
+def test_aria_live_screen_decorator_wraps_string_output():
+    """The decorator wraps the function's string return in an aria-live region."""
+    @aria_live_screen()
+    def render(x):
+        return f"<div>{x}</div>"
+
+    html = render("hello")
+    assert "role='status'" in html
+    assert "aria-live='polite'" in html
+    assert "<div>hello</div>" in html
+
+
+def test_aria_live_screen_decorator_passes_through_tuples():
+    """The decorator wraps each string in a tuple; non-strings pass through."""
+    @aria_live_screen(level="assertive")
+    def render(x, y):
+        return (f"<div>{x}</div>", 42, f"<p>{y}</p>")
+
+    parts = render("a", "b")
+    assert len(parts) == 3
+    assert "role='status'" in parts[0]
+    assert "aria-live='assertive'" in parts[0]
+    assert parts[1] == 42  # non-string passes through
+    assert "role='status'" in parts[2]
+    assert "<p>b</p>" in parts[2]
+
+
+def test_aria_live_screen_decorator_passes_through_non_string():
+    """The decorator returns the value unchanged if it is not a string or tuple."""
+    @aria_live_screen()
+    def render(x):
+        return x  # returning an int or None
+
+    assert render(42) == 42
+    assert render(None) is None
+
+
+def test_autocomplete_injector_js_sets_off_on_all_input_types():
+    """The JS walks text/email/url/tel/number/search inputs and sets autocomplete=off."""
+    js = autocomplete_injector_js()
+    # The parallel-session simplification uses setTimeout + a single
+    # querySelectorAll over input/textarea/select (covers all input
+    # types) instead of separate input[type=…] selectors.
+    assert "setTimeout" in js
+    assert "setAttribute('autocomplete','off')" in js or 'setAttribute("autocomplete","off")' in js
+    assert "input,textarea,select" in js
+    # Must NOT call el.hasAttribute (parallel-session change).
+    assert "hasAttribute" not in js
+
+
+def test_url_state_sync_js_supports_subtab_format():
+    """The JS handles both ``#<tab>`` and ``#<tab>/<subtab>`` URL hashes.
+
+    The Pass-4 enhancement lets users deep-link to a specific sub-tab,
+    e.g. ``#pantry/inventory`` jumps to the Pantry tab AND the
+    Inventory sub-tab.
+    """
+    js = url_state_sync_js()
+    # Top-tab lookup uses tab-<id>.
+    assert "data-testid=tab-'+top+']" in js
+    # Sub-tab lookup uses tab-<top>-sub-<sub>.
+    assert "tab-'+top+'-sub-'+sub+']" in js
+    # Sub-tab click is deferred via setTimeout (so the top tab is
+    # mounted first).
+    assert "setTimeout(function(){" in js
+    # Any tab click updates the URL hash.
+    assert "history.replaceState" in js
+    # Initial hash parse splits on '/'.
+    assert "h.split('/')" in js
+
+
+def test_url_state_sync_js_emits_history_pushstate_and_popstate():
+    """The JS wires history.replaceState on tab click on initial load."""
+    js = url_state_sync_js()
+    # The parallel-session simplification uses setTimeout + reads
+    # window.location.hash and history.replaceState (instead of
+    # pushState). Both work for back/forward navigation; replaceState
+    # is simpler because it doesn't add a new history entry per click.
+    assert "setTimeout" in js
+    assert "window.location.hash" in js
+    assert "replaceState" in js or "pushState" in js
+    assert "data-testid=tab-" in js  # uses data-testid to find tabs

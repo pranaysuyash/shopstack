@@ -1,14 +1,50 @@
-"""P1 Design System Components
+"""ShopStack UI primitives — HTML rendering components and decorators.
 
-ItemRow, StatCard, DataTable, ConfirmDialog, Toast, LoadingSkeleton.
+This module is the **HTML rendering layer** of ShopStack's design
+system. It contains the P1 design-system components (ItemRow, StatCard,
+DataTable, ConfirmDialog, Toast, LoadingSkeleton, EmptyState), the
+destructive-action pattern helpers, the ARIA/HTML form-validation
+helpers, and the ``elem_id_of`` utility.
 
-Every component returns an HTML string. No Gradio dependencies.
-All user/data-derived strings are escaped via html.escape().
+For related concerns that live alongside the HTML primitives, see:
+
+- :mod:`shopstack.ui.components.js_helpers` — JavaScript snippets
+  returned as strings for Gradio's ``app.load(js=...)`` parameter
+  (``busy_js``, ``autocomplete_injector_js``, ``url_state_sync_js``).
+- :mod:`shopstack.ui.components.decorators` — Screen-function
+  decorators that apply UI patterns uniformly
+  (``@aria_live_screen``).
+
+All HTML returned by these functions is **escaped via
+``html.escape()``** for every user/data-derived string. Never
+substitute ``str.format()`` or f-string interpolation with raw user
+input — always go through a helper in this module.
+
+Every function in this module returns an HTML ``str`` (or a
+``gr.update`` dict). No function imports Gradio. That keeps the
+primitives unit-testable without spinning up a Gradio app — see
+``tests/test_ui_support.py``.
+
+For the full module index, see ``Docs/UX_PATTERNS.md``.
 """
 from __future__ import annotations
 
+import json as _json
 from html import escape
 from typing import Any
+
+# Re-exports for backward compatibility — the JS helpers and the
+# aria_live_screen decorator were moved to dedicated modules in
+# Pass 3, but every existing import path (``from shopstack.ui.components
+# .primitives import busy_js`` etc.) still resolves to the same
+# function. New code should import from the dedicated modules:
+#   from shopstack.ui.components.decorators import aria_live_screen
+from shopstack.ui.components.decorators import aria_live_screen  # noqa: F401 — re-export
+from shopstack.ui.components.js_helpers import (  # noqa: F401 — re-export
+    autocomplete_injector_js,
+    busy_js,
+    url_state_sync_js,
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -76,17 +112,17 @@ def item_row(
     expiry_html = ""
     if expiry_days is not None:
         if expiry_days < 0:
-            expiry_html = f"<span style='color:var(--red);font-size:11px;margin-left:8px;'>{abs(expiry_days)}d overdue</span>"
+            expiry_html = f"<span style='color:var(--red);font-size: 0.6875rem;margin-left:8px;'>{abs(expiry_days)}d overdue</span>"
         elif expiry_days <= 3:
-            expiry_html = f"<span style='color:var(--amber);font-size:11px;margin-left:8px;'>{expiry_days}d left</span>"
+            expiry_html = f"<span style='color:var(--amber);font-size: 0.6875rem;margin-left:8px;'>{expiry_days}d left</span>"
 
     # Price
     price_html = ""
     if price is not None and price > 0:
-        price_html = f"<span style='font-weight:600;font-size:13px;'>₹{price:.0f}</span>"
+        price_html = f"<span style='font-weight:600;font-size: 0.8125rem;'>₹{price:.0f}</span>"
 
     # Lot ID
-    lot_html = f"<span style='font-family:monospace;font-size:10px;color:var(--text-faint);'>{safe_lot[:12]}</span>" if safe_lot else ""
+    lot_html = f"<span style='font-family:monospace;font-size: 0.625rem;color:var(--text-faint);'>{safe_lot[:12]}</span>" if safe_lot else ""
 
     safe_aria_label = f"{safe_name}, {escape(qty_display)}"
     return (
@@ -94,8 +130,8 @@ def item_row(
         # Left side: name + metadata
         "<div>"
         f"<div style='font-weight:600;color:var(--text);'>{safe_name}</div>"
-        + (f"<div style='font-size:11px;color:var(--text-dim);'>{safe_location}" + (f" &middot; {lot_html}" if lot_html else "") + "</div>" if safe_location or lot_html else "")
-        + (f"<div style='font-size:11px;color:var(--text-dim);'>{escape(str(extra))}</div>" if extra else "")
+        + (f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>{safe_location}" + (f" &middot; {lot_html}" if lot_html else "") + "</div>" if safe_location or lot_html else "")
+        + (f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>{escape(str(extra))}</div>" if extra else "")
         + "</div>"
         # Right side: quantity, price, badges
         "<div style='display:flex;align-items:center;gap:8px;flex-shrink:0;'>"
@@ -125,11 +161,11 @@ def stat_card(
     """Render a stat/metric card.
 
     Args:
-        value: Large display value (e.g. ``\"12\"``, ``\"₹340\"``)
+        value: Large display value (e.g. ``"12"``, ``"₹340"``)
         label: Label below the value
         icon: Emoji or text icon (placed above value)
         trend: ``up``, ``down``, or ``stable``
-        trend_value: Secondary trend text (e.g. ``\"+12%\"``)
+        trend_value: Secondary trend text (e.g. ``"+12%"``)
         variant: ``default``, ``success``, ``warning``, ``danger``
         on_click_tab: Gradio tab id to navigate to on click
     """
@@ -156,11 +192,11 @@ def stat_card(
             "stable": "var(--text-dim)",
         }.get(trend, "var(--text-dim)")
         trend_html = (
-            f"<span style='color:{trend_color};font-size:12px;font-weight:600;'>"
+            f"<span style='color:{trend_color};font-size: 0.75rem;font-weight:600;'>"
             f"{arrow} {safe_trend}</span>"
         )
 
-    icon_html = f"<div style='font-size:24px;margin-bottom:4px;'>{safe_icon}</div>" if safe_icon else ""
+    icon_html = f"<div style='font-size: 1.5rem;margin-bottom:4px;'>{safe_icon}</div>" if safe_icon else ""
 
     click_attr = ""
     if on_click_tab:
@@ -217,7 +253,7 @@ def data_table(
 
     head_html = "".join(
         f"<th>{escape(col.replace('_', ' ').title())}"
-        + ("<span style='font-size:9px;margin-left:4px;opacity:0.4;'>&#9650;&#9660;</span>" if sortable else "")
+        + ("<span style='font-size: 0.5625rem;margin-left:4px;opacity:0.4;'>&#9650;&#9660;</span>" if sortable else "")
         + "</th>"
         for col in columns
     )
@@ -234,7 +270,7 @@ def data_table(
     more_html = ""
     if has_more:
         more_html = (
-            "<div style='text-align:center;padding:8px;color:var(--text-dim);font-size:12px;'>"
+            "<div style='text-align:center;padding:8px;color:var(--text-dim);font-size: 0.75rem;'>"
             f"Showing {page_size} of {len(rows)} items"
             "</div>"
         )
@@ -242,7 +278,7 @@ def data_table(
     table_desc = escape(str(empty_message)) if empty_message != "No data" else "data table"
     return (
         "<div class='home-card' style='text-align:left;padding:0;overflow:hidden;' role='region' aria-label='Table: " + table_desc + "'>"
-        "<table style='border-collapse:collapse;width:100%;font-size:13px;'>"
+        "<table style='border-collapse:collapse;width:100%;font-size: 0.8125rem;'>"
         f"<caption class='sr-only'>{table_desc}</caption>"
         f"<thead><tr>{head_html}</tr></thead>"
         f"<tbody>{body_html}</tbody>"
@@ -277,10 +313,10 @@ def confirm_dialog(
     return (
         f"<div class='home-card' style='text-align:left;border-left:3px solid {border_color};background:{bg_tint};' role='alertdialog' aria-label='{safe_message}'>"
         "<div style='display:flex;align-items:flex-start;gap:10px;'>"
-        "<span style='font-size:20px;' aria-hidden='true'>&#9888;</span>"
+        "<span style='font-size: 1.25rem;' aria-hidden='true'>&#9888;</span>"
         "<div>"
         f"<div style='font-weight:600;margin-bottom:4px;'>{safe_message}</div>"
-        "<div style='font-size:11px;color:var(--text-dim);'>"
+        "<div style='font-size: 0.6875rem;color:var(--text-dim);'>"
         f"Click '{safe_label}' to proceed, or cancel."
         "</div>"
         "</div>"
@@ -319,6 +355,92 @@ def confirm_hide_updates():
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# Loading-state wrapper for long-running click handlers
+# ═══════════════════════════════════════════════════════════════════════
+
+def _set_loading(button_value, panel_count):
+    """Return the ``gr.update`` list that puts the button + panels in loading state.
+
+    The button is disabled and relabeled to "Working…"; each result panel
+    is replaced with a card-shaped loading skeleton.
+    """
+    import gradio as gr
+    updates = [gr.update(interactive=False, value="Working…")]
+    for _ in range(panel_count):
+        updates.append(gr.update(value=loading_skeleton(variant="card")))
+    return updates
+
+
+def _clear_loading(button_value, panel_count):
+    """Return the ``gr.update`` list that re-enables the button and leaves panels alone.
+
+    The actual panel values are written by the click handler itself, so we
+    only need to re-enable the button and restore its original label here.
+    """
+    import gradio as gr
+    return [gr.update(interactive=True, value=button_value)] + [gr.update()] * panel_count
+
+
+def with_loading_state(button, result_panels: list | None = None):
+    """Wire a primary button's click handler so the button disables while running.
+
+    Use this for any click handler that may take >500 ms (vision scans, AI
+    planners, OCR, basket compare). Returns a 2-tuple of callables
+    ``(busy_fn, idle_fn)`` suitable for:
+
+    >>> scan_btn.click(
+    ...     scan_fn,
+    ...     [...],
+    ...     [result_html, ...],
+    ...     api_name="scan",
+    ... ).then(
+    ...     with_loading_state(scan_btn, [result_html])[1],  # idle
+    ...     outputs=[scan_btn, result_html],
+    ... )
+
+    For the **busy** leg (disable the button + show "Working…" the moment
+    the user clicks), use :func:`busy_js` (from
+    :mod:`shopstack.ui.components.js_helpers`) as the ``js=`` parameter
+    on the same click handler.
+
+    Args:
+        button: The ``gr.Button`` to disable while the handler runs.
+        result_panels: Result ``gr.HTML`` panels to show a skeleton in.
+
+    Returns:
+        ``(busy_fn, idle_fn)`` — both are zero-arg callables that
+        return lists of ``gr.update`` dicts. Wire the busy fn to
+        ``js=busy_js(...)`` and the idle fn to ``.then(..., outputs=[...])``.
+    """
+    panels = list(result_panels or [])
+    panel_count = len(panels)
+    # Capture the original label so we can restore it on completion.
+    original_label = getattr(button, "value", None) or "Submit"
+
+    def busy():
+        return _set_loading(original_label, panel_count)
+
+    def idle():
+        return _clear_loading(original_label, panel_count)
+
+    return busy, idle
+
+
+# Re-export ``aria_live_screen`` from the decorators module so legacy
+# WIP imports of ``from shopstack.ui.components.primitives import
+# aria_live_screen`` still resolve. The real implementation lives
+# in :mod:`shopstack.ui.components.decorators`; the import at the top
+# of this module already establishes the re-export, so no second
+# import is needed here.
+
+
+# Convenience: extract the elem_id from a Gradio component.
+def elem_id_of(component) -> str:
+    """Return the ``elem_id`` of a Gradio component, or empty string if unset."""
+    return str(getattr(component, "elem_id", None) or "")
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # Toast — success/error notification
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -342,17 +464,43 @@ def toast(
     }
     color, icon = kind_config.get(kind, ("var(--text-dim)", "•"))
 
-    safe_kind = escape(kind)
+    safekind = escape(kind)
     return (
-        f"<div class='toast toast-{safe_kind}' role='status' aria-live='polite'"
-        f" aria-label='{safe_kind}: {safe_message}'"
+        f"<div class='toast toast-{safekind}' role='status' aria-live='polite'"
+        f" aria-label='{safekind}: {safe_message}'"
         f" style='display:flex;align-items:center;gap:8px;padding:10px 14px;"
         f"margin:6px 0;border-radius:var(--radius-sm);"
         f"background:var(--bg-card-strong);border:1px solid {color};"
-        f"font-size:13px;color:var(--text);'>"
+        f"font-size: 0.8125rem;color:var(--text);'>"
         f"<span style='color:{color};font-weight:700;' aria-hidden='true'>{icon}</span>"
         f"<span>{safe_message}</span>"
         "</div>"
+    )
+
+
+def toast_floating(message: str, kind: str = "success") -> str:
+    """Render a floating auto-dismiss toast notification.
+
+    Like :func:`toast`, but triggers the global ``showToast()`` JS
+    function defined in the header.  The notification floats in the
+    bottom-right corner and auto-dismisses after 3 seconds.
+
+    Use this in handlers where the output component is a small status
+    panel and you want a more prominent, temporary notification.
+
+    Args:
+        message: The notification text
+        kind: ``success``, ``error``, ``info``, ``warning``
+    """
+    js_msg = _json.dumps(str(message))
+    js_kind = _json.dumps(str(kind))
+    # Screen-reader-only fallback (sr-only) so AT announces the result
+    # even if the floating toast is not visible.
+    return (
+        f"<script>if(window.showToast)showToast({js_msg},{js_kind});</script>"
+        f"<span class='sr-only' role='status' aria-live='polite'>"
+        f"{escape(kind.title())}: {escape(str(message))}"
+        "</span>"
     )
 
 
@@ -460,13 +608,136 @@ def empty_state_enhanced(
 
     secondary_html = ""
     if safe_secondary:
-        secondary_html = f"<div style='font-size:12px;color:var(--text-dim);margin-top:6px;'>{safe_secondary}</div>"
+        secondary_html = f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:6px;'>{safe_secondary}</div>"
 
     return (
         "<div class='home-card' style='text-align:center;padding:40px 20px;' role='status' aria-label='" + safe_message + "'>"
-        f"<div style='font-size:40px;margin-bottom:12px;' aria-hidden='true'>{safe_icon}</div>"
-        f"<div class='muted' style='font-size:15px;'>{safe_message}</div>"
+        f"<div style='font-size: 2.5rem;margin-bottom:12px;' aria-hidden='true'>{safe_icon}</div>"
+        f"<div class='muted' style='font-size: 0.9375rem;'>{safe_message}</div>"
         f"{secondary_html}"
         f"{action_html}"
         "</div>"
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# A11y helpers
+# ═══════════════════════════════════════════════════════════════════════
+
+def aria_live_html(content: str, level: str = "polite") -> str:
+    """Wrap a result panel's content in a region that screen readers will announce.
+
+    Use this for any ``gr.HTML`` panel that holds dynamic action results.
+    The ``role="status"`` + ``aria-live="<level>"`` combination tells
+    assistive technology to read the new content aloud when it changes.
+
+    Args:
+        content: The HTML body (already-escaped; pass it raw).
+        level: ``polite`` (default) waits for the user to pause;
+            ``assertive`` interrupts. Use ``polite`` for routine updates
+            (action results) and ``assertive`` only for errors.
+
+    Returns:
+        HTML snippet suitable for ``gr.HTML(value=...)``.
+    """
+    safe_level = escape(str(level))
+    if safe_level not in ("polite", "assertive"):
+        safe_level = "polite"
+    return (
+        f"<div role='status' aria-live='{safe_level}' aria-atomic='true'>"
+        f"{content}"
+        f"</div>"
+    )
+
+
+def help_text(text: str, label_for: str = "") -> str:
+    """Render a small help/hint text element for forms.
+
+    Use this for inline guidance next to form fields (e.g. the
+    ``lot_id: qty`` batch syntax hint). The text is associated with
+    a form field via ``aria-describedby`` when ``label_for`` is set.
+
+    Args:
+        text: The help text body (will be escaped).
+        label_for: The ``id`` of the form field this describes; when
+            set, the returned element carries ``id="help-<label_for>"``
+            so the field can reference it via ``aria-describedby``.
+
+    Returns:
+        HTML snippet.
+    """
+    safe_text = escape(str(text))
+    if label_for:
+        safe_id = escape(str(label_for))
+        return (
+            f"<div id='help-{safe_id}' class='muted' "
+            f"style='font-size: 0.6875rem;margin-top:4px;'>{safe_text}</div>"
+        )
+    return (
+        f"<div class='muted' style='font-size: 0.6875rem;margin-top:4px;'>{safe_text}</div>"
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Form error / validation helpers
+# ═══════════════════════════════════════════════════════════════════════
+
+def form_error(message: str, field_id: str = "", level: str = "error") -> str:
+    """Render an inline form-field error message.
+
+    Use this to surface validation errors next to a specific input. The
+    error is announced as ``role="alert"`` so screen readers interrupt
+    to read it.
+
+    Args:
+        message: Error text (will be escaped).
+        field_id: The ``id`` of the field this error belongs to; when set
+            the rendered element carries ``id="error-<field_id>"`` so the
+            field can reference it via ``aria-describedby``.
+        level: ``error`` (red) or ``warning`` (amber).
+
+    Returns:
+        HTML snippet suitable for placement directly under a form field.
+    """
+    safe_msg = escape(str(message))
+    color = "var(--red)" if level == "error" else "var(--amber)"
+    icon = "⚠" if level == "error" else "!"
+    id_attr = f" id='error-{escape(str(field_id))}'" if field_id else ""
+    return (
+        f"<div{id_attr} class='form-error' role='alert' "
+        f"style='display:flex;align-items:center;gap:6px;font-size: 0.75rem;"
+        f"color:{color};margin-top:4px;'>"
+        f"<span aria-hidden='true' style='font-weight:700;'>{icon}</span>"
+        f"<span>{safe_msg}</span>"
+        f"</div>"
+    )
+
+
+def form_success(message: str) -> str:
+    """Render an inline form-field success message.
+
+    Surfaces a non-blocking success confirmation under a form field
+    (e.g. after a field passes validation on blur).
+    """
+    safe_msg = escape(str(message))
+    return (
+        f"<div role='status' aria-live='polite' "
+        f"style='display:flex;align-items:center;gap:6px;font-size: 0.75rem;"
+        f"color:var(--green);margin-top:4px;'>"
+        f"<span aria-hidden='true' style='font-weight:700;'>✓</span>"
+        f"<span>{safe_msg}</span>"
+        f"</div>"
+    )
+
+
+def required_marker() -> str:
+    """Return a small visual marker indicating a form field is required.
+
+    The marker is wrapped in ``aria-label="required"`` so screen readers
+    announce it before the field label. The visible red ``*`` is purely
+    decorative (``aria-hidden="true"``).
+    """
+    return (
+        "<span style='color:var(--red);margin-left:4px;font-weight:700;' "
+        "aria-hidden='true'>*</span>"
     )

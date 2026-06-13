@@ -107,7 +107,7 @@ def format_cross_source_html(comparisons: list[CrossSourcePrice]) -> str:
     return (
         f"<div class='home-card' style='text-align:left;margin-bottom:12px;'>"
         f"<h3>Multi-Source Price Comparison</h3>"
-        f"<table style='width:100%;border-collapse:collapse;font-size:12px;'>"
+        f"<table style='width:100%;border-collapse:collapse;font-size: 0.75rem;'>"
         f"<thead><tr style='border-bottom:2px solid var(--border);'>"
         f"<th style='text-align:left;padding:4px;'>Item</th>"
         f"{header_cells}"

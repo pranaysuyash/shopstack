@@ -40,22 +40,27 @@ def setup_tracing(
     resource = Resource(attributes={SERVICE_NAME: service_name})
     provider = TracerProvider(resource=resource)
 
-    otlp_endpoint = endpoint or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
+    otlp_endpoint = endpoint or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
     project = project_name or os.getenv("PHOENIX_PROJECT_NAME", "shopstack")
 
-    try:
-        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-        exporter = OTLPSpanExporter(endpoint=otlp_endpoint, headers=(("phoenix-project", project),))
-        provider.add_span_processor(BatchSpanProcessor(exporter))
-    except Exception as e:
-        logger.info("OTLP exporter not available (%s), using console span exporter", e)
-        from opentelemetry.sdk.trace.export import ConsoleSpanExporter
-        provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+    # Only install the OTLP exporter when an endpoint is explicitly configured.
+    # Without an explicit endpoint, fall through to a no-op exporter so the
+    # test process never blocks on unreachable collector retries.
+    if otlp_endpoint:
+        try:
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+            exporter = OTLPSpanExporter(endpoint=otlp_endpoint, headers=(("phoenix-project", project),))
+            provider.add_span_processor(BatchSpanProcessor(exporter))
+        except Exception as e:
+            logger.info("OTLP exporter not available (%s), using console span exporter", e)
+            from opentelemetry.sdk.trace.export import ConsoleSpanExporter
+            provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+    else:
+        logger.info("OTEL_EXPORTER_OTLP_ENDPOINT not set — tracing spans are recorded but not exported")
 
     trace.set_tracer_provider(provider)
     _TRACER = trace.get_tracer(service_name)
     _IS_INSTRUMENTED = True
-    logger.info("OpenTelemetry tracing initialized: endpoint=%s project=%s", otlp_endpoint, project)
     return _TRACER
 
 

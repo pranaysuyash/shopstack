@@ -117,16 +117,16 @@ class OpenAIProvider:
                 with open(image_path, "rb") as f:
                     b64 = base64.b64encode(f.read()).decode("utf-8")
                 data_url = f"data:image/jpeg;base64,{b64}"
-                messages = [{
+                messages: list[dict[str, Any]] = [{
                     "role": "user",
                     "content": [
                         {"type": "text", "text": prompt or "Describe what you see in this image in detail. List any food items, products, or text you can identify."},
                         {"type": "image_url", "image_url": {"url": data_url}},
                     ],
                 }]
-                resp = self._client.chat.completions.create(
+                resp = self._client.chat.completions.create(  # type: ignore[arg-type]
                     model=model,
-                    messages=messages,
+                    messages=messages,  # type: ignore[arg-type]
                     max_tokens=512,
                 )
                 elapsed_ms = round((time.monotonic() - t0) * 1000, 1)
@@ -185,7 +185,7 @@ class OpenAIProvider:
         with trace_call("llm.plan", attributes={
             "provider": self.name,
             "model": self._model,
-        }) as span:
+        }) as _span:
             if isinstance(context, str):
                 result = self.complete(context, max_tokens=128, temperature=0.0)
                 text = result.get("text", "")

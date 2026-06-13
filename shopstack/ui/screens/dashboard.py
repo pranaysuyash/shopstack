@@ -4,7 +4,7 @@ from html import escape
 import logging
 
 from shopstack.app_context import APP_DESCRIPTION, APP_NAME, db, tools, current_user_id
-from shopstack.services.dashboard import build_dashboard_state
+from shopstack.services.dashboard import build_dashboard_state, clear_dashboard_cache
 from shopstack.ui.components.cards import card as ui_card
 from shopstack.ui.components.cards import badge_html
 from shopstack.ui.components.cards import render_action_grid, render_hero_panel
@@ -36,7 +36,25 @@ from shopstack.ui.screens.other import inventory_alerts, what_is_in_fridge_now
 logger = logging.getLogger(__name__)
 
 
-def _details_section(title: str, body: str, description: str = "", count_label: str = "") -> str:
+def _details_section(title: str, body: str, description: str = "", count_label: str = "", open: bool = False) -> str:
+    """Render a collapsible details section for the dashboard.
+
+    The ``<details>`` element is a native HTML element; passing
+    ``open=True`` makes the section start expanded. Use this to
+    surface the most relevant info (Cook tonight, Use first, etc.)
+    on first load instead of hiding everything behind "Tap to
+    expand" chips.
+
+    Args:
+        title: The section heading shown in the summary row.
+        body: The full content (rendered when expanded).
+        description: One-line hint shown under the title.
+        count_label: Optional badge text (e.g. "3 items").
+        open: When True, the section starts expanded. Default False
+            (collapsed). Use True sparingly for the most-relevant
+            sections — too many expanded sections re-create the
+            information-overload problem this accordion is solving.
+    """
     summary_html = (
         "<div class='home-details-summary'>"
         "<div class='home-details-copy'>"
@@ -45,14 +63,15 @@ def _details_section(title: str, body: str, description: str = "", count_label: 
         "</div>"
         "<div class='home-details-meta'>"
         f"{f'<span class=\"home-details-count\">{escape(count_label)}</span>' if count_label else ''}"
-        "<span class='home-details-chip'>Open</span>"
+        f"<span class='home-details-chip'>{'Open' if open else 'Tap to expand'}</span>"
         "</div>"
         "</div>"
         if description or count_label
-        else f"<div class='home-details-summary'><span class='home-details-title'>{escape(title)}</span><span class='home-details-chip'>Open</span></div>"
+        else f"<div class='home-details-summary'><span class='home-details-title'>{escape(title)}</span><span class='home-details-chip'>{'Open' if open else 'Tap to expand'}</span></div>"
     )
+    open_attr = " open" if open else ""
     return (
-        "<details class='home-details'>"
+        f"<details class='home-details'{open_attr}>"
         f"<summary>{summary_html}</summary>"
         f"{body}"
         "</details>"
@@ -152,24 +171,28 @@ def today_dashboard():
         f"{cook_tonight_html}{seasonal_html}",
         "Recipes and what the weather or expiring items suggest for tonight.",
         f"{len(state.cook_tonight_matches)} recipe{'s' if len(state.cook_tonight_matches) != 1 else ''}",
+        open=bool(state.cook_tonight_matches),  # open when there are matches
     )
     plan_section = _details_section(
         "Plan the trip",
         f"{decision_panel}{market_basket}",
         "Use what you have first, then see what to buy next.",
         f"{len(ds.use_soon) + len(ds.buy) + len(ds.compare) + len(ds.substitute)} item{'s' if (len(ds.use_soon) + len(ds.buy) + len(ds.compare) + len(ds.substitute)) != 1 else ''}",
+        open=bool(ds.use_soon or ds.buy or ds.compare or ds.substitute),
     )
     list_snapshot = _details_section(
         "Shopping list",
         list_panel,
         "Your active list, if one is open.",
         f"{len(state.active_list.items) if state.active_list else 0} item{'s' if not state.active_list or len(state.active_list.items) != 1 else ''}",
+        open=bool(state.active_list and state.active_list.items),
     )
     household_state = _details_section(
         "After you shop",
         f"{inventory_overview}{fridge_html}{alert_html}{needs_confirm}{what_changed}",
         "Freshness, inventory, and recent changes live here.",
         f"{len(state.active_inventory)} item{'s' if len(state.active_inventory) != 1 else ''}",
+        open=bool(state.active_inventory),  # open when there's something to show
     )
     market_signals = _details_section(
         "Compare and history",
@@ -334,10 +357,24 @@ def _render_today_empty_hints(state, ds) -> str:
     )
 
 
+# ── Market graph cache (separate from dashboard state — used by
+# the Compare sub-tab and the intelligence screen too).
+import time as _time
+_MGRAPH_TTL = 60  # seconds
+_mgraph_cache: dict[str, tuple[float, Any]] = {}
+
+
 def _build_market_graph(uid: str):
+    """Build the market intelligence graph, with a 60-second TTL cache."""
+    now = _time.monotonic()
+    cached = _mgraph_cache.get(uid)
+    if cached and (now - cached[0]) < _MGRAPH_TTL:
+        return cached[1]
+
     from shopstack.services.market_intelligence import build_market_intelligence_graph
 
     graph = build_market_intelligence_graph(db, tools.inventory, user_id=uid)
+    _mgraph_cache[uid] = (now, graph)
     return graph
 
 
@@ -355,118 +392,12 @@ def _render_market_summary_chips(graph) -> str:
     )
 
 
-def _render_market_next_steps(graph) -> str:
-    actions = []
-    if graph.summary.get("buy", 0):
-        actions.append(
-            {
-                "label": "Open Groceries",
-                "subtitle": "Turn buy items into the list",
-                "tab_id": "basket",
-                "tone": "primary",
-            }
-        )
-    if graph.summary.get("compare", 0):
-        actions.append(
-            {
-                "label": "Review Compare",
-                "subtitle": "Check overlap and substitutions",
-                "tab_id": "basket",
-                "tone": "default",
-            }
-        )
-    if graph.summary.get("substitute", 0):
-        actions.append(
-            {
-                "label": "Review Substitutes",
-                "subtitle": "See better replacements",
-                "tab_id": "basket",
-                "tone": "default",
-            }
-        )
-    if graph.summary.get("stale", 0):
-        actions.append(
-            {
-                "label": "Inspect Freshness",
-                "subtitle": "Treat stale cards as references",
-                "tab_id": "basket",
-                "tone": "default",
-            }
-        )
-
-    if not actions:
-        return (
-            "<div class='home-card' style='text-align:left;margin-top:8px;'>"
-            "<h3>Next steps</h3>"
-            "<div class='muted'>No market actions to prioritize yet.</div>"
-            "</div>"
-        )
-
-    top_signals = []
-    if graph.compare:
-        top_signals.append(f"{graph.compare[0].display_name}: compare")
-    if graph.substitute:
-        top_signals.append(f"{graph.substitute[0].display_name}: substitute")
-    if graph.buy:
-        top_signals.append(f"{graph.buy[0].display_name}: buy")
-
-    return ui_card(
-        "Next steps",
-        f"<div class='muted' style='margin-bottom:8px;'>"
-        f"{' · '.join(top_signals) if top_signals else 'The graph is quiet right now.'}"
-        f"</div>"
-        f"{render_action_grid(actions)}",
-    )
-
-
-def _render_market_map_teaser(state, graph) -> str:
-    freshness = graph.snapshot_freshness_label or graph.snapshot_freshness or "unknown"
-    compare_preview = _render_compare_preview(graph)
-    body = (
-        f"{graph.summary.get('items_scored', 0)} items scored · "
-        f"{graph.summary.get('buy', 0)} buy · "
-        f"{graph.summary.get('compare', 0)} compare · "
-        f"{graph.summary.get('substitute', 0)} substitute"
-    )
-    if state.market_snapshot is None and graph.summary.get("items_scored", 0) == 0:
-        body = "No market snapshot is loaded yet. Add one and the graph will start ranking buy / compare / substitute signals."
-
-    actions = [
-        {
-            "label": "Open Market Map",
-            "subtitle": "Inspect the living market graph",
-            "tab_id": "basket",
-            "tone": "primary",
-        },
-        {
-            "label": "Check At Home",
-            "subtitle": "See what the household already has",
-            "tab_id": "reconcile",
-            "tone": "default",
-        },
-        {
-            "label": "Open Memory",
-            "subtitle": "Compare against your price baseline",
-            "tab_id": "memory",
-            "tone": "default",
-        },
-    ]
-
-    return ui_card(
-        "Market Map",
-        f"<div class='muted' style='margin-bottom:8px;'>{freshness}</div>"
-        f"<div style='margin-bottom:10px;'>{body}</div>"
-        f"{compare_preview}"
-        f"{render_action_grid(actions)}",
-    )
-
-
 def _render_compare_preview(graph) -> str:
     compare_items = graph.compare[:3]
     if not compare_items:
         return (
             "<div style='margin-bottom:10px;padding:8px;border:1px solid var(--border);border-radius:10px;'>"
-            "<div style='font-size:12px;font-weight:600;margin-bottom:6px;'>Compare preview</div>"
+            "<div style='font-size: 0.75rem;font-weight:600;margin-bottom:6px;'>Compare preview</div>"
             "<div class='muted'>No compare items yet.</div>"
             "</div>"
         )
@@ -477,13 +408,13 @@ def _render_compare_preview(graph) -> str:
         rows.append(
             "<div style='display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);'>"
             f"<strong>{cluster.display_name}</strong>"
-            f"<span style='color:var(--text-dim);font-size:12px;'>{signal}</span>"
+            f"<span style='color:var(--text-dim);font-size: 0.75rem;'>{signal}</span>"
             "</div>"
         )
 
     return (
         "<div style='margin-bottom:10px;padding:8px;border:1px solid var(--border);border-radius:10px;'>"
-        "<div style='font-size:12px;font-weight:600;margin-bottom:6px;'>Compare preview</div>"
+        "<div style='font-size: 0.75rem;font-weight:600;margin-bottom:6px;'>Compare preview</div>"
         + "".join(rows)
         + "</div>"
     )

@@ -208,7 +208,23 @@ def advise_trip(
     )
 
 
-# ─── HTML rendering ───────────────────────────────────────────────
+def _build_use_soon_count(db: Database, user_id: str) -> int:
+    """Count inventory items that need to be used soon (within 3 days).
+
+    This is a thin wrapper around ``inventory.get_use_soon`` so the UI screen
+    can render a "use soon" badge in the trip advisor card.
+    """
+    try:
+        items = db.get_inventory(user_id=user_id)
+        from shopstack.services.inventory import InventoryService  # local import to avoid cycles
+        inv = InventoryService(db)
+        use_soon = inv.get_use_soon(days=3, user_id=user_id)
+        return len(use_soon)
+    except Exception:
+        return 0
+
+
+# ─── HTML rendering ────────────────────────────────────────────────
 
 
 def render_trip_advice_html(advice: TripAdvice, locale: str = DEFAULT_LOCALE) -> str:
@@ -274,4 +290,40 @@ __all__ = [
     "TripAdvice",
     "advise_trip",
     "render_trip_advice_html",
+    "_build_use_soon_count",
 ]
+
+
+def _build_use_soon_count(db: Any, user_id: str) -> int:
+    """Count items about to expire for a household, used as input to ``advise_trip``.
+
+    The trip-advisor's recommendation engine uses the use-soon count
+    as a heat signal: more items about to expire → stronger nudge
+    to go in-store today. This helper resolves that count for a
+    given household.
+
+    Best-effort: returns 0 on any DB error so the caller can fall
+    back to the default trip recommendation.
+
+    Args:
+        db: The :class:`shopstack.persistence.database.Database` singleton.
+        user_id: The active household's user_id (or ``""`` for global).
+
+    Returns:
+        Number of inventory lots that are still active AND have an
+        estimated expiry within the next 3 days (the same window as
+        the Today dashboard's "use soon" view).
+    """
+    try:
+        from datetime import date, timedelta
+        soon = (date.today() + timedelta(days=3)).isoformat()
+        rows = db.conn.execute(
+            "SELECT COUNT(*) FROM inventory_lots "
+            "WHERE user_id = ? AND status = 'active' "
+            "AND estimated_use_by_date IS NOT NULL "
+            "AND estimated_use_by_date <= ?",
+            (user_id, soon),
+        ).fetchone()
+        return int(rows[0]) if rows else 0
+    except Exception:
+        return 0

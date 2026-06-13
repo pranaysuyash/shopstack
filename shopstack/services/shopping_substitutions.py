@@ -174,23 +174,23 @@ def render_substitutions_html(items: list[ItemSubstitutions]) -> str:
         sold_out_badge = ""
         if item.is_sold_out:
             sold_out_badge = (
-                f" <span style='color:var(--red);font-size:10px;'>· sold out</span>"
+                f" <span style='color:var(--red);font-size: 0.625rem;'>· sold out</span>"
             )
 
         # If there are more than one suggestion, summarise the count.
         more = ""
         if len(item.suggestions) > 1:
             more = (
-                f" <span style='font-size:10px;color:var(--text-dim);'>"
+                f" <span style='font-size: 0.625rem;color:var(--text-dim);'>"
                 f"+{len(item.suggestions) - 1} more</span>"
             )
 
         rows.append(
             f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
-            f"<div style='font-size:11px;color:var(--text-dim);'>"
+            f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>"
             f"<strong>{escape(item.display_name)}</strong>{sold_out_badge}"
             f"</div>"
-            f"<div style='font-size:12px;'>"
+            f"<div style='font-size: 0.75rem;'>"
             f"&#x21B3; <strong>{sub_name}</strong> "
             f"<span style='color:var(--green);'>{price_str}{per_kg_str}</span>"
             f" &middot; <span style='color:var(--text-dim);'>{reason}</span>"
@@ -203,7 +203,7 @@ def render_substitutions_html(items: list[ItemSubstitutions]) -> str:
     return (
         f"<div class='home-card' style='margin-bottom:12px;'>"
         f"<h3 style='margin:0 0 4px 0;'>Substitution Suggestions</h3>"
-        f"<div style='font-size:11px;color:var(--text-dim);margin-bottom:6px;'>"
+        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>"
         f"For items that are sold out or have better alternatives."
         f"</div>"
         f"{''.join(rows)}"

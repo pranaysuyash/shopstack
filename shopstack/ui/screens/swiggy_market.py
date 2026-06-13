@@ -67,7 +67,7 @@ def swiggy_market_view() -> str:
             meta = get_produce_meta_inline(r.canonical_name)
             risk_badge = ""
             if meta and meta.waste_risk == "high":
-                risk_badge = " <span style='color:var(--amber);font-size:10px;'>&#9888; high waste risk</span>"
+                risk_badge = " <span style='color:var(--amber);font-size: 0.625rem;'>&#9888; high waste risk</span>"
             rows.append(
                 f"<tr>"
                 f"<td>{escape(r.canonical_name.replace('_', ' ').title())}{risk_badge}</td>"
@@ -81,8 +81,8 @@ def swiggy_market_view() -> str:
 
         parts.append(
             f"<div class='home-card' style='text-align:left;margin-bottom:12px;'>"
-            f"<h3>Best Value by Price/kg <span style='font-weight:normal;font-size:12px;color:var(--text-dim);'>(available first, weight-based only)</span></h3>"
-            f"<table style='width:100%;border-collapse:collapse;font-size:12px;'>"
+            f"<h3>Best Value by Price/kg <span style='font-weight:normal;font-size: 0.75rem;color:var(--text-dim);'>(available first, weight-based only)</span></h3>"
+            f"<table style='width:100%;border-collapse:collapse;font-size: 0.75rem;'>"
             f"<thead><tr style='border-bottom:2px solid var(--border);'>"
             f"<th style='text-align:left;padding:4px;'>Item</th>"
             f"<th style='text-align:right;padding:4px;'>&#8377;/kg</th>"
@@ -101,7 +101,7 @@ def swiggy_market_view() -> str:
         parts.append(
             f"<div class='home-card' style='text-align:left;margin-bottom:12px;'>"
             f"<h3>Sold Out ({len(sold_out_names)} items)</h3>"
-            f"<div style='font-size:11px;color:var(--text-dim);'>"
+            f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>"
             f"{', '.join(escape(n) for n in sold_out_names[:30])}"
             f"</div></div>"
         )
@@ -174,7 +174,7 @@ def swiggy_basket_estimate(items_text: str) -> str:
             )
 
     parts.append(
-        f"<table style='width:100%;border-collapse:collapse;font-size:12px;'>"
+        f"<table style='width:100%;border-collapse:collapse;font-size: 0.75rem;'>"
         f"<thead><tr style='border-bottom:2px solid var(--border);'>"
         f"<th style='text-align:left;padding:4px;'>Requested</th>"
         f"<th style='text-align:left;padding:4px;'>Matched</th>"
@@ -190,7 +190,7 @@ def swiggy_basket_estimate(items_text: str) -> str:
     unmatched = summary.get("unmatched_items", [])
     if unmatched:
         parts.append(
-            f"<div style='margin-top:8px;color:var(--red);font-size:11px;'>"
+            f"<div style='margin-top:8px;color:var(--red);font-size: 0.6875rem;'>"
             f"Not found: {', '.join(escape(u) for u in unmatched)}"
             f"</div>"
         )

@@ -153,7 +153,7 @@ def render_decision_card(
     qty_line = f"{quantity} {safe_unit} suggested" if quantity else ""
     qty_line_markup = ""
     if qty_line:
-        qty_line_markup = f"<div style='font-size:12px;margin-top:6px;'>{qty_line}</div>"
+        qty_line_markup = f"<div style='font-size: 0.75rem;margin-top:6px;'>{qty_line}</div>"
     confidence_pct = max(0.0, min(1.0, float(confidence)))
     action_line = (
         "<div style='margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;'>"
@@ -168,9 +168,9 @@ def render_decision_card(
         f"<div class='home-card item-card' role='article' aria-label='{safe_item_name}: {decision_upper}'>"
         f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;'>"
         f"<strong>{safe_item_name}</strong>{badge}</div>"
-        f"<div class='muted' style='font-size:13px;'>{safe_reason}</div>"
+        f"<div class='muted' style='font-size: 0.8125rem;'>{safe_reason}</div>"
         f"{qty_line_markup}"
-        f"<div class='muted' style='font-size:11px;margin-top:6px;'>Confidence: {confidence_pct:.0%}</div>"
+        f"<div class='muted' style='font-size: 0.6875rem;margin-top:6px;'>Confidence: {confidence_pct:.0%}</div>"
         f"{action_line}"
         "</div>"
     )
@@ -180,7 +180,7 @@ def render_unified_decision_card(d: DecisionResult) -> str:
     icon = _ACTION_ICONS.get(d.action, "")
     badge = (
         f"<span style='background:{color}20;color:{color};"
-        f"padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;'>"
+        f"padding:2px 8px;border-radius:4px;font-size: 0.6875rem;font-weight:600;'>"
         f"{icon} {d.action.upper()}</span>"
     )
     
@@ -189,14 +189,14 @@ def render_unified_decision_card(d: DecisionResult) -> str:
     
     warnings_html = ""
     for w in d.warnings:
-        warnings_html += f"<div style='font-size:11px;color:var(--red);margin-top:4px;'>\u26A0 {escape(w.message)}</div>"
+        warnings_html += f"<div style='font-size: 0.6875rem;color:var(--red);margin-top:4px;'>\u26A0 {escape(w.message)}</div>"
         
     stale_html = ""
     if d.data_freshness == "stale":
         # Brand-aligned stale warning (rgba against --red token at 10% alpha,
         # not the bright Tailwind rgba(255,0,0,0.1) that broke dark mode).
         stale_html = (
-            f"<div style='font-size:12px;color:var(--red);font-weight:bold;margin-top:6px;"
+            f"<div style='font-size: 0.75rem;color:var(--red);font-weight:bold;margin-top:6px;"
             f"padding:4px;background-color:rgba(166,63,49,0.10);border-radius:4px;'>"
             f"&#9888; WARNING: {escape(d.data_freshness_label or 'Stale Market Data (Older than 24h)')}"
             f"</div>"
@@ -205,7 +205,7 @@ def render_unified_decision_card(d: DecisionResult) -> str:
     evidence_html = ""
     if d.evidence:
         ev_list = ", ".join(f"{escape(str(e.source))}: {escape(str(e.value))}" for e in d.evidence[:2])
-        evidence_html = f"<div style='font-size:11px;color:var(--text-dim);margin-top:4px;'>Evidence: {ev_list}</div>"
+        evidence_html = f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:4px;'>Evidence: {ev_list}</div>"
 
     action_btn = ""
     if d.action in ("buy", "optional", "compare", "use_soon"):
@@ -216,7 +216,7 @@ def render_unified_decision_card(d: DecisionResult) -> str:
         action_btn = (
             f"<div style='margin-top:8px;'>"
             f"<button type='button' class='action-tile action-tile-default'"
-            f" style='padding:4px 8px;font-size:11px;cursor:default;'"
+            f" style='padding:4px 8px;font-size: 0.6875rem;cursor:default;'"
             f" data-action='{escape(d.action)}'"
             f" data-canonical='{escape(d.canonical_name)}'"
             f" aria-label='{escape(action_label)} {escape(d.display_name)}'"
@@ -226,8 +226,8 @@ def render_unified_decision_card(d: DecisionResult) -> str:
     return (
         f"<div class='home-card' style='margin-bottom:10px;border-left:4px solid {color};'>"
         f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
-        f"<strong style='font-size:14px;'>{escape(d.display_name)}</strong>{badge}</div>"
-        f"<div style='font-size:13px;margin-top:4px;'>{reason}{price_info}</div>"
+        f"<strong style='font-size: 0.875rem;'>{escape(d.display_name)}</strong>{badge}</div>"
+        f"<div style='font-size: 0.8125rem;margin-top:4px;'>{reason}{price_info}</div>"
         f"{evidence_html}{warnings_html}{stale_html}{action_btn}"
         f"</div>"
     )

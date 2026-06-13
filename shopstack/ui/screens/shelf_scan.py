@@ -241,9 +241,9 @@ def _render_shelf_scan(result: ShelfIntelligenceResult) -> str:
         speech_html = (
             "<div class='home-card' style='margin-top:10px;'>"
             "<h4>Voice note</h4>"
-            f"<div style='margin-top:4px;font-size:13px;'><strong>Heard:</strong> {escape(result.speech_intent.original_text)}</div>"
-            f"<div style='margin-top:4px;font-size:13px;color:var(--text-dim);'><strong>Translated:</strong> {escape(result.speech_intent.translated_text or result.speech_intent.original_text)}</div>"
-            f"<div style='margin-top:4px;font-size:12px;color:var(--text-dim);'>Action: {escape(result.speech_intent.action)} · "
+            f"<div style='margin-top:4px;font-size: 0.8125rem;'><strong>Heard:</strong> {escape(result.speech_intent.original_text)}</div>"
+            f"<div style='margin-top:4px;font-size: 0.8125rem;color:var(--text-dim);'><strong>Translated:</strong> {escape(result.speech_intent.translated_text or result.speech_intent.original_text)}</div>"
+            f"<div style='margin-top:4px;font-size: 0.75rem;color:var(--text-dim);'>Action: {escape(result.speech_intent.action)} · "
             f"Scene hint: {escape(result.speech_intent.target_scene.value)}</div>"
             "</div>"
         )
@@ -254,7 +254,7 @@ def _render_shelf_scan(result: ShelfIntelligenceResult) -> str:
             "<div class='home-card' style='margin-top:10px;border-left:4px solid var(--amber);'>"
             "<h4>Notes</h4>"
             + "".join(
-                f"<div style='font-size:12px;margin-top:4px;color:var(--amber);'>&#9888; {escape(w)}</div>"
+                f"<div style='font-size: 0.75rem;margin-top:4px;color:var(--amber);'>&#9888; {escape(w)}</div>"
                 for w in result.warnings
             )
             + "</div>"
@@ -275,7 +275,7 @@ def _render_shelf_scan(result: ShelfIntelligenceResult) -> str:
         f"{_badge(f'{summary.needs_review_count} review', 'var(--amber)')}"
         f"{_badge(f'{summary.overall_confidence:.0%} overall', 'var(--green)')}"
         "</div>"
-        f"<div style='margin-top:8px;color:var(--text-dim);font-size:12px;'>"
+        f"<div style='margin-top:8px;color:var(--text-dim);font-size: 0.75rem;'>"
         f"Scene: {escape(result.scene_type.value)} · Image confidence {summary.image_confidence:.0%} · Speech confidence {summary.speech_confidence:.0%}</div>"
         f"{warning_html}"
         f"{speech_html}"
@@ -294,7 +294,7 @@ def _render_shelf_scan(result: ShelfIntelligenceResult) -> str:
 def _badge(text: str, color: str) -> str:
     return (
         f"<span style='display:inline-block;padding:3px 8px;border-radius:999px;"
-        f"background:{color}20;color:{color};font-size:11px;font-weight:600;'>"
+        f"background:{color}20;color:{color};font-size: 0.6875rem;font-weight:600;'>"
         f"{escape(text)}</span>"
     )
 
@@ -302,7 +302,7 @@ def _badge(text: str, color: str) -> str:
 def _empty_block(text: str) -> str:
     return (
         "<div style='padding:10px;border:1px dashed var(--border);border-radius:12px;"
-        "color:var(--text-dim);font-size:12px;'>"
+        "color:var(--text-dim);font-size: 0.75rem;'>"
         f"{escape(text)}</div>"
     )
 
@@ -317,10 +317,10 @@ def _render_instance_card(instance: Any) -> str:
     return (
         "<div class='stat-card' style='text-align:left;'>"
         f"<div style='font-weight:600;'>{escape(instance.display_name)}</div>"
-        f"<div style='font-size:12px;color:var(--text-dim);margin-top:4px;'>"
+        f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>"
         f"{escape(instance.recognition_source)} · {instance.quantity_estimate.value:g} {escape(instance.quantity_estimate.unit)}"
         f"{freshness}{expiry}</div>"
-        f"<div style='margin-top:6px;font-size:11px;color:var(--text-dim);'>"
+        f"<div style='margin-top:6px;font-size: 0.6875rem;color:var(--text-dim);'>"
         f"{escape(instance.zone_guess or 'unknown zone')}</div>"
         f"</div>"
     )
@@ -332,18 +332,18 @@ def _render_aggregate_card(aggregate: Any) -> str:
         f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
         f"<strong>{escape(aggregate.display_name)}</strong>"
         f"<span class='badge badge-blue'>{escape(aggregate.recommendation)}</span></div>"
-        f"<div style='font-size:12px;color:var(--text-dim);margin-top:4px;'>"
+        f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>"
         f"{aggregate.count} instance(s) · {aggregate.estimated_quantity:g} {escape(aggregate.unit)}"
         f" · home {aggregate.matched_home_quantity:g}</div>"
-        f"<div style='font-size:11px;color:var(--text-dim);margin-top:4px;'>"
+        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:4px;'>"
         f"delta {aggregate.delta_from_inventory:+g} · confidence {aggregate.confidence:.0%}</div>"
         + (
-            f"<div style='font-size:11px;color:var(--green);margin-top:6px;'>"
+            f"<div style='font-size: 0.6875rem;color:var(--green);margin-top:6px;'>"
             f"Why: {escape('; '.join(aggregate.reasons[:2]))}</div>"
             if aggregate.reasons else ""
         )
         + (
-            f"<div style='font-size:11px;color:var(--amber);margin-top:4px;'>"
+            f"<div style='font-size: 0.6875rem;color:var(--amber);margin-top:4px;'>"
             f"Warnings: {escape('; '.join(aggregate.warnings[:2]))}</div>"
             if aggregate.warnings else ""
         )
@@ -357,11 +357,11 @@ def _render_action_card(action: ProposedInventoryAction) -> str:
         f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
         f"<strong>{escape(action.display_name)}</strong>"
         f"<span class='badge badge-blue'>{escape(action.action)}</span></div>"
-        f"<div style='font-size:12px;color:var(--text-dim);margin-top:4px;'>"
+        f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>"
         f"{action.quantity:g} {escape(action.unit)} · confidence {action.confidence:.0%}</div>"
-        f"<div style='font-size:11px;color:var(--text-dim);margin-top:4px;'>"
+        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:4px;'>"
         f"Location: {escape(action.target_location_id or 'n/a')} · Lot: {escape(action.lot_id or 'new')}</div>"
-        f"<div style='font-size:11px;color:var(--text-dim);margin-top:4px;'>"
+        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:4px;'>"
         f"{escape(action.reason)}</div>"
         "</div>"
     )
@@ -370,6 +370,6 @@ def _render_action_card(action: ProposedInventoryAction) -> str:
 def _render_review_card(text: str) -> str:
     return (
         "<div class='stat-card' style='text-align:left;border-left:3px solid var(--amber);'>"
-        f"<div style='font-size:12px;color:var(--text-dim);'>{escape(text)}</div>"
+        f"<div style='font-size: 0.75rem;color:var(--text-dim);'>{escape(text)}</div>"
         "</div>"
     )

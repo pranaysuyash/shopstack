@@ -142,7 +142,13 @@ class TestCookbookBrowse:
         with _swap_global_db(monkeypatch, fake_db):
             out = screen.cookbook_browse()
         assert isinstance(out, str)
-        assert "Browse" in out  # section heading
+        # The cookbook is bilingual via i18n (the service applies
+        # ``t()`` to all user-facing strings). The exact heading word
+        # changes with locale — assert on the structural marker
+        # ``cb-grid`` instead, which is locale-independent.
+        assert "cb-grid" in out
+        # Also confirm the heading area is non-empty (whichever locale).
+        assert "<h3" in out
 
     def test_includes_all_recipes_by_default(self, monkeypatch, fake_db):
         from shopstack.ui.screens import cookbook as screen

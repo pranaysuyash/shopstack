@@ -35,6 +35,7 @@ from shopstack.ui.components.primitives import (
     confirm_hide_updates,
     confirm_toggle_updates,
     empty_state_enhanced,
+    help_text,
     loading_skeleton,
 )
 from shopstack.ui.screens import (
@@ -124,14 +125,23 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                     p_result,
                     api_name="add_purchase",
                     api_description="Record a new purchase with lot details",
+                    js="() => showToast('Adding to pantry...', 'info')",
                 )
                 gr.Markdown("### Quick add groceries")
+                gr.HTML(help_text(
+                    "Format: one item per line as `name, qty, unit, price, store, "
+                    "location, category`. Items are added in order; you can leave "
+                    "later fields blank by ending the line early. Example: "
+                    "`milk, 2, L, 64, Sharma Kirana, fridge, dairy`.",
+                    label_for="p_batch_input",
+                ))
                 gr.Markdown(
                     "One item per line: `name, qty, unit, price, store, location, category`")
                 p_batch_input = gr.Textbox(
                     label="Batch Purchases",
                     lines=5,
                     placeholder="milk, 2, L, 64, Sharma Kirana, fridge, dairy\nrice, 5, kg, 680, DMart, pantry_mid, grains",
+                    elem_id="p_batch_input",
                 )
                 p_batch_btn = gr.Button("Add batch")
                 p_batch_result = gr.HTML(
@@ -203,12 +213,20 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                     cons_result,
                     api_name="consume_item",
                     api_description="Consume quantity from a lot",
+                    js="() => showToast('Marking as used...', 'info')",
                 )
-                gr.Markdown(
+                gr.HTML(
                     "**Quick use** (one per line: `lot_id: qty`, or just `lot_id` for qty 1)")
+                gr.HTML(help_text(
+                    "Format: one lot per line. Each line is either a lot ID by itself "
+                    "(uses quantity 1) or `lot_id: qty` to use a specific amount. "
+                    "Example: `abc123: 0.5` or just `abc123`.",
+                    label_for="batch_consume_input",
+                ))
                 batch_consume_input = gr.Textbox(
                     label="Quick Consume", lines=4,
                     placeholder="abc123: 0.5\ndef456: 1\nghi789",
+                    elem_id="batch_consume_input",
                 )
                 batch_consume_btn = gr.Button("Mark batch used")
                 batch_consume_result = gr.HTML(
@@ -223,6 +241,7 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                     batch_consume_result,
                     api_name="consume_batch",
                     api_description="Consume multiple lot quantities from batch input",
+                    js="() => showToast('Marking batch as used...', 'info')",
                 )
                 app.load(inventory_view, outputs=inv_table)
                 app.load(inventory_cards_view, outputs=inv_cards)
@@ -270,27 +289,52 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                         scale=2,
                     )
                     cons_qty_input = gr.Number(label="Quantity", value=1.0, scale=1)
-                    cons_btn = gr.Button("Mark used", variant="primary", scale=0)
+                    cons_btn_quick = gr.Button("Mark used", variant="stop", scale=0)
+                cons_quick_confirm = gr.Group(visible=False)
+                with cons_quick_confirm:
+                    gr.Markdown("⚠ **Mark this item as used?**")
+                    with gr.Row():
+                        cons_quick_yes = gr.Button("Yes, mark used", variant="stop")
+                        cons_quick_no = gr.Button("Cancel", elem_classes="secondary")
                 cons_result = gr.HTML(
                     empty_state_enhanced(
                         "Use an item by entering its lot ID and quantity above.",
                         icon="✓",
                     )
                 )
-                cons_btn.click(
+                cons_btn_quick.click(
+                    confirm_toggle_updates,
+                    outputs=[cons_btn_quick, cons_quick_confirm],
+                )
+                cons_quick_yes.click(
                     quick_consume,
                     [cons_lot_input, cons_qty_input],
                     cons_result,
                     api_name="quick_consume",
                     api_description="Quick consume quantity from a lot",
+                    js="() => showToast('Marking as used...', 'info')",
+                ).then(
+                    confirm_hide_updates,
+                    outputs=[cons_btn_quick, cons_quick_confirm],
+                )
+                cons_quick_no.click(
+                    confirm_hide_updates,
+                    outputs=[cons_btn_quick, cons_quick_confirm],
                 )
 
                 gr.Markdown("---")
                 gr.Markdown("### Batch use with context")
+                gr.HTML(help_text(
+                    "Format: one item per line as `lot_id:qty` (e.g. `abc123: 0.5`). "
+                    "Add a meal context and mark as Wasted only if the food was thrown "
+                    "out without being eaten.",
+                    label_for="cons_batch_input",
+                ))
                 cons_batch_input = gr.Textbox(
                     label="Items (one per line: lot_id:qty)",
                     lines=4,
                     placeholder="abc123: 0.5\ndef456: 1",
+                    elem_id="cons_batch_input",
                 )
                 with gr.Row():
                     cons_meal = gr.Dropdown(
@@ -318,6 +362,7 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                     cons_batch_result,
                     api_name="batch_consume_context",
                     api_description="Batch consume with meal context and waste tracking",
+                    js="() => showToast('Logging batch use...', 'info')",
                 )
 
             # ── Where It Lives (consumer label; internal: locations) ──
@@ -359,6 +404,7 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                     move_result,
                     api_name="move_inventory",
                     api_description="Move one lot to a different storage location",
+                    js="() => showToast('Moving item...', 'info')",
                 ).then(
                     confirm_hide_updates,
                     outputs=[move_btn, move_confirm],

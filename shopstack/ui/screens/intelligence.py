@@ -89,10 +89,10 @@ def _render_preferences(user_id: str) -> str:
             rows.append(
                 f"<div style='display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--border);'>"
                 f"<span><strong>{name}</strong> &rarr; {value}"
-                f" <span style='font-size:10px;color:var(--text-dim);'>({source}, {confidence})</span></span>"
+                f" <span style='font-size: 0.625rem;color:var(--text-dim);'>({source}, {confidence})</span></span>"
                 f"<button onclick=\"fetch('/api/preference_delete?signal_id={p.signal_id}')"
                 f".then(r=>r.json()).then(d=>{{if(d.ok){{this.parentElement.remove();}}}})\""
-                f" style='font-size:10px;padding:2px 6px;border:1px solid var(--red);color:var(--red);"
+                f" style='font-size: 0.625rem;padding:2px 6px;border:1px solid var(--red);color:var(--red);"
                 f"background:none;border-radius:3px;cursor:pointer;'>Remove</button></div>"
             )
         sections.append(

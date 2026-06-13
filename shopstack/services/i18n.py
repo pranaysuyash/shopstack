@@ -375,7 +375,10 @@ def render_i18n_script() -> str:
     The locale is read from ``localStorage`` on page load and applied to
     ``<html data-locale='...'>`` so server-rendered components can read
     it (via :func:`detect_locale_from_request` on subsequent reloads).
-    The :func:`setLocale` helper writes the new locale and reloads.
+    The :func:`setLocale` helper writes the new locale, posts it to the
+    server's ``save_locale`` API endpoint (so the choice is persisted
+    to the server-side locale file), and then reloads so the next
+    page render uses the saved locale.
     """
     return f"""
 <script>
@@ -387,10 +390,24 @@ def render_i18n_script() -> str:
     }}
   }} catch (e) {{}}
 }})();
-function setLocale(loc) {{
+async function setLocale(loc) {{
+  // 1) Local cache for immediate client-side use.
   try {{
     localStorage.setItem('{LOCALE_STORAGE_KEY}', loc);
   }} catch (e) {{}}
+  // 2) Persist to the server so the next page load reads it from
+  //    ``load_locale_preference(user_id)`` (which is what
+  //    ``header_block`` is called with on app boot). Best-effort:
+  //    ignore the network error and still reload — localStorage
+  //    keeps the choice in-session.
+  try {{
+    await fetch('/gradio_api/call/save_locale', {{
+      method: 'POST',
+      headers: {{ 'Content-Type': 'application/json' }},
+      body: JSON.stringify({{ data: [loc] }}),
+    }});
+  }} catch (e) {{ /* server unreachable — localStorage is enough */ }}
+  // 3) Reload so the next page render uses the new locale.
   window.location.reload();
 }}
 </script>"""

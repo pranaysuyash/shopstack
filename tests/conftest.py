@@ -13,6 +13,18 @@ from shopstack.planner.engine import PlannerEngine
 from shopstack.providers.registry import ProviderRegistry
 from shopstack.tools.registry import ToolRegistry
 
+# Set environment variables BEFORE any test imports `app`.
+# This ensures `from shopstack.config import settings` (at app import time)
+# reads these values rather than the heavy real-model defaults.
+import os
+os.environ.setdefault("SHOPSTACK_PLANNER_BACKEND", "mock")
+os.environ.setdefault("SHOPSTACK_STT_BACKEND", "mock")
+os.environ.setdefault("SHOPSTACK_TTS_BACKEND", "mock")
+os.environ.setdefault("SHOPSTACK_VISION_BACKEND", "mock")
+os.environ.setdefault("SHOPSTACK_OCR_BACKEND", "mock")
+os.environ.setdefault("SHOPSTACK_SEGMENTATION_BACKEND", "mock")
+os.environ.setdefault("SHOPSTACK_EMBEDDINGS_BACKEND", "mock")
+
 # Tables to clear between tests that share the session-scoped app module.
 _APP_DATA_TABLES = [
     "inventory_lots",
@@ -25,6 +37,20 @@ _APP_DATA_TABLES = [
     "household_locations",
     "stores",
 ]
+
+
+@pytest.fixture(autouse=True)
+def _clear_dashboard_cache():
+    """Clear the dashboard state cache before every test.
+
+    ``build_dashboard_state`` caches results for 60 s per user_id.
+    Tests that call it with different inventory states would see stale
+    data without this reset.
+    """
+    from shopstack.services.dashboard import clear_dashboard_cache
+    clear_dashboard_cache()
+    yield
+    clear_dashboard_cache()
 
 
 @pytest.fixture(autouse=True)

@@ -156,12 +156,12 @@ def render_waste_coach_html(signals: list[dict[str, Any]]) -> str:
         icon = severity_icons.get(r.severity, "•")
         rows.append(
             f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
-            f"<div style='font-size:12px;'>"
+            f"<div style='font-size: 0.75rem;'>"
             f"<span style='color:{color};font-weight:600;'>{icon} "
             f"{escape(r.display_name)}</span>"
-            f" <span style='color:var(--text-dim);font-size:10px;'>"
+            f" <span style='color:var(--text-dim);font-size: 0.625rem;'>"
             f"· {escape(r.observation)}</span></div>"
-            f"<div style='font-size:11px;color:var(--text);margin-top:2px;'>"
+            f"<div style='font-size: 0.6875rem;color:var(--text);margin-top:2px;'>"
             f"<strong style='color:var(--green);'>→</strong> {escape(r.action)}"
             f"</div></div>"
         )
@@ -169,7 +169,7 @@ def render_waste_coach_html(signals: list[dict[str, Any]]) -> str:
     return (
         f"<div class='home-card' style='margin-bottom:12px;'>"
         f"<h3 style='margin:0 0 4px 0;'>🌱 Waste Coach</h3>"
-        f"<div style='font-size:11px;color:var(--text-dim);margin-bottom:6px;'>"
+        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>"
         f"Actionable fixes for the items you waste most."
         f"</div>"
         f"{''.join(rows)}"

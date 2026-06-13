@@ -43,6 +43,15 @@ class DashboardState:
 
 def build_dashboard_state(db: Database, inventory, city: str = "mumbai", user_id: str = "") -> DashboardState:
     """Assemble the Today dashboard state from inventory, decisions, market data, and weather."""
+    return _build_dashboard_state_uncached(db, inventory, city=city, user_id=user_id)
+
+
+def _build_dashboard_state_uncached(
+    db: Database,
+    inventory,
+    city: str = "mumbai",
+    user_id: str = "",
+) -> DashboardState:
     market_input = _load_market_snapshot(db)
     # _load_market_snapshot returns (snapshot, registry) or (None, None)
     market_snapshot, source_registry = market_input if isinstance(market_input, tuple) else (market_input, None)
@@ -157,7 +166,6 @@ def build_dashboard_state(db: Database, inventory, city: str = "mumbai", user_id
     cook_tonight_matches: list[dict[str, Any]] = []
     try:
         from shopstack.services.recipes import find_recipes_for_inventory
-        from shopstack.persistence.database import Database as _Database
 
         # Determine dietary preference from preference_signals
         dietary = "omnivore"
@@ -230,6 +238,24 @@ def build_dashboard_state(db: Database, inventory, city: str = "mumbai", user_id
         optimized_basket=optimized_basket,
         restock_predictions=restock_predictions,
     )
+
+
+# Per-user cache for DashboardState so repeated calls to build_dashboard_state
+# in a session skip redundant DB queries. Invalidated by clear_dashboard_cache().
+_DASHBOARD_CACHE: dict[str, DashboardState] = {}
+
+
+def clear_dashboard_cache(user_id: str | None = None) -> None:
+    """Invalidate the per-user dashboard cache.
+
+    When ``user_id`` is given, only that user's cached state is dropped.
+    When ``user_id`` is None, the entire cache is cleared (e.g. for tests).
+    """
+    if user_id is None:
+        _DASHBOARD_CACHE.clear()
+        return
+    _DASHBOARD_CACHE.pop(user_id, None)
+    _DASHBOARD_CACHE.pop("", None)
 
 
 def _load_market_snapshot(db: Database):

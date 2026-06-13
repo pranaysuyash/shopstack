@@ -45,7 +45,7 @@ def _decision_badge(decision: str) -> str:
     style = _DECISION_STYLES.get(decision, "background:var(--text-dim);color:#fff;")
     return (
         f"<span style='display:inline-block;padding:1px 8px;border-radius:10px;"
-        f"font-size:11px;font-weight:600;{style}'>{escape(decision.upper())}</span>"
+        f"font-size: 0.6875rem;font-weight:600;{style}'>{escape(decision.upper())}</span>"
     )
 
 
@@ -54,7 +54,7 @@ def _deal_badge(score: str, reason: str) -> str:
         return ""
     style = _DEAL_STYLES.get(score, "color:var(--text-dim);")
     return (
-        f"<span style='font-size:11px;{style}' title='{escape(reason)}'>"
+        f"<span style='font-size: 0.6875rem;{style}' title='{escape(reason)}'>"
         f"[{escape(score.upper())}]</span>"
     )
 
@@ -69,8 +69,8 @@ def _availability_tag(available: bool | None) -> str:
     if available is None:
         return ""
     if available:
-        return "<span style='font-size:10px;color:var(--green);'>In stock</span>"
-    return "<span style='font-size:10px;color:var(--red);'>Sold out</span>"
+        return "<span style='font-size: 0.625rem;color:var(--green);'>In stock</span>"
+    return "<span style='font-size: 0.625rem;color:var(--red);'>Sold out</span>"
 
 
 def _render_item_row(item: dict[str, Any]) -> str:
@@ -86,7 +86,7 @@ def _render_item_row(item: dict[str, Any]) -> str:
 
     price_html = _price_str(price)
     if per_kg:
-        price_html += f" <span style='font-size:10px;color:var(--text-dim);'>({per_kg:.0f}/kg)</span>"
+        price_html += f" <span style='font-size: 0.625rem;color:var(--text-dim);'>({per_kg:.0f}/kg)</span>"
 
     avail_html = _availability_tag(available)
     deal_html = _deal_badge(deal_score, deal_reason)
@@ -100,13 +100,13 @@ def _render_item_row(item: dict[str, Any]) -> str:
             sub_price = f" &#8377;{s['price_inr']:.0f}" if s.get("price_inr") else ""
             sub_reason = escape(s.get("reason", ""))
             sub_parts.append(
-                f"<div style='margin-left:16px;font-size:11px;padding:2px 0;'>"
+                f"<div style='margin-left:16px;font-size: 0.6875rem;padding:2px 0;'>"
                 f"<strong>{sub_name}</strong> ({sub_type}){sub_price}"
                 f" <span style='color:var(--text-dim);'>— {sub_reason}</span></div>"
             )
         sub_html = (
             "<div style='margin-top:4px;border-left:2px solid var(--border);padding-left:8px;'>"
-            "<div style='font-size:10px;color:var(--text-dim);margin-bottom:2px;'>Substitutions</div>"
+            "<div style='font-size: 0.625rem;color:var(--text-dim);margin-bottom:2px;'>Substitutions</div>"
             + "".join(sub_parts) + "</div>"
         )
 
@@ -114,7 +114,7 @@ def _render_item_row(item: dict[str, Any]) -> str:
         f"<div style='padding:8px 0;border-bottom:1px solid var(--border);'>"
         f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
         f"<div>{_decision_badge(decision)} <strong>{name}</strong>"
-        f" <span style='font-size:11px;color:var(--text-dim);'>{escape(reason)}</span></div>"
+        f" <span style='font-size: 0.6875rem;color:var(--text-dim);'>{escape(reason)}</span></div>"
         f"<div>{price_html} {avail_html} {deal_html}</div>"
         f"</div>"
         f"{sub_html}"
@@ -154,15 +154,15 @@ def _render_graph_projection(result: dict[str, Any]) -> str:
     return (
         "<div class='home-card' style='margin-bottom:12px;'>"
         "<h4>Graph Projection</h4>"
-        f"<div style='font-size:12px;color:var(--text-dim);margin-top:6px;'>{escape(projection.get('title', 'Unified Shopping'))}</div>"
+        f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:6px;'>{escape(projection.get('title', 'Unified Shopping'))}</div>"
         f"<div style='display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;'>"
         f"<div><strong>{summary.get('items', 0)}</strong> clustered</div>"
         f"<div><strong>{summary.get('buy', 0)}</strong> buy</div>"
         f"<div><strong>{summary.get('compare', 0)}</strong> compare</div>"
         f"<div><strong>{summary.get('substitute', 0)}</strong> substitute</div>"
         "</div>"
-        f"<div style='font-size:12px;color:var(--text-dim);margin-top:8px;'>Matched: {escape(matched)} · Missing: {escape(unmatched)}</div>"
-        f"<div style='font-size:12px;color:var(--text-dim);margin-top:4px;'>Next: {escape(next_actions)}</div>"
+        f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:8px;'>Matched: {escape(matched)} · Missing: {escape(unmatched)}</div>"
+        f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>Next: {escape(next_actions)}</div>"
         "</div>"
     )
 

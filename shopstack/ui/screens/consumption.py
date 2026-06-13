@@ -17,6 +17,7 @@ from typing import Any
 from shopstack.app_context import db, tools, current_user_id
 from shopstack.ui.screens._utils import safe_render
 from shopstack.ui.components.cards import card as ui_card
+from shopstack.ui.components.primitives import aria_live_screen
 
 logger = logging.getLogger(__name__)
 
@@ -78,21 +79,21 @@ def _render_quick_consume_grid(items: list[dict[str, Any]]) -> str:
             f"padding:6px 0;border-bottom:1px solid var(--border);'>"
             f"<div>"
             f"<strong>{name}</strong> "
-            f"<span style='font-size:11px;color:{status_color};'>({qty_display})</span>"
-            f" <span style='font-size:10px;color:var(--text-dim);'>{loc}</span>"
+            f"<span style='font-size: 0.6875rem;color:{status_color};'>({qty_display})</span>"
+            f" <span style='font-size: 0.625rem;color:var(--text-dim);'>{loc}</span>"
             f"</div>"
             f"<div style='display:flex;gap:4px;'>"
             f"<button onclick=\"_shopstack_consume('{lot_id}', 0.5)\" "
             f"aria-label='Consume half of {name}' "
-            f"style='font-size:10px;padding:2px 8px;border:1px solid var(--border);"
+            f"style='font-size: 0.625rem;padding:2px 8px;border:1px solid var(--border);"
             f"border-radius:3px;cursor:pointer;background:none;'>½</button>"
             f"<button onclick=\"_shopstack_consume('{lot_id}', 1)\" "
             f"aria-label='Consume 1 {unit} of {name}' "
-            f"style='font-size:10px;padding:2px 8px;border:1px solid var(--blue);"
+            f"style='font-size: 0.625rem;padding:2px 8px;border:1px solid var(--blue);"
             f"border-radius:3px;cursor:pointer;background:none;color:var(--blue);'>Use 1</button>"
             f"<button onclick=\"_shopstack_consume('{lot_id}', {qty})\" "
             f"aria-label='Consume all {name}' "
-            f"style='font-size:10px;padding:2px 8px;border:1px solid var(--red);"
+            f"style='font-size: 0.625rem;padding:2px 8px;border:1px solid var(--red);"
             f"border-radius:3px;cursor:pointer;background:none;color:var(--red);'>All</button>"
             f"</div></div>"
         )
@@ -133,13 +134,13 @@ def _render_quick_consume_grid(items: list[dict[str, Any]]) -> str:
     toast_div = (
         "<div id='consume-toast' style='display:none;position:fixed;bottom:20px;right:20px;"
         "z-index:500;background:var(--bg-card-strong);border:1px solid var(--green);"
-        "border-radius:10px;padding:10px 14px;font-size:13px;box-shadow:var(--shadow-lg);"
+        "border-radius:10px;padding:10px 14px;font-size: 0.8125rem;box-shadow:var(--shadow-lg);"
         "max-width:360px;'></div>"
     )
 
     return (
         "<div class='home-card'><h4>Quick Consume</h4>"
-        "<div style='font-size:11px;color:var(--text-dim);margin-bottom:8px;'>"
+        "<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:8px;'>"
         "Tap to log what you use.</div>"
         f"{rows_html}</div>"
         f"{consume_script}{toast_div}"
@@ -162,11 +163,11 @@ def _render_recent_events(events: list[Any]) -> str:
         color = "var(--red)" if delta < 0 else "var(--green)"
         rows.append(
             f"<div style='display:flex;justify-content:space-between;padding:3px 0;"
-            f"border-bottom:1px solid var(--border);font-size:12px;'>"
+            f"border-bottom:1px solid var(--border);font-size: 0.75rem;'>"
             f"<div><strong>{name}</strong> "
             f"<span style='color:{color};'>{sign}{abs(delta):.1f}</span></div>"
             f"<div><span style='color:var(--text-dim);'>{action}</span> "
-            f"<span style='font-size:10px;color:var(--text-dim);'>{ts}</span></div>"
+            f"<span style='font-size: 0.625rem;color:var(--text-dim);'>{ts}</span></div>"
             f"</div>"
         )
 
@@ -239,14 +240,14 @@ def consumption_dashboard() -> tuple[str, str, str]:
             days = r["days_tracked"]
             rate_rows.append(
                 f"<div style='display:flex;justify-content:space-between;padding:3px 0;"
-                f"border-bottom:1px solid var(--border);font-size:12px;'>"
+                f"border-bottom:1px solid var(--border);font-size: 0.75rem;'>"
                 f"<strong>{name}</strong>"
                 f"<span>{rate:.2f}/day ({total:.1f} over {days}d)</span>"
                 f"</div>"
             )
         rates_html = (
             "<div class='home-card'><h4>Consumption Rates</h4>"
-            "<div style='font-size:11px;color:var(--text-dim);margin-bottom:6px;'>"
+            "<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>"
             "Average daily usage based on consumption history.</div>"
             + "".join(rate_rows) + "</div>"
         )
@@ -260,6 +261,7 @@ def consumption_dashboard() -> tuple[str, str, str]:
 
 
 @safe_render
+@aria_live_screen()
 def quick_consume(lot_id: str, qty: float) -> str:
     """Consume a quantity from a lot and return status HTML."""
     if not lot_id or not lot_id.strip():
@@ -282,6 +284,7 @@ def quick_consume(lot_id: str, qty: float) -> str:
 
 
 @safe_render
+@aria_live_screen()
 def batch_consume_with_context(lines_text: str, meal_context: str, is_waste: str) -> str:
     """Batch consume with context tracking.
 
@@ -324,7 +327,7 @@ def batch_consume_with_context(lines_text: str, meal_context: str, is_waste: str
 
     ctx_label = " (wasted)" if is_waste_flag else f" ({meal})"
     return (
-        f"<div style='margin-top:8px;line-height:1.6;font-size:12px;'>"
+        f"<div style='margin-top:8px;line-height:1.6;font-size: 0.75rem;'>"
         f"<div style='color:var(--text-dim);margin-bottom:4px;'>Context: {escape(meal)}"
         f"{', marked as waste' if is_waste_flag else ''}</div>"
         + "<br>".join(summary) + "</div>"
@@ -362,7 +365,7 @@ def consumption_rates() -> str:
             f"<div style='display:flex;justify-content:space-between;padding:4px 0;"
             f"border-bottom:1px solid var(--border);'>"
             f"<strong>{name}</strong>"
-            f"<span style='font-size:12px;'>"
+            f"<span style='font-size: 0.75rem;'>"
             f"{rate:.2f}/day ({total:.1f} over {days}d, {r['events']} events)</span>"
             f"</div>"
         )

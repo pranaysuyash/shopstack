@@ -6,6 +6,7 @@ from typing import Any
 
 
 from shopstack.app_context import db, providers, current_user_id
+from shopstack.services.dashboard import clear_dashboard_cache
 from shopstack.services.ocr_pipeline import run_ocr_pipeline
 from shopstack.services.receipt import (
     ReceiptResult,
@@ -27,23 +28,23 @@ def _load_ocr_model() -> str:
     try:
         ocr_provider = providers.get("ocr")
         if ocr_provider is None:
-            return "<div style='color:var(--text-dim);font-size:12px;margin-bottom:4px;'>OCR backend not available</div>"
+            return "<div style='color:var(--text-dim);font-size: 0.75rem;margin-bottom:4px;'>OCR backend not available</div>"
         if not getattr(ocr_provider, "available", False):
-            return f"<div style='color:var(--text-dim);font-size:12px;margin-bottom:4px;'>OCR backend {getattr(ocr_provider, 'name', '?')} not available.</div>"
+            return f"<div style='color:var(--text-dim);font-size: 0.75rem;margin-bottom:4px;'>OCR backend {getattr(ocr_provider, 'name', '?')} not available.</div>"
 
         # Check if model is already loaded
         model = getattr(ocr_provider, "_model", None)
         if model is not None:
-            return "<div style='color:var(--green);font-size:12px;margin-bottom:4px;'>OCR model loaded &#10003;</div>"
+            return "<div style='color:var(--green);font-size: 0.75rem;margin-bottom:4px;'>OCR model loaded &#10003;</div>"
 
         # Trigger load
         ocr_provider.load()
         if getattr(ocr_provider, "_model", None) is not None:
-            return "<div style='color:var(--green);font-size:12px;margin-bottom:4px;'>OCR model loaded &#10003;</div>"
-        return "<div style='color:var(--text-dim);font-size:12px;margin-bottom:4px;'>OCR model not loaded (will load on first scan)</div>"
+            return "<div style='color:var(--green);font-size: 0.75rem;margin-bottom:4px;'>OCR model loaded &#10003;</div>"
+        return "<div style='color:var(--text-dim);font-size: 0.75rem;margin-bottom:4px;'>OCR model not loaded (will load on first scan)</div>"
     except Exception as e:
         logger.warning("OCR model pre-load failed: %s", e)
-        return f"<div style='color:var(--text-dim);font-size:12px;margin-bottom:4px;'>OCR model pre-load: {escape(str(e))}</div>"
+        return f"<div style='color:var(--text-dim);font-size: 0.75rem;margin-bottom:4px;'>OCR model pre-load: {escape(str(e))}</div>"
 
 
 def _render_receipt_review(result: ReceiptResult | None) -> str:
@@ -71,9 +72,9 @@ def _render_receipt_review(result: ReceiptResult | None) -> str:
     return (
         f"<div role='region' aria-label='Receipt from {escape(result.merchant)}' style='text-align:left;'>"
         f"<h3 id='receipt-heading'>Receipt from {escape(result.merchant)}</h3>"
-        f"<div style='font-size:12px;color:var(--text-dim);' aria-label='Purchase date'>{result.purchase_date}</div>"
+        f"<div style='font-size: 0.75rem;color:var(--text-dim);' aria-label='Purchase date'>{result.purchase_date}</div>"
         f"<div style='margin-top:8px;' aria-labelledby='receipt-heading'>{table_html}</div>"
-        f"<div style='margin-top:8px;padding-top:8px;border-top:2px solid var(--border);font-weight:600;text-align:right;font-size:14px;'>"
+        f"<div style='margin-top:8px;padding-top:8px;border-top:2px solid var(--border);font-weight:600;text-align:right;font-size: 0.875rem;'>"
         f"Total: \u20b9{result.total:.2f}"
         f"</div>"
         f"</div>"
@@ -201,5 +202,7 @@ def receipt_confirm(df_data: Any, merchant: str, date_str: str, raw_text: str) -
         raw_text=raw_text,
     )
     
-    ir = confirm_receipt(db, result, user_id=current_user_id())
+    uid = current_user_id()
+    ir = confirm_receipt(db, result, user_id=uid)
+    clear_dashboard_cache(uid)
     return ir.summary_html

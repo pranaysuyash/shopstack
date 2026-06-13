@@ -132,23 +132,23 @@ def render_walkthrough_html(locale: str = DEFAULT_LOCALE) -> str:
 }}
 .tour-dialog h2 {{
   margin: 0 0 12px 0;
-  font-size: 18px;
+  font-size: 1.125rem;
   color: var(--text, #0f172a);
 }}
 .tour-step {{ display: none; }}
 .tour-step[data-active="true"] {{ display: block; }}
 .tour-step-title {{
-  font-size: 16px; font-weight: 600;
+  font-size: 1rem; font-weight: 600;
   margin-bottom: 8px;
   color: var(--text, #0f172a);
 }}
 .tour-step-body {{
-  font-size: 13px; line-height: 1.5;
+  font-size: 0.8125rem; line-height: 1.5;
   color: var(--text-muted, #475569);
   margin-bottom: 16px;
 }}
 .tour-counter {{
-  font-size: 11px; color: var(--text-dim, #94a3b8);
+  font-size: 0.6875rem; color: var(--text-dim, #94a3b8);
   margin-bottom: 8px;
 }}
 .tour-dots {{
@@ -167,7 +167,7 @@ def render_walkthrough_html(locale: str = DEFAULT_LOCALE) -> str:
   gap: 8px; margin-top: 16px;
 }}
 .tour-buttons button {{
-  font-family: inherit; font-size: 12px;
+  font-family: inherit; font-size: 0.75rem;
   padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border, #e2e8f0);
   background: var(--surface, #fff); color: var(--text, #0f172a);
   cursor: pointer;

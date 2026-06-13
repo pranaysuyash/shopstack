@@ -1151,7 +1151,7 @@ class Database:
             else:
                 warnings = []
 
-            comp_rows = self.conn.execute(
+            _comp_rows = self.conn.execute(
                 "SELECT component_name FROM market_record_components WHERE record_id = ? ORDER BY component_name ASC",
                 (row["record_id"],),
             ).fetchall()

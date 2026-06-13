@@ -133,7 +133,7 @@ def price_intelligence_view() -> str:
             html_parts.append(
                 "<div class='home-card' style='text-align:left;margin-bottom:12px;'>"
                 f"<h3>Best Store Overall</h3>"
-                f"<div style='padding:8px;font-size:14px;'>"
+                f"<div style='padding:8px;font-size: 0.875rem;'>"
                 f"<strong>{escape(best_store.store)}</strong> has the best price for "
                 f"{best_store.items_with_best_price}/{best_store.total_items_compared} items "
                 f"({coverage} coverage). Estimated savings vs worst store: {savings}."

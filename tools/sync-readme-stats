@@ -62,9 +62,33 @@ def _pytest(uv: str, target: str, extra_args: Optional[list] = None) -> Optional
 
 
 def extract_summary(output: str) -> str:
-    """Pull "N passed in T.Ts" out of pytest output, or empty string."""
-    m = re.search(r"(\d+) passed.*?in [\d.]+[sm]", output)
-    return m.group(0) if m else ""
+    """Pull the count + time from pytest output, or empty string.
+
+    Supports two output formats:
+
+    * Actual run:    ``2434 passed in 35.96s`` (or with skips/failures)
+    * Collect-only:  ``2434 tests collected in 35.96s``
+
+    The summary is used for the README's ``# N passed in T.Ts`` comment.
+    We return the full match (e.g. ``2434 passed in 35.96s``) so the
+    README comment looks identical to a real run.
+
+    Why both: the per-file counts are best collected via
+    ``--collect-only`` (faster, no test execution), but the README
+    expects a "passed" summary line for consistency with what
+    contributors see when they run ``uv run pytest tests/ -q``.
+    """
+    # Actual run: "N passed in T.Ts"  (may also include "N skipped")
+    m = re.search(r"(\d+)\s+passed.*?in [\d.]+[sm]", output)
+    if m:
+        return m.group(0)
+    # Collect-only: "N tests collected in T.Ts"
+    m = re.search(r"(\d+)\s+tests?\s+collected\s+in [\d.]+[sm]", output)
+    if m:
+        count = m.group(1)
+        time = re.search(r"in ([\d.]+[sm])", m.group(0)).group(1)
+        return f"{count} collected in {time}"
+    return ""
 
 
 def collect_per_file_counts(output: str) -> dict[str, int]:
@@ -249,8 +273,10 @@ def main() -> int:
         return 0
 
     # Collect everything in one pytest run (faster than multiple invocations).
+    # Both calls use --collect-only so we don't actually run any tests or
+    # benchmarks. The per-file counts are still accurate.
     test_output = _pytest(uv, "tests/", ["--collect-only", "--no-header"])
-    bench_output = _pytest(uv, "benchmarks/", ["-m", "benchmark"])
+    bench_output = _pytest(uv, "benchmarks/", ["--collect-only", "-m", "benchmark", "--no-header"])
 
     if test_output is None and bench_output is None:
         print("sync-readme-stats: pytest not available — skipping all syncs", file=sys.stderr)

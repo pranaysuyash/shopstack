@@ -330,9 +330,9 @@ def render_seasonal_html(rec: SeasonalRecommendation) -> str:
     return (
         f"<div class='home-card' style='margin-bottom:12px;'>"
         f"<h3 style='margin:0 0 4px 0;color:{color};'>{escape(rec.icon)} {escape(rec.title)}</h3>"
-        f"<div style='font-size:13px;color:var(--text);'>{escape(rec.body)}</div>"
+        f"<div style='font-size: 0.8125rem;color:var(--text);'>{escape(rec.body)}</div>"
         + (
-            f"<div style='font-size:12px;color:var(--text-dim);margin-top:6px;'>"
+            f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:6px;'>"
             f"<strong>Suggested:</strong> {escape(rec.action)}</div>"
             if rec.action
             else ""

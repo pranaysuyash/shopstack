@@ -7,7 +7,13 @@ from html import escape
 
 from shopstack.schemas.models import new_id
 from shopstack.app_context import db, tools, current_user_id
+from shopstack.ui.components.primitives import (
+    aria_live_screen,
+    item_row,
+    stat_card,
+)
 from shopstack.ui.screens._utils import safe_render
+from shopstack.ui.components.primitives import aria_live_screen
 
 
 logger = logging.getLogger(__name__)
@@ -32,11 +38,11 @@ def household_map_view() -> str:
         if len(item_list) > 8:
             item_details.append(f"... and {len(item_list) - 8} more")
         item_details_html = (
-            "<div style='margin-top:8px;font-size:11px;color:var(--text-dim);'>"
+            "<div style='margin-top:8px;font-size: 0.6875rem;color:var(--text-dim);'>"
             + "".join(f"<div>{escape(str(item))}</div>" for item in item_details)
             + "</div>"
             if item_details
-            else "<div style='margin-top:8px;font-size:11px;color:var(--text-dim);'>No items stored here yet.</div>"
+            else "<div style='margin-top:8px;font-size: 0.6875rem;color:var(--text-dim);'>No items stored here yet.</div>"
         )
         safe_name = escape(str(loc.name))
         safe_type = escape(str(loc.location_type))
@@ -47,9 +53,9 @@ def household_map_view() -> str:
   <div style="display:flex;justify-content:space-between;align-items:center;">
     <div>
       <div style="font-weight:600;color:var(--text);">{safe_name}</div>
-      <div style="font-size:11px;color:var(--text-dim);">{safe_type}{arrow}</div>
+      <div style="font-size: 0.6875rem;color:var(--text-dim);">{safe_type}{arrow}</div>
     </div>
-    <div class="stat-value" style="font-size:24px;">{count}</div>
+    <div class="stat-value" style="font-size: 1.5rem;">{count}</div>
   </div>
   {item_details_html}
 </div>"""
@@ -75,6 +81,7 @@ def create_household_location(name: str, parent_id: str, location_type: str) -> 
     return f"<div style='color:var(--green);'>Created location {escape(name)}.</div>"
 
 
+@aria_live_screen()
 def move_inventory_to_location(lot_id_prefix: str, to_location_id: str) -> str:
     if not lot_id_prefix:
         return "<div style='color:var(--text-dim);'>Select a lot first.</div>"
@@ -102,9 +109,12 @@ def what_is_in_fridge_now() -> str:
     if not items:
         return "<div style='color:var(--text-dim);'>Fridge is empty right now.</div>"
     rows = "".join(
-        f"<div style='display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);'>"
-        f"<span>{escape(i.display_name)}</span>"
-        f"<span>{escape(str(i.quantity))} {escape(i.unit)}</span></div>"
+        item_row(
+            name=i.display_name,
+            quantity=i.quantity,
+            unit=i.unit,
+            status=i.status,
+        )
         for i in items
     )
     return f"<div class='home-card' style='text-align:left;'><h3>What's in the fridge now?</h3>{rows}</div>"

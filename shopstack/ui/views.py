@@ -230,7 +230,7 @@ def build_price_memory_view(database: Database, item_name: str | None, user_id: 
         rec_html = (
             f"<div class='stat-card' style='margin-top:8px;border-left:4px solid {rec_color};'>"
             f"<div style='font-weight:600;color:{rec_color};'>{escape(recommendation)}</div>"
-            f"<div style='font-size:12px;color:var(--text-dim);'>{escape(recommendation_detail)}</div>"
+            f"<div style='font-size: 0.75rem;color:var(--text-dim);'>{escape(recommendation_detail)}</div>"
             f"</div>"
         )
 

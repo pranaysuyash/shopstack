@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     local_model_dir: str = ""
     local_model_repo: str = "unsloth/Llama-3.2-3B-Instruct-GGUF"
     local_model_file: str = "Llama-3.2-3B-Instruct-Q4_K_M.gguf"
-    local_mlx_model: str = "mlx-community/Qwen3.5-4B-4bit"
+    local_mlx_model: str = "mlx-community/Ministral-8B-Instruct-2410-4bit"
     local_auto_download: bool = True
 
     local_whisper_size: str = "tiny"
@@ -43,10 +43,10 @@ class Settings(BaseSettings):
     tts_backend: str = "kokoro"
     vision_backend: str = "minicpmv"
     ocr_backend: str = "tesseract"
-    segmentation_backend: str = "rmbg"
+    segmentation_backend: str = "birefnet"
     grounding_backend: str = "grounding_dino"
     image_gen_backend: str = "svg"
-    embeddings_backend: str = "bge_m3"
+    embeddings_backend: str = "nomic"
     tool_call_parser_backend: str = "minicpm5"
     planner_compact_tools: bool = False  # Use compact type-shorthand tool descriptions (~90% accuracy vs ~50%)
     planner_allow_writes: bool = False

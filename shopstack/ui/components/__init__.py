@@ -12,11 +12,10 @@ from shopstack.ui.components.cards import (
     render_metric,
     render_workflow_rail,
 )
-from shopstack.ui.components.workflow import WORKFLOW_STEPS, WORKFLOW_ACTION_STEPS, workflow_header, workflow_title_bar
+from shopstack.ui.components.workflow import WORKFLOW_STEPS, workflow_header, workflow_title_bar
 from shopstack.ui.components.primitives import (
     confirm_dialog,
     data_table,
-    empty_state_enhanced,
     item_row,
     loading_skeleton,
     stat_card,
@@ -34,7 +33,6 @@ __all__ = [
     "badge_html",
     "card",
     "empty_state",
-    "empty_state_enhanced",
     "list_to_table",
     "render_action_grid",
     "render_action_tile",

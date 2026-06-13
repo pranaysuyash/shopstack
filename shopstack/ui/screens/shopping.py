@@ -8,6 +8,7 @@ from typing import Any
 from urllib.parse import quote
 
 from shopstack.app_context import APP_NAME, db, providers, tools
+from shopstack.services.dashboard import clear_dashboard_cache
 from shopstack.services.shopping import (
     classify_shopping_items,
     enrich_items_with_swiggy,
@@ -20,7 +21,13 @@ from shopstack.services.shopping_substitutions import (
     render_substitutions_html,
 )
 from shopstack.ui.components.cards import list_to_table
-from shopstack.ui.components.primitives import empty_state_enhanced, item_row, toast
+from shopstack.ui.components.primitives import (
+    aria_live_screen,
+    empty_state_enhanced,
+    item_row,
+    toast,
+    toast_floating,
+)
 from shopstack.ui.renderers import render_mark_purchased, render_shopping_completion
 from shopstack.traces.export import create_trace
 from shopstack.services.reconciliation import reconcile_shopping_trip
@@ -104,7 +111,7 @@ def shopping_list_create(goal: str, items_json: str) -> str:
         plan_note = empty_state_enhanced("Created an empty active list. Add more items anytime.", icon="📋")
     result = tools.create_or_update_shopping_list(items=items, goal=goal, user_id=uid)
     safe_list_id = escape(str(result.get("list", {}).get("list_id", "")))
-    return toast(f"Created list: {safe_list_id} with {len(items)} items", kind="success") + plan_note
+    return toast_floating(f"Created list: {safe_list_id} with {len(items)} items", kind="success") + plan_note
 
 
 def _parse_shopping_items_from_text(goal: str, raw: str) -> tuple[list[dict[str, Any]], str]:
@@ -161,14 +168,14 @@ def _render_shopping_plan_html(
         if price is None and avail is None:
             return ""
         if avail is False:
-            return " <span style='font-size:10px;color:var(--red);font-weight:600;'>SOLD OUT</span>"
+            return " <span style='font-size: 0.625rem;color:var(--red);font-weight:600;'>SOLD OUT</span>"
         parts = []
         if price:
             parts.append(f"&#8377;{price:.0f}")
         if ppk:
             parts.append(f"({ppk:.0f}/kg)")
         if parts:
-            return f" <span style='font-size:10px;color:var(--green);font-weight:600;'>Swiggy: {' '.join(parts)}</span>"
+            return f" <span style='font-size: 0.625rem;color:var(--green);font-weight:600;'>Swiggy: {' '.join(parts)}</span>"
         return ""
 
     def _card_with_badge(group_name: str, items: list[dict[str, Any]]) -> str:
@@ -292,14 +299,14 @@ def _shopping_list_share_html(share_text: str) -> str:
         "<div style='display:flex;gap:8px;margin-top:6px;'>"
         "<textarea readonly rows='6' id='sl-share-text' "
         "style='flex:1;background:var(--bg-input);border:1px solid var(--border);"
-        "border-radius:var(--radius-sm);padding:8px;font-size:12px;color:var(--text);"
+        "border-radius:var(--radius-sm);padding:8px;font-size: 0.75rem;color:var(--text);"
         "resize:none;'"
         f">{safe_text}</textarea>"
         "</div>"
         "<button onclick=\"var t=document.getElementById('sl-share-text');"
         "t.select();navigator.clipboard.writeText(t.value);"
         "this.textContent='Copied!';setTimeout(function(){this.textContent='Copy'}.bind(this),1500);"
-        "\" class='gr-button' style='margin-top:6px;font-size:12px;'>Copy</button>"
+        "\" class='gr-button' style='margin-top:6px;font-size: 0.75rem;'>Copy</button>"
         f"<a class='gr-button' style='margin-top:6px;display:inline-block;text-decoration:none;' href='{whatsapp_url}' target='_blank'>Open WhatsApp</a>"
         "</div>"
     )
@@ -447,18 +454,24 @@ def shopping_list_item_choices() -> list[tuple[str, str]]:
     ]
 
 
+@aria_live_screen()
 def mark_items_purchased(item_ids_json: str | list[str]) -> str:
     if isinstance(item_ids_json, list):
         item_ids = item_ids_json
     else:
         item_ids = item_ids_json
-    result = mark_items_purchased_service(item_ids, tools.inventory, db, user_id=_user_id())
-    return render_mark_purchased(result)
+    uid = _user_id()
+    result = mark_items_purchased_service(item_ids, tools.inventory, db, user_id=uid)
+    clear_dashboard_cache(uid)
+    return render_mark_purchased(result) + toast_floating(f"Marked {len(item_ids)} item(s) as bought", kind="success")
 
 
+@aria_live_screen()
 def complete_shopping_list(list_id: str) -> str:
-    result = complete_shopping_list_service(list_id, tools.inventory, db, user_id=_user_id())
-    return render_shopping_completion(result)
+    uid = _user_id()
+    result = complete_shopping_list_service(list_id, tools.inventory, db, user_id=uid)
+    clear_dashboard_cache(uid)
+    return render_shopping_completion(result) + toast_floating("Shopping list completed", kind="success")
 
 
 def _build_shopping_list_and_refresh(

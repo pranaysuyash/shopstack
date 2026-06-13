@@ -857,3 +857,49 @@ class TestRenderRecentPurchases:
         assert purchases  # data exists
         result = render_recent_purchases(purchases)
         assert "milk" in result.lower()
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Pass 4: accordion open behavior (dashboard._details_section)
+# ──────────────────────────────────────────────────────────────────────
+
+def test_details_section_collapsed_by_default():
+    """Without ``open=True``, the details element is collapsed."""
+    from shopstack.ui.screens.dashboard import _details_section
+    html = _details_section("Title", "<p>body</p>", "Hint", "3 items")
+    assert "<details class='home-details'>" in html
+    # No `open` attribute when default-collapsed.
+    assert " open>" not in html
+    assert "Tap to expand" in html
+
+
+def test_details_section_open_when_requested():
+    """``open=True`` makes the details element expanded by default."""
+    from shopstack.ui.screens.dashboard import _details_section
+    html = _details_section("Title", "<p>body</p>", "Hint", "3 items", open=True)
+    assert "<details class='home-details' open>" in html
+    assert ">Open<" in html  # chip text flips to "Open"
+
+
+def test_details_section_no_chip_label_includes_open_marker():
+    """The chip must reflect the open state regardless of count_label."""
+    from shopstack.ui.screens.dashboard import _details_section
+    html_no_count = _details_section("Title", "<p>body</p>")
+    assert "Tap to expand" in html_no_count
+    html_open = _details_section("Title", "<p>body</p>", open=True)
+    assert ">Open<" in html_open
+
+
+def test_details_section_escapes_user_input():
+    """Title, description, and count_label are HTML-escaped."""
+    from shopstack.ui.screens.dashboard import _details_section
+    html = _details_section(
+        "<script>alert(1)</script>",
+        "<p>body</p>",
+        "<img>",
+        "<b>3</b>",
+    )
+    assert "<script>" not in html
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+    assert "&lt;img&gt;" in html
+    assert "&lt;b&gt;3&lt;/b&gt;" in html

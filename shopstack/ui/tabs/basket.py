@@ -48,10 +48,12 @@ from shopstack.ui.screens.receipt import (
     receipt_scan_ocr,
 )
 from shopstack.ui.components.primitives import (
+    busy_js,
     confirm_hide_updates,
     confirm_toggle_updates,
     empty_state_enhanced,
     loading_skeleton,
+    with_loading_state,
 )
 from shopstack.ui.tabs.context import TabContext
 
@@ -71,6 +73,22 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
         by other parts of the app, so no TabHandles dataclass is needed.
     """
     with gr.Tab(_tab_label("basket"), id="basket"):
+        # ── Phase 8 #25 Trip Advisor banner (sits above sub-tabs) ──
+        from shopstack.ui.screens.trip_advisor import trip_advisor_screen
+        def _trip_advisor() -> str:
+            try:
+                return trip_advisor_screen()
+            except Exception as exc:
+                return f"<div>Trip advisor unavailable: {exc}</div>"
+        trip_advisor_html = gr.HTML(_trip_advisor())
+        trip_advisor_refresh = gr.Button(
+            "🔄 Refresh trip advisor", elem_classes="secondary", size="sm"
+        )
+        trip_advisor_refresh.click(_trip_advisor, outputs=trip_advisor_html,
+                                   api_name="trip_advisor_refresh",
+                                   api_description="Refresh trip advisor banner")
+        app.load(_trip_advisor, outputs=trip_advisor_html)
+
         with gr.Tabs():
             # ── Unified Plan ──
             with gr.Tab("Plan"):
@@ -84,7 +102,7 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                         lines=3,
                         scale=2,
                     )
-                up_run_btn = gr.Button("Run Plan", variant="primary")
+                up_run_btn = gr.Button("Run Plan", variant="primary", elem_id="run-plan-btn")
                 up_summary = gr.HTML(loading_skeleton("card"))
                 up_detail = gr.HTML(
                     empty_state_enhanced(
@@ -96,10 +114,63 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                     run_unified_plan,
                     [up_goal, up_items],
                     [up_summary, up_detail],
+                    js=busy_js("run-plan-btn", original_label="Run Plan"),
                     api_name="unified_plan",
                     api_description="Run unified shopping plan: classify, price, substitute, score deals",
+                ).then(
+                    with_loading_state(up_run_btn, [])[1],
+                    outputs=[up_run_btn],
                 )
                 app.load(unified_plan_summary, outputs=up_summary)
+
+                # ── Phase 9 Smart basket (community-pool-aware) ──
+                gr.Markdown("---")
+                gr.Markdown("### 🧠 Smart basket")
+                gr.Markdown(
+                    "Community-pool-aware: items significantly above the "
+                    "community median get a **wait** verdict; use-soon "
+                    "items get a **buy now** verdict even when overpriced."
+                )
+                from shopstack.ui.screens.smart_basket import smart_basket_screen
+                def _smart_basket_for_input(items_text: str) -> str:
+                    if not items_text or not items_text.strip():
+                        return smart_basket_screen()
+                    # Parse the items: assume the same format as
+                    # the unified plan — comma- or newline-separated
+                    # canonical_name list.
+                    raw_items: list[dict[str, Any]] = []
+                    for token in items_text.replace("\n", ",").split(","):
+                        t = token.strip().lower().replace(" ", "_")
+                        if not t:
+                            continue
+                        raw_items.append({
+                            "canonical_name": t,
+                            "quantity": 1.0,
+                            "unit": "unit",
+                        })
+                    return smart_basket_screen(items=raw_items)
+                smart_basket_items = gr.Textbox(
+                    label="Items to evaluate",
+                    placeholder="milk, bread, rice, onion…",
+                    value="milk, bread, rice, onion",
+                    lines=2,
+                )
+                smart_basket_btn = gr.Button(
+                    "Run smart basket", variant="primary",
+                )
+                smart_basket_html = gr.HTML(loading_skeleton("card"))
+                smart_basket_btn.click(
+                    _smart_basket_for_input,
+                    smart_basket_items,
+                    smart_basket_html,
+                    api_name="smart_basket_run",
+                    api_description="Evaluate the basket against the community pool + use-soon data",
+                )
+                app.load(
+                    _smart_basket_for_input,
+                    smart_basket_items,
+                    smart_basket_html,
+                )
 
             # ── Optimizer ──
             with gr.Tab("Best Basket"):
@@ -149,12 +220,13 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                             visible=True,
                             scale=1,
                         )
-                    poster_btn.click(
-                        generate_shopping_poster,
-                        outputs=[poster_preview, poster_status],
-                        api_name="generate_poster",
-                        api_description="Generate a shopping poster from the active shopping list",
-                    ).then(
+                poster_btn.click(
+                    generate_shopping_poster,
+                    outputs=[poster_preview, poster_status],
+                    api_name="generate_poster",
+                    api_description="Generate a shopping poster from the active shopping list",
+                    js="() => showToast('Generating poster...', 'info')",
+                ).then(
                         lambda poster_path: gr.update(value=poster_path, visible=bool(poster_path)),
                         poster_preview,
                         poster_download,
@@ -219,6 +291,7 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                     sl_mark_result,
                     api_name="mark_purchased",
                     api_description="Mark selected shopping list items as purchased",
+                    js="() => showToast('Marking items as bought...', 'info')",
                 ).then(
                     confirm_hide_updates,
                     outputs=[sl_mark_purchased_btn, sl_mark_confirm],
@@ -266,6 +339,7 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                     [create_output, sl_cards, sl_display, sl_table, sl_list_id, sl_goal, sl_share],
                     api_name="build_list",
                     api_description="Build a shopping list for current goal and refresh cards/table",
+                    js="() => showToast('Building shopping list...', 'info')",
                 ).then(
                     shopping_list_substitutions_view,
                     outputs=sl_substitutions,
@@ -290,6 +364,7 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                     confirm_reconciliation,
                     [sl_reconciliation_table, sl_list_id],
                     sl_reconcile_result,
+                    js="() => showToast('Confirming put-away...', 'info')",
                 ).then(
                     shopping_list_view_with_cards,
                     outputs=[sl_cards, sl_display, sl_table, sl_list_id, sl_goal, sl_share]
@@ -313,6 +388,7 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                     sl_reconcile_result,
                     api_name="complete_list",
                     api_description="Complete active shopping list and add purchased items to inventory",
+                    js="() => showToast('Finishing list and adding to pantry...', 'info')",
                 ).then(
                     confirm_hide_updates,
                     outputs=[complete_btn, complete_confirm],
@@ -397,7 +473,7 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                             lines=6,
                         )
                         with gr.Row():
-                            bc_button = gr.Button("Compare Basket", variant="primary")
+                            bc_button = gr.Button("Compare Basket", variant="primary", elem_id="compare-basket-btn")
                             bc_example_btn = gr.Button("Load Example", elem_classes="secondary")
                         bc_results = gr.HTML(
                     empty_state_enhanced(
@@ -409,13 +485,18 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                             basket_compare_view,
                             bc_items_input,
                             bc_results,
+                            js=busy_js("compare-basket-btn", original_label="Compare Basket"),
                             api_name="price_compare_basket",
                             api_description="Compare a multi-item basket total across all market sources",
+                        ).then(
+                            with_loading_state(bc_button, [])[1],
+                            outputs=[bc_button],
                         )
                         bc_example_btn.click(
                             lambda: "2kg onion\n1.5kg potato\n500g tomato\n1L milk\n12 eggs\ngreen chilli",
                             outputs=bc_items_input,
                             api_name="price_compare_basket_example",
+                            api_description="Populate the basket price-compare input with a sample 6-item Indian household shopping list (onion, potato, tomato, milk, eggs, green chilli) for quick demo of the multi-store price comparison flow.",
                         )
 
                     # ── Market intelligence graph ──
@@ -520,7 +601,7 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                         gr.Markdown("Upload a receipt image (OCR) or a text file containing the receipt text.")
                         with gr.Row():
                             receipt_file = gr.File(label="Upload Receipt (image or .txt)", file_count="single")
-                            receipt_scan_btn = gr.Button("Scan & Parse", variant="primary")
+                            receipt_scan_btn = gr.Button("Scan & Parse", variant="primary", elem_id="receipt-scan-btn")
                         receipt_raw_text = gr.Textbox(
                             label="Raw OCR Text / Paste Receipt Text",
                             lines=6,
@@ -549,8 +630,12 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                             receipt_scan_ocr,
                             receipt_file,
                             [receipt_df, receipt_merchant, receipt_date, receipt_raw_text, receipt_status],
+                            js=busy_js("receipt-scan-btn", original_label="Scan & Parse"),
                             api_name="receipt_scan",
                             api_description="Extract receipt text from uploaded file",
+                        ).then(
+                            with_loading_state(receipt_scan_btn, [])[1],
+                            outputs=[receipt_scan_btn],
                         )
                         receipt_raw_text.change(
                             receipt_parse_text,
@@ -565,6 +650,7 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                             receipt_result,
                             api_name="receipt_confirm",
                             api_description="Confirm parsed receipt lines and add items to inventory",
+                            js="() => showToast('Adding receipt items to inventory...', 'info')",
                         )
                         app.load(_load_ocr_model, outputs=receipt_status)
 
@@ -590,7 +676,7 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                             ),
                             lines=10,
                         )
-                        recipe_btn = gr.Button("Parse & Diff", variant="primary")
+                        recipe_btn = gr.Button("Parse & Diff", variant="primary", elem_id="recipe-parse-btn")
                         recipe_result = gr.HTML(
                     empty_state_enhanced(
                         "Recipe diff will appear here.",
@@ -601,6 +687,10 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                             recipe_text_to_shopping_list,
                             recipe_input,
                             recipe_result,
+                            js=busy_js("recipe-parse-btn", original_label="Parse & Diff"),
                             api_name="recipe_to_list",
                             api_description="Parse pasted recipe text and diff against inventory",
+                        ).then(
+                            with_loading_state(recipe_btn, [])[1],
+                            outputs=[recipe_btn],
                         )

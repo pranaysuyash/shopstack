@@ -156,7 +156,7 @@ def multi_source_price_view() -> str:
             is_stale = f.get("is_stale", False)
             color = "var(--red)" if is_stale else "var(--text-dim)"
             freshness_html += (
-                f"<span style='font-size:10px;color:{color};margin-right:12px;'>"
+                f"<span style='font-size: 0.625rem;color:{color};margin-right:12px;'>"
                 f"{escape(source_labels.get(sid, sid))}: {escape(label)}</span>"
             )
         except Exception:
@@ -165,7 +165,7 @@ def multi_source_price_view() -> str:
     freshness_section = ""
     if freshness_html:
         freshness_section = (
-            f"<div style='font-size:10px;margin-bottom:8px;'>{freshness_html}</div>"
+            f"<div style='font-size: 0.625rem;margin-bottom:8px;'>{freshness_html}</div>"
         )
 
     savings_count = sum(1 for c in comparisons if c.savings_pct > 5)

@@ -7,10 +7,16 @@ from html import escape
 from typing import Any
 
 from shopstack.app_context import db, tools
+from shopstack.services.dashboard import clear_dashboard_cache
 from shopstack.services.storage_suggest import suggest_storage_location
 from shopstack.traces.export import create_trace
 from shopstack.ui.components.cards import empty_state, list_to_table
-from shopstack.ui.components.primitives import item_row, toast
+from shopstack.ui.components.primitives import (
+    aria_live_screen,
+    form_error,
+    item_row,
+    toast,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +86,7 @@ def suggest_location_for_item(name: str, category: str) -> str:
     )
 
 
+@aria_live_screen()
 def add_purchase_form(
     name: str, qty: float, unit: str, price: float, store: str, location: str, purchase_date_str: str, category: str
 ) -> str:
@@ -87,11 +94,11 @@ def add_purchase_form(
     item_name = (name or "").strip()
     item_unit = (unit or "unit").strip() or "unit"
     if not item_name:
-        return "<div style='color:var(--red);'>Item name is required.</div>"
+        return form_error("Item name is required.", field_id="p_name")
     if qty < 0:
-        return "<div style='color:var(--red);'>Quantity must be 0 or more.</div>"
+        return form_error("Quantity must be 0 or more.", field_id="p_qty")
     if price < 0:
-        return "<div style='color:var(--red);'>Price must be 0 or more.</div>"
+        return form_error("Price must be 0 or more.", field_id="p_price")
     uid = _user_id()
     add_result = tools.add_inventory_item(
         canonical_name=item_name.lower(),
@@ -112,6 +119,7 @@ def add_purchase_form(
             unit=item_unit,
             store_name=store,
         )
+    clear_dashboard_cache(_user_id())
     result = f"<div style='color:var(--green);'>Added {escape(item_name)} (lot {escape(str(lot_id))})</div>"
     try:
         create_trace(
@@ -135,10 +143,16 @@ def add_purchase_form(
     return result
 
 
+@aria_live_screen()
 def add_purchase_batch(raw_batch: str) -> str:
     uid = _user_id()
     if not raw_batch or not str(raw_batch).strip():
-        return "<div style='color:var(--text-dim);'>Add at least one row: name, quantity, unit, price, store, location, category.</div>"
+        return form_error(
+            "Add at least one row in the format name, qty, unit, price, store, "
+            "location, category (one per line).",
+            field_id="p_batch_input",
+            level="warning",
+        )
 
     rows = str(raw_batch).strip().splitlines()
     raw_text = "\n".join(r.strip() for r in rows if r.strip())
@@ -215,6 +229,7 @@ def add_purchase_batch(raw_batch: str) -> str:
 
     if not added:
         return "<div style='color:var(--text-dim);'>No items were added.</div>"
+    clear_dashboard_cache(_user_id())
     return f"<div style='color:var(--green);'>Added {len(added)} item(s): {', '.join(added)}</div>"
 
 
@@ -286,7 +301,7 @@ def inventory_cards_view(search: str = "") -> str:
     search_note = ""
     if search and match_mode == "semantic":
         search_note = (
-            "<div style='margin-bottom:10px;font-size:12px;color:var(--text-dim);'>"
+            "<div style='margin-bottom:10px;font-size: 0.75rem;color:var(--text-dim);'>"
             f"Showing semantic matches for {escape(search.strip())}."
             "</div>"
         )
@@ -323,13 +338,17 @@ def inventory_cards_view(search: str = "") -> str:
     return search_note + cards
 
 
+@aria_live_screen()
 def consume_item(lot_id: str, qty: float) -> str:
-    result = tools.consume_inventory_item(lot_id, qty, user_id=_user_id())
+    uid = _user_id()
+    result = tools.consume_inventory_item(lot_id, qty, user_id=uid)
     if "error" in result:
         return f"<div style='color:var(--red);'>Error: {escape(str(result['error']))}</div>"
+    clear_dashboard_cache(uid)
     return f"<div style='color:var(--green);'>Consumed {escape(str(qty))}. Remaining: {escape(str(result.get('remaining', 0)))}</div>"
 
 
+@aria_live_screen()
 def consume_items_batch(lines_text: str) -> str:
     if not lines_text:
         return "<div style='color:var(--text-dim);'>Add at least one lot id and quantity.</div>"
@@ -357,7 +376,8 @@ def consume_items_batch(lines_text: str) -> str:
 
     if not summary:
         return "<div style='color:var(--red);'>No consumable lot ids found.</div>"
-    return "<div style='margin-top:8px;line-height:1.5;font-size:12px;'>" + "<br>".join(summary) + "</div>"
+    clear_dashboard_cache(uid)
+    return "<div style='margin-top:8px;line-height:1.5;font-size: 0.75rem;'>" + "<br>".join(summary) + "</div>"
 
 
 def use_soon_view(days: int = 3) -> list[list[str]]:

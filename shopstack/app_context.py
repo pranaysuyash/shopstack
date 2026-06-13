@@ -43,7 +43,7 @@ model_registry = get_registry()
 
 
 # ── Service singletons (wired from app_context) ────────────────────
-from shopstack.services.trace import TraceService
+from shopstack.services.trace import TraceService  # noqa: E402 — circular import
 
 _trace_service: TraceService | None = None
 

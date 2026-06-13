@@ -102,12 +102,12 @@ def render_shortcuts_help_html() -> str:
   box-shadow: 0 20px 60px rgba(0,0,0,0.25);
 }}
 .sc-dialog h2 {{
-  margin: 0 0 12px 0; font-size: 16px;
+  margin: 0 0 12px 0; font-size: 1rem;
   color: var(--text, #0f172a);
 }}
 .sc-row {{
   display: flex; align-items: center; gap: 12px;
-  padding: 4px 0; font-size: 12px;
+  padding: 4px 0; font-size: 0.75rem;
 }}
 .sc-key {{
   display: inline-block;
@@ -117,13 +117,13 @@ def render_shortcuts_help_html() -> str:
   border-radius: 4px;
   padding: 2px 8px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
+  font-size: 0.6875rem;
   min-width: 70px; text-align: center;
   color: var(--text, #0f172a);
 }}
 .sc-desc {{ color: var(--text-muted, #475569); }}
 .sc-hint {{
-  margin-top: 12px; font-size: 10px; color: var(--text-dim, #94a3b8);
+  margin-top: 12px; font-size: 0.625rem; color: var(--text-dim, #94a3b8);
 }}
 </style>
 <div class="sc-overlay" id="sc-overlay" role="dialog"

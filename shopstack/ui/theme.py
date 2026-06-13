@@ -206,7 +206,7 @@ CSS = """\
 }
 .brand-subtitle {
   margin-top: var(--space-sm);
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--text-muted);
 }
 .env-badge {
@@ -239,10 +239,10 @@ h1, h2, h3 {
   text-wrap: balance;
 }
 h2 { font-size: var(--text-3xl) !important; line-height: 1.12 !important; }
-h3 { font-size: 18px !important; line-height: 1.2 !important; }
+h3 { font-size: 1.125rem !important; line-height: 1.2 !important; }
 label, .gr-form-label {
   color: var(--text) !important;
-  font-size: 13px !important;
+  font-size: 0.8125rem !important;
   font-weight: 500 !important;
   letter-spacing: 0.2px !important;
 }
@@ -430,7 +430,7 @@ button[role="tab"]:hover {
   border: 1px solid var(--border) !important;
   border-radius: var(--radius-lg) !important;
 }
-.gr-dataframe table { font-size: 13px !important; }
+.gr-dataframe table { font-size: 0.8125rem !important; }
 .gr-dataframe th {
   background: var(--bg-input) !important;
   color: var(--text-muted) !important;
@@ -599,7 +599,7 @@ details.home-details > *:not(summary),
   color: var(--text);
 }
 .stat-value {
-  font-size: 34px;
+  font-size: 2.125rem;
   font-weight: 700;
   color: var(--text);
   line-height: 1;
@@ -836,6 +836,15 @@ details.home-details > *:not(summary),
 .toast-info    { border-left: 3px solid var(--blue); }
 .toast-warning { border-left: 3px solid var(--amber); }
 
+/* Toasts inside the JS-created container stack via flex layout,
+   so they must not be position: fixed individually. */
+#ss-toast-container .toast {
+  position: relative;
+  bottom: auto;
+  right: auto;
+  z-index: auto;
+}
+
 @keyframes toast-in {
   from { opacity: 0; transform: translateY(12px) scale(0.96); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
@@ -897,7 +906,7 @@ details.home-details > *:not(summary),
   color: var(--text-dim);
 }
 .empty-state-icon {
-  font-size: 48px;
+  font-size: 3rem;
   margin-bottom: var(--space-md);
   opacity: 0.5;
 }
@@ -949,7 +958,7 @@ details.home-details > *:not(summary),
 @media (max-width: 768px) {
   .gradio-container { max-width: 100% !important; padding: 0 var(--space-sm) !important; }
   .app-header { align-items: flex-start; flex-direction: column; }
-  .brand-title { font-size: 28px; }
+  .brand-title { font-size: 1.75rem; }
   .tab-nav button, .tabs button[role="tab"], button[role="tab"] {
     font-size: var(--text-sm) !important;
     padding: var(--space-sm) 10px !important;
@@ -1025,7 +1034,7 @@ details.home-details > *:not(summary),
   border: 1px solid var(--border, #DACAB5);
   border-radius: var(--radius-sm, 6px);
   padding: 2px;
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 .locale-btn {
   background: transparent;
@@ -1035,7 +1044,7 @@ details.home-details > *:not(summary),
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 500;
   letter-spacing: 0.02em;
 }
@@ -1058,12 +1067,12 @@ details.home-details > *:not(summary),
 }
 .sparkline-row svg { display: block; }
 .sparkline-arrow {
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   line-height: 1;
 }
 .sparkline-pct {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1085,18 +1094,18 @@ details.home-details > *:not(summary),
 .cb-card:hover { border-color: var(--accent, #176B49); }
 .cb-card-head { margin-bottom: 6px; }
 .cb-name {
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--text, #1F1812);
 }
 .cb-meta {
-  font-size: 10px;
+  font-size: 0.625rem;
   color: var(--text-dim, #6F6254);
   margin-top: 1px;
 }
 .cb-tag {
   display: inline-block;
-  font-size: 9px;
+  font-size: 0.5625rem;
   padding: 1px 6px;
   border-radius: 3px;
   margin-right: 4px;
@@ -1112,12 +1121,12 @@ details.home-details > *:not(summary),
   color: var(--text, #1F1812);
 }
 .cb-progress {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 500;
   margin: 4px 0;
 }
 .cb-detail-row {
-  font-size: 10px;
+  font-size: 0.625rem;
   color: var(--text-muted, #5F5144);
   line-height: 1.4;
 }
@@ -1127,17 +1136,17 @@ details.home-details > *:not(summary),
 /* ── Cookbook detail ─────────────────────────────────────────────── */
 .cb-detail { padding: 8px 0; }
 .cb-detail-name {
-  font-size: 18px;
+  font-size: 1.125rem;
   margin: 0 0 4px 0;
   color: var(--text, #1F1812);
 }
 .cb-detail-meta {
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: var(--text-muted, #5F5144);
   margin-bottom: 8px;
 }
 .cb-section-h {
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--text, #1F1812);
   margin: 10px 0 4px 0;
@@ -1146,7 +1155,7 @@ details.home-details > *:not(summary),
   list-style: none;
   padding-left: 0;
   margin: 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.5;
   color: var(--text, #1F1812);
 }
@@ -1156,9 +1165,172 @@ details.home-details > *:not(summary),
 .cb-mark { font-weight: 600; }
 .cb-steps {
   list-style: decimal inside;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-muted, #5F5144);
   line-height: 1.5;
 }
 .cb-step { margin-bottom: 4px; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PHASE 9 ADDITIONS
+   - Today Intelligence (ti-*)
+   - Smart Planner (sp-*)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Today Intelligence ─────────────────────────────────────── */
+.ti-block {
+  background: var(--bg-card, #FFFCF7);
+  border: 1px solid var(--border, #DACAB5);
+  border-radius: var(--radius-md, 8px);
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+.ti-headline {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--text, #1F1812);
+  margin-bottom: 10px;
+}
+.ti-headline.ti-quiet {
+  color: var(--green, #176B49);
+  font-weight: 500;
+  text-align: center;
+  padding: 12px;
+}
+.ti-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ti-action {
+  display: grid;
+  grid-template-columns: 1.5rem 1.25rem 1fr auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 6px 10px;
+  background: var(--bg, #FFF8ED);
+  border-radius: var(--radius-sm, 6px);
+}
+.ti-secondary { opacity: 0.78; }
+.ti-rank {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ti-icon { font-size: 0.875rem; }
+.ti-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.ti-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text, #1F1812);
+}
+.ti-reason {
+  font-size: 0.6875rem;
+  color: var(--text-muted, #5F5144);
+}
+.ti-sub {
+  font-size: 0.625rem;
+  color: var(--text-dim, #6F6254);
+  font-variant-numeric: tabular-nums;
+}
+.ti-secondary-block {
+  margin-top: 10px;
+  border-top: 1px dashed var(--border, #DACAB5);
+  padding-top: 6px;
+}
+.ti-secondary-block summary {
+  cursor: pointer;
+  font-size: 0.6875rem;
+  color: var(--text-muted, #5F5144);
+  padding: 4px 0;
+}
+
+/* ── Smart Planner ───────────────────────────────────────────── */
+.sp-block {
+  background: var(--bg-card, #FFFCF7);
+  border: 1px solid var(--border, #DACAB5);
+  border-radius: var(--radius-md, 8px);
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+.sp-headline {
+  font-size: 0.8125rem;
+  color: var(--text, #1F1812);
+  margin-bottom: 8px;
+}
+.sp-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.sp-chip {
+  background: var(--bg-warm, #FFF1D6);
+  color: var(--text-muted, #5F5144);
+  font-size: 0.6875rem;
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+.sp-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sp-line {
+  display: grid;
+  grid-template-columns: 1.25rem 1fr auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 6px 10px;
+  background: var(--bg, #FFF8ED);
+  border-radius: var(--radius-sm, 6px);
+}
+.sp-icon { font-size: 0.875rem; }
+.sp-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.sp-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text, #1F1812);
+}
+.sp-store {
+  font-size: 0.625rem;
+  color: var(--text-dim, #6F6254);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.sp-reason {
+  font-size: 0.6875rem;
+  color: var(--text-muted, #5F5144);
+}
+.sp-prices {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  font-variant-numeric: tabular-nums;
+}
+.sp-price {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text, #1F1812);
+}
+.sp-community {
+  font-size: 0.625rem;
+  color: var(--text-muted, #5F5144);
+}
+.sp-delta { font-weight: 600; }
+.sp-delta-up { color: var(--red, #A63F31); }
+.sp-delta-down { color: var(--green, #176B49); }
 """
+

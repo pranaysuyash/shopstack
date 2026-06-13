@@ -174,14 +174,14 @@ def runtime_proof_view() -> str:
     )
 
     status_line = (
-        "<div style='font-size:12px;color:var(--text-dim);margin-top:8px;'>"
+        "<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:8px;'>"
         "Off-grid policy blocks cloud backends; local models remain eligible. "
         "Cloud use is shown honestly, not hidden behind mock routing."
         "</div>"
     )
     if any(row.get("status") == "blocked_off_grid" for row in runtime_rows):
         status_line += (
-            "<div style='font-size:12px;color:var(--amber);margin-top:6px;'>"
+            "<div style='font-size: 0.75rem;color:var(--amber);margin-top:6px;'>"
             "Some requested backends are blocked by off-grid policy and are shown as unavailable."
             "</div>"
         )
@@ -236,11 +236,11 @@ def model_budget_view() -> str:
         f"<div style='width:100%;height:8px;background:var(--border);border-radius:4px;margin-top:8px;overflow:hidden;'>"
         f"<div style='width:{budget_pct:.1f}%;height:100%;background:{budget_color};'></div>"
         f"</div>"
-        f"<div style='font-size:11px;color:var(--text-dim);margin-top:4px;text-align:right;'>{budget_pct:.1f}% of {diag.budget_limit_b:.1f} B budget used</div>"
+        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:4px;text-align:right;'>{budget_pct:.1f}% of {diag.budget_limit_b:.1f} B budget used</div>"
     )
 
     return (
-        "<div style='margin-bottom:10px;color:var(--text-dim);font-size:13px;'>"
+        "<div style='margin-bottom:10px;color:var(--text-dim);font-size: 0.8125rem;'>"
         "System status, runtime budget, and candidate model overview."
         "</div>"
         + "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:12px 0;'>"
@@ -251,7 +251,7 @@ def model_budget_view() -> str:
         + ui_card(
             "Runtime Diagnostics",
             f"<div style='margin-bottom:8px;display:flex;gap:8px;align-items:center;'>{status_badge}"
-            f"<span style='font-size:12px;color:var(--text-dim);'>Live memory stack tracker</span></div>"
+            f"<span style='font-size: 0.75rem;color:var(--text-dim);'>Live memory stack tracker</span></div>"
             + progress_bar
             + diag_html,
         )
@@ -263,5 +263,5 @@ def model_budget_view() -> str:
             ),
         )
         + ui_card("Candidate Models", candidate_html)
-        + f"<div style='margin-top:12px;font-size:11px;color:var(--text-dim);display:flex;gap:8px;align-items:center;'>{provider_badge} <span>Runtime status displayed above.</span></div>"
+        + f"<div style='margin-top:12px;font-size: 0.6875rem;color:var(--text-dim);display:flex;gap:8px;align-items:center;'>{provider_badge} <span>Runtime status displayed above.</span></div>"
     )

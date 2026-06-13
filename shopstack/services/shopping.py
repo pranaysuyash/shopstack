@@ -111,7 +111,7 @@ def classify_shopping_items(items: list[dict[str, Any]], inventory: InventoryRep
         except (TypeError, ValueError):
             qty = 1.0
         unit = item.get("unit", "unit") or "unit"
-        _compare = inventory.compare_visible if hasattr(inventory, "compare_visible") else inventory.compare_visible_item_to_inventory
+        _compare = inventory.compare_visible
         comparison = _compare(name, qty, unit)
         total_have = comparison.get("total_quantity_at_home", 0)
         is_use_soon = comparison.get("is_use_soon", False)
@@ -176,7 +176,7 @@ def enrich_items_with_swiggy(items: list[dict[str, Any]]) -> None:
 
 # ─── Shopping Completion Services ───
 
-from shopstack.traces.export import create_trace
+from shopstack.traces.export import create_trace  # noqa: E402 — circular import
 
 
 def complete_shopping_list_service(

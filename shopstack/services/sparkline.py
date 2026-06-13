@@ -209,9 +209,8 @@ def render_sparkline_svg(
     """
     if not observations:
         return (
-            f"<svg width='{width}' height='{height}' "
-            f"viewBox='0 0 {width} {height}' "
-            f"aria-label='No price history' role='img'>"
+            f"<svg role='img' aria-label='No price history' width='{width}' height='{height}' "
+            f"viewBox='0 0 {width} {height}'>"
             f"<text x='{width // 2}' y='{height // 2 + 4}' "
             f"text-anchor='middle' font-size='9' fill='var(--text-dim, #94a3b8)'>"
             f"no data</text></svg>"
@@ -219,9 +218,8 @@ def render_sparkline_svg(
     points = normalize_prices(observations, width=width, height=height)
     if not points:
         return (
-            f"<svg width='{width}' height='{height}' "
-            f"viewBox='0 0 {width} {height}' "
-            f"aria-label='No price history' role='img'>"
+            f"<svg role='img' aria-label='No price history' width='{width}' height='{height}' "
+            f"viewBox='0 0 {width} {height}'>"
             f"<text x='{width // 2}' y='{height // 2 + 4}' "
             f"text-anchor='middle' font-size='9' fill='var(--text-dim, #94a3b8)'>"
             f"no data</text></svg>"
@@ -235,9 +233,9 @@ def render_sparkline_svg(
     last_x = pad + last.x * inner_w
     last_y = pad + last.y * inner_h
     return (
-        f"<svg width='{width}' height='{height}' "
-        f"viewBox='0 0 {width} {height}' "
-        f"aria-label='Price history sparkline' role='img'>"
+        f"<svg role='img' aria-label='Price history sparkline' "
+        f"width='{width}' height='{height}' "
+        f"viewBox='0 0 {width} {height}' >"
         f"<polyline points='{poly}' fill='none' stroke='{stroke}' "
         f"stroke-width='{stroke_width}' stroke-linecap='round' "
         f"stroke-linejoin='round' opacity='0.85'/>"
@@ -282,8 +280,8 @@ def render_sparkline_row_html(
     return (
         "<span class='sparkline-row' style='display:inline-flex;align-items:center;gap:6px;'>"
         f"{svg}"
-        f"<span class='sparkline-arrow' style='font-size:14px;color:{arrow_color};'>{arrow}</span>"
-        f"<span class='sparkline-pct' style='font-size:11px;color:{pct_color};'>{pct_text}</span>"
+        f"<span class='sparkline-arrow' style='font-size: 0.875rem;color:{arrow_color};'>{arrow}</span>"
+        f"<span class='sparkline-pct' style='font-size: 0.6875rem;color:{pct_color};'>{pct_text}</span>"
         f"</span>"
     )
 

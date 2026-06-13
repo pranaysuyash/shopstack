@@ -190,9 +190,9 @@ class ImportResult:
         if self.errors:
             parts.append(f"</div><div style='color:var(--red);margin-top:8px;'>{len(self.errors)} error(s):")
             for err in self.errors[:5]:
-                parts.append(f"<div style='font-size:12px;'>{err}</div>")
+                parts.append(f"<div style='font-size: 0.75rem;'>{err}</div>")
             if len(self.errors) > 5:
-                parts.append(f"<div style='font-size:12px;'>...and {len(self.errors) - 5} more</div>")
+                parts.append(f"<div style='font-size: 0.75rem;'>...and {len(self.errors) - 5} more</div>")
         parts.insert(0, "<div class='stat-card'>")
         parts.append("</div>")
         return "".join(parts)

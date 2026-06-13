@@ -55,7 +55,7 @@ def render_cook_tonight(matches: list[dict[str, Any]]) -> str:
                 escape(str(n).replace("_", " ").title()) for n in use_soon_names
             )
             use_soon_badge = (
-                f"<div style='font-size:11px;color:var(--amber);margin-top:2px;'>"
+                f"<div style='font-size: 0.6875rem;color:var(--amber);margin-top:2px;'>"
                 f"⏰ Uses expiring: {formatted}</div>"
             )
 
@@ -65,14 +65,14 @@ def render_cook_tonight(matches: list[dict[str, Any]]) -> str:
                 escape(str(n).replace("_", " ").title()) for n in missing_names
             )
             missing_html = (
-                f"<div style='font-size:11px;color:var(--red);margin-top:2px;'>"
+                f"<div style='font-size: 0.6875rem;color:var(--red);margin-top:2px;'>"
                 f"✗ Need: {formatted}</div>"
             )
 
         have_html = ""
         if have_count > 0 and missing_count > 0:
             have_html = (
-                f"<div style='font-size:11px;color:var(--green);margin-top:2px;'>"
+                f"<div style='font-size: 0.6875rem;color:var(--green);margin-top:2px;'>"
                 f"✓ Have: {have_count} of {have_count + missing_count}"
                 f"</div>"
             )
@@ -81,12 +81,12 @@ def render_cook_tonight(matches: list[dict[str, Any]]) -> str:
             f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
             f"<div style='display:flex;justify-content:space-between;align-items:baseline;'>"
             f"<strong>{name}</strong>"
-            f"<span style='font-size:10px;color:var(--text-dim);'>{cuisine} · {time_min} min · serves {serves}</span>"
+            f"<span style='font-size: 0.625rem;color:var(--text-dim);'>{cuisine} · {time_min} min · serves {serves}</span>"
             f"</div>"
             f"{use_soon_badge}"
             f"{have_html}"
             f"{missing_html}"
-            f"<div style='font-size:10px;color:var(--text-dim);margin-top:4px;'>"
+            f"<div style='font-size: 0.625rem;color:var(--text-dim);margin-top:4px;'>"
             f"Completion: {completion:.0f}%"
             f"</div>"
             f"</div>"
@@ -95,7 +95,7 @@ def render_cook_tonight(matches: list[dict[str, Any]]) -> str:
     return (
         f"<div class='home-card' style='margin-bottom:12px;'>"
         f"<h3 style='margin:0 0 4px 0;'>🍳 Cook Tonight</h3>"
-        f"<div style='font-size:11px;color:var(--text-dim);margin-bottom:6px;'>"
+        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>"
         f"Recipes that use what you have. ⏰ marks recipes that rescue expiring items."
         f"</div>"
         f"{''.join(parts)}"

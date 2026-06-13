@@ -160,7 +160,7 @@ def _trace_bundle(trace_id: str) -> tuple[str, str]:
     timeline_html = _trace_timeline_html(trace)
     service = get_trace_service()
     raw_json = json.dumps(service.trace_payload(trace), indent=2, default=str)
-    return timeline_html, f"<pre style='font-size:12px;overflow:auto;max-height:400px;background:var(--bg-input);padding:12px;border-radius:var(--radius-sm);'>{raw_json}</pre>"
+    return timeline_html, f"<pre style='font-size: 0.75rem;overflow:auto;max-height:400px;background:var(--bg-input);padding:12px;border-radius:var(--radius-sm);'>{raw_json}</pre>"
 
 
 def agent_trace_bootstrap(search: str = "", input_type_filter: str = "") -> tuple:
@@ -206,7 +206,7 @@ def agent_trace_detail(trace_id: str) -> str:
     return timeline + (
         "<div class='home-card' style='text-align:left;margin-top:12px;'>"
         "<h3>Raw activity record</h3>"
-        f"<pre style='font-size:12px;overflow:auto;max-height:400px;background:var(--bg-input);padding:12px;border-radius:var(--radius-sm);'>{raw}</pre>"
+        f"<pre style='font-size: 0.75rem;overflow:auto;max-height:400px;background:var(--bg-input);padding:12px;border-radius:var(--radius-sm);'>{raw}</pre>"
         "</div>"
     )
 

@@ -96,7 +96,7 @@ class HuggingFaceProvider:
 
     def _record_call_attributes(
         self, response: Any, start_ms: float, span: Any
-    ) -> tuple[list[float], dict[str, Any], float]:
+    ) -> tuple[dict[str, Any], dict[str, Any], float]:
         usage = {}
         if response and getattr(response, "usage", None) is not None:
             usage = self._normalize_usage(response.usage)

@@ -54,7 +54,7 @@ def market_intelligence_view(search: str = "", lane_filter: str = "") -> str:
     )
     source_line = ", ".join(graph.source_names) if graph.source_names else "no sources"
     freshness_line = (
-        f"<div style='font-size:12px;color:var(--text-dim);margin-top:6px;'>"
+        f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:6px;'>"
         f"{escape(source_line)} · Market data is point-in-time and trust-scored before being shown."
         f"</div>"
     )
@@ -175,7 +175,7 @@ def _render_lane_section(lane: str, clusters: list[MarketCluster]) -> str:
         f"<h3 style='margin:0;'>{escape(title)}</h3>"
         f"{badge_html(str(len(clusters)), variant)}"
         f"</div>"
-        f"<div style='margin-top:6px;font-size:12px;color:var(--text-dim);'>{escape(lane_note)}</div>"
+        f"<div style='margin-top:6px;font-size: 0.75rem;color:var(--text-dim);'>{escape(lane_note)}</div>"
         f"<div style='margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;'>{lanes_html}</div>"
         f"</div>"
     )
@@ -198,7 +198,7 @@ def _render_cluster_card(cluster: MarketCluster) -> str:
 
     combo_line = ""
     if cluster.combo_components:
-        combo_line = "<div style='font-size:12px;margin-top:8px;'><strong>Combo:</strong> " + ", ".join(
+        combo_line = "<div style='font-size: 0.75rem;margin-top:8px;'><strong>Combo:</strong> " + ", ".join(
             f"{escape(name)}{' ✓' if name in cluster.combo_overlap else ' ✗'}"
             for name in cluster.combo_components
         ) + "</div>"
@@ -206,7 +206,7 @@ def _render_cluster_card(cluster: MarketCluster) -> str:
     if cluster.substitutions:
         first = cluster.substitutions[0]
         substitute_line = (
-            "<div style='font-size:12px;margin-top:8px;'>"
+            "<div style='font-size: 0.75rem;margin-top:8px;'>"
             f"<strong>Substitute:</strong> {escape(first.get('substitute_display', 'Alternative'))} "
             f"({escape(first.get('substitution_type', 'alternative'))})"
             "</div>"
@@ -226,7 +226,7 @@ def _render_cluster_card(cluster: MarketCluster) -> str:
     if cluster.action_intent:
         actions = ", ".join(cluster.action_intent.next_actions[:3]) or "none"
         intent_line = (
-            "<div style='font-size:12px;margin-top:8px;color:var(--text-dim);'>"
+            "<div style='font-size: 0.75rem;margin-top:8px;color:var(--text-dim);'>"
             f"<strong>Next:</strong> {escape(cluster.action_intent.primary_action.replace('_', ' ').title())}"
             f" · {escape(actions.replace('_', ' '))}"
             "</div>"
@@ -246,7 +246,7 @@ def _render_cluster_card(cluster: MarketCluster) -> str:
     truth_warning_line = ""
     if truth.warnings:
         truth_warning_line = (
-            "<div style='font-size:11px;color:var(--text-dim);margin-top:6px;'>"
+            "<div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:6px;'>"
             f"Truth signals: {escape('; '.join(truth.warnings[:3]))}"
             "</div>"
         )
@@ -258,7 +258,7 @@ def _render_cluster_card(cluster: MarketCluster) -> str:
     edge_summary = ""
     if nodes or edges:
         edge_summary = (
-            "<div style='font-size:11px;color:var(--text-dim);margin-top:10px;'>"
+            "<div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:10px;'>"
             f"Nodes: {escape(nodes)}<br/>"
             f"Edges: {escape(edges)}"
             "</div>"
@@ -271,15 +271,15 @@ def _render_cluster_card(cluster: MarketCluster) -> str:
         f"{badge_html(cluster.graph_lane.replace('_', ' ').title(), 'blue' if cluster.graph_lane in {'compare', 'watch'} else _lane_variant(cluster.graph_lane))}"
         f"</div>"
         f"<div style='display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;'>{truth_badge}{decision_badge}{graph_badge}</div>"
-        f"<div style='font-size:12px;margin-top:6px;color:var(--text-dim);'>"
+        f"<div style='font-size: 0.75rem;margin-top:6px;color:var(--text-dim);'>"
         f"Home: {escape(home_qty)} · Market: {escape(market_price + ppk)} · Memory: {escape(memory)}"
         f"</div>"
-        f"<div style='font-size:12px;margin-top:6px;'>"
+        f"<div style='font-size: 0.75rem;margin-top:6px;'>"
         f"Truth: <strong>{escape(truth.label)}</strong> ({truth.score:.0%}) · Freshness: {escape(cluster.market_freshness_label or cluster.market_freshness)}"
         f"</div>"
         f"{evidence_line}"
         f"{intent_line}"
-        f"<div style='font-size:12px;margin-top:6px;color:var(--text-dim);'>"
+        f"<div style='font-size: 0.75rem;margin-top:6px;color:var(--text-dim);'>"
         f"{escape('; '.join(cluster.warnings[:3]) or 'No major warnings')}"
         f"</div>"
         f"{_render_truth_breakdown(breakdown)}"
@@ -296,9 +296,9 @@ def _render_cluster_card(cluster: MarketCluster) -> str:
 def _legend_html(graph, truth_counts: dict[str, int]) -> str:
     return (
         "<div style='margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;'>"
-        f"{ui_card('Truth Legend', '<div style=\"font-size:12px;line-height:1.45;\">Reliable = fresh, available, exact sizing, and some price memory.<br/>Reference = useful but needs a sanity check.<br/>Low confidence = combo, sponsored, estimated, or thin history.<br/>Stale = snapshot age is too old to trust like live truth.</div>')}"
-        f"{ui_card('Trust Mix', '<div style=\"font-size:12px;line-height:1.45;\">Reliable: {0}<br/>Reference: {1}<br/>Low confidence: {2}<br/>Stale: {3}</div>'.format(truth_counts['reliable'], truth_counts['reference'], truth_counts['low confidence'], truth_counts['stale']))}"
-        f"{ui_card('Graph Notes', '<div style=\"font-size:12px;line-height:1.45;\">Home nodes show what is already at home. Market nodes show current market signals. Memory nodes show your price baseline. Substitute nodes appear when an item is sold out or better replaced.</div>')}"
+        f"{ui_card('Truth Legend', '<div style=\"font-size: 0.75rem;line-height:1.45;\">Reliable = fresh, available, exact sizing, and some price memory.<br/>Reference = useful but needs a sanity check.<br/>Low confidence = combo, sponsored, estimated, or thin history.<br/>Stale = snapshot age is too old to trust like live truth.</div>')}"
+        f"{ui_card('Trust Mix', '<div style=\"font-size: 0.75rem;line-height:1.45;\">Reliable: {0}<br/>Reference: {1}<br/>Low confidence: {2}<br/>Stale: {3}</div>'.format(truth_counts['reliable'], truth_counts['reference'], truth_counts['low confidence'], truth_counts['stale']))}"
+        f"{ui_card('Graph Notes', '<div style=\"font-size: 0.75rem;line-height:1.45;\">Home nodes show what is already at home. Market nodes show current market signals. Memory nodes show your price baseline. Substitute nodes appear when an item is sold out or better replaced.</div>')}"
         "</div>"
     )
 
@@ -352,7 +352,7 @@ def _render_why_signal(cluster: MarketCluster) -> str:
         breakdown_lines.append(f"Waste penalty {truth.waste_penalty:.0%}")
 
     return (
-        "<details style='margin-top:8px;font-size:12px;'>"
+        "<details style='margin-top:8px;font-size: 0.75rem;'>"
         "<summary style='cursor:pointer;color:var(--text);font-weight:600;'>Why this signal?</summary>"
         "<div style='margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface-muted);'>"
         f"<div style='color:var(--text-dim);line-height:1.45;'>{escape('; '.join(reasons))}</div>"
@@ -378,7 +378,7 @@ def _render_truth_breakdown(breakdown) -> str:
     if getattr(breakdown, "waste_penalty", 0.0) > 0:
         lines.append(f"Waste -{getattr(breakdown, 'waste_penalty', 0.0):.0%}")
     return (
-        "<div style='font-size:11px;color:var(--text-dim);margin-top:8px;line-height:1.45;'>"
+        "<div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:8px;line-height:1.45;'>"
         f"{escape(' · '.join(lines))}"
         "</div>"
     )

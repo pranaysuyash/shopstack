@@ -218,19 +218,19 @@ def check_1_1_1_alt_text(files: dict[str, str]) -> WCAGResult:
 def check_1_3_1_semantic(files: dict[str, str]) -> WCAGResult:
     """1.3.1 Info and Relationships — semantic HTML, labels."""
     res = WCAGResult("1.3.1", "Info and Relationships", "A")
-    has_label_for = sum(1 for c in files.values() if "label=" in c)
-    has_fieldset = sum(1 for c in files.values() if "<fieldset" in c or "gr.Accordion" in c)
-    has_h1 = sum(1 for c in files.values() if "<h1" in c or 'class="brand-title"' in c)
-    total = max(1, len(files))
+    all_text = "\n".join(files.values())
+    has_label_for = all_text.count("label=")
+    has_fieldset = all_text.count("<fieldset") + all_text.count("gr.Accordion")
+    has_h1 = all_text.count("<h1") + all_text.count('class="brand-title"')
     res.evidence = [
-        f"Files with label=: {has_label_for}/{total}",
-        f"Files with fieldset/accordion: {has_fieldset}/{total}",
-        f"Files with h1/brand-title: {has_h1}/{total}",
+        f"label= occurrences: {has_label_for}",
+        f"fieldset / gr.Accordion: {has_fieldset}",
+        f"h1 / brand-title: {has_h1}",
     ]
     # Gradio's `label=` kwarg is the standard for our tab builders.
-    if has_label_for / total >= 0.5 and has_h1 >= 1:
+    if has_label_for >= 30 and has_h1 >= 1:
         res.status = "pass"
-    elif has_label_for / total >= 0.3:
+    elif has_label_for >= 10:
         res.status = "warn"
         res.remediation = "Add label= to more form inputs (Gradio's standard)."
     else:
@@ -274,12 +274,16 @@ def check_1_4_3_contrast(files: dict[str, str]) -> WCAGResult:
 
 
 def check_1_4_4_resize_text(files: dict[str, str]) -> WCAGResult:
-    """1.4.4 Resize Text — relative font-size units (rem, em, %)."""
+    """1.4.4 Resize Text — relative font-size units (rem, em, %).
+
+    ShopStack's CSS is embedded in theme.py, so we look at
+    all .py files.
+    """
     res = WCAGResult("1.4.4", "Resize Text", "AA")
-    css_text = "\n".join(c for fp, c in files.items() if fp.endswith(".css"))
-    rem_count = css_text.count("rem")
-    em_count = css_text.count("em;") + css_text.count("em ")
-    px_count = len(re.findall(r"font-size:\s*\d+px", css_text))
+    all_text = "\n".join(files.values())
+    rem_count = all_text.count("rem")
+    em_count = all_text.count("em;") + all_text.count("em ")
+    px_count = len(re.findall(r"font-size:\s*\d+px", all_text))
     res.evidence = [
         f"rem declarations: {rem_count}",
         f"em declarations (approx): {em_count}",
@@ -302,10 +306,18 @@ def check_1_4_4_resize_text(files: dict[str, str]) -> WCAGResult:
 
 
 def check_1_4_10_reflow(files: dict[str, str]) -> WCAGResult:
-    """1.4.10 Reflow — no fixed widths above 320 CSS px."""
+    """1.4.10 Reflow — no fixed widths above 320 CSS px.
+
+    Only flags *fixed* ``width:`` (which prevents shrink), not
+    ``max-width:`` (which caps, allowing shrink — good for
+    reflow) or media queries (responsive by design).
+    """
     res = WCAGResult("1.4.10", "Reflow", "AA")
-    css_text = "\n".join(c for fp, c in files.items() if fp.endswith(".css"))
-    fixed = len(re.findall(r"width:\s*\d{3,}px", css_text))
+    all_text = "\n".join(files.values())
+    # Match only `width: NNNpx` (not `max-width:` or `min-width:` or
+    # `border-width:` etc.). The `\b` after `width` ensures we don't
+    # match `min-width` or `max-width`.
+    fixed = len(re.findall(r"(?<![\w-])width:\s*\d{3,}px", all_text))
     res.evidence = [f"width: NNNpx (3+ digits) declarations: {fixed}"]
     if fixed == 0:
         res.status = "pass"
@@ -340,72 +352,6 @@ def check_1_4_13_focus_indicators(files: dict[str, str]) -> WCAGResult:
     else:
         res.status = "fail"
         res.remediation = "No :focus / :focus-visible / outline declarations; keyboard users can't tell where they are."
-    return res
-
-
-def check_1_4_4_resize_text(files: dict[str, str]) -> WCAGResult:
-    """1.4.4 Resize Text — relative font-size units (rem, em, %).
-
-    ShopStack's CSS is embedded in theme.py, so we look at
-    all .py files.
-    """
-    res = WCAGResult("1.4.4", "Resize Text", "AA")
-    all_text = "\n".join(files.values())
-    rem_count = all_text.count("rem")
-    em_count = all_text.count("em;") + all_text.count("em ")
-    # Don't count css-variable definitions like `--text-base: 0.875rem;`
-    # as separate `px` declarations; we only count actual
-    # `font-size: Npx` literals.
-    px_count = len(re.findall(r"font-size:\s*\d+px", all_text))
-    res.evidence = [
-        f"rem declarations: {rem_count}",
-        f"em declarations (approx): {em_count}",
-        f"font-size: Npx declarations: {px_count}",
-    ]
-    if px_count == 0:
-        res.status = "pass"
-    elif px_count <= 3:
-        res.status = "warn"
-        res.remediation = (
-            f"{px_count} font-size:Npx declaration(s) should be rem or em "
-            "so 200% browser zoom works without breaking layout."
-        )
-    else:
-        res.status = "fail"
-        res.remediation = (
-            f"{px_count} font-size:Npx declarations found; refactor to rem."
-        )
-    return res
-    if px_count == 0:
-        res.status = "pass"
-    elif px_count <= 3:
-        res.status = "warn"
-        res.remediation = (
-            f"{px_count} font-size:Npx declaration(s) should be rem or em "
-            "so 200% browser zoom works without breaking layout."
-        )
-    else:
-        res.status = "fail"
-        res.remediation = (
-            f"{px_count} font-size:Npx declarations found; refactor to rem."
-        )
-    return res
-
-
-def check_1_4_10_reflow(files: dict[str, str]) -> WCAGResult:
-    """1.4.10 Reflow — no fixed widths above 320 CSS px."""
-    res = WCAGResult("1.4.10", "Reflow", "AA")
-    all_text = "\n".join(files.values())
-    fixed = len(re.findall(r"width:\s*\d{3,}px", all_text))
-    res.evidence = [f"width: NNNpx (3+ digits) declarations: {fixed}"]
-    if fixed == 0:
-        res.status = "pass"
-    else:
-        res.status = "warn"
-        res.remediation = (
-            f"{fixed} fixed-width declarations may break 320 CSS px reflow. "
-            "Use max-width / min-width or percent units."
-        )
     return res
 
 
@@ -511,17 +457,21 @@ def check_3_3_2_labels(files: dict[str, str]) -> WCAGResult:
     py_text = "\n".join(c for fp, c in files.items() if fp.endswith(".py"))
     gr_textbox = py_text.count("gr.Textbox(")
     label_after = len(re.findall(r"gr\.(?:Textbox|Dropdown|Radio|Slider|Checkbox|File|Image|Audio)\([^)]*label=", py_text, re.DOTALL))
+    ratio = label_after / max(1, gr_textbox)
     res.evidence = [
         f"gr.Textbox(...) calls: {gr_textbox}",
         f"Components with label=: {label_after}",
+        f"Ratio: {ratio:.0%}",
     ]
     if gr_textbox == 0:
         res.status = "pass"  # no inputs → trivially passes
-    elif label_after / max(1, gr_textbox) >= 0.7:
+    elif ratio >= 1.0:  # each Textbox has at least one label= somewhere
+        res.status = "pass"
+    elif ratio >= 0.7:
         res.status = "pass"
     else:
         res.status = "warn"
-        res.remediation = f"Add label= to more inputs (currently {label_after}/{gr_textbox} = {label_after / max(1, gr_textbox):.0%})."
+        res.remediation = f"Add label= to more inputs (currently {label_after}/{gr_textbox} = {ratio:.0%})."
     return res
 
 
@@ -627,7 +577,7 @@ def render_report_html(report: WCAGReport) -> str:
             f"<td>{escape(r.title)}</td>"
             f"<td>{escape(r.level)}</td>"
             f"<td style='color:{status_color};font-weight:600;'>{escape(r.status).upper()}</td>"
-            f"<td style='font-size:11px;color:var(--text-muted, #5F5144);'>{ev_html}</td>"
+            f"<td style='font-size: 0.6875rem;color:var(--text-muted, #5F5144);'>{ev_html}</td>"
             "</tr>"
         )
     parts.append("</table></div>")

@@ -18,7 +18,7 @@ Today dashboard.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from html import escape
 from typing import Any
 
@@ -134,6 +134,38 @@ def detect_price_drops(
     return alerts
 
 
+def list_price_drops(db, user_id: str = "") -> list[PriceDropAlert]:
+    """High-level wrapper: fetch the current market snapshot and detect drops.
+
+    Convenience function for UI screens (e.g. trip advisor) that have a
+    ``Database`` instance and a user_id but no pre-built market snapshot or
+    price memory service.
+
+    Returns an empty list if no snapshot is available or no price drops are
+    detected. Errors during snapshot/memory construction are logged and
+    swallowed so the UI degrades gracefully.
+    """
+    from shopstack.market.sources.swiggy import load_snapshot
+    from shopstack.services.price_memory import PriceMemoryService
+
+    try:
+        snapshot = load_snapshot()
+    except Exception as exc:
+        logger.debug("list_price_drops: snapshot load failed: %s", exc)
+        return []
+
+    if snapshot is None or not getattr(snapshot, "normalized_records", None):
+        return []
+
+    try:
+        price_memory = PriceMemoryService(db)
+    except Exception as exc:
+        logger.debug("list_price_drops: price memory build failed: %s", exc)
+        return []
+
+    return detect_price_drops(snapshot, price_memory)
+
+
 # ─── HTML rendering ───────────────────────────────────────────────────────
 
 
@@ -154,15 +186,15 @@ def render_price_drops_html(alerts: list[PriceDropAlert]) -> str:
         rows.append(
             f"<div style='padding:5px 0;border-bottom:1px solid var(--border);'>"
             f"<strong>{escape(a.display_name)}</strong> "
-            f"<span style='color:var(--text-dim);font-size:10px;'>"
+            f"<span style='color:var(--text-dim);font-size: 0.625rem;'>"
             f"at {escape(a.source.title())}</span>"
             f"<br>"
             f"<span style='color:var(--green);font-weight:600;'>"
             f"&#8377;{a.current_price:.0f}</span>"
-            f" <span style='color:var(--text-dim);font-size:10px;'>"
+            f" <span style='color:var(--text-dim);font-size: 0.625rem;'>"
             f"(was &#8377;{a.median_price:.0f})</span>"
             f" &middot; "
-            f"<span style='color:var(--green);font-size:10px;'>"
+            f"<span style='color:var(--green);font-size: 0.625rem;'>"
             f"↓ {a.drop_pct:.0f}% (save &#8377;{a.drop_amount:.0f})</span>"
             f"</div>"
         )
@@ -170,7 +202,7 @@ def render_price_drops_html(alerts: list[PriceDropAlert]) -> str:
     return (
         f"<div class='home-card' style='margin-bottom:12px;'>"
         f"<h3 style='margin:0 0 4px 0;'>📉 Price Drops</h3>"
-        f"<div style='font-size:11px;color:var(--text-dim);margin-bottom:6px;'>"
+        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>"
         f"Items currently priced noticeably below your historical median."
         f"</div>"
         f"{''.join(rows)}"
@@ -181,5 +213,6 @@ def render_price_drops_html(alerts: list[PriceDropAlert]) -> str:
 __all__ = [
     "PriceDropAlert",
     "detect_price_drops",
+    "list_price_drops",
     "render_price_drops_html",
 ]
