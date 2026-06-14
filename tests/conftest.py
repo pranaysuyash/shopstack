@@ -17,12 +17,9 @@ from typing import Generator
 # wrote into a shared on-disk file — the source of every
 # ``UNIQUE constraint failed`` cascade in the permission tests.
 #
-# Per motto_v3, no mock backends are requested — the ProviderRegistry
-# silently falls back to Mock*Providers when a real backend's deps or
-# model weights are missing, so tests still pass against the same
-# code paths. LOCAL_AUTO_DOWNLOAD=False prevents test-time model
-# downloads when a real backend's deps happen to be installed but
-# its weights aren't cached.
+# Per motto_v3 §6, all backends are pinned to "mock" in the settings fixture
+# below so every unit test exercises the mock contract with known outputs.
+# LOCAL_AUTO_DOWNLOAD=False prevents test-time model downloads as defense-in-depth.
 os.environ.setdefault("SHOPSTACK_DB_PATH", ":memory:")
 os.environ.setdefault("SHOPSTACK_LOCAL_AUTO_DOWNLOAD", "false")
 
@@ -161,10 +158,32 @@ def db_path() -> Generator[str, None, None]:
 def settings(db_path: str) -> Settings:
     # The project Settings API uses `db_path`, not the older `database_path` name.
     # Ignore the repo .env file during tests so defaults are deterministic.
-    # No explicit mock backends — ProviderRegistry falls back to Mock*Provider
-    # silently when a real backend's deps/weights aren't available.
-    return Settings(_env_file=None, db_path=db_path, off_the_grid=True,
-                    local_auto_download=False)
+    #
+    # Per motto_v3 §6: tests must be deterministic. When real backend deps
+    # are installed (funasr, torch, sentence-transformers, etc.) the
+    # ProviderRegistry loads real providers that fail at model-weight-download
+    # time (local_auto_download=False), producing empty/error results that
+    # make tests non-deterministic. Pinning all backends to "mock" ensures
+    # every unit test exercises the mock contract with known outputs.
+    # Real-provider validation happens via Modal Tier 4 benches, not unit tests.
+    return Settings(
+        _env_file=None,
+        db_path=db_path,
+        off_the_grid=True,
+        local_auto_download=False,
+        planner_backend="mock",
+        stt_backend="mock",
+        tts_backend="mock",
+        vision_backend="mock",
+        object_detection_backend="mock",
+        grounding_backend="mock",
+        segmentation_backend="mock",
+        ocr_backend="mock",
+        tool_call_parser_backend="mock",
+        embeddings_backend="mock",
+        image_edit_backend="mock",
+        image_gen_backend="mock",
+    )
 
 
 @pytest.fixture()

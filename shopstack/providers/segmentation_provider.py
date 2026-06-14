@@ -333,10 +333,9 @@ class BiRefNetSegmentationProvider:
 
             with torch.no_grad():
                 outputs = self._model(inp)
-                if isinstance(outputs, (tuple, list)):
-                    mask = outputs[0].squeeze().sigmoid().float().cpu().numpy()
-                else:
-                    mask = outputs[0].squeeze().sigmoid().float().cpu().numpy()
+                # BiRefNet returns a tensor or single-element tuple; both index [0]
+                first = outputs[0] if isinstance(outputs, (tuple, list)) else outputs
+                mask = first.squeeze().sigmoid().float().cpu().numpy()
 
             elapsed = time.monotonic() - t0
             self._last_latency_ms = round(elapsed * 1000, 1)

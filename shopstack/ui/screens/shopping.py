@@ -646,7 +646,7 @@ def shopping_list_substitutions_view() -> str:
 
         registry, _ = load_market_registry(force=False)
     except Exception as exc:
-        logger.debug("Could not load market registry for substitutions: %s", exc)
+        logger.warning("Could not load market registry for substitutions: %s", exc)
         return ""
 
     if registry is None:

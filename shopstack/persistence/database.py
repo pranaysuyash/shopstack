@@ -346,6 +346,30 @@ class Database:
             );
             CREATE INDEX IF NOT EXISTS idx_person_associations_lot
                 ON person_associations(lot_id);
+
+            -- ── Condition / damage detection (Task 4) ──
+            -- One row per observation. Multiple rows per lot over time
+            -- are expected; the service aggregates them into a
+            -- ConditionAggregate for the UI.
+            CREATE TABLE IF NOT EXISTS condition_events (
+                event_id TEXT PRIMARY KEY,
+                timestamp TEXT NOT NULL,
+                lot_id TEXT NOT NULL,
+                canonical_name TEXT DEFAULT '',
+                kind TEXT NOT NULL DEFAULT 'other',
+                severity TEXT NOT NULL DEFAULT 'worn',
+                confidence REAL DEFAULT 0.5,
+                description TEXT DEFAULT '',
+                source TEXT DEFAULT 'user_report',
+                image_path TEXT,
+                user_confirmed INTEGER DEFAULT 0,
+                closed_at TEXT,
+                user_id TEXT DEFAULT ''
+            );
+            CREATE INDEX IF NOT EXISTS idx_condition_events_lot
+                ON condition_events(lot_id);
+            CREATE INDEX IF NOT EXISTS idx_condition_events_severity
+                ON condition_events(severity);
         """)
         self._migrate_market_snapshot_schema()
         self._migrate_add_user_scoping()
@@ -948,6 +972,28 @@ class Database:
         ).fetchone()
         return _row_to_location(row) if row else None
 
+    def update_location_photo(self, location_id: str, photo_path: str | None) -> bool:
+        """Set or clear the photo_path for a household location.
+
+        Args:
+            location_id: The location to update.
+            photo_path: Absolute path to a photo file, or None to clear.
+
+        Returns:
+            True if the location was updated, False if it does not exist.
+        """
+        row = self.conn.execute(
+            "SELECT 1 FROM household_locations WHERE location_id = ?", (location_id,)
+        ).fetchone()
+        if not row:
+            return False
+        self.conn.execute(
+            "UPDATE household_locations SET photo_path = ? WHERE location_id = ?",
+            (photo_path, location_id),
+        )
+        self.conn.commit()
+        return True
+
     # --- Movements ---
 
     def record_movement(self, movement: MovementEvent) -> MovementEvent:
@@ -1026,6 +1072,103 @@ class Database:
     def delete_person_association(self, association_id: str) -> bool:
         """Remove a person association."""
         self.conn.execute("DELETE FROM person_associations WHERE association_id = ?", (association_id,))
+        self.conn.commit()
+        return True
+
+    # --- Condition Events (Task 4: condition/damage detection) ---
+
+    def add_condition_event(
+        self,
+        lot_id: str,
+        kind: str,
+        severity: str,
+        canonical_name: str = "",
+        confidence: float = 0.5,
+        description: str = "",
+        source: str = "user_report",
+        image_path: str | None = None,
+        user_confirmed: bool = False,
+        user_id: str = "",
+    ) -> str:
+        """Record a condition observation for a lot.
+
+        Returns:
+            The generated event_id.
+        """
+        from shopstack.schemas.models import new_id as _new_id
+        event_id = f"cond_{_new_id()}"
+        self.conn.execute(
+            """INSERT INTO condition_events
+               (event_id, timestamp, lot_id, canonical_name, kind, severity,
+                confidence, description, source, image_path, user_confirmed, user_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                event_id, datetime.now().isoformat(),
+                lot_id, canonical_name, kind, severity,
+                confidence, description, source, image_path,
+                1 if user_confirmed else 0, user_id,
+            ),
+        )
+        self.conn.commit()
+        return event_id
+
+    def get_condition_events_for_lot(
+        self,
+        lot_id: str,
+        include_closed: bool = True,
+    ) -> list[dict]:
+        """Get all condition events for a lot, newest first."""
+        query = "SELECT * FROM condition_events WHERE lot_id = ?"
+        if not include_closed:
+            query += " AND closed_at IS NULL"
+        query += " ORDER BY timestamp DESC"
+        rows = self.conn.execute(query, (lot_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_open_condition_events(
+        self,
+        severity: str | None = None,
+        limit: int = 100,
+        user_id: str = "",
+    ) -> list[dict]:
+        """Get all open (un-closed) condition events, newest first."""
+        query = "SELECT * FROM condition_events WHERE closed_at IS NULL"
+        params: list[Any] = []
+        if severity:
+            query += " AND severity = ?"
+            params.append(severity)
+        if user_id:
+            query += " AND user_id = ?"
+            params.append(user_id)
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+        rows = self.conn.execute(query, params).fetchall()
+        return [dict(r) for r in rows]
+
+    def confirm_condition_event(self, event_id: str) -> bool:
+        """Mark a condition event as user-confirmed."""
+        self.conn.execute(
+            "UPDATE condition_events SET user_confirmed = 1 WHERE event_id = ?",
+            (event_id,),
+        )
+        self.conn.commit()
+        return True
+
+    def close_condition_event(self, event_id: str) -> bool:
+        """Mark a condition event as closed (resolved or dismissed)."""
+        self.conn.execute(
+            "UPDATE condition_events SET closed_at = ? WHERE event_id = ?",
+            (datetime.now().isoformat(), event_id),
+        )
+        self.conn.commit()
+        return True
+
+    def delete_condition_event(self, event_id: str) -> bool:
+        """Permanently remove a condition event."""
+        self.conn.execute(
+            "DELETE FROM condition_events WHERE event_id = ?",
+            (event_id,),
+        )
         self.conn.commit()
         return True
 

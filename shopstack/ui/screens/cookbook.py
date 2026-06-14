@@ -44,7 +44,7 @@ def _safe_locale() -> str:
         uid = current_user_id() or ""
         return load_locale_preference(uid) or DEFAULT_LOCALE
     except Exception as exc:  # pragma: no cover — defensive
-        logger.debug("Locale resolution failed, falling back to default: %s", exc)
+        logger.warning("Locale resolution failed, falling back to default: %s", exc)
         return DEFAULT_LOCALE
 
 
@@ -60,7 +60,7 @@ def _dietary_preference_from_signal() -> str:
             if sig.canonical_name and sig.canonical_name.startswith("_diet:"):
                 return sig.canonical_name.split(":", 1)[1] or "omnivore"
     except Exception as exc:  # pragma: no cover — defensive
-        logger.debug("Dietary preference read failed: %s", exc)
+        logger.warning("Dietary preference read failed: %s", exc)
     return "omnivore"
 
 

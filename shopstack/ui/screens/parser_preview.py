@@ -26,7 +26,7 @@ def parser_preview_screen(utterance: str) -> str:
         parsed = classify_intent(utterance)
         return render_intent_html(parsed)
     except Exception as exc:
-        logger.debug("parser_preview_screen failed: %s", exc)
+        logger.warning("parser_preview_screen failed: %s", exc)
         return ""
 
 

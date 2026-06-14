@@ -80,7 +80,7 @@ def shelf_scan_process(
         )
         trace_id = trace.trace_id
     except Exception:
-        logger.debug("Failed to record shelf scan trace", exc_info=True)
+        logger.warning("Failed to record shelf scan trace", exc_info=True)
 
     return html, scan_state, trace_id, result.annotated_image_path or ""
 

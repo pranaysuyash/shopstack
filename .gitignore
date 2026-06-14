@@ -5,6 +5,7 @@ dist/
 build/
 .venv/
 .env
+.commandcode/
 .claude/
 *.bak
 benchmarks/.bench_results.json
@@ -12,13 +13,18 @@ benchmarks/RESULTS.md
 benchmarks/trends/*
 !benchmarks/trends/.gitkeep
 
+*.db
+*.db-shm
+*.db-wal
 data/*.db
 data/*.db-shm
 data/*.db-wal
 data/*.png
+data/location_photos/
 data/receipt_benchmark_results.json
 data/models/
 shopstack/data/models/
+PROJECT_INTELLIGENCE.md
 .coverage
 .python-version
 mcp-shell.log

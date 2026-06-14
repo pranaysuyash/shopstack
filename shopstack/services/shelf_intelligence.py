@@ -191,6 +191,28 @@ def analyze_shelf_scene(
     result.confidence_summary = _build_confidence_summary(result, detections, ocr_payload, transcript)
     result.warnings.extend(_scene_warnings(scene, result))
     result.corrections_needed = _build_corrections(result)
+    # ── Condition / damage detection hook (Task 4) ──
+    # After inventory matches are known, scan matched lots for any
+    # existing open condition issues. If a matched lot has open
+    # damage/expired issues, surface a warning so the operator knows
+    # the shelf scan is interacting with a problem item.
+    if result.inventory_matches:
+        try:
+            from shopstack.services.condition import get_lot_condition
+            db = getattr(inventory, "db", None)
+            if db is not None:
+                for match in result.inventory_matches:
+                    for lot_id in match.matched_lot_ids:
+                        agg = get_lot_condition(db, lot_id, include_closed=False)
+                        if agg.has_open_issue and agg.highest_severity.value in {"broken", "spoiled"}:
+                            result.warnings.append(
+                                f"⚠ {match.canonical_name}: open {agg.highest_severity.value} issue"
+                                f" ({agg.occurrences}x, {agg.dominant_kind.value})."
+                            )
+        except Exception as exc:
+            # Best-effort: never let the condition hook break the scan.
+            logger = __import__("logging").getLogger(__name__)
+            logger.debug("condition hook failed: %s", exc)
     return result
 
 

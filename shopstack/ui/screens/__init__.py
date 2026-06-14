@@ -113,6 +113,30 @@ from shopstack.ui.screens.consumption import (
     consumption_history,
     consumption_rates,
 )
+from shopstack.ui.screens.find_trail import (
+    find_trail_view,
+    add_negative_memory,
+    add_person_association,
+)
+from shopstack.ui.screens.timeline import (
+    timeline_view,
+    timeline_for_canonical,
+    timeline_for_lot,
+    set_timeline_window,
+)
+from shopstack.ui.screens.photo_map import (
+    photo_map_view,
+    attach_photo_to_location,
+    clear_location_photo,
+    find_location_by_photo,
+)
+from shopstack.ui.screens.repair_inbox import (
+    repair_inbox_view,
+    report_damage,
+    confirm_condition_event,
+    close_condition_event,
+    delete_condition_event,
+)
 
 __all__ = [
     "today_dashboard",
@@ -192,6 +216,22 @@ __all__ = [
     "batch_consume_with_context",
     "consumption_history",
     "consumption_rates",
+    "find_trail_view",
+    "add_negative_memory",
+    "add_person_association",
+    "timeline_view",
+    "timeline_for_canonical",
+    "timeline_for_lot",
+    "set_timeline_window",
+    "photo_map_view",
+    "attach_photo_to_location",
+    "clear_location_photo",
+    "find_location_by_photo",
+    "repair_inbox_view",
+    "report_damage",
+    "confirm_condition_event",
+    "close_condition_event",
+    "delete_condition_event",
     # Archived 2026-06-13 to _legacy/ per motto_v3 §7 (supersession).
     # Kept in __all__ for backward compatibility — see DR-SS1.
     "add_member_screen",

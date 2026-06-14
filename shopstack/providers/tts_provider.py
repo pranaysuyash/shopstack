@@ -398,11 +398,15 @@ class Qwen3TTSProvider(TTSProvider):
             except OSError:
                 pass
 
+        import time
+        t0 = time.perf_counter()
+
         # Primary path: qwen-tts SDK
         if self._available:
             try:
                 audio_bytes = self._synthesize_qwen_sdk(text, language)
                 if audio_bytes:
+                    self._last_latency_ms = round((time.perf_counter() - t0) * 1000, 1)
                     # Cache the result
                     try:
                         with open(cache_path, "wb") as f:
@@ -419,6 +423,7 @@ class Qwen3TTSProvider(TTSProvider):
         if self._gtts_available:
             audio_bytes = self._gtts_synthesize(text, language)
             if audio_bytes:
+                self._last_latency_ms = round((time.perf_counter() - t0) * 1000, 1)
                 try:
                     with open(cache_path, "wb") as f:
                         f.write(audio_bytes)

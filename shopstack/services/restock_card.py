@@ -118,7 +118,7 @@ def restock_card_screen(limit: int = 8) -> str:
         state = build_dashboard_state(db, [], user_id=user_id)
         return render_restock_card_html(state.restock_predictions or [])
     except Exception as exc:
-        logger.debug("restock_card_screen failed: %s", exc)
+        logger.warning("restock_card_screen failed: %s", exc)
         return ""
 
 
@@ -139,7 +139,7 @@ def add_restock_to_list(canonical_name: str) -> str:
             return toast(result.get("reason", "Failed to add to list."), kind="error")
         return toast(result.get("reason", "Added to shopping list."), kind="success")
     except Exception as exc:
-        logger.debug("add_restock_to_list failed: %s", exc)
+        logger.warning("add_restock_to_list failed: %s", exc)
         return toast(f"Failed: {exc}", kind="error")
 
 

@@ -68,7 +68,7 @@ def trip_advisor_screen(
         )
         return render_trip_advice_html(advice, locale=locale)
     except Exception as exc:
-        logger.debug("trip_advisor_screen failed: %s", exc)
+        logger.warning("trip_advisor_screen failed: %s", exc)
         return ""  # graceful degradation — no banner if everything fails
 
 

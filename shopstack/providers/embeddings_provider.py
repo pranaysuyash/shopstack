@@ -20,9 +20,13 @@ class BGEM3EmbeddingProvider:
         self._model = None
         self._tokenizer = None
         self._available = False
-        self._init()
+        self._initialised = False
 
-    def _init(self) -> None:
+    def _ensure_model(self) -> None:
+        """Lazy-load the model on first use to avoid pulling torch at import time."""
+        if self._initialised:
+            return
+        self._initialised = True
         try:
             from sentence_transformers import SentenceTransformer
             self._model = SentenceTransformer(self._model_name)
@@ -37,6 +41,7 @@ class BGEM3EmbeddingProvider:
             logger.warning("Failed to load BGE-M3: %s", e)
 
     def embed(self, texts: list[str]) -> list[list[float]]:
+        self._ensure_model()
         if not self._available or self._model is None:
             dim = 1024
             return [[0.0] * dim for _ in texts]
@@ -100,9 +105,13 @@ class NomicEmbeddingProvider:
         self._model = None
         self._available = False
         self._error: str | None = None
-        self._init()
+        self._initialised = False
 
-    def _init(self) -> None:
+    def _ensure_model(self) -> None:
+        """Lazy-load the model on first use to avoid pulling torch at import time."""
+        if self._initialised:
+            return
+        self._initialised = True
         try:
             from sentence_transformers import SentenceTransformer
             self._model = SentenceTransformer(self._model_name, trust_remote_code=True)
@@ -124,6 +133,7 @@ class NomicEmbeddingProvider:
         return self.embed(docs, kind="document")
 
     def embed(self, texts: list[str], kind: str = "document") -> list[list[float]]:
+        self._ensure_model()
         if not self._available or self._model is None:
             dim = 768
             return [[0.0] * dim for _ in texts]

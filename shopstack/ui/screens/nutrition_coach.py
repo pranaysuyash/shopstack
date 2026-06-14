@@ -52,7 +52,7 @@ def nutrition_coach_screen(
         coaching = build_coaching(summary, profile=profile)
         return render_coaching_html(coaching, locale=locale)
     except Exception as exc:
-        logger.debug("nutrition_coach_screen failed: %s", exc)
+        logger.warning("nutrition_coach_screen failed: %s", exc)
         return (
             "<div class='home-card' style='text-align:center;color:var(--text-dim);padding:16px;'>"
             "🥗 Add some inventory first to see nutrition coaching."

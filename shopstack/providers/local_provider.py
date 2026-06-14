@@ -487,6 +487,9 @@ class LocalProvider:
         if not self._available:
             return [{"tool": "respond", "args": {"message": self._error or "Local provider not available"}}]
 
+        if context is None:
+            return [{"tool": "respond", "args": {"message": ""}}]
+
         if isinstance(context, str):
             # Direct provider.plan() calls with a raw prompt string.
             # Treat the string as the prompt and delegate to complete() + parse.

@@ -87,7 +87,7 @@ def set_opt_in_screen(opt_in: bool) -> str:
         set_opt_in(current_user_id() or "", bool(opt_in))
         return community_status_screen()
     except Exception as exc:
-        logger.debug("set_opt_in_screen failed: %s", exc)
+        logger.warning("set_opt_in_screen failed: %s", exc)
         return f"<span style='color:var(--red, #A63F31);'>Failed: {escape(str(exc))}</span>"
 
 

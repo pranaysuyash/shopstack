@@ -136,7 +136,11 @@ SHOPSTOCK = _register(ModuleMetadata(
     slug="stock",
     name="ShopStock",
     label="At Home",
-    description="Inventory, pantry, fridge, expiry, low-stock, use-soon, and household storage.",
+    description=(
+        "Inventory, pantry, fridge, expiry, low-stock, use-soon, "
+        "household storage, object trail (find), unified timeline, "
+        "photo-anchored map, and condition/damage detection."
+    ),
     tab_ids=("reconcile",),
     tab_labels={"reconcile": "At Home"},
     order=TAB_ORDER.get("reconcile", 999),
@@ -144,6 +148,16 @@ SHOPSTOCK = _register(ModuleMetadata(
         "shopstack.ui.screens.inventory",
         "shopstack.ui.screens.portability",
         "shopstack.portability",
+        # Spatial memory & findability core (2026-06-14)
+        "shopstack.services.find",
+        "shopstack.ui.screens.find_trail",
+        "shopstack.services.timeline",
+        "shopstack.ui.screens.timeline",
+        "shopstack.services.photo_search",
+        "shopstack.ui.screens.photo_map",
+        "shopstack.services.condition",
+        "shopstack.ui.screens.repair_inbox",
+        "shopstack.schemas.condition",
     ),
 ))
 

@@ -23,7 +23,7 @@ def analytics_screen(window_days: int = 180) -> str:
         analytics = aggregate_analytics(traces, window_days=window_days)
         return render_analytics_html(analytics)
     except Exception as exc:
-        logger.debug("analytics_screen failed: %s", exc)
+        logger.warning("analytics_screen failed: %s", exc)
         return (
             "<div class='home-card' style='text-align:center;color:var(--text-dim);padding:16px;'>"
             "📊 No analytics yet. Add some receipts to see insights."
