@@ -37,7 +37,7 @@ def fresh_db():
     fd, path = tempfile.mkstemp(suffix=".db")
     import os
     os.close(fd)
-    s = Settings(_env_file=None, db_path=path, off_the_grid=True, planner_backend="mock")
+    s = Settings(_env_file=None, db_path=path, off_the_grid=True, local_auto_download=False)
     db = Database(path)
     db.add_household("default", "Default Test Household")
     db.add_household_member("default", "default", role="owner")

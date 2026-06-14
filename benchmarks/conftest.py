@@ -108,10 +108,7 @@ def settings() -> Settings:
         _env_file=None,
         db_path=":memory:",
         off_the_grid=True,
-        planner_backend="mock",
-        stt_backend="mock",
-        tts_backend="mock",
-        ocr_backend="mock",
+        local_auto_download=False,
     )
 
 

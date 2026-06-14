@@ -30,7 +30,7 @@ def _current_db():
     # `shopstack.app_context`.
     try:
         from shopstack import app as _app
-    except Exception:
+    except ImportError:
         _app = None
     if _app is not None and hasattr(_app, "db"):
         return _app.db
@@ -254,7 +254,8 @@ def record_workflow_trace(
             user_id=user_id,
         )
         return trace.trace_id
-    except Exception:
+    except Exception as exc:
+        logger.warning("record_workflow_trace failed: %s", exc)
         return ""
 
 

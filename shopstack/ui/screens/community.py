@@ -33,8 +33,8 @@ def community_status_screen() -> str:
     try:
         return render_opt_in_toggle_html(current_user_id() or "")
     except Exception as exc:
-        logger.debug("community_status_screen failed: %s", exc)
-        return ""
+        logger.warning("community_status_screen failed: %s", exc)
+        return "<span style='color:var(--amber);'>Community status unavailable</span>"
 
 
 def community_pool_stats_screen() -> str:
@@ -56,8 +56,12 @@ def community_pool_stats_screen() -> str:
             + "</div>"
         )
     except Exception as exc:
-        logger.debug("community_pool_stats_screen failed: %s", exc)
-        return ""
+        logger.warning("community_pool_stats_screen failed: %s", exc)
+        return (
+            "<div class='home-card' style='font-size: 0.6875rem;color:var(--text-dim);padding:8px;'>"
+            "<span style='color:var(--amber);'>Community pool stats unavailable</span>"
+            "</div>"
+        )
 
 
 def community_indicator_for(
@@ -73,7 +77,7 @@ def community_indicator_for(
             city=city,
         )
     except Exception as exc:
-        logger.debug("community_indicator_for failed: %s", exc)
+        logger.warning("community_indicator_for failed: %s", exc)
         return ""
 
 

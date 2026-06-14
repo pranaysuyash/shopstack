@@ -551,13 +551,12 @@ class TestMarketLensSkip:
 class TestMarketLensSaveTrace:
     def test_requires_trace(self, app):
         result = market_lens_save_trace("", "")
-        assert "No trace to save" in result
+        assert "No scan to save" in result
 
     def test_saves_trace(self, app):
         app_db.save_trace(Trace(input_type="vision", user_goal="market_lens", final_response="test"))
         trace = app_db.get_traces()[0]
         result = market_lens_save_trace('{"items":[]}', trace.trace_id)
-        assert "Trace" in result
         assert "saved" in result.lower()
 
 

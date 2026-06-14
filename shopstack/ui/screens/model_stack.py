@@ -149,7 +149,8 @@ def runtime_proof_view() -> str:
     try:
         traces = db.get_traces(limit=1, user_id=current_user_id())
         latest_trace = traces[0].trace_id if traces else ""
-    except Exception:
+    except Exception as exc:
+        logger.debug("Failed to load latest trace: %s", exc)
         latest_trace = ""
 
     badge_parts = [provider_status_badge()]

@@ -13,6 +13,7 @@ from shopstack.schemas.models import (
     InventoryLot,
     HouseholdLocation,
     MovementEvent,
+    new_id,
     PriceObservation,
     PurchaseEvent,
     ShoppingList,
@@ -318,6 +319,33 @@ class Database:
             BEGIN
                 DELETE FROM traces WHERE trace_id = OLD.trace_id;
             END;
+
+            -- ── Object Trail: negative memory (places where items are confirmed NOT to be) ──
+            CREATE TABLE IF NOT EXISTS negative_memory (
+                memory_id TEXT PRIMARY KEY,
+                lot_id TEXT NOT NULL,
+                location_id TEXT NOT NULL,
+                location_name TEXT DEFAULT '',
+                confirmed_at TEXT NOT NULL,
+                source TEXT DEFAULT 'user_feedback',
+                confidence REAL DEFAULT 1.0,
+                user_id TEXT DEFAULT ''
+            );
+            CREATE INDEX IF NOT EXISTS idx_negative_memory_lot
+                ON negative_memory(lot_id);
+
+            -- ── Object Trail: person associations (who owns/uses an item) ──
+            CREATE TABLE IF NOT EXISTS person_associations (
+                association_id TEXT PRIMARY KEY,
+                lot_id TEXT NOT NULL,
+                person_id TEXT NOT NULL,
+                person_name TEXT NOT NULL,
+                relationship TEXT DEFAULT 'owner',
+                confidence REAL DEFAULT 1.0,
+                user_id TEXT DEFAULT ''
+            );
+            CREATE INDEX IF NOT EXISTS idx_person_associations_lot
+                ON person_associations(lot_id);
         """)
         self._migrate_market_snapshot_schema()
         self._migrate_add_user_scoping()
@@ -694,6 +722,10 @@ class Database:
         from shopstack.services.permissions import require_write as _rw
         if not user_id:
             user_id = self.active_household_id
+        # user_id doubles as the household scope being written to; check
+        # self-membership (seeded by _seed_default_household for every
+        # household) rather than against self.active_household_id, which
+        # may be a different household than the one being written.
         _rw(user_id, user_id, self)  # raises PermissionError on deny
         self.conn.execute(
             """INSERT INTO inventory_lots
@@ -856,7 +888,12 @@ class Database:
         return _row_to_list(row, self.conn)
 
     def add_list_item(self, list_id: str, item: ShoppingListItem) -> ShoppingListItem:
-        # ── Phase 11: permission gate (additive, supersession-safe) ──
+        # ── Phase 11: permission gate ──
+        # Uses active_household_id as both user and household because
+        # add_list_item doesn't receive an explicit user_id parameter.
+        # The seed creates household_id as its own owner member, so
+        # this check succeeds for the default case. If per-user
+        # tracking is added later, this should accept a user_id param.
         from shopstack.services.permissions import require_write as _rw
         _rw(self.active_household_id, self.active_household_id, self)
         self.conn.execute(
@@ -914,7 +951,10 @@ class Database:
     # --- Movements ---
 
     def record_movement(self, movement: MovementEvent) -> MovementEvent:
-        # ── Phase 11: permission gate (additive, supersession-safe) ──
+        # ── Phase 11: permission gate ──
+        # Uses active_household_id as both user and household because
+        # record_movement doesn't receive an explicit user_id parameter.
+        # See add_list_item for rationale.
         from shopstack.services.permissions import require_write as _rw
         _rw(self.active_household_id, self.active_household_id, self)
         self.conn.execute(
@@ -936,6 +976,58 @@ class Database:
             (lot_id,),
         ).fetchall()
         return [_row_to_movement(r) for r in rows]
+
+    # --- Negative Memory (Object Trail) ---
+
+    def add_negative_memory(self, lot_id: str, location_id: str, location_name: str = "", source: str = "user_feedback", confidence: float = 1.0, user_id: str = "") -> dict:
+        """Record that an item has been confirmed NOT to be at a location."""
+        memory_id = f"negmem_{new_id()}"
+        self.conn.execute(
+            "INSERT INTO negative_memory (memory_id, lot_id, location_id, location_name, confirmed_at, source, confidence, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (memory_id, lot_id, location_id, location_name, datetime.now().isoformat(), source, confidence, user_id),
+        )
+        self.conn.commit()
+        return {"memory_id": memory_id, "lot_id": lot_id, "location_id": location_id}
+
+    def get_negative_memory_for_lot(self, lot_id: str) -> list[dict]:
+        """Get all negative memory entries for a given lot."""
+        rows = self.conn.execute(
+            "SELECT * FROM negative_memory WHERE lot_id = ? ORDER BY confirmed_at DESC",
+            (lot_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def delete_negative_memory(self, memory_id: str) -> bool:
+        """Remove a negative memory entry."""
+        self.conn.execute("DELETE FROM negative_memory WHERE memory_id = ?", (memory_id,))
+        self.conn.commit()
+        return True
+
+    # --- Person Associations (Object Trail) ---
+
+    def add_person_association(self, lot_id: str, person_id: str, person_name: str, relationship: str = "owner", confidence: float = 1.0, user_id: str = "") -> dict:
+        """Record a person association for an item."""
+        association_id = f"personassoc_{new_id()}"
+        self.conn.execute(
+            "INSERT INTO person_associations (association_id, lot_id, person_id, person_name, relationship, confidence, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (association_id, lot_id, person_id, person_name, relationship, confidence, user_id),
+        )
+        self.conn.commit()
+        return {"association_id": association_id, "lot_id": lot_id, "person_id": person_id}
+
+    def get_person_associations_for_lot(self, lot_id: str) -> list[dict]:
+        """Get all person associations for a given lot."""
+        rows = self.conn.execute(
+            "SELECT * FROM person_associations WHERE lot_id = ?",
+            (lot_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def delete_person_association(self, association_id: str) -> bool:
+        """Remove a person association."""
+        self.conn.execute("DELETE FROM person_associations WHERE association_id = ?", (association_id,))
+        self.conn.commit()
+        return True
 
     # --- Price Observations ---
 

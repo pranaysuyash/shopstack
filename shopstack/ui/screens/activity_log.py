@@ -7,12 +7,15 @@ Wired into the Memory tab as a new "Activity" sub-tab.
 from __future__ import annotations
 
 import logging
+from html import escape
 
 from shopstack.app_context import current_user_id, db
 from shopstack.services.activity_log import (
     aggregate_activity,
     render_activity_log_html,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def activity_log_screen(window_days: int = 30) -> str:
@@ -30,11 +33,14 @@ def activity_log_screen(window_days: int = 30) -> str:
         summary = aggregate_activity(traces, window_days=window_days)
         return render_activity_log_html(summary)
     except Exception as exc:
-        logger.debug("activity_log_screen failed: %s", exc)
+        logger.warning("activity_log_screen failed: %s", exc)
         return (
-            "<div class='home-card' style='text-align:center;color:var(--text-dim);padding:16px;'>"
-            "📊 No activity yet. Add a purchase, log a recipe, or use the app to see it here."
-            "</div>"
+            "<div class='home-card' style='text-align:center;padding:16px;'>"
+            "<div style='color:var(--amber);font-weight:600;'>Could not load activity log</div>"
+            f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{escape(str(exc)[:120])}</div>"
+            "<div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:8px;'>"
+            "Try refreshing, or add a purchase, log a recipe, or use the app to see activity here."
+            "</div></div>"
         )
 
 

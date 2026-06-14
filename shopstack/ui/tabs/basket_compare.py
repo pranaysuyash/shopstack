@@ -32,11 +32,11 @@ from __future__ import annotations
 import gradio as gr
 
 from shopstack.ui.components.primitives import (
-    busy_js,
     empty_state_enhanced,
     loading_skeleton,
     with_loading_state,
 )
+from shopstack.ui.components.js_helpers import busy_js
 from shopstack.ui.screens import (
     market_intelligence_view,
     multi_source_price_view,

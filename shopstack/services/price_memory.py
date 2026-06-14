@@ -341,6 +341,7 @@ class PriceMemoryService:
 
         store_data: dict[str, list[float]] = {}
         store_ppk: dict[str, list[float]] = {}
+        store_last_seen: dict[str, date] = {}
         for o in observations:
             store = o.store_name or "unknown"
             if o.price > 0:
@@ -348,6 +349,10 @@ class PriceMemoryService:
                 ppk = self._price_per_kg(o)
                 if ppk is not None and ppk > 0:
                     store_ppk.setdefault(store, []).append(ppk)
+                if o.observation_date and (
+                    store not in store_last_seen or o.observation_date > store_last_seen[store]
+                ):
+                    store_last_seen[store] = o.observation_date
 
         if not store_data:
             return StorePriceRanking(canonical_name=canonical_name)
@@ -364,6 +369,7 @@ class PriceMemoryService:
                 "min_price": round(min(prices), 2),
                 "observations": len(prices),
                 "median_per_kg": round(median_ppk, 2) if median_ppk else None,
+                "last_seen": store_last_seen.get(store).isoformat() if store_last_seen.get(store) else None,
             })
 
         # Rank by per-kg if available, otherwise by absolute price

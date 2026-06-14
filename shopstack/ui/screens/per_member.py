@@ -7,12 +7,15 @@ Wired into the Memory tab → "Per-member" sub-tab.
 from __future__ import annotations
 
 import logging
+from html import escape
 
 from shopstack.app_context import current_user_id, db
 from shopstack.services.per_member_activity import (
     aggregate_by_actor,
     render_per_member_html,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def per_member_screen(window_days: int = 30) -> str:
@@ -32,8 +35,13 @@ def per_member_screen(window_days: int = 30) -> str:
         activity = aggregate_by_actor(traces, window_days=window_days)
         return render_per_member_html(activity)
     except Exception as exc:
-        logger.debug("per_member_screen failed: %s", exc)
-        return ""
+        logger.warning("per_member_screen failed: %s", exc)
+        return (
+            "<div class='home-card' style='text-align:center;padding:12px;'>"
+            "<div style='color:var(--amber);font-weight:600;'>Could not load per-member activity</div>"
+            f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{escape(str(exc)[:120])}</div>"
+            "</div>"
+        )
 
 
 __all__ = ["per_member_screen"]

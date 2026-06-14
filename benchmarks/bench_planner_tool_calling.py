@@ -16,7 +16,6 @@ Run standalone:
 # ── Environment (must be set before any shopstack imports) ──────────
 import os
 os.environ["SHOPSTACK_OFF_THE_GRID"] = "true"
-os.environ["SHOPSTACK_PLANNER_BACKEND"] = "mock"
 os.environ["SHOPSTACK_LOCAL_AUTO_DOWNLOAD"] = "false"
 
 import re

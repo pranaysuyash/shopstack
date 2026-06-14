@@ -10,6 +10,8 @@ setup(
         "gradio>=5",
         "pydantic>=2",
         "pydantic-settings>=2",
+        "huggingface_hub>=0.20",
+        "httpx>=0.25",
         "pydub",
         "pillow",
         "pandas",

@@ -164,7 +164,16 @@ def today_dashboard():
         and not state.recent_purchases
         and state.active_list is None
     )
-    onboarding = _render_today_empty_hints(state, ds) if show_empty_hints else _render_today_start_here(state, ds)
+    # Item 8: First-run onboarding gate — show the onboarding wizard
+    # when the household hasn't completed onboarding yet.
+    from shopstack.services.onboarding import is_onboarding_complete
+    onboarding_complete = is_onboarding_complete(db)
+    if show_empty_hints and not onboarding_complete:
+        onboarding = _render_onboarding_gate(state, ds)
+    elif show_empty_hints:
+        onboarding = _render_today_empty_hints(state, ds)
+    else:
+        onboarding = _render_today_start_here(state, ds)
 
     tonight_section = _details_section(
         "Tonight",
@@ -212,6 +221,7 @@ def today_dashboard():
 
 
 def _render_today_start_here(state, ds) -> str:
+    cook_with_hint = ""
     if state.active_list is not None:
         item_count = len(state.active_list.items or [])
         subtitle = (
@@ -241,25 +251,36 @@ def _render_today_start_here(state, ds) -> str:
             },
         ]
     elif ds.use_soon:
+        use_soon_names = ", ".join(
+            str(it.get("display_name", it.get("canonical_name", ""))).replace("_", " ").title()
+            for it in (ds.use_soon[:3] if hasattr(ds.use_soon, '__iter__') else [])
+        )
         subtitle = f"{len(ds.use_soon)} item{'' if len(ds.use_soon) == 1 else 's'} are ready to use soon."
         action_label = "Use these first"
         body = "Use soon items first, then restock only what is still missing."
+        # Item 10: Cook-with-this — suggest recipes that use expiring items
+        cook_with_hint = (
+            f"<div style='font-size:0.75rem;color:var(--amber);margin-bottom:8px;'>"
+            f"🍳 These can make a meal: {escape(use_soon_names)}. "
+            f"<a href='#cookbook' style='color:var(--accent);'>Browse recipes →</a></div>"
+            if use_soon_names else ""
+        )
         actions = [
+            {
+                "label": "Cook with these",
+                "subtitle": "Find recipes that use expiring items",
+                "tab_id": "cookbook",
+                "tone": "primary",
+            },
             {
                 "label": "Open use-first items",
                 "subtitle": "See what should be used before shopping",
                 "tab_id": "reconcile",
-                "tone": "primary",
+                "tone": "default",
             },
             {
                 "label": "Plan groceries",
                 "subtitle": "Build a list around the missing items",
-                "tab_id": "basket",
-                "tone": "default",
-            },
-            {
-                "label": "Check before buying",
-                "subtitle": "Compare before you buy again",
                 "tab_id": "basket",
                 "tone": "default",
             },
@@ -316,8 +337,37 @@ def _render_today_start_here(state, ds) -> str:
     return ui_card(
         action_label,
         f"<div class='muted' style='margin-bottom:8px;'>{subtitle}</div>"
+        f"{cook_with_hint}"
         f"<div style='margin-bottom:10px;'>{body}</div>"
         f"{render_action_grid(actions)}",
+    )
+
+
+def _render_onboarding_gate(state, ds) -> str:
+    """Render the onboarding gate when the household hasn't completed setup.
+
+    Shows a welcoming first-run screen that guides the user through
+    the onboarding wizard instead of a dead dashboard.
+    """
+    return (
+        "<div class='home-card' style='margin-top:10px;text-align:left;border:2px solid var(--accent, #176B49);'>"
+        "<h3>Welcome to ShopStack</h3>"
+        "<div style='margin-bottom:8px;'>"+APP_NAME+" learns from your household to help you plan groceries, "
+        "reduce waste, and save money. It takes about 2 minutes to set up.</div>"
+        "<div style='font-size:0.75rem;color:var(--text-dim);margin-bottom:12px;'>"+APP_DESCRIPTION+"</div>"
+        "<div style='font-size:0.8125rem;margin-bottom:12px;'>"+"You'll be asked about: household size, dietary preference, "
+        "common staples, preferred stores, and your city.</div>"
+        f"{render_action_grid([{
+            'label': 'Set up my household',
+            'subtitle': 'Tell us about your home so we can help',
+            'tab_id': 'reconcile',
+            'tone': 'primary',
+        }, {
+            'label': 'Skip for now',
+            'subtitle': 'Browse the app first, set up later',
+            'tab_id': 'market',
+            'tone': 'default',
+        }])}"
     )
 
 

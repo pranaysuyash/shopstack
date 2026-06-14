@@ -205,4 +205,32 @@ def receipt_confirm(df_data: Any, merchant: str, date_str: str, raw_text: str) -
     uid = current_user_id()
     ir = confirm_receipt(db, result, user_id=uid)
     clear_dashboard_cache(uid)
-    return ir.summary_html
+    # Item 12: Post-receipt-confirm guidance — append "What's next?" card
+    # after the receipt summary so the user knows what to do after scanning.
+    summary = ir.summary_html or ""
+    items_added = ir.items_added or len(lines)
+    guidance = (
+        f"<div class='home-card' style='margin-top:12px;text-align:left;border:2px solid var(--green, #176B49);'>"
+        f"<h3>What's next?</h3>"
+        f"<div class='muted' style='margin-bottom:8px;'>"
+        f"{items_added} item{'s' if items_added != 1 else ''} added to your pantry.</div>"
+        f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:8px;'>"
+        f"<div style='padding:10px;border:1px solid var(--border);border-radius:8px;text-align:center;cursor:pointer;'>"
+        f"<div style='font-size:1.25rem;margin-bottom:4px;'>🏠</div>"
+        f"<div style='font-weight:600;font-size:0.8125rem;'>Put groceries away</div>"
+        f"<div style='font-size:0.75rem;color:var(--text-dim);'>Move items to the right shelf</div>"
+        f"</div>"
+        f"<div style='padding:10px;border:1px solid var(--border);border-radius:8px;text-align:center;cursor:pointer;'>"
+        f"<div style='font-size:1.25rem;margin-bottom:4px;'>📋</div>"
+        f"<div style='font-weight:600;font-size:0.8125rem;'>Check your list</div>"
+        f"<div style='font-size:0.75rem;color:var(--text-dim);'>Mark off what you bought</div>"
+        f"</div>"
+        f"<div style='padding:10px;border:1px solid var(--border);border-radius:8px;text-align:center;cursor:pointer;'>"
+        f"<div style='font-size:1.25rem;margin-bottom:4px;'>🍳</div>"
+        f"<div style='font-weight:600;font-size:0.8125rem;'>See what to cook</div>"
+        f"<div style='font-size:0.75rem;color:var(--text-dim);'>Recipes from what you just bought</div>"
+        f"</div>"
+        f"</div>"
+        f"</div>"
+    )
+    return summary + guidance

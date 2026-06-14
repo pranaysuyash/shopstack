@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date
+from datetime import date, datetime
 from html import escape
 from typing import Any
 
@@ -27,6 +27,57 @@ from shopstack.data.seed_demo import DEMO_SEED_INVENTORY  # noqa: E402 — data 
 def _user_id() -> str:
     from shopstack.app_context import current_user_id
     return current_user_id()
+
+
+# Maps `InventoryLot.source_event_id` values/prefixes to a consumer-facing
+# provenance label. New sources should add a prefix here rather than
+# falling through to "Imported" so freshness badges stay accurate.
+_SOURCE_LABELS = {
+    "batch_add": "Added manually",
+    "demo_seed": "Demo data",
+}
+_SOURCE_PREFIX_LABELS = (
+    ("receipt", "From receipt"),
+    ("shelf_scan", "From shelf scan"),
+    ("scan", "From shelf scan"),
+)
+
+
+def _source_label(source_event_id: str) -> str:
+    """Return a consumer-facing label for where a lot's data came from."""
+    if not source_event_id:
+        return "Unknown source"
+    if source_event_id in _SOURCE_LABELS:
+        return _SOURCE_LABELS[source_event_id]
+    for prefix, label in _SOURCE_PREFIX_LABELS:
+        if source_event_id.startswith(prefix):
+            return label
+    return "Imported"
+
+
+def _freshness_text(updated_at: datetime | None, confidence: float) -> str:
+    """Return a short "last updated" / confidence string for an inventory lot.
+
+    Surfaces ``InventoryLot.updated_at`` and ``confidence`` (Phase 11
+    pantry freshness) so users can tell whether a quantity is current,
+    stale, or an estimate without opening the item.
+    """
+    parts: list[str] = []
+    if updated_at:
+        days = (datetime.now() - updated_at).days
+        if days <= 0:
+            parts.append("Updated today")
+        elif days == 1:
+            parts.append("Updated yesterday")
+        elif days < 7:
+            parts.append(f"Updated {days}d ago")
+        elif days < 30:
+            parts.append(f"Updated {days // 7}w ago")
+        else:
+            parts.append(f"Updated {days // 30}mo ago — review?")
+    if confidence is not None and confidence < 0.8:
+        parts.append("estimated qty")
+    return " · ".join(parts)
 
 
 def _search_inventory_items(search: str) -> tuple[list[Any], str]:
@@ -285,11 +336,12 @@ def inventory_view(search: str = "") -> list[list[str]]:
                 "status": lot.status,
                 "purchased": lot.purchase_date.isoformat() if lot.purchase_date else "",
                 "expires": lot.label_expiry_date.isoformat() if lot.label_expiry_date else lot.estimated_use_by_date.isoformat() if lot.estimated_use_by_date else "",
+                "freshness": _freshness_text(lot.updated_at, lot.confidence) or _source_label(lot.source_event_id),
                 "lot_id": lot.lot_id,
             }
             for lot in items
         ],
-        ["name", "qty", "unit", "location", "status", "purchased", "expires", "lot_id"],
+        ["name", "qty", "unit", "location", "status", "purchased", "expires", "freshness", "lot_id"],
     )
     return tbl
 
@@ -317,7 +369,9 @@ def inventory_cards_view(search: str = "") -> str:
                 "qty": lot.quantity,
                 "unit": lot.unit,
                 "status": lot.status,
-                "reason": f"Added {lot.purchase_date.isoformat() if lot.purchase_date else 'today'}",
+                "reason": " · ".join(
+                    p for p in (_source_label(lot.source_event_id), _freshness_text(lot.updated_at, lot.confidence)) if p
+                ),
                 "expiry": (lot.label_expiry_date.isoformat() if lot.label_expiry_date else ""),
             }
         )

@@ -19,7 +19,7 @@ import pytest
 
 # Set the DB path BEFORE importing the database / schemas modules
 os.environ.setdefault("SHOPSTACK_DB_PATH", ":memory:")
-os.environ.setdefault("SHOPSTACK_PLANNER_BACKEND", "mock")
+os.environ.setdefault("SHOPSTACK_LOCAL_AUTO_DOWNLOAD", "false")
 
 from shopstack.persistence.database import Database  # noqa: E402
 from shopstack.schemas.models import (  # noqa: E402
@@ -263,11 +263,28 @@ def test_cross_household_add_inventory_denied(db):
 
 
 def test_cross_household_consume_denied(db):
-    """Owner of hh-a cannot consume from hh-b's inventory."""
+    """A lot owned by a non-member cannot be consumed from another household."""
     _setup_two_households(db)
     db.active_household_id = "hh-b"
-    lot = _lot(_new_id(), user_id="hh-b")
-    db.add_inventory_lot(lot, user_id="owner-b")
+    # Insert a lot directly into DB with user_id="orphan" (not a member of hh-b)
+    lot = _lot(_new_id(), user_id="orphan")
+    db.conn.execute(
+        "INSERT INTO inventory_lots "
+        "(lot_id, canonical_name, display_name, category, quantity, unit, "
+        "storage_location_id, purchase_date, estimated_use_by_date, "
+        "label_expiry_date, opened_date, price_paid, currency, "
+        "source_event_id, confidence, image_crop_path, status, created_at, updated_at, user_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            lot.lot_id, lot.canonical_name, lot.display_name, lot.category,
+            lot.quantity, lot.unit, lot.storage_location_id,
+            lot.purchase_date.isoformat() if lot.purchase_date else None,
+            None, None, None, lot.price_paid, lot.currency,
+            "", lot.confidence, "", lot.status,
+            lot.created_at.isoformat(), lot.updated_at.isoformat(), "orphan",
+        ),
+    )
+    db.conn.commit()
     with pytest.raises(PermissionError):
         db.consume_inventory(lot.lot_id, 0.5)
 
@@ -302,11 +319,28 @@ def test_guest_cannot_write_to_own_household(db):
 
 
 def test_guest_cannot_consume_in_own_household(db):
-    """A guest in hh-b cannot consume even from their own household."""
+    """A guest cannot consume from their own household (guest is read-only)."""
     _setup_two_households(db)
     db.active_household_id = "hh-b"
-    lot = _lot(_new_id(), user_id="hh-b")
-    db.add_inventory_lot(lot, user_id="owner-b")
+    # Insert a lot directly with user_id="guest-b" (guest role, read-only)
+    lot = _lot(_new_id(), user_id="guest-b")
+    db.conn.execute(
+        "INSERT INTO inventory_lots "
+        "(lot_id, canonical_name, display_name, category, quantity, unit, "
+        "storage_location_id, purchase_date, estimated_use_by_date, "
+        "label_expiry_date, opened_date, price_paid, currency, "
+        "source_event_id, confidence, image_crop_path, status, created_at, updated_at, user_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            lot.lot_id, lot.canonical_name, lot.display_name, lot.category,
+            lot.quantity, lot.unit, lot.storage_location_id,
+            lot.purchase_date.isoformat() if lot.purchase_date else None,
+            None, None, None, lot.price_paid, lot.currency,
+            "", lot.confidence, "", lot.status,
+            lot.created_at.isoformat(), lot.updated_at.isoformat(), "guest-b",
+        ),
+    )
+    db.conn.commit()
     with pytest.raises(PermissionError):
         db.consume_inventory(lot.lot_id, 0.5)
 

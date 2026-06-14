@@ -1,7 +1,9 @@
 """Planner eval harness — SWE-bench style structured eval scenarios for planner accuracy.
 
-Tests the mock planner provider's tool-calling logic directly, verifying that
-the provider returns properly structured tool calls for various scenarios.
+Tests run against whatever planner ProviderRegistry resolves for the default
+``planner_backend`` (typically ``local``). When the real backend's deps or
+weights are unavailable, the registry falls back to ``MockPlannerProvider`` —
+the tests still verify PlannerEngine / planner-interface behavior either way.
 
 Each eval scenario specifies:
   - name: scenario identifier
@@ -14,11 +16,8 @@ Run: uv run pytest tests/test_planner_eval.py -v
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
-
-import pytest
 
 from shopstack.planner.engine import PlannerEngine
 
@@ -35,8 +34,13 @@ EVAL_SCENARIOS: list[dict[str, Any]] = [
 ]
 
 
-def _build_engine(planner_backend: str = "mock") -> PlannerEngine:
-    """Create an isolated PlannerEngine with :memory: DB and mock default backends."""
+def _build_engine() -> PlannerEngine:
+    """Create an isolated PlannerEngine with :memory: DB and default backends.
+
+    No explicit backend is requested — ProviderRegistry resolves the default
+    and falls back to MockPlannerProvider silently when the real backend
+    can't load.
+    """
     from shopstack.config import Settings
     from shopstack.persistence.database import Database
     from shopstack.providers.registry import ProviderRegistry
@@ -46,9 +50,7 @@ def _build_engine(planner_backend: str = "mock") -> PlannerEngine:
         _env_file=None,
         db_path=":memory:",
         off_the_grid=True,
-        planner_backend=planner_backend,
-        stt_backend="mock",
-        tts_backend="mock",
+        local_auto_download=False,
     )
     database = Database(s.db_path)
     provider_registry = ProviderRegistry(s)
@@ -57,25 +59,21 @@ def _build_engine(planner_backend: str = "mock") -> PlannerEngine:
 
 
 def test_planner_returns_valid_tool_calls() -> None:
-    """Verify MockPlannerProvider.plan() returns properly structured tool calls."""
+    """Verify the resolved planner's plan() returns properly structured tool calls."""
     from shopstack.config import Settings
     from shopstack.persistence.database import Database
     from shopstack.providers.registry import ProviderRegistry
-    from shopstack.tools.registry import ToolRegistry
 
     s = Settings(
         _env_file=None,
         db_path=":memory:",
         off_the_grid=True,
-        planner_backend="mock",
-        stt_backend="mock",
-        tts_backend="mock",
+        local_auto_download=False,
     )
-    database = Database(s.db_path)
+    Database(s.db_path)
     provider_registry = ProviderRegistry(s)
     provider = provider_registry.planner
 
-    # Call plan() directly (not through engine.process() which formats as HTML)
     context = {
         "prompt": "What's in my kitchen?",
         "question": "What's in my kitchen?",
@@ -94,7 +92,6 @@ def test_planner_returns_valid_tool_calls() -> None:
         assert "args" in tc, f"Tool call missing 'args' key: {tc}"
         assert isinstance(tc["args"], dict), f"Tool args must be dict: {tc}"
 
-    # Verify returned tool names are valid
     valid_tools = {
         "respond", "add_inventory_item", "consume_inventory_item",
         "update_inventory_item", "move_inventory_item", "find_item",
@@ -109,7 +106,7 @@ def test_planner_returns_valid_tool_calls() -> None:
 
 
 def test_planner_eval_all_tool_names_valid() -> None:
-    """Verify the mock planner only returns tools that exist in the registry."""
+    """Verify the resolved planner only returns tools that exist in the registry."""
     from shopstack.config import Settings
     from shopstack.persistence.database import Database
     from shopstack.providers.registry import ProviderRegistry
@@ -119,22 +116,18 @@ def test_planner_eval_all_tool_names_valid() -> None:
         _env_file=None,
         db_path=":memory:",
         off_the_grid=True,
-        planner_backend="mock",
-        stt_backend="mock",
-        tts_backend="mock",
+        local_auto_download=False,
     )
     database = Database(s.db_path)
     tool_registry = ToolRegistry(database)
     provider_registry = ProviderRegistry(s)
     provider = provider_registry.planner
 
-    # Get available tools from the registry
     available_tools = set()
     for t in tool_registry.list_tools():
         available_tools.add(t.get("name", ""))
     available_tools.add("respond")  # special built-in tool
 
-    # Test with several common queries
     queries = [
         "What's in my fridge?",
         "I need milk, bread, and eggs",
@@ -167,11 +160,9 @@ def test_planner_eval_edge_cases() -> None:
         _env_file=None,
         db_path=":memory:",
         off_the_grid=True,
-        planner_backend="mock",
-        stt_backend="mock",
-        tts_backend="mock",
+        local_auto_download=False,
     )
-    database = Database(s.db_path)
+    Database(s.db_path)
     provider_registry = ProviderRegistry(s)
     provider = provider_registry.planner
 
@@ -188,16 +179,16 @@ def test_planner_eval_edge_cases() -> None:
             for tc in result:
                 assert "tool" in tc, f"Tool call missing 'tool': {tc}"
         except Exception as e:
+            import pytest
             pytest.fail(f"Planner crashed on '{description}': {e}")
 
 
-def test_planner_eval_backend_independence() -> None:
-    """Verify planner works across different backends (mock only)."""
-    engine = _build_engine(planner_backend="mock")
+def test_planner_eval_returns_html() -> None:
+    """Verify PlannerEngine.process() returns non-empty HTML."""
+    engine = _build_engine()
     result = engine.process("What's in my kitchen?")
 
     assert result is not None, "Planner returned None"
     assert isinstance(result, str), f"process() returns HTML string, got {type(result)}"
     assert len(result) > 0, "Planner returned empty string"
-    # Confirm the output looks like HTML
     assert "<div" in result, "Expected HTML output from process()"

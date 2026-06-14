@@ -20,9 +20,6 @@ from shopstack.ui import (
 )
 from shopstack.ui.components.primitives import (
     aria_live_html,
-    aria_live_screen,
-    autocomplete_injector_js,
-    busy_js,
     confirm_dialog,
     confirm_hide_updates,
     confirm_toggle_updates,
@@ -34,9 +31,14 @@ from shopstack.ui.components.primitives import (
     loading_skeleton,
     required_marker,
     toast,
-    url_state_sync_js,
     with_loading_state,
 )
+from shopstack.ui.components.js_helpers import (
+    autocomplete_injector_js,
+    busy_js,
+    url_state_sync_js,
+)
+from shopstack.ui.components.decorators import aria_live_screen
 from shopstack.ui.theme import CSS
 
 
@@ -589,19 +591,54 @@ def test_autocomplete_injector_js_returns_function_expression():
     assert "hasAttribute" not in js
 
 
-def test_autocomplete_injector_js_is_evaluatable():
-    """The JS must be evaluable as a function expression without syntax errors."""
+def test_autocomplete_injector_js_is_function_expression():
+    """The JS must be a valid arrow function expression.
+
+    Gradio's ``app.load(js=...)`` expects a function expression
+    that it can invoke. Bare statements (like ``setTimeout(...)``
+    without a wrapper) cause ``SyntaxError: Unexpected token ';'``
+    in the browser.
+
+    We validate the structure without running a JS engine:
+    - starts with ``() =>`` (no-arg arrow function)
+    - contains balanced braces
+    - contains the expected logic
+    """
     js = autocomplete_injector_js()
-    # Wrap in a no-op call to verify it's syntactically valid.
-    # This catches issues like bare statements (missing function wrapper)
-    # that would cause Gradio's app.load to throw SyntaxError.
-    compile(js, "<autocomplete_injector_js>", "eval")
+    # Must start with a no-arg function expression.
+    assert js.startswith("() =>"), (
+        f"autocomplete_injector_js must return a no-arg arrow function, "
+        f"got: {js[:60]!r}"
+    )
+    # Must end with closing brace of the function body.
+    assert js.rstrip().endswith("}"), (
+        f"JS must end with '}}' (function body close), got tail: {js[-30:]!r}"
+    )
+    # Balanced braces check.
+    open_count = js.count("{")
+    close_count = js.count("}")
+    assert open_count == close_count, (
+        f"Unbalanced braces in autocomplete_injector_js: "
+        f"{open_count} opens, {close_count} closes"
+    )
 
 
-def test_url_state_sync_js_is_evaluatable():
-    """The JS must be evaluable as a function expression without syntax errors."""
+def test_url_state_sync_js_is_function_expression():
+    """The JS must be a valid arrow function expression."""
     js = url_state_sync_js()
-    compile(js, "<url_state_sync_js>", "eval")
+    assert js.startswith("() =>"), (
+        f"url_state_sync_js must return a no-arg arrow function, "
+        f"got: {js[:60]!r}"
+    )
+    assert js.rstrip().endswith("}"), (
+        f"JS must end with '}}' (function body close), got tail: {js[-30:]!r}"
+    )
+    open_count = js.count("{")
+    close_count = js.count("}")
+    assert open_count == close_count, (
+        f"Unbalanced braces in url_state_sync_js: "
+        f"{open_count} opens, {close_count} closes"
+    )
 
 
 def test_url_state_sync_js_supports_subtab_format():

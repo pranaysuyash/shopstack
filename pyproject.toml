@@ -10,6 +10,12 @@ dependencies = [
     "pydub",
     "pillow",
     "pandas",
+    "httpx",
+    "pyzbar",
+    "sentence-transformers",
+    "mlx",
+    "llama-cpp-python>=0.3",
+    "openai>=1.0",
 ]
 
 [project.optional-dependencies]
@@ -18,12 +24,6 @@ dev = [
     "pytest>=9",
     "pytest-cov",
     "pytest-benchmark",
-]
-cloud = [
-    "openai>=1.0",
-]
-local = [
-    "llama-cpp-python>=0.3",
 ]
 
 [build-system]

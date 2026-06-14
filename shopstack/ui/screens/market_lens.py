@@ -80,7 +80,8 @@ def market_lens_process(image_path: str | None, audio_path: str | None) -> tuple
                 user_id=uid,
             )
             ml_trace_id = trace.trace_id
-        except Exception:
+        except Exception as exc:
+            logger.warning("market_lens: failed to create trace: %s", exc)
             ml_trace_id = ""
     return result_html, service_result.detected_items_json, analysis, ml_trace_id, service_result.barcode_json
 
@@ -193,9 +194,9 @@ def market_lens_skip(ml_analysis_json: str, ml_trace_id: str) -> str:
 
 def market_lens_save_trace(ml_analysis_json: str, ml_trace_id: str) -> str:
     if not ml_trace_id:
-        return "<div style='color:var(--text-dim);'>No trace to save. Scan something first.</div>"
+        return "<div style='color:var(--text-dim);'>No scan to save. Scan something first.</div>"
     update_trace_confirmation(db, ml_trace_id, "saved", user_id=current_user_id())
-    return f"<div style='color:var(--green);'>Trace {ml_trace_id[:12]} saved to workflow history.</div>"
+    return f"<div style='color:var(--green);'>Scan results saved to activity history.</div>"
 
 
 def market_lens_barcode_add(barcode_json: str) -> str:

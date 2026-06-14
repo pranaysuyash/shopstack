@@ -31,11 +31,11 @@ from __future__ import annotations
 import gradio as gr
 
 from shopstack.ui.components.primitives import (
-    busy_js,
     empty_state_enhanced,
     loading_skeleton,
     with_loading_state,
 )
+from shopstack.ui.components.js_helpers import busy_js
 from shopstack.ui.screens import (
     recipe_text_add_missing_to_list,
     recipe_text_to_shopping_list,

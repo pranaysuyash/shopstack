@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import date
+import tempfile
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -21,6 +23,7 @@ from shopstack.schemas.shelf import (
 )
 from shopstack.services.expiry_parser import expiry_risk_label, parse_expiry_value
 from shopstack.services.speech_intent import parse_speech_intent
+from shopstack.providers.image_gen_provider import resolve_detection_bbox
 
 _SCENE_LABELS: dict[ShelfSceneType, str] = {
     ShelfSceneType.AUTO: "Auto",
@@ -112,17 +115,8 @@ def analyze_shelf_scene(
         detections = _safe_detection(providers, image_path)
         segments = _safe_segmentation(providers, image_path)
         ocr_payload = _safe_ocr(providers, image_path)
-        if detections and hasattr(providers, "image_edit"):
-            try:
-                annotated = providers.image_edit.annotate_image(image_path, detections)
-                if annotated:
-                    result.annotated_image_path = str(annotated)
-            except Exception:
-                result.warnings.append("Could not render annotated image.")
-        if detections and not result.annotated_image_path:
-            # Keep a visible artifact in mock/test mode even if the annotator
-            # provider is unavailable in the current runtime.
-            result.annotated_image_path = image_path
+        if detections:
+            result.annotated_image_path = _annotate_home_scan(image_path, detections, providers)
 
     if audio_path and hasattr(providers, "stt"):
         try:
@@ -668,6 +662,60 @@ def _scene_warnings(scene: ShelfSceneType, result: ShelfIntelligenceResult) -> l
     if result.speech_intent and result.speech_intent.action == "correct":
         warnings.append("Speech correction detected; review the changed item names.")
     return warnings
+
+
+def _annotate_home_scan(image_path: str, detections: list[dict[str, Any]], providers: Any) -> str:
+    if hasattr(providers, "image_edit"):
+        try:
+            annotated = providers.image_edit.annotate_image(image_path, detections)
+            if annotated:
+                return str(annotated)
+        except Exception:
+            pass
+
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except Exception:
+        return image_path
+
+    try:
+        with Image.open(image_path) as img:
+            img = img.convert("RGB")
+            draw = ImageDraw.Draw(img)
+            width, height = img.size
+            try:
+                font = ImageFont.load_default()
+            except Exception:
+                font = None
+            for idx, det in enumerate(detections[:12], start=1):
+                bbox = resolve_detection_bbox(det, width, height)
+                if not bbox:
+                    continue
+                x1 = int(bbox[0] * width)
+                y1 = int(bbox[1] * height)
+                x2 = int(bbox[2] * width)
+                y2 = int(bbox[3] * height)
+                color = (255, 139, 61)
+                draw.rectangle([x1, y1, x2, y2], outline=color, width=3)
+                label = str(det.get("label") or f"item {idx}")
+                score = det.get("score")
+                caption = f"{idx}. {label}"
+                if isinstance(score, (int, float)):
+                    caption += f" {float(score):.2f}"
+                text_y = max(0, y1 - 14)
+                text_bbox = draw.textbbox((x1, text_y), caption, font=font)
+                label_pad = 4
+                draw.rectangle(
+                    [text_bbox[0] - label_pad, text_bbox[1] - label_pad, text_bbox[2] + label_pad, text_bbox[3] + label_pad],
+                    fill=color,
+                )
+                draw.text((x1, text_y), caption, fill="white", font=font)
+            out_dir = Path(tempfile.mkdtemp(prefix="shopstack_home_scan_"))
+            out_path = out_dir / f"{Path(image_path).stem}_annotated.png"
+            img.save(out_path)
+            return str(out_path)
+    except Exception:
+        return image_path
 
 
 def _build_corrections(result: ShelfIntelligenceResult) -> list[str]:

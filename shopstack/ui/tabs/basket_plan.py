@@ -33,11 +33,11 @@ from typing import Any
 import gradio as gr
 
 from shopstack.ui.components.primitives import (
-    busy_js,
     empty_state_enhanced,
     loading_skeleton,
     with_loading_state,
 )
+from shopstack.ui.components.js_helpers import busy_js
 from shopstack.ui.screens import run_unified_plan, unified_plan_summary
 from shopstack.ui.screens.smart_basket import smart_basket_screen
 from shopstack.ui.tabs.context import TabContext

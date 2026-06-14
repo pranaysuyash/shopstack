@@ -255,7 +255,7 @@ def test_known_endpoints_exist():
         "ask_submit",
         "market_scan",
         "home_scan",
-        "restock_add_to_list",
+        "restock_quick_add",
         "build_list",
         "mark_purchased",
         "complete_list",

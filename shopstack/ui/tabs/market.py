@@ -26,11 +26,11 @@ from shopstack.ui.screens import (
     shelf_scan_skip,
 )
 from shopstack.ui.components.primitives import (
-    busy_js,
     empty_state_enhanced,
     loading_skeleton,
     with_loading_state,
 )
+from shopstack.ui.components.js_helpers import busy_js
 from shopstack.ui.tabs.context import TabContext
 
 

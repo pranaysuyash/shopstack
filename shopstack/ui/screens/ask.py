@@ -357,7 +357,7 @@ def _record_ask_trace(
             user_id=user_id,
         )
     except Exception as e:
-        logger.debug("Failed to record ask trace: %s", e)
+        logger.warning("Failed to record ask trace: %s", e)
 
 
 def _render_structured_ask_summary(response: dict[str, Any]) -> str:
@@ -605,8 +605,8 @@ def _handle_add_command(question: str) -> str:
                     human_confirmation="auto-confirmed",
                     user_id=uid,
                 )
-            except Exception:
-                logger.debug("Failed to record voice add trace", exc_info=True)
+            except Exception as exc:
+                logger.warning("Failed to record voice add trace: %s", exc)
             return toast(
                 f"Added {escape(name)} ({escape(str(qty))} {escape(unit)}) to inventory. Lot: {escape(lot_id[:12])}",
                 kind="success",

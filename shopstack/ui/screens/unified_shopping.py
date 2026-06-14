@@ -187,8 +187,8 @@ def run_unified_plan(goal: str, items_text: str) -> tuple[str, str]:
     try:
         from shopstack.services.market_intelligence import build_market_intelligence_graph
         graph = build_market_intelligence_graph(db, tools.inventory, user_id=uid)
-    except Exception:
-        logger.debug("Unified shopping graph projection unavailable", exc_info=True)
+    except Exception as exc:
+        logger.warning("Unified shopping graph projection unavailable: %s", exc)
     result = run_unified_shopping_flow(
         goal=goal,
         items_text=items_text,
@@ -235,8 +235,8 @@ def run_unified_plan(goal: str, items_text: str) -> tuple[str, str]:
             human_confirmation="auto",
             user_id=uid,
         )
-    except Exception:
-        logger.debug("Failed to record unified shopping trace")
+    except Exception as exc:
+        logger.warning("Failed to record unified shopping trace: %s", exc)
 
     return summary_html, detail_html
 

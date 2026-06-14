@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+import os
+
+# HF Spaces: ensure DB_PATH defaults to a writable location before
+# shopstack.config instantiates Settings() at module import time.
+os.environ.setdefault("SHOPSTACK_DB_PATH", "shopstack.db")
+
 import gradio as gr
 
 from shopstack.ui.header import header_block

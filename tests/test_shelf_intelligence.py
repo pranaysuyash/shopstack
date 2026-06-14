@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
+
+from PIL import Image
 
 from shopstack.services.expiry_parser import expiry_risk_label, parse_expiry_value
 from shopstack.services.shelf_intelligence import analyze_shelf_scene
@@ -91,3 +94,46 @@ def test_analyze_shelf_scene_returns_structured_home_scan(providers, tool_regist
     assert result.ocr_findings
     assert result.confidence_summary.items_seen == 2
     assert result.confidence_summary.items_grouped == 1
+
+
+def test_analyze_shelf_scene_renders_local_annotation_when_provider_fails(
+    providers,
+    tool_registry,
+    monkeypatch,
+    tmp_path,
+):
+    image_path = tmp_path / "home_scan.png"
+    Image.new("RGB", (120, 120), "white").save(image_path)
+
+    tool_registry.inventory.add_item(
+        canonical_name="milk",
+        display_name="Milk",
+        quantity=1.0,
+        unit="packet",
+        storage_location_id="fridge",
+        user_id="",
+    )
+
+    monkeypatch.setattr(
+        providers.object_detection,
+        "detect",
+        lambda _path: [{"label": "milk", "confidence": 0.88, "bbox": [0.1, 0.2, 0.7, 0.8], "class_id": 0}],
+    )
+    monkeypatch.setattr(
+        providers.image_edit,
+        "annotate_image",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("annotator down")),
+    )
+
+    result = analyze_shelf_scene(
+        str(image_path),
+        None,
+        "fridge",
+        providers,
+        tool_registry.inventory,
+        user_id="",
+    )
+
+    assert result.annotated_image_path
+    assert result.annotated_image_path != str(image_path)
+    assert Path(result.annotated_image_path).exists()

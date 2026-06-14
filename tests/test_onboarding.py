@@ -43,7 +43,7 @@ def fresh_db():
     """
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
-    s = Settings(_env_file=None, db_path=path, off_the_grid=True, planner_backend="mock")
+    s = Settings(_env_file=None, db_path=path, off_the_grid=True, local_auto_download=False)
     db = Database(path)
     db.add_household("hh1", "Test hh1")
     db.add_household_member("hh1", "hh1", role="owner")
@@ -184,7 +184,7 @@ class TestSubmitOnboarding:
         Path(fresh_db[1]).unlink()
         fd, path = tempfile.mkstemp(suffix=".db")
         os.close(fd)
-        s = Settings(_env_file=None, db_path=path, off_the_grid=True, planner_backend="mock")
+        s = Settings(_env_file=None, db_path=path, off_the_grid=True, local_auto_download=False)
         db2 = Database(path)
         db2.add_household("hh2", "Test hh2")
         db2.add_household_member("hh2", "hh2", role="owner")

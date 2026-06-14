@@ -60,12 +60,15 @@ def price_intelligence_view() -> str:
                 ppk_label = ""
                 if best.get("median_per_kg"):
                     ppk_label = f" (&#8377;{best['median_per_kg']:.0f}/kg)"
+                as_of_label = ""
+                if best.get("last_seen"):
+                    as_of_label = f"<span style='color:var(--text-dim);font-size: 0.6875rem;'> &middot; as of {escape(best['last_seen'])}</span>"
                 comparisons.append(
                     f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
                     f"<strong>{escape(name)}</strong>: Best at {escape(best['store'])} "
                     f"(&#8377;{best['median_price']:.0f}{ppk_label}) vs "
                     f"{escape(worst['store'])} (&#8377;{worst['median_price']:.0f}) "
-                    f"&mdash; save {ranking.spread_pct}%"
+                    f"&mdash; save {ranking.spread_pct}%{as_of_label}"
                     f"</div>"
                 )
 
@@ -80,11 +83,16 @@ def price_intelligence_view() -> str:
             if older_p > 0 and recent_p < older_p:
                 drop_pct = round((older_p - recent_p) / older_p * 100)
                 if drop_pct >= 5:
+                    recent_date = recent.get("date")
+                    as_of_label = (
+                        f"<span style='color:var(--text-dim);font-size: 0.6875rem;'> &middot; as of {escape(str(recent_date))}</span>"
+                        if recent_date else ""
+                    )
                     alerts.append(
                         f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
                         f"<strong>{escape(name)}</strong> price dropped {drop_pct}% "
                         f"(&#8377;{older_p:.0f} &#8594; &#8377;{recent_p:.0f}) "
-                        f"&mdash; good time to buy"
+                        f"&mdash; good time to buy{as_of_label}"
                         f"</div>"
                     )
 

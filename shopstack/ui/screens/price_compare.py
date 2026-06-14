@@ -49,7 +49,8 @@ def _all_snapshots_loaded(registry) -> bool:
         snaps = registry.all_snapshots()
         available = [sid for sid, snap in snaps.items() if snap and snap.normalized_records]
         return len(available) >= 1
-    except Exception:
+    except Exception as exc:
+        logger.debug("_all_snapshots_loaded check failed: %s", exc)
         return False
 
 
@@ -159,8 +160,8 @@ def multi_source_price_view() -> str:
                 f"<span style='font-size: 0.625rem;color:{color};margin-right:12px;'>"
                 f"{escape(source_labels.get(sid, sid))}: {escape(label)}</span>"
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("freshness check failed for %s: %s", sid, exc)
 
     freshness_section = ""
     if freshness_html:
@@ -200,7 +201,8 @@ def single_item_compare(item_name: str) -> str:
     try:
         from shopstack.market.normalization import canonicalize_name
         canonical, _, _ = canonicalize_name(item_name)
-    except Exception:
+    except Exception as exc:
+        logger.debug("single_item_compare: canonicalize failed: %s", exc)
         canonical = item_name.strip().lower().replace(" ", "_")
 
     comp = compare_across_sources(registry, canonical)

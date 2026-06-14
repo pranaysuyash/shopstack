@@ -7,6 +7,7 @@ returns the smart basket HTML.
 from __future__ import annotations
 
 import logging
+from html import escape
 from typing import Any
 
 from shopstack.app_context import current_user_id, db
@@ -59,8 +60,13 @@ def smart_basket_screen(
         )
         return render_smart_basket_html(basket)
     except Exception as exc:
-        logger.debug("smart_basket_screen failed: %s", exc)
-        return ""
+        logger.warning("smart_basket_screen failed: %s", exc)
+        return (
+            "<div class='home-card' style='text-align:center;padding:12px;'>"
+            "<div style='color:var(--amber);font-weight:600;'>Could not build smart basket</div>"
+            f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{escape(str(exc)[:120])}</div>"
+            "</div>"
+        )
 
 
 def _empty_basket():

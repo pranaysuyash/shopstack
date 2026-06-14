@@ -115,9 +115,9 @@ def shelf_scan_skip(scan_json: str, trace_id: str) -> str:
 
 def shelf_scan_save_trace(scan_json: str, trace_id: str) -> str:
     if not trace_id:
-        return "<div style='color:var(--text-dim);'>No trace to save. Scan something first.</div>"
+        return "<div style='color:var(--text-dim);'>No scan to save. Scan something first.</div>"
     update_trace_confirmation(db, trace_id, "saved-home-scan", user_id=current_user_id())
-    return f"<div style='color:var(--green);'>Shelf scan trace {trace_id[:12]} saved.</div>"
+    return f"<div style='color:var(--green);'>Shelf scan results saved to activity history.</div>"
 
 
 def _load_scan_result(scan_json: str) -> ShelfIntelligenceResult | None:

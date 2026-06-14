@@ -16,14 +16,15 @@ from typing import Generator
 # ``db_path`` (and therefore fell back to the module-level settings)
 # wrote into a shared on-disk file — the source of every
 # ``UNIQUE constraint failed`` cascade in the permission tests.
+#
+# Per motto_v3, no mock backends are requested — the ProviderRegistry
+# silently falls back to Mock*Providers when a real backend's deps or
+# model weights are missing, so tests still pass against the same
+# code paths. LOCAL_AUTO_DOWNLOAD=False prevents test-time model
+# downloads when a real backend's deps happen to be installed but
+# its weights aren't cached.
 os.environ.setdefault("SHOPSTACK_DB_PATH", ":memory:")
-os.environ.setdefault("SHOPSTACK_PLANNER_BACKEND", "mock")
-os.environ.setdefault("SHOPSTACK_STT_BACKEND", "mock")
-os.environ.setdefault("SHOPSTACK_TTS_BACKEND", "mock")
-os.environ.setdefault("SHOPSTACK_VISION_BACKEND", "mock")
-os.environ.setdefault("SHOPSTACK_OCR_BACKEND", "mock")
-os.environ.setdefault("SHOPSTACK_SEGMENTATION_BACKEND", "mock")
-os.environ.setdefault("SHOPSTACK_EMBEDDINGS_BACKEND", "mock")
+os.environ.setdefault("SHOPSTACK_LOCAL_AUTO_DOWNLOAD", "false")
 
 import pytest
 from unittest.mock import patch
@@ -119,9 +120,6 @@ def _app_session():
     the ``ProviderRegistry`` — an expensive operation (~10s per invocation).
     Caching at session scope avoids that cost on every test.
     """
-    import os
-    os.environ.setdefault("SHOPSTACK_DB_PATH", ":memory:")
-    os.environ.setdefault("SHOPSTACK_PLANNER_BACKEND", "mock")
     import app as _app
     return _app
 
@@ -163,9 +161,10 @@ def db_path() -> Generator[str, None, None]:
 def settings(db_path: str) -> Settings:
     # The project Settings API uses `db_path`, not the older `database_path` name.
     # Ignore the repo .env file during tests so defaults are deterministic.
+    # No explicit mock backends — ProviderRegistry falls back to Mock*Provider
+    # silently when a real backend's deps/weights aren't available.
     return Settings(_env_file=None, db_path=db_path, off_the_grid=True,
-                    planner_backend="mock",
-                    stt_backend="mock", tts_backend="mock")
+                    local_auto_download=False)
 
 
 @pytest.fixture()
