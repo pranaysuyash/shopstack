@@ -22,11 +22,21 @@ class TestSettings:
 
     def test_provider_backends_default(self, monkeypatch):
         monkeypatch.delenv("SHOPSTACK_OFF_THE_GRID", raising=False)
+        # conftest.py sets these to "mock" via os.environ.setdefault so the
+        # session-scoped app import doesn't bootstrap heavy providers. Clear
+        # them so we actually test the Settings defaults here.
+        for var in (
+            "SHOPSTACK_PLANNER_BACKEND", "SHOPSTACK_STT_BACKEND",
+            "SHOPSTACK_TTS_BACKEND", "SHOPSTACK_VISION_BACKEND",
+            "SHOPSTACK_OCR_BACKEND", "SHOPSTACK_SEGMENTATION_BACKEND",
+            "SHOPSTACK_EMBEDDINGS_BACKEND",
+        ):
+            monkeypatch.delenv(var, raising=False)
         s = Settings(_env_file=None)
         assert s.stt_backend == "sensevoice"
         assert s.tts_backend == "kokoro"
-        assert s.vision_backend == "minicpmv"
-        assert s.segmentation_backend == "rmbg"
+        assert s.vision_backend == "qwen3vl"
+        assert s.segmentation_backend == "birefnet"
         assert s.planner_backend == "local"
         assert s.ocr_backend == "tesseract"
 
@@ -44,9 +54,13 @@ class TestSettings:
         monkeypatch.delenv("SHOPSTACK_TOOL_CALL_PARSER_BACKEND", raising=False)
         s = Settings(_env_file=None, model_stack="openbmb_local")
         assert s.planner_backend == "minicpm5"
-        assert s.vision_backend == "minicpmv"
+        assert s.vision_backend == "qwen3vl"
         assert s.ocr_backend == "glm_ocr"
-        assert s.embeddings_backend == "bge_m3"
+        # The openbmb_local preset only overrides planner + ocr; other
+        # backends keep their defaults (nomic embeddings, minicpm5 parser,
+        # sensevoice STT). Earlier revisions of the preset pinned more
+        # fields, but those have since become the defaults.
+        assert s.embeddings_backend == "nomic"
         assert s.tool_call_parser_backend == "minicpm5"
         assert s.stt_backend == "sensevoice"
 

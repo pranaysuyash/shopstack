@@ -32,12 +32,35 @@ from shopstack.services.shared_list_sync import (
 
 @pytest.fixture()
 def fresh_db():
+    """Fresh temp DB with test households seeded.
+
+    Tests in this module write as ``hh1`` (and ``hh2`` for two-device
+    flows). Phase 11 write paths verify household membership, so each
+    test household must exist with itself as owner.
+    """
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     s = Settings(_env_file=None, db_path=path, off_the_grid=True, planner_backend="mock")
     db = Database(path)
+    for hid in ("hh1", "hh2"):
+        db.add_household(hid, f"Test {hid}")
+        db.add_household_member(hid, hid, role="owner")
     yield db, path
     Path(path).unlink(missing_ok=True)
+
+
+def _other_device_db() -> Database:
+    """A second Database simulating another device, with ``hh1`` / ``hh2`` seeded.
+
+    Pull/push tests instantiate an ``other`` Database to simulate a peer
+    device. Phase 11 write paths verify household membership, so each peer
+    must register the same test households as the primary fixture.
+    """
+    other = Database(tempfile.mkstemp(suffix=".db")[1])
+    for hid in ("hh1", "hh2"):
+        other.add_household(hid, f"Test {hid}")
+        other.add_household_member(hid, hid, role="owner")
+    return other
 
 
 @pytest.fixture()
@@ -111,7 +134,7 @@ class TestPullFromFile:
     def test_pull_adds_new_items_to_local(self, fresh_db, shared_file):
         db, _ = fresh_db
         # First create a file (simulating another device's push)
-        other = Database(tempfile.mktemp(suffix=".db"))
+        other = _other_device_db()
         try:
             _seed_list(other, "hh1", [("milk", "Milk", 1.0, "L"), ("bread", "Bread", 1.0, "loaf")])
             push_result = push_to_file(other, shared_file, "hh1", device_label="phone-B")
@@ -132,7 +155,7 @@ class TestPullFromFile:
 
     def test_pull_is_idempotent(self, fresh_db, shared_file):
         db, _ = fresh_db
-        other = Database(tempfile.mktemp(suffix=".db"))
+        other = _other_device_db()
         try:
             _seed_list(other, "hh1", [("milk", "Milk", 1.0, "L")])
             push_to_file(other, shared_file, "hh1")
@@ -153,7 +176,7 @@ class TestPullFromFile:
         # Local has milk and bread
         _seed_list(db, "hh1", [("milk", "Milk", 1.0, "L"), ("bread", "Bread", 1.0, "loaf")])
         # Shared file has tomato (different from local)
-        other = Database(tempfile.mktemp(suffix=".db"))
+        other = _other_device_db()
         try:
             _seed_list(other, "hh1", [("tomato", "Tomato", 2.0, "kg")])
             push_to_file(other, shared_file, "hh1")
@@ -227,7 +250,7 @@ class TestTwoDeviceFlow:
         assert r1.success
 
         # Simulate Phone B with a fresh DB
-        other = Database(tempfile.mktemp(suffix=".db"))
+        other = _other_device_db()
         try:
             # Phone B starts with one item already
             _seed_list(other, "hh1", [("milk", "Milk", 1.0, "L")])

@@ -33,7 +33,9 @@ from shopstack.ui.state.household import (
     hide_add_form,
     create_household_state,
 )
-from shopstack.ui.components.primitives import (
+# Canonical paths — the re-exports in primitives.py emit
+# DeprecationWarning on first call (see Pass 5 supersession).
+from shopstack.ui.components.js_helpers import (
     autocomplete_injector_js,
     url_state_sync_js,
 )

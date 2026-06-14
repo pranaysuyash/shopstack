@@ -569,17 +569,39 @@ def test_aria_live_screen_decorator_passes_through_non_string():
     assert render(None) is None
 
 
-def test_autocomplete_injector_js_sets_off_on_all_input_types():
-    """The JS walks text/email/url/tel/number/search inputs and sets autocomplete=off."""
+def test_autocomplete_injector_js_returns_function_expression():
+    """The JS must be a no-arg arrow function so Gradio's app.load(js=...) can invoke it."""
     js = autocomplete_injector_js()
-    # The parallel-session simplification uses setTimeout + a single
-    # querySelectorAll over input/textarea/select (covers all input
-    # types) instead of separate input[type=…] selectors.
+    # Must start with a no-arg function expression.
+    assert js.startswith("() =>"), (
+        f"autocomplete_injector_js must return a no-arg arrow function, "
+        f"got: {js[:60]!r}"
+    )
+    # Must end with closing brace of the function body.
+    assert js.rstrip().endswith("}"), (
+        f"JS must end with '}}' (function body close), got tail: {js[-30:]!r}"
+    )
+    # The function body must contain the setTimeout logic.
     assert "setTimeout" in js
     assert "setAttribute('autocomplete','off')" in js or 'setAttribute("autocomplete","off")' in js
     assert "input,textarea,select" in js
     # Must NOT call el.hasAttribute (parallel-session change).
     assert "hasAttribute" not in js
+
+
+def test_autocomplete_injector_js_is_evaluatable():
+    """The JS must be evaluable as a function expression without syntax errors."""
+    js = autocomplete_injector_js()
+    # Wrap in a no-op call to verify it's syntactically valid.
+    # This catches issues like bare statements (missing function wrapper)
+    # that would cause Gradio's app.load to throw SyntaxError.
+    compile(js, "<autocomplete_injector_js>", "eval")
+
+
+def test_url_state_sync_js_is_evaluatable():
+    """The JS must be evaluable as a function expression without syntax errors."""
+    js = url_state_sync_js()
+    compile(js, "<url_state_sync_js>", "eval")
 
 
 def test_url_state_sync_js_supports_subtab_format():
@@ -614,3 +636,127 @@ def test_url_state_sync_js_emits_history_pushstate_and_popstate():
     assert "window.location.hash" in js
     assert "replaceState" in js or "pushState" in js
     assert "data-testid=tab-" in js  # uses data-testid to find tabs
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Pass 5: supersession — the moved JS helpers + aria_live_screen
+# re-exported from primitives.py must emit DeprecationWarning on call.
+# The canonical paths (js_helpers.py, decorators.py) must NOT warn.
+# ──────────────────────────────────────────────────────────────────────
+
+def test_canonical_aria_live_screen_does_not_warn():
+    """The canonical ``decorators.aria_live_screen`` must NOT emit DeprecationWarning."""
+    import warnings
+    from shopstack.ui.components.decorators import aria_live_screen
+
+    @aria_live_screen()
+    def render(x):
+        return f"<div>{x}</div>"
+
+    with warnings.catch_warnings(record=True) as ws:
+        warnings.simplefilter("always")
+        out = render("hello")
+    # No DeprecationWarning about the canonical path itself.
+    deprecations = [w for w in ws if issubclass(w.category, DeprecationWarning)
+                    and "aria_live_screen" in str(w.message)]
+    assert deprecations == [], (
+        f"canonical aria_live_screen must not emit DeprecationWarning, got: "
+        f"{[str(w.message) for w in deprecations]}"
+    )
+    # Sanity: the decorator still works.
+    assert "role='status'" in out
+
+
+def test_canonical_js_helpers_do_not_warn():
+    """The canonical JS helpers must NOT emit DeprecationWarning on call."""
+    import warnings
+    from shopstack.ui.components.js_helpers import (
+        autocomplete_injector_js,
+        busy_js,
+        url_state_sync_js,
+    )
+
+    with warnings.catch_warnings(record=True) as ws:
+        warnings.simplefilter("always")
+        busy_js("test-btn")
+        autocomplete_injector_js()
+        url_state_sync_js()
+    deprecations = [w for w in ws if issubclass(w.category, DeprecationWarning)]
+    assert deprecations == [], (
+        f"canonical JS helpers must not warn, got: "
+        f"{[str(w.message) for w in deprecations]}"
+    )
+
+
+def test_deprecated_primitives_aria_live_screen_emits_warning():
+    """The deprecated ``primitives.aria_live_screen`` MUST emit DeprecationWarning."""
+    import warnings
+    from shopstack.ui.components import primitives
+    # Force the lazy re-export to materialise (Python only imports
+    # the symbol when the module is loaded; importing the module is
+    # enough since the re-exports are at module top-level).
+    _ = primitives.aria_live_screen
+
+    with warnings.catch_warnings(record=True) as ws:
+        warnings.simplefilter("always")
+        decorator = primitives.aria_live_screen()
+        @decorator
+        def render(x):
+            return f"<div>{x}</div>"
+        render("x")  # exercise it so the deprecation fires at least once
+
+    deprecations = [w for w in ws if issubclass(w.category, DeprecationWarning)
+                    and "aria_live_screen" in str(w.message)
+                    and "deprecated" in str(w.message).lower()]
+    assert deprecations, (
+        "primitives.aria_live_screen() must emit a DeprecationWarning "
+        "pointing to shopstack.ui.components.decorators.aria_live_screen"
+    )
+    msg = str(deprecations[0].message)
+    assert "decorators.aria_live_screen" in msg, (
+        f"deprecation message must point at the canonical path, got: {msg!r}"
+    )
+
+
+def test_deprecated_primitives_js_helpers_emit_warnings():
+    """The deprecated ``primitives.{busy_js,autocomplete_injector_js,url_state_sync_js}`` MUST warn."""
+    import warnings
+    from shopstack.ui.components import primitives
+
+    with warnings.catch_warnings(record=True) as ws:
+        warnings.simplefilter("always")
+        primitives.busy_js("test-btn")
+        primitives.autocomplete_injector_js()
+        primitives.url_state_sync_js()
+
+    deprecations = [w for w in ws if issubclass(w.category, DeprecationWarning)]
+    deprecated_names = {str(w.message).split(" is deprecated")[0] for w in deprecations}
+    assert any("busy_js" in n for n in deprecated_names)
+    assert any("autocomplete_injector_js" in n for n in deprecated_names)
+    assert any("url_state_sync_js" in n for n in deprecated_names)
+
+    # Each message must point at the canonical js_helpers path.
+    for w in deprecations:
+        msg = str(w.message)
+        if "busy_js" in msg:
+            assert "js_helpers.busy_js" in msg
+        if "autocomplete_injector_js" in msg:
+            assert "js_helpers.autocomplete_injector_js" in msg
+        if "url_state_sync_js" in msg:
+            assert "js_helpers.url_state_sync_js" in msg
+
+
+def test_deprecated_aliases_still_function_correctly():
+    """The deprecation wrappers must forward to the canonical implementations."""
+    from shopstack.ui.components import primitives
+    from shopstack.ui.components.js_helpers import (
+        autocomplete_injector_js,
+        busy_js,
+        url_state_sync_js,
+    )
+
+    # The deprecated re-exports must produce the same JS string as
+    # the canonical implementations.
+    assert primitives.busy_js("test-btn") == busy_js("test-btn")
+    assert primitives.autocomplete_injector_js() == autocomplete_injector_js()
+    assert primitives.url_state_sync_js() == url_state_sync_js()

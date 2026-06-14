@@ -241,7 +241,6 @@ SOURCES = _register(ModuleMetadata(
     order=999,
     service_modules=(
         "shopstack.market.sources.swiggy",
-        "shopstack.data_sources.swiggy",
     ),
     is_source=True,
 ))

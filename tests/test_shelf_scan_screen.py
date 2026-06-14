@@ -43,7 +43,13 @@ def app(_app_session):
     conn.execute("PRAGMA foreign_keys = ON")
     conn.commit()
     app_mod.db._seed_locations()
-    app_mod.db.set_config_value("active_household_id", "")
+    app_mod.db._seed_default_household()
+    # ``active_household_id`` must point at a real household+owner pair, since
+    # Phase 11 write paths verify membership before persisting. Setting it to
+    # empty silently broke every write through shelf-scan, which falls back
+    # to ``active_household_id`` when no explicit ``user_id`` is passed.
+    app_mod.db.set_config_value("active_household_id", "default_household")
+    app_mod.db.active_household_id = "default_household"
     return app_mod
 
 

@@ -48,6 +48,12 @@ def test_reconciliation_substituted_item():
 
 
 def test_reconciliation_inventory_scopes_to_user_id(db, tool_registry):
+    # Phase 11 write paths verify household membership. ``house_a`` /
+    # ``house_b`` are test-only households that must be pre-registered
+    # before ``reconcile_shopping_trip`` can persist inventory as ``house_a``.
+    for hid in ("house_a", "house_b"):
+        db.add_household(hid, f"Test {hid}")
+        db.add_household_member(hid, hid, role="owner")
     result = reconcile_shopping_trip(
         planned_items=[{"canonical_name": "bread", "action": "buy"}],
         actual_items=[{"canonical_name": "bread", "action": "bought", "quantity": 1.0}],

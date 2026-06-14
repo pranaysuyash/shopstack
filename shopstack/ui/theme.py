@@ -1448,5 +1448,98 @@ details.home-details > *:not(summary),
   padding: 2px 8px;
   border-radius: 3px;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PHASE 11 ADDITIONS
+   - Per-member activity (pm-*)
+   - Community pool sync (sync-*)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Per-member activity ─────────────────────────────────────── */
+.pm-block {
+  background: var(--bg-card, #FFFCF7);
+  border: 1px solid var(--border, #DACAB5);
+  border-radius: var(--radius-md, 8px);
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+.pm-empty {
+  text-align: center;
+  color: var(--text-dim, #6F6254);
+  font-size: 0.8125rem;
+  padding: 12px;
+}
+.pm-headline {
+  font-size: 0.8125rem;
+  color: var(--text, #1F1812);
+  margin-bottom: 8px;
+}
+.pm-members {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pm-member-row {
+  display: grid;
+  grid-template-columns: 1.5fr 0.5fr 1.5fr 0.8fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 8px;
+  background: var(--bg, #FFF8ED);
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.75rem;
+}
+.pm-actor {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 500;
+  color: var(--text, #1F1812);
+}
+.pm-count {
+  font-weight: 700;
+  color: var(--accent, #176B49);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.pm-top-action {
+  color: var(--text-muted, #5F5144);
+}
+.pm-last {
+  color: var(--text-dim, #6F6254);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ── Community pool sync ────────────────────────────────────── */
+.sync-block {
+  background: var(--bg-card, #FFFCF7);
+  border: 1px solid var(--border, #DACAB5);
+  border-radius: var(--radius-md, 8px);
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+.sync-empty {
+  text-align: center;
+  color: var(--text-dim, #6F6254);
+  font-size: 0.8125rem;
+  padding: 12px;
+}
+.sync-stats {
+  font-size: 0.75rem;
+  color: var(--text-muted, #5F5144);
+  margin-bottom: 8px;
+}
+.sync-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.sync-chip {
+  background: var(--bg-warm, #FFF1D6);
+  color: var(--text-muted, #5F5144);
+  font-size: 0.6875rem;
+  padding: 2px 8px;
+  border-radius: 3px;
+}
 """
 

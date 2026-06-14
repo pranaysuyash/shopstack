@@ -255,6 +255,7 @@ class TestRecipeTextIntegration:
         orig_active = db.active_household_id
         try:
             db.add_household(TEST, "Recipe Text E2E")
+            db.add_household_member(TEST, TEST, role="owner")
             db.active_household_id = TEST
             for lot in db.get_inventory(user_id=TEST):
                 db.conn.execute(
@@ -330,6 +331,7 @@ class TestRecipeTextModuleSurface:
         for name in (
             "recipe_text_to_shopping_list",
             "recipe_text_add_missing_to_list",
+            "recipe_image_to_text",
         ):
             assert hasattr(recipe_text, name), f"missing {name}"
             assert callable(getattr(recipe_text, name)), f"{name} not callable"
@@ -338,3 +340,231 @@ class TestRecipeTextModuleSurface:
         from shopstack.ui.screens import recipe_text
         assert "recipe_text_to_shopping_list" in recipe_text.__all__
         assert "recipe_text_add_missing_to_list" in recipe_text.__all__
+        assert "recipe_image_to_text" in recipe_text.__all__
+
+
+# ─── v2: image upload + OCR (added 2026-06-13) ──────────────────────────
+
+
+class _FakeFile:
+    """A minimal stand-in for a Gradio file input (has a .name attribute)."""
+
+    def __init__(self, name: str):
+        self.name = name
+
+
+class TestRecipeImageToText:
+    """Tests for the v2 image upload + OCR adapter.
+
+    Covers the four branches: no file, .txt, image, error. Mocks
+    ``run_ocr_pipeline`` to avoid loading the GLM-OCR model during
+    tests.
+    """
+
+    def test_no_file_returns_warning(self, monkeypatch):
+        from shopstack.ui.screens.recipe_text import recipe_image_to_text
+        out_text, status = recipe_image_to_text(None)
+        assert out_text == ""
+        assert "warning" in status.lower() or "Upload" in status
+
+    def test_empty_string_returns_warning(self, monkeypatch):
+        from shopstack.ui.screens.recipe_text import recipe_image_to_text
+        out_text, status = recipe_image_to_text("")
+        assert out_text == ""
+        assert "warning" in status.lower() or "Upload" in status
+
+    def test_fake_file_object_resolves_to_name(self, monkeypatch):
+        """A Gradio file-like object (has .name) must be unwrapped."""
+        from shopstack.ui.screens.recipe_text import _resolve_file_path
+        fake = _FakeFile("/tmp/recipe.png")
+        assert _resolve_file_path(fake) == "/tmp/recipe.png"
+
+    def test_string_path_returned_as_is(self):
+        from shopstack.ui.screens.recipe_text import _resolve_file_path
+        assert _resolve_file_path("/tmp/recipe.png") == "/tmp/recipe.png"
+
+    def test_none_input_returns_empty(self):
+        from shopstack.ui.screens.recipe_text import _resolve_file_path
+        assert _resolve_file_path(None) == ""
+
+    def test_file_not_found_returns_error(self, monkeypatch):
+        from shopstack.ui.screens.recipe_text import recipe_image_to_text
+        out_text, status = recipe_image_to_text("/nonexistent/path/recipe.png")
+        assert out_text == ""
+        assert "error" in status.lower() or "not found" in status.lower()
+
+    def test_unsupported_extension_returns_warning(self, monkeypatch, tmp_path):
+        from shopstack.ui.screens.recipe_text import recipe_image_to_text
+        f = tmp_path / "recipe.exe"
+        f.write_text("binary")
+        out_text, status = recipe_image_to_text(str(f))
+        assert out_text == ""
+        assert "Unsupported" in status or "unsupported" in status.lower()
+
+    def test_txt_file_branch(self, monkeypatch, tmp_path):
+        """A .txt file is read directly without going through OCR."""
+        from shopstack.ui.screens.recipe_text import recipe_image_to_text
+        f = tmp_path / "recipe.txt"
+        f.write_text(
+            "- 2 cups rice\n- 1 cup chickpea\n- 1 tsp turmeric\n"
+        )
+        out_text, status = recipe_image_to_text(str(f))
+        assert "rice" in out_text
+        assert "chickpea" in out_text or "besan" in out_text.lower()
+        assert "Loaded" in status or "success" in status.lower()
+
+    def test_txt_file_empty_returns_warning(self, monkeypatch, tmp_path):
+        from shopstack.ui.screens.recipe_text import recipe_image_to_text
+        f = tmp_path / "empty.txt"
+        f.write_text("   \n\n  ")
+        out_text, status = recipe_image_to_text(str(f))
+        assert out_text == ""
+        assert "empty" in status.lower() or "warning" in status.lower()
+
+    def test_image_file_runs_ocr(self, monkeypatch, tmp_path):
+        """An image file goes through run_ocr_pipeline."""
+        from shopstack.ui.screens.recipe_text import recipe_image_to_text
+        from shopstack.ui.screens import recipe_text
+        # Create a fake PNG file
+        f = tmp_path / "recipe.png"
+        f.write_bytes(b"\x89PNG\r\n\x1a\n" + b"fake content")
+
+        captured: dict = {}
+
+        def mock_ocr(path, providers, enable_preprocessing=True):
+            captured["path"] = path
+            captured["preprocess"] = enable_preprocessing
+            return {
+                "text": "- 2 cups rice\n- 1 tsp turmeric",
+                "raw_text": "- 2 cups rice\n- 1 tsp turmeric",
+                "model": "mock-glm",
+                "pipeline_stage": "primary",
+                "latency_ms": 42.0,
+            }
+
+        monkeypatch.setattr(recipe_text, "run_ocr_pipeline", mock_ocr)
+
+        out_text, status = recipe_image_to_text(str(f))
+        # OCR was called with the right args
+        assert captured["path"] == str(f)
+        assert captured["preprocess"] is True
+        # Text is in the output
+        assert "rice" in out_text
+        assert "turmeric" in out_text
+        # Success toast mentions the model and stage
+        assert "mock-glm" in status
+        assert "primary" in status
+        assert "success" in status.lower()
+
+    def test_image_ocr_error_returns_error_toast(self, monkeypatch, tmp_path):
+        from shopstack.ui.screens.recipe_text import recipe_image_to_text
+        from shopstack.ui.screens import recipe_text
+        f = tmp_path / "recipe.jpg"
+        f.write_bytes(b"fake jpeg")
+
+        def mock_ocr(path, providers, enable_preprocessing=True):
+            return {"error": "All OCR stages failed", "pipeline_stage": "all_failed"}
+
+        monkeypatch.setattr(recipe_text, "run_ocr_pipeline", mock_ocr)
+
+        out_text, status = recipe_image_to_text(str(f))
+        assert out_text == ""
+        assert "error" in status.lower() or "OCR could not" in status
+
+    def test_image_ocr_empty_text_returns_warning(self, monkeypatch, tmp_path):
+        from shopstack.ui.screens.recipe_text import recipe_image_to_text
+        from shopstack.ui.screens import recipe_text
+        f = tmp_path / "recipe.png"
+        f.write_bytes(b"fake")
+
+        def mock_ocr(path, providers, enable_preprocessing=True):
+            return {
+                "text": "",
+                "raw_text": "",
+                "model": "mock-glm",
+                "pipeline_stage": "primary",
+            }
+
+        monkeypatch.setattr(recipe_text, "run_ocr_pipeline", mock_ocr)
+
+        out_text, status = recipe_image_to_text(str(f))
+        assert out_text == ""
+        assert "no text" in status.lower() or "warning" in status.lower()
+
+    def test_image_ocr_raises_exception_returns_error(self, monkeypatch, tmp_path):
+        from shopstack.ui.screens.recipe_text import recipe_image_to_text
+        from shopstack.ui.screens import recipe_text
+        f = tmp_path / "recipe.png"
+        f.write_bytes(b"fake")
+
+        def mock_ocr(path, providers, enable_preprocessing=True):
+            raise RuntimeError("GLM-OCR model not loaded")
+
+        monkeypatch.setattr(recipe_text, "run_ocr_pipeline", mock_ocr)
+
+        out_text, status = recipe_image_to_text(str(f))
+        # Should not raise; should return error toast
+        assert out_text == ""
+        assert "error" in status.lower() or "OCR failed" in status
+
+    def test_image_ocr_uses_raw_text_fallback(self, monkeypatch, tmp_path):
+        """If 'text' is missing, falls back to 'raw_text'."""
+        from shopstack.ui.screens.recipe_text import recipe_image_to_text
+        from shopstack.ui.screens import recipe_text
+        f = tmp_path / "recipe.png"
+        f.write_bytes(b"fake")
+
+        def mock_ocr(path, providers, enable_preprocessing=True):
+            # Some providers return raw_text but not text
+            return {
+                "raw_text": "- 1 cup chickpea",
+                "model": "mock-tesseract",
+                "pipeline_stage": "fallback",
+                "latency_ms": 150.0,
+            }
+
+        monkeypatch.setattr(recipe_text, "run_ocr_pipeline", mock_ocr)
+
+        out_text, status = recipe_image_to_text(str(f))
+        assert "chickpea" in out_text or "besan" in out_text.lower()
+        assert "mock-tesseract" in status
+
+    def test_composition_with_parse_view(self, monkeypatch, tmp_path):
+        """The v2 OCR output composes with the v1 Parse & Diff view.
+
+        Simulates: snap photo → OCR → Parse & Diff.
+        """
+        from shopstack.ui.screens import recipe_text
+        from shopstack.ui.screens.recipe_text import (
+            recipe_image_to_text,
+            recipe_text_to_shopping_list,
+        )
+        f = tmp_path / "recipe.png"
+        f.write_bytes(b"fake")
+
+        # Realistic OCR output: ingredient lines
+        def mock_ocr(path, providers, enable_preprocessing=True):
+            return {
+                "text": (
+                    "- 2 cups rice\n"
+                    "- 1 cup chickpea\n"
+                    "- 1 tsp turmeric\n"
+                    "- 1 onion, chopped\n"
+                    "- Salt to taste"
+                ),
+                "model": "mock-glm",
+                "pipeline_stage": "primary",
+                "latency_ms": 100.0,
+            }
+
+        monkeypatch.setattr(recipe_text, "run_ocr_pipeline", mock_ocr)
+
+        # Step 1: OCR the photo
+        ocr_text, ocr_status = recipe_image_to_text(str(f))
+        assert "rice" in ocr_text
+        assert "success" in ocr_status.lower()
+
+        # Step 2: Pipe the OCR result into the v1 diff view
+        diff_html = recipe_text_to_shopping_list(ocr_text)
+        assert "<table" in diff_html  # renders the table
+        assert "Rice" in diff_html or "rice" in diff_html.lower()

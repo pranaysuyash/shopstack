@@ -146,6 +146,12 @@ def test_parse_receipt_text_deduplicates():
 
 
 def test_confirm_receipt_scopes_to_user_id(db):
+    # Phase 11 write paths verify household membership. ``house_a`` /
+    # ``house_b`` are test-only households that must be pre-registered
+    # before ``confirm_receipt`` can persist inventory as ``house_a``.
+    for hid in ("house_a", "house_b"):
+        db.add_household(hid, f"Test {hid}")
+        db.add_household_member(hid, hid, role="owner")
     result = ReceiptResult(
         merchant="Demo Mart",
         purchase_date=date(2026, 6, 6),

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import warnings
 from html import escape
 from typing import Any
 from urllib.parse import quote
@@ -21,8 +22,8 @@ from shopstack.services.shopping_substitutions import (
     render_substitutions_html,
 )
 from shopstack.ui.components.cards import list_to_table
+from shopstack.ui.components.decorators import aria_live_screen
 from shopstack.ui.components.primitives import (
-    aria_live_screen,
     empty_state_enhanced,
     item_row,
     toast,
@@ -57,6 +58,28 @@ _ITEM_ALIASES_LOCAL: dict[str, list[str]] = {
 
 
 def shopping_list_view():
+    """LEGACY: 4-tuple return. Superseded by `shopping_list_view_with_cards`
+    (6-tuple return).
+
+    **STATUS (2026-06-13 supersession audit):** This function is
+    deprecated. The canonical path is ``shopping_list_view_with_cards``
+    (6-tuple return). Per ``motto_v3`` §7 the deprecation protocol is:
+    (1) ``@deprecated`` docstring (this), (2) ``DeprecationWarning``
+    emitted on call (next), (3) keep for one release cycle, (4) delete.
+    The function is no longer in ``screens/__init__.py:__all__`` as of
+    2026-06-13 (audit pass). New code must call
+    ``shopping_list_view_with_cards`` instead. See
+    ``Docs/HANDOFF_SUPERSESSION_AUDIT_2026-06-13.md``.
+    """
+    # Emit the deprecation warning. stacklevel=2 so the warning
+    # points at the caller's line, not this wrapper.
+    warnings.warn(
+        "shopping_list_view() is deprecated and will be removed in "
+        "the next minor release. Use shopping_list_view_with_cards() "
+        "instead. See Docs/HANDOFF_SUPERSESSION_AUDIT_2026-06-13.md.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     goal_html, tbl, list_id, list_goal, _cards, _share = _shopping_list_payload()
     return goal_html, tbl, list_id, list_goal
 

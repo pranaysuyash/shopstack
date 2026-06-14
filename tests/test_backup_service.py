@@ -35,10 +35,20 @@ from shopstack.services.backup import (
 
 @pytest.fixture()
 def fresh_db():
+    """Fresh temp DB with the ``hh1`` / ``hh2`` test households seeded.
+
+    Backup/restore tests round-trip rows through encryption as ``hh1``
+    (and verify household isolation with ``hh2``). Phase 11 write paths
+    verify household membership before persisting, so each test household
+    must exist with itself as owner.
+    """
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     s = Settings(_env_file=None, db_path=path, off_the_grid=True, planner_backend="mock")
     db = Database(path)
+    for hid in ("hh1", "hh2"):
+        db.add_household(hid, f"Test {hid}")
+        db.add_household_member(hid, hid, role="owner")
     yield db, path
     Path(path).unlink(missing_ok=True)
 

@@ -84,7 +84,7 @@ def build_market_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                 with gr.Row():
                     ml_confirm_btn = gr.Button("Confirm BUY \u2192 Add to List", variant="primary")
                     ml_skip_btn = gr.Button("Skip Selected")
-                    ml_save_btn = gr.Button("Save Trace")
+                    ml_save_btn = gr.Button("Save to History")
                     ml_barcode_add_btn = gr.Button("Add Barcode to Inventory")
                 ml_confirm_btn.click(
                     market_lens_confirm_buy,
@@ -107,7 +107,7 @@ def build_market_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                     [ml_analysis, ml_last_trace_id],
                     ml_action_result,
                     api_name="market_save_trace",
-                    api_description="Save Market Lens trace output",
+                    api_description="Save scan results to activity history",
                 )
                 ml_barcode_add_btn.click(
                     market_lens_barcode_add,
@@ -167,7 +167,7 @@ def build_market_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                 with gr.Row():
                     hs_confirm_btn = gr.Button("Confirm Updates", variant="primary")
                     hs_skip_btn = gr.Button("Skip Scan")
-                    hs_save_btn = gr.Button("Save Trace")
+                    hs_save_btn = gr.Button("Save to History")
                 hs_confirm_btn.click(
                     shelf_scan_confirm,
                     [hs_state, hs_trace_id],
@@ -189,5 +189,5 @@ def build_market_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                     [hs_state, hs_trace_id],
                     hs_action_result,
                     api_name="home_scan_save_trace",
-                    api_description="Save home scan trace output",
+                    api_description="Save shelf scan results to activity history",
                 )

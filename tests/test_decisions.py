@@ -2,29 +2,27 @@
 
 from __future__ import annotations
 
-import os
 from datetime import date
 
 import pytest
 
 
-@pytest.fixture(autouse=True)
-def _set_test_env():
-    os.environ["SHOPSTACK_DB_PATH"] = ":memory:"
-    yield
-
-
 @pytest.fixture
-def ctx():
-    """Fresh app_context for each test with a clean :memory: DB."""
-    import importlib
-    import sys
-    _preserved = {"shopstack.schemas", "shopstack.schemas.models", "shopstack.decisions"}
-    for mod in list(sys.modules.keys()):
-        if mod.startswith("shopstack") and mod not in _preserved:
-            del sys.modules[mod]
-    from shopstack import app_context
-    return importlib.reload(app_context)
+def ctx(app):
+    """Bind ctx to the consolidated session-scoped app module.
+
+    Previously this fixture reloaded ``shopstack.app_context`` to get a fresh
+    in-memory DB per test. That created a *second* ``Database`` singleton,
+    diverging from the one held by ``conftest._app_session`` and by every
+    screen module's module-level ``db`` import. The result was silent
+    contamination: traces and inventory lots written through one path were
+    invisible to reads through the other.
+
+    The conftest ``app`` fixture already clears all data tables between tests
+    and resets ``active_household_id``. Using it preserves the single source
+    of truth.
+    """
+    return app
 
 
 class TestDecisionClassification:
@@ -110,7 +108,9 @@ class TestDecisionClassification:
         from shopstack.schemas.models import ShoppingListItem
 
         ctx.db.add_household("house_a", "House A")
+        ctx.db.add_household_member("house_a", "house_a", role="owner")
         ctx.db.add_household("house_b", "House B")
+        ctx.db.add_household_member("house_b", "house_b", role="owner")
 
         ctx.tools.add_inventory_item(
             canonical_name="milk",

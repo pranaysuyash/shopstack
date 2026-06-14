@@ -686,8 +686,15 @@ class Database:
     # --- Inventory CRUD ---
 
     def add_inventory_lot(self, lot: InventoryLot, user_id: str = "") -> InventoryLot:
+        # ── Phase 11: permission gate (supersession-safe additive check) ──
+        # The unwrapped behavior is preserved; we just fail closed
+        # on permission denial. The old method is not renamed or
+        # removed — it stays a single source of truth, with a
+        # permission check at the top.
+        from shopstack.services.permissions import require_write as _rw
         if not user_id:
             user_id = self.active_household_id
+        _rw(user_id, user_id, self)  # raises PermissionError on deny
         self.conn.execute(
             """INSERT INTO inventory_lots
                (lot_id, canonical_name, display_name, category, quantity, unit,
@@ -784,11 +791,17 @@ class Database:
         return [_row_to_lot(r) for r in rows if r]
 
     def consume_inventory(self, lot_id: str, quantity: float) -> InventoryLot | None:
+        # ── Phase 11: permission gate (additive, supersession-safe) ──
+        from shopstack.services.permissions import require_write as _rw
         if quantity < 0:
             raise ValueError("quantity must be greater than 0")
         lot = self.get_inventory_lot(lot_id)
         if not lot:
             return None
+        # The lot's user_id is the household. Check that the active
+        # user is a member of that household with write access.
+        _rw(lot.user_id or self.active_household_id,
+            self.active_household_id, self)
         new_qty = max(0.0, lot.quantity - quantity)
         status = lot.status
         if new_qty <= 0:
@@ -843,6 +856,9 @@ class Database:
         return _row_to_list(row, self.conn)
 
     def add_list_item(self, list_id: str, item: ShoppingListItem) -> ShoppingListItem:
+        # ── Phase 11: permission gate (additive, supersession-safe) ──
+        from shopstack.services.permissions import require_write as _rw
+        _rw(self.active_household_id, self.active_household_id, self)
         self.conn.execute(
             "INSERT INTO shopping_list_items (item_id, list_id, canonical_name, requested_quantity, unit, priority, reason, status, linked_lots) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (item.list_item_id, list_id, item.canonical_name, item.requested_quantity,
@@ -898,6 +914,9 @@ class Database:
     # --- Movements ---
 
     def record_movement(self, movement: MovementEvent) -> MovementEvent:
+        # ── Phase 11: permission gate (additive, supersession-safe) ──
+        from shopstack.services.permissions import require_write as _rw
+        _rw(self.active_household_id, self.active_household_id, self)
         self.conn.execute(
             "INSERT INTO movement_events (movement_id, lot_id, from_location_id, to_location_id, timestamp, source, confidence) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (movement.movement_id, movement.lot_id, movement.from_location_id,
@@ -921,6 +940,11 @@ class Database:
     # --- Price Observations ---
 
     def record_price(self, price: PriceObservation, user_id: str = "") -> PriceObservation:
+        # ── Phase 11: permission gate (additive, supersession-safe) ──
+        from shopstack.services.permissions import require_write as _rw
+        if not user_id:
+            user_id = self.active_household_id
+        _rw(user_id, user_id, self)
         self.conn.execute(
             "INSERT INTO price_observations (price_id, canonical_name, quantity, unit, price, currency, store_name, store_id, observation_date, source_event_id, notes, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (price.price_id, price.canonical_name, price.quantity, price.unit,
@@ -1009,6 +1033,11 @@ class Database:
     # --- Purchase Events ---
 
     def add_purchase_event(self, event: PurchaseEvent, user_id: str = "") -> PurchaseEvent:
+        # ── Phase 11: permission gate (additive, supersession-safe) ──
+        from shopstack.services.permissions import require_write as _rw
+        if not user_id:
+            user_id = self.active_household_id
+        _rw(user_id, user_id, self)
         self.conn.execute(
             "INSERT INTO purchase_events (event_id, timestamp, canonical_name, quantity, unit, total_price, currency, source_type, store_name, raw_text, source_file_path, confirmed, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (event.event_id, event.timestamp.isoformat(),
@@ -1038,6 +1067,11 @@ class Database:
     # --- Reconciliation Events ---
 
     def add_reconciliation_event(self, event: ReconciliationEvent, user_id: str = "") -> ReconciliationEvent:
+        # ── Phase 11: permission gate (additive, supersession-safe) ──
+        from shopstack.services.permissions import require_write as _rw
+        if not user_id:
+            user_id = self.active_household_id
+        _rw(user_id, user_id, self)
         self.conn.execute(
             "INSERT INTO reconciliation_events (event_id, timestamp, canonical_name, planned_action, actual_action, quantity, unit, price_paid, planned_price, substituted_with, notes, source, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (event.event_id, event.timestamp.isoformat(),
@@ -1103,6 +1137,11 @@ class Database:
     # --- Preference Signals ---
 
     def add_preference_signal(self, signal: PreferenceSignal, user_id: str = "") -> PreferenceSignal:
+        # ── Phase 11: permission gate (additive, supersession-safe) ──
+        from shopstack.services.permissions import require_write as _rw
+        if not user_id:
+            user_id = self.active_household_id
+        _rw(user_id, user_id, self)
         self.conn.execute(
             "INSERT INTO preference_signals (signal_id, canonical_name, signal_type, value, confidence, source, created_at, updated_at, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (signal.signal_id, signal.canonical_name, signal.signal_type,
@@ -1437,6 +1476,7 @@ def _row_to_lot(row: sqlite3.Row) -> InventoryLot:
         price_paid=row["price_paid"], currency=row["currency"],
         source_event_id=row["source_event_id"], confidence=row["confidence"],
         image_crop_path=row["image_crop_path"], status=row["status"],
+        user_id=row["user_id"] if "user_id" in row.keys() else "",
         created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else datetime.now(),
         updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else datetime.now(),
     )

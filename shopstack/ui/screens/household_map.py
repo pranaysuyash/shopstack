@@ -8,8 +8,8 @@ from html import escape
 from shopstack.schemas.models import new_id
 from shopstack.app_context import db, tools, current_user_id
 from shopstack.services.dashboard import clear_dashboard_cache
+from shopstack.ui.components.decorators import aria_live_screen
 from shopstack.ui.components.primitives import (
-    aria_live_screen,
     item_row,
     stat_card,
 )

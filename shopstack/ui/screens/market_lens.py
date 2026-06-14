@@ -10,7 +10,7 @@ from shopstack.services.market_lens import MarketLensResult, analyze_market_lens
 from shopstack.ui.components import render_grouped_cards
 from shopstack.traces.export import create_trace, update_trace_confirmation
 from shopstack.ui.screens._utils import WORKFLOW_STEPS, source_freshness_html
-from shopstack.ui.screens.ask import ask_shopstack
+from shopstack.ui.screens.ask import ask_shopstack, render_ask_response
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,12 @@ def market_lens_process(image_path: str | None, audio_path: str | None) -> tuple
             result_html = source_metadata
         result_html += f"<div style='margin-top:12px;'><strong>Heard:</strong> {escape(transcript_text)}</div>"
         if not image_path and transcript_text:
-            result_html = ask_shopstack(transcript_text)
+            # ``ask_shopstack`` returns a structured dict; render it to HTML
+            # via the canonical renderer before assigning to ``result_html``.
+            # Assigning the raw dict previously broke ``create_trace`` because
+            # ``Trace.final_response`` is typed ``str`` and Pydantic rejected
+            # the dict, silently dropping the trace (empty ``ml_trace_id``).
+            result_html = render_ask_response(ask_shopstack(transcript_text))
             analysis = service_result.analysis_json
             service_result.decisions.append({"canonical_name": "", "decision": "text_query", "reason": transcript_text})
         else:

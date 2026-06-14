@@ -14,6 +14,7 @@ from ..normalization import (
     parse_size,
 )
 from ..schema import MarketSnapshot, NormalizedMarketRecord
+from shopstack.schemas.models import PriceObservation
 
 logger = logging.getLogger(__name__)
 
@@ -203,4 +204,76 @@ def snapshot_freshness(snapshot: MarketSnapshot, today: date | None = None) -> d
         "age_days": age_days,
         "is_stale": age_days > FRESHNESS_WARNING_DAYS,
         "label": label,
+    }
+
+
+def import_swiggy_snapshot_to_db(
+    db: Any,
+    data_dir: Path | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Import a Swiggy snapshot into the ``price_observations`` table.
+
+    Composes the pure loader (:func:`load_snapshot`) with the DB
+    writer (``db.record_price``). Restores the behavior of the
+    deprecated ``import_swiggy_fresh_vegetables_snapshot``
+    function that was removed in Pass 9 supersession
+    (see Pass 9 addendum: "Add features back to canonical").
+
+    The canonical architecture separates loader (pure) from
+    DB write (this function). Tests for the loader are in
+    :mod:`tests.test_market` (:class:`TestSwiggyLoader`); tests
+    for the DB write are in
+    :mod:`tests.test_market_swiggy_migration`
+    (:class:`TestSwiggyMigrationImport`).
+
+    Args:
+        db: A :class:`shopstack.persistence.database.Database`
+            instance (or any object with a ``record_price``
+            method that takes a :class:`PriceObservation`).
+        data_dir: Optional override for the data directory
+            containing the swiggy JSON/CSV snapshot files.
+        dry_run: If True, parse and validate but don't write
+            to the DB. Useful for smoke testing.
+
+    Returns:
+        A summary dict with ``imported_records``,
+        ``skipped_records``, ``source_event_id``, and
+        ``source_file`` (the path of the loaded snapshot).
+    """
+    snapshot = load_snapshot(data_dir=data_dir)
+    try:
+        captured = date.fromisoformat(snapshot.captured_at[:10])
+    except (ValueError, TypeError):
+        # If the captured_at is malformed, use today as a fallback
+        # so the import still works. This matches the legacy
+        # behavior of the deprecated function.
+        captured = date.today()
+
+    imported = 0
+    skipped = 0
+    for record in snapshot.normalized_records:
+        if record.price_inr <= 0 or (record.normalized_quantity or 0) <= 0:
+            skipped += 1
+            continue
+        observation = PriceObservation(
+            canonical_name=record.canonical_name,
+            quantity=record.normalized_quantity,
+            unit=record.normalized_unit or "unit",
+            price=record.price_inr,
+            currency="INR",
+            store_name="Swiggy Instamart",
+            observation_date=captured,
+            source_event_id=snapshot.snapshot_id,
+            notes=f"raw={record.raw_name}",
+        )
+        if not dry_run:
+            db.record_price(observation)
+        imported += 1
+
+    return {
+        "imported_records": imported,
+        "skipped_records": skipped,
+        "source_event_id": snapshot.snapshot_id,
+        "source_file": str(data_dir or _DEFAULT_DATA_DIR),
     }

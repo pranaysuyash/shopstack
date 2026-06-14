@@ -4,7 +4,7 @@ from html import escape
 import logging
 
 from shopstack.app_context import APP_DESCRIPTION, APP_NAME, db, tools, current_user_id
-from shopstack.services.dashboard import build_dashboard_state, clear_dashboard_cache
+from shopstack.services.dashboard import build_dashboard_state
 from shopstack.ui.components.cards import card as ui_card
 from shopstack.ui.components.cards import badge_html
 from shopstack.ui.components.cards import render_action_grid, render_hero_panel

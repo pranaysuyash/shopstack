@@ -11,9 +11,45 @@ For related concerns that live alongside the HTML primitives, see:
 - :mod:`shopstack.ui.components.js_helpers` — JavaScript snippets
   returned as strings for Gradio's ``app.load(js=...)`` parameter
   (``busy_js``, ``autocomplete_injector_js``, ``url_state_sync_js``).
+  **Canonical path** for these — the re-exports here are deprecated.
 - :mod:`shopstack.ui.components.decorators` — Screen-function
   decorators that apply UI patterns uniformly
-  (``@aria_live_screen``).
+  (``@aria_live_screen``). **Canonical path** — the re-export here
+  is deprecated.
+
+Deprecation / Supersession
+---------------------------
+
+The following symbols were moved to dedicated modules in Pass 4
+(UX-fix worklog Pass 4, 2026-06-13) but are kept here as
+**deprecated re-exports** that emit a ``DeprecationWarning`` on
+first call. The canonical paths are:
+
+- ``busy_js`` → :mod:`shopstack.ui.components.js_helpers.busy_js`
+- ``autocomplete_injector_js`` → :mod:`shopstack.ui.components.js_helpers.autocomplete_injector_js`
+- ``url_state_sync_js`` → :mod:`shopstack.ui.components.js_helpers.url_state_sync_js`
+- ``aria_live_screen`` → :mod:`shopstack.ui.components.decorators.aria_live_screen`
+
+Per the project supersession rules (CLAUDE.md § 7): the new
+canonical paths are in place; the old paths emit
+``DeprecationWarning``; the project is being migrated; once
+0 internal call sites remain, the re-exports will be kept for
+one release cycle (ShopStack's next minor release) and then
+deleted.
+
+**Migration tracker (Pass 4 → Pass 5):** the last internal call
+site (``consumption.py:21``) was migrated to the canonical
+``decorators.py`` path in Pass 5 Batch 23. The deprecated
+re-exports in this module are kept for external backward
+compatibility and emit a ``DeprecationWarning`` on call.
+
+Removed from this module in Pass 4: ``busy_js``,
+``autocomplete_injector_js``, ``url_state_sync_js``,
+``_TAB_IDS_FOR_URL_SYNC``, ``aria_live_screen``. The HTML
+primitives (``item_row``, ``stat_card``, ``data_table``,
+``confirm_dialog``, ``toast``, ``loading_skeleton``,
+``empty_state_enhanced``) remain in this module — they are the
+canonical home for HTML rendering.
 
 All HTML returned by these functions is **escaped via
 ``html.escape()``** for every user/data-derived string. Never
@@ -29,22 +65,146 @@ For the full module index, see ``Docs/UX_PATTERNS.md``.
 """
 from __future__ import annotations
 
+import functools
 import json as _json
+import warnings
 from html import escape
 from typing import Any
 
 # Re-exports for backward compatibility — the JS helpers and the
 # aria_live_screen decorator were moved to dedicated modules in
-# Pass 3, but every existing import path (``from shopstack.ui.components
-# .primitives import busy_js`` etc.) still resolves to the same
-# function. New code should import from the dedicated modules:
+# Pass 4 (UX-fix worklog Pass 4, 2026-06-13). Per the project
+# supersession rules (CLAUDE.md § 7), the re-exports here emit a
+# ``DeprecationWarning`` on first call so consumers migrate to the
+# canonical paths:
+#   from shopstack.ui.components.js_helpers import busy_js, ...
 #   from shopstack.ui.components.decorators import aria_live_screen
-from shopstack.ui.components.decorators import aria_live_screen  # noqa: F401 — re-export
-from shopstack.ui.components.js_helpers import (  # noqa: F401 — re-export
-    autocomplete_injector_js,
-    busy_js,
-    url_state_sync_js,
+# See the module docstring's "Deprecation / Supersession" section
+# for the full migration tracker and removal plan.
+from shopstack.ui.components.decorators import (  # noqa: F401 — re-export (deprecated)
+    aria_live_screen as _canonical_aria_live_screen_factory,
 )
+from shopstack.ui.components.js_helpers import (  # noqa: F401 — re-export (deprecated)
+    autocomplete_injector_js as _canonical_autocomplete_injector_js,
+    busy_js as _canonical_busy_js,
+    url_state_sync_js as _canonical_url_state_sync_js,
+)
+
+
+def _deprecated_alias(
+    old_qualname: str,
+    new_qualname: str,
+    removal_target: str = "the next minor release (see migration tracker in module docstring)",
+):
+    """Wrap a canonical function so the deprecated path emits a ``DeprecationWarning`` on call.
+
+    The wrapper preserves ``__name__``/``__doc__`` for ``help()`` and
+    stack traces, and uses ``stacklevel=2`` so the warning points at
+    the caller's line, not the wrapper itself.
+
+    Args:
+        old_qualname: Fully-qualified name of the deprecated alias
+            (e.g. ``"shopstack.ui.components.primitives.busy_js"``).
+        new_qualname: Fully-qualified name of the canonical path
+            (e.g. ``"shopstack.ui.components.js_helpers.busy_js"``).
+        removal_target: Human-readable string shown in the warning,
+            describing when the alias will be removed.
+
+    Returns:
+        A decorator that wraps a function (or factory) and emits
+        a ``DeprecationWarning`` on each call.
+    """
+    def decorator(target):
+        @functools.wraps(target)
+        def wrapper(*args, **kwargs):
+            warnings.warn(
+                f"{old_qualname} is deprecated and will be removed in {removal_target}. "
+                f"Use {new_qualname} instead. "
+                f"See the migration tracker in shopstack.ui.components.primitives docstring.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return target(*args, **kwargs)
+        wrapper.__qualname__ = target.__qualname__
+        return wrapper
+    return decorator
+
+
+# Local inlined copy of the canonical ``aria_live_html`` so the
+# deprecated ``aria_live_screen`` re-export below doesn't create a
+# circular import with :mod:`shopstack.ui.components.decorators`.
+# Keep in sync with the canonical implementation at the bottom of
+# this file (and the same impl in ``decorators.py``).
+def _canonical_aria_live_html(content: str, level: str = "polite") -> str:
+    """Wrap content in a role='status' aria-live region (canonical impl)."""
+    safe_level = escape(str(level))
+    if safe_level not in ("polite", "assertive"):
+        safe_level = "polite"
+    return (
+        f"<div role='status' aria-live='{safe_level}' aria-atomic='true'>"
+        f"{content}"
+        f"</div>"
+    )
+
+
+@_deprecated_alias(
+    "shopstack.ui.components.primitives.busy_js",
+    "shopstack.ui.components.js_helpers.busy_js",
+)
+def busy_js(*args, **kwargs):
+    """DepRECATED: use ``shopstack.ui.components.js_helpers.busy_js`` instead.
+
+    Re-exported for backward compatibility. Emits a
+    ``DeprecationWarning`` on first call. See the module docstring's
+    supersession tracker.
+    """
+    return _canonical_busy_js(*args, **kwargs)
+
+
+@_deprecated_alias(
+    "shopstack.ui.components.primitives.autocomplete_injector_js",
+    "shopstack.ui.components.js_helpers.autocomplete_injector_js",
+)
+def autocomplete_injector_js(*args, **kwargs):
+    """DepRECATED: use ``shopstack.ui.components.js_helpers.autocomplete_injector_js`` instead."""
+    return _canonical_autocomplete_injector_js(*args, **kwargs)
+
+
+@_deprecated_alias(
+    "shopstack.ui.components.primitives.url_state_sync_js",
+    "shopstack.ui.components.js_helpers.url_state_sync_js",
+)
+def url_state_sync_js(*args, **kwargs):
+    """DepRECATED: use ``shopstack.ui.components.js_helpers.url_state_sync_js`` instead."""
+    return _canonical_url_state_sync_js(*args, **kwargs)
+
+
+@_deprecated_alias(
+    "shopstack.ui.components.primitives.aria_live_screen",
+    "shopstack.ui.components.decorators.aria_live_screen",
+)
+def aria_live_screen(level: str = "polite"):
+    """DepRECATED: use ``shopstack.ui.components.decorators.aria_live_screen`` instead.
+
+    Returns a decorator that wraps a screen function's HTML output
+    in an ``aria-live`` region. Re-exported for backward compatibility
+    from ``primitives`` — emits a ``DeprecationWarning`` on first
+    factory call. See the module docstring's supersession tracker.
+    """
+    def decorator(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            result = fn(*args, **kwargs)
+            if isinstance(result, str):
+                return _canonical_aria_live_html(result, level=level)
+            if isinstance(result, tuple):
+                return tuple(
+                    _canonical_aria_live_html(r, level=level) if isinstance(r, str) else r
+                    for r in result
+                )
+            return result
+        return wrapper
+    return decorator
 
 
 # ═══════════════════════════════════════════════════════════════════════

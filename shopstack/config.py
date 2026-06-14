@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     planner_backend: str = "local"
     stt_backend: str = "sensevoice"
     tts_backend: str = "kokoro"
-    vision_backend: str = "minicpmv"
+    vision_backend: str = "qwen3vl"
     ocr_backend: str = "tesseract"
     segmentation_backend: str = "birefnet"
     grounding_backend: str = "grounding_dino"
@@ -74,8 +74,8 @@ class Settings(BaseSettings):
             "planner_backend": "minicpm5",
             "ocr_backend": "glm_ocr",  # overrides default tesseract for vision-native OCR
         }
-        # vision_backend=minicpmv, segmentation_backend=rmbg, and most other
-        # backends are now the default — no longer need explicit preset overrides.
+        # vision_backend=qwen3vl, segmentation_backend=birefnet, embeddings_backend=nomic,
+        # and most other backends are now the default — no longer need explicit preset overrides.
         for field_name, backend in preset_backends.items():
             if field_name not in explicit_fields:
                 setattr(self, field_name, backend)

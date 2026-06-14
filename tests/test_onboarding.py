@@ -35,10 +35,18 @@ from shopstack.services.onboarding import (
 
 @pytest.fixture()
 def fresh_db():
+    """Fresh temp DB with the ``hh1`` test household seeded.
+
+    Onboarding writes inventory, shopping-list items, and price observations
+    as ``user_id="hh1"``. Phase 11 write paths verify household membership,
+    so ``hh1`` must exist with itself as owner.
+    """
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     s = Settings(_env_file=None, db_path=path, off_the_grid=True, planner_backend="mock")
     db = Database(path)
+    db.add_household("hh1", "Test hh1")
+    db.add_household_member("hh1", "hh1", role="owner")
     yield db, path
     Path(path).unlink(missing_ok=True)
 
@@ -178,6 +186,8 @@ class TestSubmitOnboarding:
         os.close(fd)
         s = Settings(_env_file=None, db_path=path, off_the_grid=True, planner_backend="mock")
         db2 = Database(path)
+        db2.add_household("hh2", "Test hh2")
+        db2.add_household_member("hh2", "hh2", role="owner")
         db2.active_household_id = "hh2"
         # 6+ people
         submit_onboarding(

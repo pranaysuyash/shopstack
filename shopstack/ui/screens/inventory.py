@@ -11,8 +11,8 @@ from shopstack.services.dashboard import clear_dashboard_cache
 from shopstack.services.storage_suggest import suggest_storage_location
 from shopstack.traces.export import create_trace
 from shopstack.ui.components.cards import empty_state, list_to_table
+from shopstack.ui.components.decorators import aria_live_screen
 from shopstack.ui.components.primitives import (
-    aria_live_screen,
     form_error,
     item_row,
     toast,
@@ -345,7 +345,7 @@ def consume_item(lot_id: str, qty: float) -> str:
     uid = _user_id()
     result = tools.consume_inventory_item(lot_id, qty, user_id=uid)
     if "error" in result:
-        return f"<div style='color:var(--red);'>Error: {escape(str(result['error']))}</div>"
+        return toast(f"Error: {result['error']}", kind="error")
     clear_dashboard_cache(uid)
     return f"<div style='color:var(--green);'>Consumed {escape(str(qty))}. Remaining: {escape(str(result.get('remaining', 0)))}</div>" + toast_floating(f"Consumed {qty} — {result.get('remaining', 0)} left", kind="success")
 

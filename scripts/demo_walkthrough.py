@@ -1,3 +1,17 @@
+"""ShopStack demo walkthrough — stepwise narration of household data flow.
+
+Canonical run path (preferred):
+    uv run python scripts/demo_walkthrough.py
+    .venv/bin/python scripts/demo_walkthrough.py
+
+The ``shopstack`` package is importable directly because the project
+is installed in editable mode (``pip install -e .`` / ``uv sync``).
+No ``sys.path`` manipulation is required.
+
+Walks the user through inventory → market lens → shopping list →
+classification → output, exercising the same code paths the Gradio
+app uses in production.
+"""
 from __future__ import annotations
 
 from shopstack.config import settings

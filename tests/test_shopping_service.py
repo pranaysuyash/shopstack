@@ -4,37 +4,19 @@ Simple service functions use conftest fixtures (``db``, ``tool_registry``).
 Completion functions that depend on ``shopstack.app_context`` are imported
 inside the test method body (not at module level) so the import captures the
 correct ``db`` reference after the ``app`` fixture has bootstrapped it.
+
+The ``app`` fixture comes from ``conftest.py`` (session-scoped import +
+table truncation between tests). An earlier version of this file reloaded
+``shopstack.app_context`` per test, which spawned a second ``Database``
+singleton and silently broke household scoping for every later test file.
 """
 
 from __future__ import annotations
 
 import json
-import os
 
 import pytest
 from shopstack.schemas.models import InventoryLot
-
-
-# ── Session-level env setter (same pattern as test_views.py) ──────────────
-
-@pytest.fixture(scope="session", autouse=True)
-def _set_test_env():
-    os.environ["SHOPSTACK_DB_PATH"] = ":memory:"
-    yield
-
-
-@pytest.fixture
-def app():
-    """Import app module fresh for each test, giving a clean :memory: DB."""
-    import sys
-
-    _preserved = {"shopstack.schemas", "shopstack.schemas.models"}
-    for mod in list(sys.modules.keys()):
-        if mod in ("app",) or (mod.startswith("shopstack") and mod not in _preserved):
-            del sys.modules[mod]
-
-    import app as _app
-    return _app
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -114,14 +96,14 @@ class TestNormalizeItemName:
 class TestClassifyShoppingItems:
     def test_empty_items(self, db, tool_registry):
         from shopstack.services.shopping import classify_shopping_items, ShoppingPlan
-        plan = classify_shopping_items([], tool_registry)
+        plan = classify_shopping_items([], tool_registry.inventory)
         assert isinstance(plan, ShoppingPlan)
         assert plan.all_items == []
 
     def test_must_buy_when_not_in_inventory(self, db, tool_registry):
         from shopstack.services.shopping import classify_shopping_items
         items = [{"canonical_name": "butter", "requested_quantity": 1, "unit": "unit"}]
-        plan = classify_shopping_items(items, tool_registry)
+        plan = classify_shopping_items(items, tool_registry.inventory)
         assert len(plan.must_buy) == 1
         assert plan.must_buy[0]["canonical_name"] == "Butter"
         assert plan.must_buy[0]["priority"] == "must_buy"
@@ -133,7 +115,7 @@ class TestClassifyShoppingItems:
             canonical_name="eggs", display_name="Eggs", quantity=12, unit="pieces",
         )
         items = [{"canonical_name": "eggs", "requested_quantity": 12, "unit": "pieces"}]
-        plan = classify_shopping_items(items, tool_registry)
+        plan = classify_shopping_items(items, tool_registry.inventory)
         assert len(plan.optional) == 1
         assert plan.optional[0]["priority"] == "optional"
         assert plan.optional[0]["smart_decision"] == "optional"
@@ -144,7 +126,7 @@ class TestClassifyShoppingItems:
             canonical_name="milk", display_name="Milk", quantity=0.2, unit="L",
         )
         items = [{"canonical_name": "milk", "requested_quantity": 2, "unit": "L"}]
-        plan = classify_shopping_items(items, tool_registry)
+        plan = classify_shopping_items(items, tool_registry.inventory)
         assert len(plan.must_buy) == 1
         assert plan.must_buy[0]["priority"] == "must_buy"
 
@@ -154,7 +136,7 @@ class TestClassifyShoppingItems:
             canonical_name="rice", display_name="Rice", quantity=5, unit="kg",
         )
         items = [{"canonical_name": "rice", "requested_quantity": 1, "unit": "kg"}]
-        plan = classify_shopping_items(items, tool_registry)
+        plan = classify_shopping_items(items, tool_registry.inventory)
         assert len(plan.skipped) == 1
         assert plan.skipped[0]["priority"] == "avoid_buying"
 
@@ -164,7 +146,7 @@ class TestClassifyShoppingItems:
             {"canonical_name": "milk", "requested_quantity": 1, "unit": "L"},
             {"canonical_name": "milk", "requested_quantity": 1, "unit": "L"},
         ]
-        plan = classify_shopping_items(items, tool_registry)
+        plan = classify_shopping_items(items, tool_registry.inventory)
         assert len(plan.all_items) == 1
 
     def test_dedup_with_alias(self, db, tool_registry):
@@ -173,13 +155,13 @@ class TestClassifyShoppingItems:
             {"canonical_name": "milk", "requested_quantity": 1, "unit": "L"},
             {"canonical_name": "Milk", "requested_quantity": 1, "unit": "L"},
         ]
-        plan = classify_shopping_items(items, tool_registry)
+        plan = classify_shopping_items(items, tool_registry.inventory)
         assert len(plan.all_items) == 1
 
     def test_mutates_item_dicts(self, db, tool_registry):
         from shopstack.services.shopping import classify_shopping_items
         items = [{"canonical_name": "milk", "requested_quantity": 1, "unit": "L"}]
-        classify_shopping_items(items, tool_registry)
+        classify_shopping_items(items, tool_registry.inventory)
         assert "reason" in items[0]
         assert "priority" in items[0]
         assert "smart_decision" in items[0]
@@ -187,25 +169,25 @@ class TestClassifyShoppingItems:
     def test_handles_none_quantity(self, db, tool_registry):
         from shopstack.services.shopping import classify_shopping_items
         items = [{"canonical_name": "milk", "requested_quantity": None, "unit": "L"}]
-        plan = classify_shopping_items(items, tool_registry)
+        plan = classify_shopping_items(items, tool_registry.inventory)
         assert len(plan.must_buy) == 1
 
     def test_handles_invalid_quantity(self, db, tool_registry):
         from shopstack.services.shopping import classify_shopping_items
         items = [{"canonical_name": "milk", "requested_quantity": "abc", "unit": "L"}]
-        plan = classify_shopping_items(items, tool_registry)
+        plan = classify_shopping_items(items, tool_registry.inventory)
         assert len(plan.must_buy) == 1
 
     def test_handles_none_unit(self, db, tool_registry):
         from shopstack.services.shopping import classify_shopping_items
         items = [{"canonical_name": "milk", "requested_quantity": 1, "unit": None}]
-        plan = classify_shopping_items(items, tool_registry)
+        plan = classify_shopping_items(items, tool_registry.inventory)
         assert len(plan.must_buy) == 1
 
     def test_confidence_must_buy_not_at_home(self, db, tool_registry):
         from shopstack.services.shopping import classify_shopping_items
         items = [{"canonical_name": "butter", "requested_quantity": 1, "unit": "unit"}]
-        plan = classify_shopping_items(items, tool_registry)
+        plan = classify_shopping_items(items, tool_registry.inventory)
         assert plan.must_buy[0]["confidence"] == 0.52
 
     def test_confidence_must_buy_with_stock(self, db, tool_registry):
@@ -214,7 +196,7 @@ class TestClassifyShoppingItems:
             canonical_name="milk", display_name="Milk", quantity=0.5, unit="L",
         )
         items = [{"canonical_name": "milk", "requested_quantity": 2, "unit": "L"}]
-        plan = classify_shopping_items(items, tool_registry)
+        plan = classify_shopping_items(items, tool_registry.inventory)
         assert plan.must_buy[0]["confidence"] == 0.62
 
     def test_confidence_optional(self, db, tool_registry):
@@ -223,7 +205,7 @@ class TestClassifyShoppingItems:
             canonical_name="eggs", display_name="Eggs", quantity=12, unit="pieces",
         )
         items = [{"canonical_name": "eggs", "requested_quantity": 12, "unit": "pieces"}]
-        plan = classify_shopping_items(items, tool_registry)
+        plan = classify_shopping_items(items, tool_registry.inventory)
         assert plan.optional[0]["confidence"] == 0.72
 
     def test_confidence_skip(self, db, tool_registry):
@@ -232,13 +214,13 @@ class TestClassifyShoppingItems:
             canonical_name="rice", display_name="Rice", quantity=5, unit="kg",
         )
         items = [{"canonical_name": "rice", "requested_quantity": 1, "unit": "kg"}]
-        plan = classify_shopping_items(items, tool_registry)
+        plan = classify_shopping_items(items, tool_registry.inventory)
         assert plan.skipped[0]["confidence"] > 0.80
 
     def test_normalizes_names_via_alias(self, db, tool_registry):
         from shopstack.services.shopping import classify_shopping_items
         items = [{"canonical_name": "tamatar", "requested_quantity": 1, "unit": "kg"}]
-        plan = classify_shopping_items(items, tool_registry)
+        plan = classify_shopping_items(items, tool_registry.inventory)
         assert plan.all_items[0]["canonical_name"] == "Tomato"
 
     def test_use_soon_reclassification(self, db, tool_registry):
@@ -251,7 +233,7 @@ class TestClassifyShoppingItems:
             label_expiry_date=date.today(),
         ))
         items = [{"canonical_name": "milk", "requested_quantity": 1, "unit": "L"}]
-        plan = classify_shopping_items(items, tool_registry)
+        plan = classify_shopping_items(items, tool_registry.inventory)
         assert len(plan.use_soon) == 1
         assert plan.use_soon[0]["canonical_name"] == "Milk"
         assert plan.use_soon[0]["smart_decision"] == "use_soon"
@@ -260,7 +242,7 @@ class TestClassifyShoppingItems:
     def test_enriches_with_swiggy_data(self, db, tool_registry):
         from shopstack.services.shopping import classify_shopping_items
         items = [{"canonical_name": "tomato", "requested_quantity": 1, "unit": "kg"}]
-        plan = classify_shopping_items(items, tool_registry)
+        plan = classify_shopping_items(items, tool_registry.inventory)
         for item in plan.all_items:
             assert "swiggy_price" in item
             assert "swiggy_available" in item

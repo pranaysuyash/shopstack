@@ -9,8 +9,9 @@ delegating each to its own sub-builder module:
   4. **Nutrition**    → ``memory_nutrition.build_memory_nutrition``
   5. **Activity**     → ``memory_activity.build_memory_activity``
   6. **Analytics**    → ``memory_activity.build_memory_analytics``
-  7. **Advanced**     → ``memory_data.build_memory_advanced`` (developer-only)
-  8. **Backup**       → ``memory_data.build_memory_backup``
+  7. **Per-member**   → ``memory_activity.build_memory_per_member`` (Phase 11)
+  8. **Advanced**     → ``memory_data.build_memory_advanced`` (developer-only)
+  9. **Backup**       → ``memory_data.build_memory_backup``
 
 The sub-builder pattern is documented at the module level of each
 sub-builder. The composition here is intentionally minimal — just the
@@ -29,7 +30,7 @@ import gradio as gr
 
 from shopstack.module_registry import tab_label as _tab_label
 from shopstack.ui.tabs.context import TabContext
-from shopstack.ui.tabs.memory_activity import build_memory_activity, build_memory_analytics
+from shopstack.ui.tabs.memory_activity import build_memory_activity, build_memory_analytics, build_memory_per_member
 from shopstack.ui.tabs.memory_data import build_memory_advanced, build_memory_backup
 from shopstack.ui.tabs.memory_history import build_memory_history
 from shopstack.ui.tabs.memory_intelligence import build_memory_intelligence
@@ -76,6 +77,9 @@ def build_memory_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
 
             with gr.Tab("Analytics"):
                 build_memory_analytics(app=app, ctx=ctx)
+
+            with gr.Tab("Per-member"):
+                build_memory_per_member(app=app, ctx=ctx)
 
             # ── Advanced is developer-only; the sub-builder is a no-op
             # for non-developer modes. The guard lives inside the

@@ -39,6 +39,7 @@ from shopstack.ui.components.primitives import (
 from shopstack.ui.screens import (
     recipe_text_add_missing_to_list,
     recipe_text_to_shopping_list,
+    recipe_image_to_text,
 )
 from shopstack.ui.screens.receipt import (
     _load_ocr_model,
@@ -158,12 +159,30 @@ def build_basket_add_items(app: gr.Blocks, ctx: TabContext) -> None:
             with gr.Tab("From Recipe"):
                 gr.Markdown("### Recipe to shopping list")
                 gr.Markdown(
-                    "Paste a recipe's ingredients section. The system parses "
-                    "the text, diffs against your inventory, and shows what's "
-                    "missing. Use **Add missing to my list** to push the "
-                    "missing items into your active shopping list in one click. "
-                    "(Text-only for now; OCR image upload is future work.)"
+                    "Either **snap a photo** of a recipe (or upload a .txt), "
+                    "or **paste the ingredients** section. The system parses the "
+                    "text, diffs against your inventory, and shows what's missing. "
+                    "Use **Add missing to my list** to push the missing items into "
+                    "your active shopping list in one click."
                 )
+                # v2 (added 2026-06-13): photo / .txt upload that runs
+                # through the OCR pipeline and pre-fills recipe_input.
+                with gr.Row():
+                    recipe_file = gr.File(
+                        label="Upload recipe image or .txt",
+                        file_count="single",
+                        file_types=[
+                            "image",
+                            ".txt",
+                            ".csv",
+                            ".md",
+                        ],
+                    )
+                    recipe_ocr_btn = gr.Button(
+                        "Snap & parse recipe",
+                        variant="primary",
+                        elem_id="recipe-ocr-btn",
+                    )
                 recipe_input = gr.Textbox(
                     label="Recipe ingredients",
                     placeholder=(
@@ -211,5 +230,21 @@ def build_basket_add_items(app: gr.Blocks, ctx: TabContext) -> None:
                     api_description=(
                         "Add the missing ingredients from the parsed recipe "
                         "into the active shopping list"
+                    ),
+                )
+                # v2 (added 2026-06-13): snap a recipe photo and pre-fill
+                # the textbox via the OCR pipeline. The user can then click
+                # Parse & Diff / Add missing to my list without re-pasting.
+                recipe_ocr_btn.click(
+                    recipe_image_to_text,
+                    recipe_file,
+                    [recipe_input, recipe_status],
+                    js=busy_js(
+                        "recipe-ocr-btn", original_label="Snap & parse recipe"
+                    ),
+                    api_name="recipe_image_to_text",
+                    api_description=(
+                        "Extract recipe text from an uploaded image (OCR) or "
+                        ".txt file. Pre-fills the recipe textbox."
                     ),
                 )

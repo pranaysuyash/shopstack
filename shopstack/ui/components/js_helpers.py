@@ -125,11 +125,13 @@ def autocomplete_injector_js() -> str:
     static form fields and avoids the observer overhead.)
     """
     return (
+        "() => {"
         "setTimeout(function(){"
         "document.querySelectorAll('input,textarea,select').forEach(function(el){"
         "if(!el.getAttribute('autocomplete'))el.setAttribute('autocomplete','off');"
         "});"
         "},100);"
+        "}"
     )
 
 
@@ -159,6 +161,7 @@ def url_state_sync_js() -> str:
     ``history.replaceState`` (so back/forward navigation works).
     """
     return (
+        "() => {"
         "setTimeout(function(){"
         # Parse the initial hash: "#<top>[/<sub>]".
         "var h=window.location.hash.replace('#','');"
@@ -195,6 +198,7 @@ def url_state_sync_js() -> str:
         "});"
         "});"
         "},200);"
+        "}"
     )
 
 

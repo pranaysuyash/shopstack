@@ -18,7 +18,7 @@ from shopstack.app_context import db, tools, current_user_id
 from shopstack.services.dashboard import clear_dashboard_cache
 from shopstack.ui.screens._utils import safe_render
 from shopstack.ui.components.cards import card as ui_card
-from shopstack.ui.components.primitives import aria_live_screen
+from shopstack.ui.components.decorators import aria_live_screen  # canonical path (replaces primitives import)
 
 logger = logging.getLogger(__name__)
 

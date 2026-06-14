@@ -1,12 +1,13 @@
-"""Memory tab — Activity + Analytics sub-builders.
+"""Memory tab — Activity + Analytics + Per-member sub-builders.
 
 Extracted from ``build_memory_tab`` so the household activity log
-(Phase 8 #26) and the spend/activity insights dashboard (Phase 8
-Analytics) are independently testable and reusable.
+(Phase 8 #26), the spend/activity insights dashboard (Phase 8
+Analytics), and the per-member attribution (Phase 11) are
+independently testable and reusable.
 
-Both sub-tabs share the same pattern: a single HTML card with a
+All sub-tabs share the same pattern: a single HTML card with a
 refresh button. The screen functions live in
-``shopstack.ui.screens.activity_log`` and ``shopstack.ui.screens.analytics``.
+``shopstack.ui.screens.*``.
 """
 from __future__ import annotations
 
@@ -26,6 +27,12 @@ def _analytics_screen() -> str:
     """Closure for the Analytics screen."""
     from shopstack.ui.screens.analytics import analytics_screen
     return analytics_screen()
+
+
+def _per_member_screen() -> str:
+    """Closure for the Per-member attribution screen."""
+    from shopstack.ui.screens.per_member import per_member_screen
+    return per_member_screen()
 
 
 def build_memory_activity(app: gr.Blocks, ctx: TabContext) -> None:
@@ -85,3 +92,33 @@ def build_memory_analytics(app: gr.Blocks, ctx: TabContext) -> None:
         api_description="Refresh household analytics dashboard",
     )
     app.load(_analytics_screen, outputs=analytics_html)
+
+
+def build_memory_per_member(app: gr.Blocks, ctx: TabContext) -> None:
+    """Build the Per-member sub-tab inside the Memory tab.
+
+    Per-member activity attribution (Phase 11): who added /
+    consumed / observed in the household, sorted by trace
+    count. Single refresh button.
+
+    Args:
+        app: The root gr.Blocks instance.
+        ctx: Shared dependencies (unused).
+
+    Returns:
+        None.
+    """
+    gr.Markdown("### 👥 Per-member activity")
+    gr.Markdown(
+        "Who actually triggered each action — sorted by trace count "
+        "in the last 30 days. Pre-Phase-11 traces appear as "
+        "(unknown). Use the household settings to manage members."
+    )
+    per_member_html = gr.HTML(loading_skeleton("card"))
+    per_member_refresh = gr.Button("Refresh", elem_classes="secondary")
+    per_member_refresh.click(
+        _per_member_screen, outputs=per_member_html,
+        api_name="per_member_refresh",
+        api_description="Refresh per-member activity attribution",
+    )
+    app.load(_per_member_screen, outputs=per_member_html)

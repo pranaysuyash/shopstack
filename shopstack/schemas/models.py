@@ -82,6 +82,7 @@ class InventoryLot(BaseModel):
     confidence: float = 1.0
     image_crop_path: str | None = None
     status: ItemStatus = "active"
+    user_id: str = ""
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 
@@ -186,6 +187,11 @@ class Trace(BaseModel):
     human_confirmation: str | None = None
     final_response: str = ""
     timestamp: datetime = Field(default_factory=datetime.now)
+    # ── Phase 11: per-member activity attribution (additive) ──
+    # Optional: which member of the household actually triggered
+    # this trace. Empty for traces created before Phase 11 or
+    # when the caller didn't pass an actor.
+    actor_id: str = ""
 
 
 class Store(BaseModel):

@@ -45,6 +45,31 @@ def compute_snapshot_analytics(snapshot: MarketSnapshot) -> dict[str, Any]:
     ]
     avg_discount = sum(discounts) / len(discounts) if discounts else 0
 
+    # Top discounts: up to 5 records with the highest *displayed* discount,
+    # tied by price ascending. Restores the ``top_discounts`` field that
+    # the deprecated ``summarize_swiggy_snapshot`` exposed in Pass 9
+    # supersession (see Pass 9 addendum: "Add features back to canonical").
+    # Using ``discount_percent_displayed`` (the canonical field) rather
+    # than the legacy ``discount_percent`` (which was a custom dataclass
+    # field on the deprecated ``SwiggyVegetableRecord``).
+    top_discounts_records = [
+        r for r in records
+        if r.discount_percent_displayed is not None
+        and r.discount_percent_displayed > 0
+    ]
+    top_discounts_records.sort(
+        key=lambda r: (-r.discount_percent_displayed, r.price_inr or 0.0)
+    )
+    top_discounts = [
+        {
+            "name": r.raw_name,
+            "canonical_name": r.canonical_name,
+            "price_inr": r.price_inr,
+            "discount_percent": r.discount_percent_displayed,
+        }
+        for r in top_discounts_records[:5]
+    ]
+
     canonical_counts: dict[str, int] = Counter(
         r.canonical_name for r in records if not r.is_combo
     )
@@ -101,6 +126,7 @@ def compute_snapshot_analytics(snapshot: MarketSnapshot) -> dict[str, Any]:
         "avg_price": round(avg_price, 2),
         "median_price": round(median_price, 2),
         "avg_discount": round(avg_discount, 2),
+        "top_discounts": top_discounts,
         "category_counts": dict(Counter(r.source_category for r in records)),
         "canonical_counts": dict(canonical_counts),
         "weight_price_range": overall_ppa,

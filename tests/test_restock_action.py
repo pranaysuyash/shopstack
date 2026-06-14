@@ -27,11 +27,20 @@ from shopstack.services.restock_action import add_prediction_to_list
 
 @pytest.fixture()
 def fresh_db():
+    """Fresh temp DB with test households seeded.
+
+    Tests in this module write as ``hh1`` (and ``hh2`` for scoping
+    assertions). Phase 11 write paths verify household membership, so
+    each test household must exist with itself as owner.
+    """
     fd, path = tempfile.mkstemp(suffix=".db")
     import os
     os.close(fd)
     s = Settings(_env_file=None, db_path=path, off_the_grid=True, planner_backend="mock")
     db = Database(path)
+    for hid in ("hh1", "hh2"):
+        db.add_household(hid, f"Test {hid}")
+        db.add_household_member(hid, hid, role="owner")
     yield db, path
     Path(path).unlink(missing_ok=True)
 

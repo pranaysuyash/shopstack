@@ -26,12 +26,21 @@ from shopstack.services.price_memory import PriceMemoryService
 
 @pytest.fixture()
 def fresh_db():
-    """Create a fresh temp DB with a household + locations seeded."""
+    """Create a fresh temp DB with a household + locations seeded.
+
+    Phase 11 write paths verify household membership before persisting.
+    Tests in this module write as ``uid="default"``, so the fixture
+    must register ``default`` as a household and add ``default`` as
+    its owner. Without this, every ``record_price(..., user_id="default")``
+    fails with ``PermissionError: user 'default' is not a member of 'default'``.
+    """
     fd, path = tempfile.mkstemp(suffix=".db")
     import os
     os.close(fd)
     s = Settings(_env_file=None, db_path=path, off_the_grid=True, planner_backend="mock")
     db = Database(path)
+    db.add_household("default", "Default Test Household")
+    db.add_household_member("default", "default", role="owner")
     yield db, path
     Path(path).unlink(missing_ok=True)
 

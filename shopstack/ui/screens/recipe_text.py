@@ -6,7 +6,7 @@ of a recipe, the parser (in ``shopstack.services.recipe_text_parser``)
 turns it into structured rows, and the screen diffs against the
 household's inventory to surface what's missing.
 
-This module provides TWO Gradio-friendly entry points:
+This module provides THREE Gradio-friendly entry points:
 
   * :func:`recipe_text_to_shopping_list` — read-only diff view
     (the original v1; renders a "have / need" table for the user
@@ -15,20 +15,29 @@ This module provides TWO Gradio-friendly entry points:
     that pushes the missing ingredients into the active shopping
     list and returns a status toast (added 2026-06-13; closes the
     loop the v1 left open).
+  * :func:`recipe_image_to_text` — v2: takes a photo of a recipe
+    (or a .txt file), runs it through the OCR pipeline
+    (``shopstack.services.ocr_pipeline``), and returns the extracted
+    text so the user can review and then click the v1 buttons to
+    parse/diff/add. Closes the "OCR image upload is future work"
+    note from the v1 docstring.
 
-Future: extend the same screen with an image upload that runs the
-existing OCR pipeline first and then feeds the OCR text into this same
-parser. The screen's input is just text.
+The three functions are intentionally composed: the v1 text view
+takes whatever the v2 OCR step produces, so the user can snap a
+photo, see the OCR result, edit if needed, then click "Parse &
+Diff" / "Add missing to my list" without re-pasting.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 from html import escape
 from typing import Any
 
-from shopstack.app_context import db, tools
+from shopstack.app_context import db, tools, providers
 from shopstack.repos.inventory import InventoryRepo
+from shopstack.services.ocr_pipeline import run_ocr_pipeline
 from shopstack.services.recipe_text_parser import parse_recipe_text, text_to_shopping_items
 from shopstack.services.recipes import missing_to_shopping_items
 from shopstack.ui.components.primitives import toast
@@ -275,7 +284,138 @@ def recipe_text_add_missing_to_list(raw_text: str) -> str:
     )
 
 
+# ── v2: image upload + OCR (added 2026-06-13) ──────────────────────────
+
+
+_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff", ".tif")
+
+
+def _resolve_file_path(file_input: Any) -> str:
+    """Resolve a Gradio file input to a local filesystem path.
+
+    Gradio's ``gr.File`` returns a tempfile.NamedTemporaryFile object
+    on Python 3.7+; we accept either the file object (use ``.name``),
+    a string (treat as path), or ``None`` (no upload).
+    """
+    if not file_input:
+        return ""
+    if isinstance(file_input, str):
+        return file_input
+    if hasattr(file_input, "name"):
+        return str(file_input.name)
+    return str(file_input)
+
+
+def recipe_image_to_text(file_input: Any) -> tuple[str, str]:
+    """v2: Extract recipe text from an uploaded image or text file.
+
+    The user uploads a photo of a recipe (or a .txt file), clicks
+    "Snap & parse recipe", and the result is the extracted text
+    pre-populated into the existing ``recipe_input`` Textbox. The
+    user can then click "Parse & Diff" or "Add missing to my list"
+    (the v1 actions) to act on it.
+
+    Returns a ``(recipe_text, status_html)`` tuple:
+      * ``recipe_text`` — the extracted text (empty on failure)
+      * ``status_html`` — a toast indicating success / failure
+
+    Failure modes (all caught, never raise):
+      * No file uploaded → warning toast
+      * Unsupported file type → warning toast
+      * File not found / unreadable → error toast
+      * OCR pipeline returns ``{"error": ...}`` → error toast
+      * OCR returns empty text → warning toast
+
+    The OCR pipeline used is :func:`shopstack.services.ocr_pipeline.
+    run_ocr_pipeline`, which tries GLM-OCR (primary) → preprocess
+    + retry → Tesseract (fallback). On real photos the preprocessed
+    fallback is the most reliable path.
+    """
+    file_path = _resolve_file_path(file_input)
+    if not file_path:
+        return "", toast(
+            "Upload a recipe image (.png, .jpg, .webp) or a .txt file first.",
+            kind="warning",
+        )
+
+    if not os.path.isfile(file_path):
+        return "", toast(
+            f"File not found: {escape(file_path)}",
+            kind="error",
+        )
+
+    file_lower = file_path.lower()
+
+    # Branch 1: .txt / .csv — just read the file directly.
+    if file_lower.endswith((".txt", ".csv", ".md")):
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                raw_text = f.read()
+        except Exception as exc:
+            logger.warning("recipe_image_to_text: read failed: %s", exc)
+            return "", toast(f"Failed to read file: {exc}", kind="error")
+        if not raw_text.strip():
+            return "", toast(
+                "The uploaded text file is empty.",
+                kind="warning",
+            )
+        return raw_text, toast(
+            f"✓ Loaded {len(raw_text)} characters from text file. "
+            "Click 'Parse & Diff' to see what's missing.",
+            kind="success",
+        )
+
+    # Branch 2: image — run through the OCR pipeline.
+    if not file_lower.endswith(_IMAGE_EXTS):
+        return "", toast(
+            f"Unsupported file type: {escape(os.path.basename(file_path))}. "
+            "Use .png, .jpg, .jpeg, .webp, .bmp, or .txt.",
+            kind="warning",
+        )
+
+    try:
+        ocr_result = run_ocr_pipeline(
+            file_path, providers, enable_preprocessing=True
+        )
+    except Exception as exc:
+        logger.warning("recipe_image_to_text: OCR raised: %s", exc)
+        return "", toast(
+            f"OCR failed: {exc}. Try a clearer photo or a .txt file.",
+            kind="error",
+        )
+
+    if "error" in ocr_result:
+        return "", toast(
+            f"OCR could not read the image: {escape(str(ocr_result['error']))}. "
+            "Try a clearer photo or paste the text directly.",
+            kind="error",
+        )
+
+    raw_text = ocr_result.get("text", "") or ocr_result.get("raw_text", "")
+    raw_text = (raw_text or "").strip()
+    if not raw_text:
+        return "", toast(
+            "OCR ran successfully but found no text in the image. "
+            "Try a clearer photo, better lighting, or paste the text directly.",
+            kind="warning",
+        )
+
+    # Success — include OCR metadata in the toast so the user knows
+    # which pipeline stage succeeded (and how long it took).
+    model = ocr_result.get("model", "?")
+    stage = ocr_result.get("pipeline_stage", "?")
+    latency = ocr_result.get("latency_ms", 0)
+    status = toast(
+        f"✓ Extracted {len(raw_text)} characters via {model} "
+        f"({stage}, {latency:.0f}ms). "
+        "Review the text below, then click 'Parse & Diff' or 'Add missing to my list'.",
+        kind="success",
+    )
+    return raw_text, status
+
+
 __all__ = [
     "recipe_text_to_shopping_list",
     "recipe_text_add_missing_to_list",
+    "recipe_image_to_text",
 ]

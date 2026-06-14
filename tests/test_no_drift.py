@@ -175,6 +175,77 @@ class TestBasketSubBuildersWired:
             )
 
 
+# ── Forbidden paths (supersession guards) ──────────────────────────
+
+# Paths that were intentionally deleted via supersession. If
+# drift re-introduces them, the no-drift test fails. Each entry
+# is a tuple: (relative path, reason for deletion). The reason
+# is shown in the failure message so the next agent knows why
+# the path is forbidden.
+
+_FORBIDDEN_PATHS: list[tuple[str, str]] = [
+    # Pass 7: dead module that was extracted in a previous session
+    # but never wired up. The functionality lives in shopstack/ui/
+    # tabs/cookbook.py (the parent that should have called it).
+    ("shopstack/ui/tabs/cookbook_content.py",
+     "Dead module from a previous session; functionality is in shopstack/ui/tabs/cookbook.py."),
+
+    # Pass 9: deprecated swiggy data source package. The canonical
+    # path is shopstack/market/sources/swiggy.py (plus
+    # shopstack/market/sources/_swiggy_adapter.py for the adapter
+    # protocol). The 3 deprecated functions have explicit
+    # DeprecationWarnings pointing to the canonical paths. Pass 9
+    # migrated all callers (tests/test_swiggy_data_source.py was
+    # deleted; the canonical tests live in test_market.py::
+    # TestSwiggyLoader + TestAnalytics; module_registry.py no
+    # longer lists the deprecated module). The package is
+    # permanently gone — any re-introduction is drift.
+    ("shopstack/data_sources/__init__.py",
+     "Deprecated package (Pass 9 supersession); use shopstack/market/sources/."),
+    ("shopstack/data_sources/swiggy.py",
+     "Deprecated module (Pass 9 supersession); use shopstack/market/sources/swiggy.py."),
+
+    # Pass 9: deprecated swiggy data source package. The canonical
+    # path is shopstack/market/sources/swiggy.py (plus
+    # shopstack/market/sources/_swiggy_adapter.py for the adapter
+    # protocol). Pass 9 migrated all callers (tests/test_swiggy_data_source.py was
+    # deleted; the canonical tests live in test_market.py::
+    # TestSwiggyLoader + TestAnalytics; module_registry.py no
+    # longer lists the deprecated module). The package is
+    # permanently gone — any re-introduction is drift.
+    ("shopstack/data_sources/__init__.py",
+     "Deprecated package (Pass 9 supersession); use shopstack/market/sources/."),
+    ("shopstack/data_sources/swiggy.py",
+     "Deprecated module (Pass 9 supersession); use shopstack/market/sources/swiggy.py."),
+
+    # NOTE: ``tests/test_swiggy_data_source.py`` was deleted in Pass 9
+    # but the canonical migration landed in Pass 9b at
+    # ``tests/test_market_swiggy_migration.py``. If anyone re-introduces
+    # the old test file, it will likely test the deprecated API and
+    # break. The migration file is the canonical coverage; restore
+    # the old file only by porting its tests to the canonical API.
+    ("tests/test_swiggy_data_source.py",
+     "Old test file for the deprecated swiggy API (Pass 9 supersession); migration is in tests/test_market_swiggy_migration.py."),
+]
+
+
+class TestForbiddenPaths:
+    """Paths deleted via supersession must not be re-introduced by drift."""
+
+    @pytest.mark.parametrize(
+        "rel_path,reason",
+        _FORBIDDEN_PATHS,
+        ids=[p for p, _ in _FORBIDDEN_PATHS],
+    )
+    def test_path_does_not_exist(self, rel_path: str, reason: str):
+        path = REPO / rel_path
+        assert not path.exists(), (
+            f"{rel_path} was re-introduced by drift. "
+            f"Reason for deletion: {reason} "
+            f"If you intentionally re-added this path, update the forbidden list."
+        )
+
+
 # ── Tab builder contract ────────────────────────────────────────────
 
 # Every top-level ``build_<name>_tab(blocks, app, ctx)`` function

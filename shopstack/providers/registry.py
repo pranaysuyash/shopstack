@@ -144,6 +144,14 @@ def _load_minicpmv():
         return None
 
 
+def _load_qwen3vl():
+    try:
+        from shopstack.providers.vision_provider import Qwen3VLProvider
+        return Qwen3VLProvider
+    except ImportError:
+        return None
+
+
 def _load_minicpm5():
     try:
         from shopstack.providers.planner_provider import MiniCPM5Provider
@@ -317,6 +325,11 @@ _PROVIDER_SPECS: dict[str, _ProviderSpec] = {
         loader=_load_minicpmv,
         kwargs_fn=lambda _s: {},
         unavailable_msg="MiniCPM-V provider not available (transformers/torch missing), falling back to mock",
+    ),
+    "qwen3vl": _ProviderSpec(
+        loader=_load_qwen3vl,
+        kwargs_fn=lambda _s: {},
+        unavailable_msg="Qwen3-VL provider not available (transformers/torch missing), falling back to mock",
     ),
     "minicpm5": _ProviderSpec(
         loader=_load_minicpm5,

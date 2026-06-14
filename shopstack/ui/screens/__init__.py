@@ -39,6 +39,18 @@ from shopstack.ui.screens.inventory import (
     suggest_location_for_item,
     use_soon_view,
 )
+# Backward-compat re-export for households.py — module was archived to
+# _legacy/ on 2026-06-13 per motto_v3 §7 (supersession). The functions
+# remain importable from `shopstack.ui.screens` (this module) for any
+# external consumer. The original `from shopstack.ui.screens import households`
+# import path is preserved by the shim at the end of this file.
+from shopstack.ui.screens._legacy.households import (
+    add_member_screen,
+    change_role_screen,
+    households_panel_screen,
+    list_user_households_screen,
+    remove_member_screen,
+)  # noqa: F401 — public API re-export (archived 2026-06-13)
 from shopstack.ui.screens.traces import (
     agent_trace_choices,
     agent_trace_bootstrap,
@@ -92,6 +104,7 @@ from shopstack.ui.screens.unified_shopping import run_unified_plan, unified_plan
 from shopstack.ui.screens.recipe_text import (
     recipe_text_to_shopping_list,
     recipe_text_add_missing_to_list,
+    recipe_image_to_text,
 )
 from shopstack.ui.screens.consumption import (
     consumption_dashboard,
@@ -103,7 +116,7 @@ from shopstack.ui.screens.consumption import (
 
 __all__ = [
     "today_dashboard",
-    "shopping_list_view",
+    # "shopping_list_view",  # REMOVED 2026-06-13: superseded by shopping_list_view_with_cards. See HANDOFF_SUPERSESSION_AUDIT_2026-06-13.md.
     "shopping_list_create",
     "shopping_list_view_with_cards",
     "build_shopping_list_and_refresh",
@@ -129,6 +142,7 @@ __all__ = [
     "suggest_location_for_item",
     "recipe_text_to_shopping_list",
     "recipe_text_add_missing_to_list",
+    "recipe_image_to_text",
     "inventory_view",
     "inventory_cards_view",
     "consume_item",
@@ -178,4 +192,11 @@ __all__ = [
     "batch_consume_with_context",
     "consumption_history",
     "consumption_rates",
+    # Archived 2026-06-13 to _legacy/ per motto_v3 §7 (supersession).
+    # Kept in __all__ for backward compatibility — see DR-SS1.
+    "add_member_screen",
+    "change_role_screen",
+    "households_panel_screen",
+    "list_user_households_screen",
+    "remove_member_screen",
 ]

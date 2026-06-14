@@ -483,7 +483,33 @@ class TestEndToEndTraceScoping:
 
     The ``app`` fixture (from conftest.py) provides the full app module so screen builders
     have their ``db``, ``tools``, and ``current_user_id()`` correctly wired.
+
+    The ``household_green`` / ``household_blue`` / ``household_red`` identifiers
+    are used as both household ids and member ids. Phase 11 write paths call
+    ``require_write(user_id, household_id, db)`` which verifies membership —
+    so each test household must exist and have itself as an owner before any
+    screen builder can persist a trace through it.
     """
+
+    _TEST_HOUSEHOLDS = (
+        "household_a", "household_b", "household_c",
+        "household_x", "household_y", "household_z",
+        "household_one",
+        "household_green", "household_blue", "household_red",
+        "household_audio_blue", "household_audio_red",
+        "household_dual_a", "household_dual_b",
+        "household_export_a", "household_export_b", "household_export_empty",
+        "household_isolated",
+        "household_market_blue", "household_market_green",
+        "household_ml_a", "household_ml_b", "household_ml_c", "household_ml_d", "household_ml_e",
+        "household_recon_a", "household_recon_b", "household_recon_c", "household_recon_d",
+        "household_shopping_a", "household_shopping_b",
+    )
+
+    def setup_method(self, _method) -> None:
+        for hid in self._TEST_HOUSEHOLDS:
+            app_db.add_household(hid, hid.replace("_", " ").title())
+            app_db.add_household_member(hid, hid, role="owner")
 
     def test_add_purchase_trace_scoped(self, app):
         """add_purchase_form creates a trace visible only to the active household."""

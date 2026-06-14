@@ -170,6 +170,67 @@ def build_household_settings(app: gr.Blocks) -> HouseholdSettingsHandles:
                         "🔒 Opt out", elem_classes="secondary", scale=1
                     )
 
+                # ── Phase 11 #C community federation (additive) ──
+                gr.Markdown("---")
+                gr.Markdown("**📡 Federation**")
+                gr.Markdown(
+                    "Export your local pool as a JSONL bundle to share "
+                    "with another household, or import a bundle a friend "
+                    "sent you. The salt fingerprint lets you verify the "
+                    "bundle was produced by a participant."
+                )
+                from shopstack.services.community_federation import (
+                    export_bundle_to_string as _export_bundle,
+                    sync_status as _sync_status,
+                )
+                federation_status_html = gr.HTML(_sync_status(""))
+                with gr.Row():
+                    federation_export_btn = gr.Button(
+                        "📤 Export bundle", elem_classes="secondary", scale=1
+                    )
+                    federation_export_file = gr.File(
+                        label="Bundle (.jsonl)",
+                        file_count="single",
+                        visible=False,
+                    )
+                    federation_import_file = gr.File(
+                        label="Import bundle (.jsonl)",
+                        file_count="single",
+                        scale=2,
+                    )
+                    federation_import_btn = gr.Button(
+                        "📥 Import", variant="primary", scale=0,
+                    )
+                federation_import_status = gr.HTML("")
+
+                def _do_export_bundle() -> str:
+                    """Serialize the local pool to a JSONL bundle."""
+                    return _export_bundle()
+                def _do_import_bundle(path: str) -> str:
+                    if not path:
+                        return "<span style='color:var(--red);'>Choose a bundle file.</span>"
+                    try:
+                        with open(path, "r", encoding="utf-8") as fh:
+                            raw = fh.read()
+                    except OSError as exc:
+                        return f"<span style='color:var(--red);'>Read failed: {exc}</span>"
+                    from shopstack.app_context import current_user_id as _uid
+                    from shopstack.services.community_federation import import_bundle as _import
+                    result = _import(raw, actor_user_id=_uid() or "")
+                    return f"<span style='color:var(--green);'>{result['reason']}</span>"
+
+                federation_export_btn.click(
+                    _do_export_bundle,
+                    outputs=federation_export_file,
+                )
+                federation_import_btn.click(
+                    _do_import_bundle,
+                    federation_import_file,
+                    outputs=federation_import_status,
+                    api_name="community_federation_import",
+                    api_description="Import a federation bundle into the local community pool",
+                )
+
                 def _do_set_opt_in(opt_in: bool) -> str:
                     return _set_opt_in(opt_in)
 

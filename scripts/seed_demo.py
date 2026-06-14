@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 """Seed ShopStack with realistic Indian household demo data.
 
-Usage:
+Canonical run path (preferred):
     uv run python scripts/seed_demo.py [--db PATH]
+    .venv/bin/python scripts/seed_demo.py [--db PATH]
+
+The ``shopstack`` package is importable directly because the project
+is installed in editable mode (``pip install -e .`` / ``uv sync``).
+No ``sys.path`` manipulation is required; doing so would mask
+broken installs and hide the canonical dependency declaration in
+``setup.py``.
 
 Seeds:
     - 30+ inventory items across all locations (fridge, pantry, spice box, etc.)
