@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     stt_backend: str = "sensevoice"
     tts_backend: str = "kokoro"
     vision_backend: str = "qwen3vl"
-    ocr_backend: str = "tesseract"
+    ocr_backend: str = "glm_ocr"  # Primary OCR (GLM-OCR). Falls back to Tesseract via ocr_pipeline.py when GLM-OCR fails (e.g. on real-world photos).
     segmentation_backend: str = "birefnet"
     grounding_backend: str = "grounding_dino"
     image_gen_backend: str = "svg"

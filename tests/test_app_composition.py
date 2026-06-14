@@ -5,12 +5,8 @@ Per `docs/audits/audit_03_gradio_app_architecture.md` finding 3.2:
      The composition layer should be a pure seam between the Gradio
      framework and the domain code."
 
-This test enforces that discipline. If a future change re-introduces
-the anti-pattern (e.g., a wrapper function in app.py that calls a
-screen function), the test fails.
-
-We use AST parsing (libcst is overkill) — we just look for any
-``from shopstack.ui.screens import ...`` line in app.py.
+These tests enforce composition discipline and verify that the
+tab builder registry stays in sync with the module registry.
 """
 from __future__ import annotations
 
@@ -76,8 +72,9 @@ def test_app_py_under_300_lines():
     """app.py must stay under 300 lines.
 
     A growing app.py is a signal that concerns are not being
-    extracted. The 193-line v3 size is exemplary; we allow up
-    to 300 before warning.
+    extracted. Tab wiring is delegated to the builder registry
+    (``shopstack.ui.tabs.registry``), so app.py should stay lean
+    regardless of how many tabs exist.
     """
     app_path = Path(__file__).resolve().parents[1] / "app.py"
     line_count = sum(1 for _ in app_path.open())
@@ -89,35 +86,42 @@ def test_app_py_under_300_lines():
     )
 
 
-def test_app_py_imports_sub_builders():
-    """app.py should import sub-builders, not screens.
+def test_app_py_uses_registry_for_tabs():
+    """app.py must use build_all_tabs() for tab wiring, not individual imports.
 
-    Positive control: app.py must import the 6 top-level tab
-    builders and the 5 sub-builders. If any of these is missing,
-    the test fails (someone removed a wiring without notice).
+    This is the positive control that verifies the registry-driven
+    composition pattern is being followed. app.py should import
+    ``build_all_tabs`` from the registry, not 21 individual
+    ``build_*_tab`` functions.
     """
     app_source = (Path(__file__).resolve().parents[1] / "app.py").read_text()
 
-    expected_sub_builders = [
-        "build_today_tab",
-        "build_basket_tab",
-        "build_cookbook_tab",
-        "build_market_tab",
-        "build_reconcile_tab",
-        "build_memory_tab",
+    assert "from shopstack.ui.tabs.registry import build_all_tabs" in app_source, (
+        "app.py must import build_all_tabs from the tab registry. "
+        "Tab wiring should be registry-driven, not hardcoded."
+    )
+
+    # Ensure no individual build_*_tab imports (they belong in the registry)
+    pattern = re.compile(
+        r"^\s*from\s+shopstack\.ui\.tabs\.(today|cookbook|basket|market|reconcile|memory|scanner|timeline|find_trail|photo_map|repair_inbox|nutrition_coach|store_mode|smart_basket|analytics|consumption|recipe|parser|community|market_intel|trip_advisor)\s+import\s+build_",
+        re.MULTILINE,
+    )
+    matches = pattern.findall(app_source)
+    assert not matches, (
+        f"app.py imports individual build_*_tab functions from tab modules. "
+        f"These belong in shopstack/ui/tabs/registry.py, not app.py. "
+        f"Found: {matches}"
+    )
+
+    # Essential composition helpers that must remain
+    essential_imports = [
+        "build_all_tabs",
         "build_household_settings",
         "build_locale_save",
         "mount_pwa_static",
         "mount_sms_webhook",
     ]
-
-    missing = [
-        name for name in expected_sub_builders
-        if name not in app_source
-    ]
-
+    missing = [name for name in essential_imports if name not in app_source]
     assert not missing, (
-        f"app.py does not call these sub-builders (expected in "
-        f"build_app()): {missing}. They may have been moved or "
-        f"renamed; update the composition layer accordingly."
+        f"app.py does not reference these essential composition helpers: {missing}."
     )

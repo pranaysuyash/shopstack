@@ -120,7 +120,7 @@ def build_memory_nutrition(app: gr.Blocks, ctx: TabContext) -> None:
         _coach_screen,
         [coach_household_size, coach_dietary],
         coach_html,
-        api_name="nutrition_coach_refresh",
+        api_name="memory_nutrition_coach_refresh",
         api_description="Refresh nutrition coaching for the active household",
     )
     app.load(

@@ -24,30 +24,71 @@ the two methods we expect (``add_inventory_lot`` and
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
+from shopstack.schemas.models import InventoryLot
 from shopstack.services.sms_webhook import _default_intent_dispatcher
 
 
 class _FakeDB:
     """In-memory stand-in for the db singleton.
 
-    Records calls; raises on demand for the error-handling tests.
+    Mirrors the *real* Database API shape (add_inventory_lot takes an
+    InventoryLot, consume_inventory takes lot_id+quantity, get_inventory
+    returns lots filtered by canonical_name). Keeping the mock
+    signature faithful to the real DB prevents the test from passing
+    while the real integration TypeErrors (a Tier 2 vs Tier 3 trap we
+    hit before the 2026-06-14 fix).
     """
 
-    def __init__(self, raise_on_add: bool = False, raise_on_consume: bool = False) -> None:
+    def __init__(
+        self,
+        raise_on_add: bool = False,
+        raise_on_consume: bool = False,
+        lots: list[InventoryLot] | None = None,
+    ) -> None:
         self.add_calls: list[dict] = []
         self.consume_calls: list[dict] = []
         self.raise_on_add = raise_on_add
         self.raise_on_consume = raise_on_consume
+        self._lots = list(lots or [])
 
-    def add_inventory_lot(self, **kwargs) -> None:
-        self.add_calls.append(kwargs)
+    def add_inventory_lot(self, lot: InventoryLot, user_id: str = "") -> InventoryLot:
+        self.add_calls.append({"lot": lot, "user_id": user_id})
+        self._lots.append(lot)
         if self.raise_on_add:
             raise RuntimeError("simulated DB error on add")
+        return lot
 
-    def consume_inventory(self, **kwargs) -> None:
-        self.consume_calls.append(kwargs)
+    def consume_inventory(
+        self, lot_id: str, quantity: float, user_id: str = ""
+    ) -> InventoryLot | None:
+        self.consume_calls.append(
+            {"lot_id": lot_id, "quantity": quantity, "user_id": user_id}
+        )
         if self.raise_on_consume:
             raise RuntimeError("simulated DB error on consume")
+        for lot in self._lots:
+            if lot.lot_id == lot_id:
+                return lot
+        return None
+
+    def get_inventory(
+        self,
+        status: str | None = None,
+        location_id: str | None = None,
+        category: str | None = None,
+        user_id: str = "",
+        canonical_name: str | None = None,
+    ) -> list[InventoryLot]:
+        out = []
+        for lot in self._lots:
+            if status and lot.status != status:
+                continue
+            if canonical_name and lot.canonical_name != canonical_name:
+                continue
+            out.append(lot)
+        return out
 
 
 class TestAddInventoryItem:
@@ -63,10 +104,10 @@ class TestAddInventoryItem:
         assert result["ok"] is True
         assert "milk" in result["message"]
         assert len(db.add_calls) == 1
-        assert db.add_calls[0]["canonical_name"] == "milk"
+        assert db.add_calls[0]["lot"].canonical_name == "milk"
         assert db.add_calls[0]["user_id"] == "user-1"
-        assert db.add_calls[0]["quantity"] == 2.0
-        assert db.add_calls[0]["unit"] == "L"
+        assert db.add_calls[0]["lot"].quantity == 2.0
+        assert db.add_calls[0]["lot"].unit == "L"
 
     def test_add_uses_display_name_fallback(self):
         """If display_name is missing, fall back to canonical_name."""
@@ -76,7 +117,7 @@ class TestAddInventoryItem:
             "intent": "add_inventory_item",
             "args": {"canonical_name": "milk"},
         })
-        assert db.add_calls[0]["display_name"] == "milk"
+        assert db.add_calls[0]["lot"].display_name == "milk"
 
     def test_add_missing_canonical_name_is_noop(self):
         """Without canonical_name, the intent is not dispatched."""
@@ -107,7 +148,17 @@ class TestConsumeItem:
     """Tests for the ``consume_item`` intent."""
 
     def test_consume_calls_db_with_canonical_name(self):
-        db = _FakeDB()
+        # Pre-populate an active bread lot so the dispatcher can resolve it.
+        bread_lot = InventoryLot(
+            lot_id="lot-bread-1",
+            canonical_name="bread",
+            display_name="Bread",
+            quantity=2.0,
+            unit="loaf",
+            status="active",
+            created_at=datetime.now(timezone.utc),
+        )
+        db = _FakeDB(lots=[bread_lot])
         dispatcher = _default_intent_dispatcher(db)
         result = dispatcher("user-1", {
             "intent": "consume_item",
@@ -116,7 +167,21 @@ class TestConsumeItem:
         assert result["ok"] is True
         assert "bread" in result["message"]
         assert len(db.consume_calls) == 1
-        assert db.consume_calls[0]["canonical_name"] == "bread"
+        assert db.consume_calls[0]["lot_id"] == "lot-bread-1"
+        assert db.consume_calls[0]["quantity"] == 1.0
+        assert db.consume_calls[0]["user_id"] == "user-1"
+
+    def test_consume_no_active_lot_returns_ok_false(self):
+        """Consuming an item that doesn't exist is a user-facing failure, not a crash."""
+        db = _FakeDB()  # no lots
+        dispatcher = _default_intent_dispatcher(db)
+        result = dispatcher("user-1", {
+            "intent": "consume_item",
+            "args": {"canonical_name": "bread"},
+        })
+        assert result["ok"] is False
+        assert "No active bread" in result["message"]
+        assert len(db.consume_calls) == 0
 
     def test_consume_missing_canonical_name_is_noop(self):
         db = _FakeDB()
@@ -130,7 +195,17 @@ class TestConsumeItem:
         assert len(db.consume_calls) == 0
 
     def test_consume_db_error_returns_ok_false(self):
-        db = _FakeDB(raise_on_consume=True)
+        # Pre-populate so the dispatcher reaches the consume call (which raises).
+        bread_lot = InventoryLot(
+            lot_id="lot-bread-err",
+            canonical_name="bread",
+            display_name="Bread",
+            quantity=1.0,
+            unit="loaf",
+            status="active",
+            created_at=datetime.now(timezone.utc),
+        )
+        db = _FakeDB(raise_on_consume=True, lots=[bread_lot])
         dispatcher = _default_intent_dispatcher(db)
         result = dispatcher("user-1", {
             "intent": "consume_item",

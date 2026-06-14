@@ -85,7 +85,7 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
         trip_advisor_refresh.click(
             _trip_advisor,
             outputs=trip_advisor_html,
-            api_name="trip_advisor_refresh",
+            api_name="basket_trip_advisor_refresh",
             api_description="Refresh trip advisor banner",
         )
         app.load(_trip_advisor, outputs=trip_advisor_html)

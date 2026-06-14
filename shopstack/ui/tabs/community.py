@@ -40,9 +40,9 @@ def build_community_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> N
                          outputs=[cm_status, cm_pool],
                          api_name="community_refresh")
         cm_opt_in.click(lambda: set_opt_in_screen(True), outputs=[cm_status, cm_result],
-                        api_name="community_opt_in")
+                        api_name="community_tab_opt_in")
         cm_opt_out.click(lambda: set_opt_in_screen(False), outputs=[cm_status, cm_result],
-                         api_name="community_opt_out")
+                         api_name="community_tab_opt_out")
         app.load(lambda: (community_status_screen(), community_pool_stats_screen()),
                  outputs=[cm_status, cm_pool])
 

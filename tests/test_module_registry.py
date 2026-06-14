@@ -39,9 +39,14 @@ def test_slugs_are_unique():
 
 
 def test_eight_modules_registered():
-    """There should be exactly 9 modules registered."""
+    """There should be exactly 12 modules registered.
+
+    Originally 9 (Pass 8); grew by 3 after adding ShopNutrition,
+    ShopTimeline, ShopTripAdvisor, ShopMarketIntel modules. Update
+    this count when a new module is registered.
+    """
     modules = get_all()
-    assert len(modules) == 9
+    assert len(modules) == 12
 
 
 def test_specific_modules_present():
@@ -118,9 +123,17 @@ def test_dependencies():
 
 
 def test_five_primary_tabs_in_order():
-    """TAB_ORDER has exactly 6 primary tabs."""
+    """The 6 original primary tabs must keep their relative order.
+
+    TAB_ORDER grew from 6 to 21 as new tabs were added (timeline,
+    scanner, trip_advisor, market_intel, nutrition_coach, photo_map,
+    find_trail, store_mode, smart_basket, analytics, repair_inbox,
+    consumption, recipe, parser, community). This test only pins the
+    ordering invariant among the original six — the new tabs are
+    free to slot in anywhere.
+    """
     from shopstack.module_registry import TAB_ORDER
-    assert len(TAB_ORDER) == 6
+    assert len(TAB_ORDER) >= 6
     assert (
         TAB_ORDER["today"]
         < TAB_ORDER["cookbook"]

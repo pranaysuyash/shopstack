@@ -88,7 +88,7 @@ def build_memory_analytics(app: gr.Blocks, ctx: TabContext) -> None:
     analytics_refresh = gr.Button("Refresh", elem_classes="secondary")
     analytics_refresh.click(
         _analytics_screen, outputs=analytics_html,
-        api_name="analytics_refresh",
+        api_name="memory_analytics_refresh",
         api_description="Refresh household analytics dashboard",
     )
     app.load(_analytics_screen, outputs=analytics_html)

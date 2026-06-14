@@ -172,8 +172,14 @@ SHOPSTOCK = _register(ModuleMetadata(
         "household storage, object trail (find), unified timeline, "
         "photo-anchored map, and condition/damage detection."
     ),
-    tab_ids=("reconcile", "timeline"),
-    tab_labels={"reconcile": "At Home"},
+    tab_ids=("reconcile", "timeline", "photo_map", "find_trail", "repair_inbox", "consumption"),
+    tab_labels={
+        "reconcile": "At Home",
+        "photo_map": "Photo Map",
+        "find_trail": "Find",
+        "repair_inbox": "Repair Inbox",
+        "consumption": "Consumption",
+    },
     order=TAB_ORDER.get("reconcile", 999),
     service_modules=(
         "shopstack.ui.screens.inventory",
@@ -197,8 +203,14 @@ SHOPBASKET = _register(ModuleMetadata(
     name="ShopBasket",
     label="Groceries",
     description="Shopping list creation, decision classification (buy/skip/use-soon), cart planning, and market basket optimization.",
-    tab_ids=("basket",),
-    tab_labels={"basket": "Groceries"},
+    tab_ids=("basket", "cookbook", "store_mode", "smart_basket", "recipe"),
+    tab_labels={
+        "basket": "Groceries",
+        "cookbook": "Recipes",
+        "store_mode": "Store Mode",
+        "smart_basket": "Smart Basket",
+        "recipe": "Recipe Scan",
+    },
     order=TAB_ORDER.get("basket", 999),
     service_modules=(
         "shopstack.services.shopping",
@@ -211,9 +223,9 @@ SHOPCOMPARE = _register(ModuleMetadata(
     slug="compare",
     name="ShopCompare",
     label="Price Check",
-    description="Retailer price comparison, unit price normalization, price-drop alerts, and best-store recommendations.",
-    tab_ids=("basket",),
-    tab_labels={"basket": "Groceries"},
+    description="Retailer price comparison, unit price normalization, price-drop alerts, best-store recommendations, and community price sharing.",
+    tab_ids=("basket", "community"),
+    tab_labels={"basket": "Groceries", "community": "Community"},
     order=TAB_ORDER.get("basket", 999),
     service_modules=(
         "shopstack.market",
@@ -243,11 +255,12 @@ SHOPMEMORY = _register(ModuleMetadata(
     slug="memory",
     name="ShopMemory",
     label="Memory",
-    description="Price history, household preferences, field notes, purchase cadence, and waste pattern tracking.",
-    tab_ids=("basket", "memory"),
+    description="Price history, household preferences, field notes, purchase cadence, waste pattern tracking, and household analytics.",
+    tab_ids=("basket", "memory", "analytics"),
     tab_labels={
         "basket": "Groceries",
         "memory": "Memory",
+        "analytics": "Analytics",
     },
     order=TAB_ORDER.get("memory", 999),
     service_modules=(
@@ -260,11 +273,12 @@ SHOPAGENT = _register(ModuleMetadata(
     slug="agent",
     name="ShopAgent",
     label="Ask ShopStack",
-    description="Reasoning layer: AI planner with tool-calling, decision classification, and trace audit trail.",
-    tab_ids=("today", "memory"),
+    description="Reasoning layer: AI planner with tool-calling, decision classification, intent parsing, and trace audit trail.",
+    tab_ids=("today", "memory", "parser"),
     tab_labels={
         "today": "Home",
         "memory": "Memory",
+        "parser": "Parser Test",
     },
     order=TAB_ORDER.get("today", 999),
     service_modules=(

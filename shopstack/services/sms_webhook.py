@@ -89,25 +89,34 @@ def _default_intent_dispatcher(db: Any) -> Callable[[str, dict], dict]:
         # Map to the inventory API
         if intent == "add_inventory_item" and args.get("canonical_name"):
             try:
-                db.add_inventory_lot(
-                    user_id=user_id,
-                    canonical_name=str(args["canonical_name"]),
-                    display_name=str(args.get("display_name", args["canonical_name"])),
+                from shopstack.schemas.models import InventoryLot
+                canonical = str(args["canonical_name"])
+                lot = InventoryLot(
+                    canonical_name=canonical,
+                    display_name=str(args.get("display_name", canonical)),
                     quantity=float(args.get("quantity", 1.0)),
                     unit=str(args.get("unit", "unit")),
                 )
-                return {"ok": True, "message": f"Added {args['canonical_name']}"}
+                db.add_inventory_lot(lot, user_id=user_id)
+                return {"ok": True, "message": f"Added {canonical}"}
             except Exception as exc:
                 return {"ok": False, "message": f"DB error: {exc}"}
         if intent == "consume_item" and args.get("canonical_name"):
             try:
-                db.consume_inventory(
-                    user_id=user_id,
-                    canonical_name=str(args["canonical_name"]),
-                    quantity=float(args.get("quantity", 1.0)),
-                    unit=str(args.get("unit", "unit")),
+                canonical = str(args["canonical_name"])
+                quantity = float(args.get("quantity", 1.0))
+                # Resolve canonical_name → active lot (FIFO: oldest first).
+                # The DB layer's get_inventory is the canonical accessor and
+                # already supports household scoping via user_id.
+                candidates = db.get_inventory(
+                    status="active", canonical_name=canonical, user_id=user_id
                 )
-                return {"ok": True, "message": f"Consumed {args['canonical_name']}"}
+                if not candidates:
+                    return {"ok": False, "message": f"No active {canonical} in inventory"}
+                candidates.sort(key=lambda l: l.created_at)
+                target = candidates[0]
+                db.consume_inventory(target.lot_id, quantity, user_id=user_id)
+                return {"ok": True, "message": f"Consumed {canonical}"}
             except Exception as exc:
                 return {"ok": False, "message": f"DB error: {exc}"}
         return {"ok": True, "message": f"Parsed {intent} (no action configured)."}

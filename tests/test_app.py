@@ -25,16 +25,24 @@ def test_today_dashboard_returns_correct_shape(app):
 
 
 def test_all_view_functions_importable(app):
-    builders = [
-        "build_today_tab",
-        "build_basket_tab",
-        "build_market_tab",
-        "build_reconcile_tab",
-        "build_memory_tab",
-    ]
-    for name in builders:
-        assert hasattr(app, name), f"app missing {name}"
-        callable(getattr(app, name))
+    """Verify all tab builders are registered in the tab registry."""
+    from shopstack.ui.tabs.registry import get_builder, registered_tab_ids
+
+    expected = {
+        "today", "basket", "market", "reconcile", "memory",
+        "cookbook", "scanner", "timeline", "find_trail", "photo_map",
+        "repair_inbox", "nutrition", "store_mode", "smart_basket",
+        "analytics", "consumption", "recipe", "parser", "community",
+        "market_intel", "trip_advisor",
+    }
+
+    registered = registered_tab_ids()
+    missing = expected - registered
+    assert not missing, f"Registry missing builders for tabs: {missing}"
+
+    for tab_id in expected:
+        builder = get_builder(tab_id)
+        assert callable(builder), f"Builder for {tab_id} is not callable"
 
     from shopstack.ui.screens import (
         shelf_scan_confirm,

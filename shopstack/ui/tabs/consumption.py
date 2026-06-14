@@ -53,7 +53,7 @@ def build_consumption_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) ->
         cn_refresh.click(consumption_dashboard, outputs=[cn_grid, cn_history, cn_rates],
                          api_name="consumption_dashboard_refresh")
         cn_go.click(quick_consume, [cn_lot, cn_qty], cn_result,
-                    api_name="quick_consume")
+                    api_name="consumption_tab_quick_consume")
         cn_batch_go.click(batch_consume_with_context, [cn_batch, cn_meal, cn_waste],
-                          cn_batch_result, api_name="batch_consume_context")
+                          cn_batch_result, api_name="consumption_tab_batch_consume_context")
         app.load(consumption_dashboard, outputs=[cn_grid, cn_history, cn_rates])

@@ -131,7 +131,9 @@ def _deserialize_into_db(
         if cname in existing_canonicals:
             existing += 1
             continue
-        # New item — append
+        # New item — append. Pass user_id through so the Phase 11
+        # permission check authorizes the writer (active_household_id)
+        # against the target household the list belongs to.
         from shopstack.schemas.models import ShoppingListItem
         db.add_list_item(
             sl.list_id,
@@ -145,6 +147,7 @@ def _deserialize_into_db(
                 reason=raw.get("reason", "") or "",
                 status=raw.get("status", "pending") or "pending",
             ),
+            user_id=user_id,
         )
         existing_canonicals.add(cname)
         added += 1

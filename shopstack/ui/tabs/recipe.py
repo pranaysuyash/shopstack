@@ -50,4 +50,4 @@ def build_recipe_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
         rc_parse.click(recipe_text_to_shopping_list, rc_input, rc_output,
                        api_name="recipe_parse_diff")
         rc_add.click(recipe_text_add_missing_to_list, rc_input, rc_output,
-                     api_name="recipe_add_missing")
+                     api_name="recipe_tab_add_missing")

@@ -27,6 +27,30 @@ ALIASES: dict[str, list[str]] = {
     "remote battery": ["aa battery", "aaa battery", "battery"],
     "dhaniya": ["coriander"],
     "bill": ["receipt", "warranty card", "document"],
+    # Hindi / Hinglish food aliases for cross-language search
+    "doodh": ["milk"],
+    "dudh": ["milk"],
+    "anda": ["egg"],
+    "chawal": ["rice"],
+    "atta": ["flour"],
+    "maida": ["flour", "refined flour"],
+    "sooji": ["semolina"],
+    "subzi": ["vegetable"],
+    "sabzi": ["vegetable"],
+    "aloo": ["potato"],
+    "pyaaz": ["onion"],
+    "pyaz": ["onion"],
+    "tamatar": ["tomato"],
+    "mirchi": ["chili"],
+    "namak": ["salt"],
+    "cheeni": ["sugar"],
+    "chai": ["tea"],
+    "tel": ["oil"],
+    "ghee": ["ghee", "clarified butter"],
+    "nimbu": ["lemon"],
+    "paneer": ["paneer", "cottage cheese"],
+    "dal": ["lentil"],
+    "daliya": ["porridge", "oats"],
 }
 
 
@@ -268,8 +292,13 @@ class ShopFindService:
         if not query_emb or not doc_embs or len(doc_embs) != len(lots):
             return []
 
-        # Score every lot; keep matches above 0.50 cosine similarity.
-        threshold = 0.50
+        # Score every lot; keep matches above 0.40 cosine similarity.
+        # 0.40 is low enough to catch cross-language matches (e.g. Hindi
+        # "doodh" → English "milk") while high enough to avoid noise.
+        # The Nomic bench (13-Jun-2026) showed 58% top-1 at 768 dim;
+        # at 0.40 we cast a wider net and rely on text fallback for
+        # the final ranking.
+        threshold = 0.40
         scored: list[tuple[float, InventoryLot]] = []
         for lot, doc_emb in zip(lots, doc_embs):
             if not doc_emb:
