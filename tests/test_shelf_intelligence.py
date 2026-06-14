@@ -75,6 +75,7 @@ def test_analyze_shelf_scene_returns_structured_home_scan(providers, tool_regist
 
     result = analyze_shelf_scene(
         "fake-home-scan.jpg",
+        None,
         "fake-home-note.wav",
         "bathroom_cabinet",
         providers,
@@ -127,6 +128,7 @@ def test_analyze_shelf_scene_renders_local_annotation_when_provider_fails(
 
     result = analyze_shelf_scene(
         str(image_path),
+        None,
         None,
         "fridge",
         providers,

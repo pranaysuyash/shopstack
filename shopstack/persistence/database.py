@@ -845,18 +845,25 @@ class Database:
         rows = self.conn.execute(" ".join(parts), params).fetchall()
         return [_row_to_lot(r) for r in rows if r]
 
-    def consume_inventory(self, lot_id: str, quantity: float) -> InventoryLot | None:
+    def consume_inventory(self, lot_id: str, quantity: float, user_id: str = "") -> InventoryLot | None:
         # ── Phase 11: permission gate (additive, supersession-safe) ──
+        # 2026-06-14 fix: previous call had its arguments swapped — it
+        # asked "can lot.user_id write to active_household_id" instead
+        # of "can the active user write to the lot's household". That
+        # made the check a no-op whenever lot.user_id was the active
+        # household. We now follow the canonical add_inventory_lot
+        # pattern: deduce the target household from the lot, then
+        # authorize the writer against that target.
         from shopstack.services.permissions import require_write as _rw
         if quantity < 0:
             raise ValueError("quantity must be greater than 0")
         lot = self.get_inventory_lot(lot_id)
         if not lot:
             return None
-        # The lot's user_id is the household. Check that the active
-        # user is a member of that household with write access.
-        _rw(lot.user_id or self.active_household_id,
-            self.active_household_id, self)
+        if not user_id:
+            user_id = self.active_household_id
+        target_household = lot.user_id or user_id
+        _rw(user_id, target_household, self)
         new_qty = max(0.0, lot.quantity - quantity)
         status = lot.status
         if new_qty <= 0:
@@ -910,15 +917,22 @@ class Database:
             return None
         return _row_to_list(row, self.conn)
 
-    def add_list_item(self, list_id: str, item: ShoppingListItem) -> ShoppingListItem:
+    def add_list_item(self, list_id: str, item: ShoppingListItem, user_id: str = "") -> ShoppingListItem:
         # ── Phase 11: permission gate ──
-        # Uses active_household_id as both user and household because
-        # add_list_item doesn't receive an explicit user_id parameter.
-        # The seed creates household_id as its own owner member, so
-        # this check succeeds for the default case. If per-user
-        # tracking is added later, this should accept a user_id param.
+        # 2026-06-14 fix: previously used active_household_id for both
+        # args, so the check always passed for the active owner. Now
+        # deduces the target household from the shopping list's own
+        # user_id column (the canonical scope) and authorizes the
+        # writer against that target. Backward compatible: callers
+        # that don't pass user_id fall back to active_household_id.
         from shopstack.services.permissions import require_write as _rw
-        _rw(self.active_household_id, self.active_household_id, self)
+        if not user_id:
+            user_id = self.active_household_id
+        list_row = self.conn.execute(
+            "SELECT user_id FROM shopping_lists WHERE list_id = ?", (list_id,)
+        ).fetchone()
+        target_household = (list_row["user_id"] if list_row else "") or user_id
+        _rw(user_id, target_household, self)
         self.conn.execute(
             "INSERT INTO shopping_list_items (item_id, list_id, canonical_name, requested_quantity, unit, priority, reason, status, linked_lots) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (item.list_item_id, list_id, item.canonical_name, item.requested_quantity,
@@ -995,13 +1009,19 @@ class Database:
 
     # --- Movements ---
 
-    def record_movement(self, movement: MovementEvent) -> MovementEvent:
+    def record_movement(self, movement: MovementEvent, user_id: str = "") -> MovementEvent:
         # ── Phase 11: permission gate ──
-        # Uses active_household_id as both user and household because
-        # record_movement doesn't receive an explicit user_id parameter.
-        # See add_list_item for rationale.
+        # 2026-06-14 fix: previously used active_household_id for both
+        # args (always passed for the active owner). Now deduces the
+        # target household from the lot being moved (the lot's user_id
+        # is the canonical household scope) and authorizes the writer
+        # against that target. Backward compatible.
         from shopstack.services.permissions import require_write as _rw
-        _rw(self.active_household_id, self.active_household_id, self)
+        if not user_id:
+            user_id = self.active_household_id
+        lot = self.get_inventory_lot(movement.lot_id)
+        target_household = (lot.user_id if lot else "") or user_id
+        _rw(user_id, target_household, self)
         self.conn.execute(
             "INSERT INTO movement_events (movement_id, lot_id, from_location_id, to_location_id, timestamp, source, confidence) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (movement.movement_id, movement.lot_id, movement.from_location_id,

@@ -467,3 +467,29 @@ class TestTimelineScreen:
         html = timeline_for_lot(added["lot_id"])
         assert isinstance(html, str)
         assert len(html) > 0
+
+
+class TestTimelineTabRefreshBridge:
+    """``build_timeline_tab`` wires its Refresh button / app.load to
+    ``_timeline_refresh(canonical_name, days)``, NOT ``timeline_view``
+    directly — ``timeline_view``'s 2nd positional param is ``lot_id``,
+    so Gradio's positional dispatch of ``[tl_filter, tl_days]`` would
+    pass the numeric ``days`` value as ``lot_id`` and crash on
+    ``lot_id.strip()``.
+    """
+
+    def test_timeline_refresh_bridges_days_correctly(self, db):
+        from shopstack.ui.tabs.timeline import _timeline_refresh
+
+        repo = InventoryRepo(db)
+        repo.add_item("milk", "Milk", 1, "L", "fridge")
+        html = _timeline_refresh("milk", 30)
+        assert isinstance(html, str)
+        assert "Could not load timeline" not in html
+
+    def test_timeline_view_rejects_non_string_lot_id(self):
+        """Documents the failure mode ``_timeline_refresh`` avoids: calling
+        ``timeline_view`` positionally with an int in the ``lot_id`` slot
+        raises, which ``@safe_render`` converts into an error card."""
+        html = timeline_view("milk", 30)  # positional: canonical_name, lot_id=30 (int)
+        assert "Something went wrong" in html

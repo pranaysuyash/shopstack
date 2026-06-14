@@ -144,7 +144,7 @@ def test_navigation_returns_tab_entries():
 def test_summary_table_has_all_modules():
     """summary_table() returns a dict for each module with expected keys."""
     rows = summary_table()
-    assert len(rows) == 9
+    assert len(rows) == 12
     for row in rows:
         assert "Module" in row
         assert "Label" in row

@@ -22,6 +22,16 @@ from shopstack.ui.tabs.scanner import build_scanner_tab
 from shopstack.ui.tabs.trip_advisor import build_trip_advisor_tab
 from shopstack.ui.tabs.market_intel import build_market_intel_tab
 from shopstack.ui.tabs.nutrition_coach import build_nutrition_coach_tab
+from shopstack.ui.tabs.photo_map import build_photo_map_tab
+from shopstack.ui.tabs.find_trail import build_find_trail_tab
+from shopstack.ui.tabs.store_mode import build_store_mode_tab
+from shopstack.ui.tabs.smart_basket import build_smart_basket_tab
+from shopstack.ui.tabs.analytics import build_analytics_tab
+from shopstack.ui.tabs.repair_inbox import build_repair_inbox_tab
+from shopstack.ui.tabs.consumption import build_consumption_tab
+from shopstack.ui.tabs.recipe import build_recipe_tab
+from shopstack.ui.tabs.parser import build_parser_tab
+from shopstack.ui.tabs.community import build_community_tab
 from shopstack.ui.household_settings import build_household_settings
 from shopstack.ui.locale_save import build_locale_save
 from shopstack.ui.pwa_mount import mount_pwa_static
@@ -70,7 +80,7 @@ def build_app() -> gr.Blocks:
         theme toggle, i18n selector, PWA manifest link, JS).
       * build_locale_save() adds the hidden i18n persistence endpoint
         that the header's JS POSTs to.
-      * 6 build_<tab>_tab() calls render the daily product flow.
+      * 21 build_<tab>_tab() calls render the product tabs.
       * build_household_settings() renders the workspace admin panel
         (household switcher + community opt-in + SMS phone registry).
       * The tail block wires cross-tab event handlers (household
@@ -115,32 +125,37 @@ def build_app() -> gr.Blocks:
             # ═══════════════════════════════════════════════════════════════
             # Tab 3: Groceries — what should I buy / skip / compare?
             # ═══════════════════════════════════════════════════════════════
-            build_basket_tab(blocks=app, app=app, ctx=TabContext())
-
-            # ═══════════════════════════════════════════════════════════════
-            # Tab 4: While Shopping — check items before you buy them
-            # ═══════════════════════════════════════════════════════════════
-            build_market_tab(blocks=app, app=app, ctx=TabContext())
-
-            # ═══════════════════════════════════════════════════════════════
-            # Tab 5: At Home — what actually happened?
-            # ═══════════════════════════════════════════════════════════════
-            reconcile_handles = build_reconcile_tab(blocks=app, app=app, ctx=TabContext())
-            p_location = reconcile_handles.p_location
-            move_dest = reconcile_handles.move_dest        # ═══════════════════════════════════════════════════════════════
-        # Tab 6: Market Intel — cross-source graph
+            build_basket_tab(blocks=app, app=app, ctx=TabContext())            # ═══════════════════════════════════════════════════════════════
+        # Tab 4: Market Intel — cross-source graph
         # ═══════════════════════════════════════════════════════════════
             build_market_intel_tab(blocks=app, app=app, ctx=TabContext())
 
         # ═══════════════════════════════════════════════════════════════
-        # Tab 7: Trip Plans — pre-trip advice
+        # Tab 5: Trip Plans — pre-trip advice
         # ═══════════════════════════════════════════════════════════════
             build_trip_advisor_tab(blocks=app, app=app, ctx=TabContext())
 
         # ═══════════════════════════════════════════════════════════════
-        # Tab 8: Shelf Scan — camera/voice scan
+        # Tab 6: While Shopping — check items before you buy them
+        # ═══════════════════════════════════════════════════════════════
+            build_market_tab(blocks=app, app=app, ctx=TabContext())
+
+        # ═══════════════════════════════════════════════════════════════
+        # Tab 7: Shelf Scan — camera/voice scan
         # ═══════════════════════════════════════════════════════════════
             build_scanner_tab(blocks=app, app=app, ctx=TabContext())
+
+        # ═══════════════════════════════════════════════════════════════
+        # Tab 8: Photo Map — photo-anchored location map
+        # ═══════════════════════════════════════════════════════════════
+            build_photo_map_tab(blocks=app, app=app, ctx=TabContext())
+
+            # ═══════════════════════════════════════════════════════════════
+            # Tab 9: At Home — what actually happened?
+            # ═══════════════════════════════════════════════════════════════
+            reconcile_handles = build_reconcile_tab(blocks=app, app=app, ctx=TabContext())
+            p_location = reconcile_handles.p_location
+            move_dest = reconcile_handles.move_dest
 
         # ═══════════════════════════════════════════════════════════════
         # Tab 9: Timeline — unified event timeline
@@ -148,14 +163,59 @@ def build_app() -> gr.Blocks:
             build_timeline_tab(blocks=app, app=app, ctx=TabContext())
 
         # ═══════════════════════════════════════════════════════════════
-        # Tab 10: Memory — what did we learn?
+        # Tab 10: Find Trail — search items and see movement
+        # ═══════════════════════════════════════════════════════════════
+            build_find_trail_tab(blocks=app, app=app, ctx=TabContext())
+
+        # ═══════════════════════════════════════════════════════════════
+        # Tab 11: Store Mode — large-touch shopping list
+        # ═══════════════════════════════════════════════════════════════
+            build_store_mode_tab(blocks=app, app=app, ctx=TabContext())
+
+        # ═══════════════════════════════════════════════════════════════
+        # Tab 12: Memory — what did we learn?
         # ═══════════════════════════════════════════════════════════════
             build_memory_tab(blocks=app, app=app, ctx=TabContext())
 
         # ═══════════════════════════════════════════════════════════════
-        # Tab 11: Nutrition — coaching
+        # Tab 13: Nutrition — coaching
         # ═══════════════════════════════════════════════════════════════
             build_nutrition_coach_tab(blocks=app, app=app, ctx=TabContext())
+
+        # ═══════════════════════════════════════════════════════════════
+        # Tab 14: Smart Basket — optimized basket
+        # ═══════════════════════════════════════════════════════════════
+            build_smart_basket_tab(blocks=app, app=app, ctx=TabContext())
+
+        # ═══════════════════════════════════════════════════════════════
+        # Tab 15: Analytics — household usage patterns
+        # ═══════════════════════════════════════════════════════════════
+            build_analytics_tab(blocks=app, app=app, ctx=TabContext())
+
+        # ═══════════════════════════════════════════════════════════════
+        # Tab 16: Repair Inbox — condition/damage issues
+        # ═══════════════════════════════════════════════════════════════
+            build_repair_inbox_tab(blocks=app, app=app, ctx=TabContext())
+
+        # ═══════════════════════════════════════════════════════════════
+        # Tab 17: Consumption — quick consume & rates
+        # ═══════════════════════════════════════════════════════════════
+            build_consumption_tab(blocks=app, app=app, ctx=TabContext())
+
+        # ═══════════════════════════════════════════════════════════════
+        # Tab 18: Recipe Scan — paste ingredients
+        # ═══════════════════════════════════════════════════════════════
+            build_recipe_tab(blocks=app, app=app, ctx=TabContext())
+
+        # ═══════════════════════════════════════════════════════════════
+        # Tab 19: Parser Test — intent classification test
+        # ═══════════════════════════════════════════════════════════════
+            build_parser_tab(blocks=app, app=app, ctx=TabContext())
+
+        # ═══════════════════════════════════════════════════════════════
+        # Tab 20: Community — price map opt-in & stats
+        # ═══════════════════════════════════════════════════════════════
+            build_community_tab(blocks=app, app=app, ctx=TabContext())
 
         # Household settings accordion (workspace admin panel)
         hh = build_household_settings(app)

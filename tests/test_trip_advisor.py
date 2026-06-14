@@ -30,7 +30,7 @@ class _W:
         self.condition = condition
         self.temperature_c = temperature_c
         self.wind_kmh = wind_kmh
-        self.icon = "☀️"
+        self.condition_icon = "☀️"
         self.recommendation = "test"
 
 

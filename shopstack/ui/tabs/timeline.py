@@ -15,6 +15,14 @@ from shopstack.ui.screens.timeline import timeline_view
 from shopstack.ui.tabs.context import TabContext
 
 
+def _timeline_refresh(canonical_name: str, days: int) -> str:
+    """Bridge Gradio's positional (name, days) inputs to timeline_view's
+    keyword args — timeline_view's 2nd positional param is ``lot_id``,
+    not ``days``, so positional dispatch would pass ``days`` as ``lot_id``.
+    """
+    return timeline_view(canonical_name=canonical_name, days=days)
+
+
 def build_timeline_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None:
     """Build the Timeline tab.
 
@@ -42,10 +50,10 @@ def build_timeline_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> No
         tl_output = gr.HTML(loading_skeleton("card"))
 
         tl_refresh.click(
-            timeline_view,
+            _timeline_refresh,
             [tl_filter, tl_days],
             tl_output,
             api_name="timeline_refresh",
             api_description="Refresh the unified timeline view",
         )
-        app.load(timeline_view, inputs=[tl_filter, tl_days], outputs=tl_output)
+        app.load(_timeline_refresh, inputs=[tl_filter, tl_days], outputs=tl_output)

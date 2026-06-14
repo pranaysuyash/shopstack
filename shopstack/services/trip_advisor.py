@@ -236,7 +236,7 @@ def render_trip_advice_html(advice: TripAdvice, locale: str = DEFAULT_LOCALE) ->
     pills: list[str] = []
     if advice.weather is not None:
         pills.append(
-            f"<span class='ta-pill'>{escape(advice.weather.icon)} "
+            f"<span class='ta-pill'>{escape(advice.weather.condition_icon)} "
             f"{escape(advice.weather.condition)} · {advice.weather.temperature_c:.0f}°C</span>"
         )
     if advice.use_soon_count > 0:

@@ -351,3 +351,144 @@ def test_household_a_owner_can_write_to_a(db):
     db.active_household_id = "hh-a"
     result = db.add_inventory_lot(_lot(_new_id(), user_id="hh-a"), user_id="owner-a")
     assert result.lot_id.startswith("lot-")
+
+
+# ── Cross-household denial — explicit user_id (2026-06-14 fix) ────
+# These tests target the bugs fixed in consume_inventory,
+# record_movement, and add_list_item. Before the fix these methods
+# either did not accept a user_id parameter at all, or passed their
+# require_write arguments in the wrong order, so a writer from
+# household A could mutate household B's data as long as they set
+# active_household_id = "hh-b". The fix adds an explicit user_id
+# parameter and deduces target_household from the data being written
+# (the lot's user_id, or the shopping list's user_id), matching the
+# canonical add_inventory_lot pattern.
+
+
+def test_cross_household_consume_denied_explicit_user(db):
+    """owner-a must not consume a lot owned by hh-b, even when active=hh-b.
+
+    Before fix: consume_inventory used (lot.user_id, active_household_id)
+    in the wrong argument slots, so the call resolved to
+    can_write('hh-b', 'hh-b') which always passed for the household
+    owner. After fix: target is deduced from the lot, writer from the
+    explicit user_id, so can_write('owner-a', 'hh-b') correctly denies.
+    """
+    _setup_two_households(db)
+    db.active_household_id = "hh-b"
+    # Plant a lot owned by hh-b directly.
+    lot = _lot(_new_id(), user_id="hh-b")
+    db.conn.execute(
+        "INSERT INTO inventory_lots "
+        "(lot_id, canonical_name, display_name, category, quantity, unit, "
+        "storage_location_id, purchase_date, estimated_use_by_date, "
+        "label_expiry_date, opened_date, price_paid, currency, "
+        "source_event_id, confidence, image_crop_path, status, created_at, updated_at, user_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            lot.lot_id, lot.canonical_name, lot.display_name, lot.category,
+            lot.quantity, lot.unit, lot.storage_location_id,
+            lot.purchase_date.isoformat() if lot.purchase_date else None,
+            None, None, None, lot.price_paid, lot.currency,
+            "", lot.confidence, "", lot.status,
+            lot.created_at.isoformat(), lot.updated_at.isoformat(), "hh-b",
+        ),
+    )
+    db.conn.commit()
+    with pytest.raises(PermissionError):
+        db.consume_inventory(lot.lot_id, 0.5, user_id="owner-a")
+
+
+def test_cross_household_record_movement_denied_explicit_user(db):
+    """owner-a must not move a lot owned by hh-b, even when active=hh-b.
+
+    Before fix: record_movement used (active, active) so the gate was a
+    no-op for the active household. After fix: target is deduced from
+    the moved lot's user_id and the writer is taken from user_id.
+    """
+    _setup_two_households(db)
+    db.active_household_id = "hh-b"
+    lot = _lot(_new_id(), user_id="hh-b")
+    db.add_inventory_lot(lot, user_id="owner-b")
+    mv = MovementEvent(
+        movement_id=f"mv-{_new_id()}",
+        lot_id=lot.lot_id,
+        from_location_id="fridge",
+        to_location_id="pantry",
+        timestamp=datetime.now(timezone.utc),
+        source="manual",
+        confidence=0.9,
+    )
+    with pytest.raises(PermissionError):
+        db.record_movement(mv, user_id="owner-a")
+
+
+def test_cross_household_add_list_item_denied_explicit_user(db):
+    """owner-a must not add to a shopping list owned by hh-b.
+
+    Before fix: add_list_item used (active, active). After fix: target
+    is deduced from the shopping_lists.user_id column for that list.
+    """
+    _setup_two_households(db)
+    db.active_household_id = "hh-b"
+    list_id = f"list-{_new_id()}"
+    db.conn.execute(
+        "INSERT INTO shopping_lists (list_id, name, created_at, updated_at, user_id) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (list_id, "hh-b list", datetime.now(timezone.utc).isoformat(),
+         datetime.now(timezone.utc).isoformat(), "hh-b"),
+    )
+    db.conn.commit()
+    item = ShoppingListItem(
+        list_item_id=f"item-{_new_id()}",
+        canonical_name="milk",
+        requested_quantity=1.0,
+        unit="L",
+    )
+    with pytest.raises(PermissionError):
+        db.add_list_item(list_id, item, user_id="owner-a")
+
+
+def test_record_movement_owner_can_move_own_household_lot(db):
+    """Positive control: owner-b can move their own hh-b lot.
+
+    Guarantees the new target_household deduction does not over-restrict
+    legitimate in-household writes.
+    """
+    _setup_two_households(db)
+    db.active_household_id = "hh-b"
+    lot = _lot(_new_id(), user_id="hh-b")
+    db.add_inventory_lot(lot, user_id="owner-b")
+    mv = MovementEvent(
+        movement_id=f"mv-{_new_id()}",
+        lot_id=lot.lot_id,
+        from_location_id="fridge",
+        to_location_id="pantry",
+        timestamp=datetime.now(timezone.utc),
+        source="manual",
+        confidence=0.9,
+    )
+    result = db.record_movement(mv, user_id="owner-b")
+    assert result.movement_id.startswith("mv-")
+
+
+def test_add_list_item_owner_can_add_to_own_household_list(db):
+    """Positive control: owner-b can add to their own hh-b list."""
+    _setup_two_households(db)
+    db.active_household_id = "hh-b"
+    list_id = f"list-{_new_id()}"
+    db.conn.execute(
+        "INSERT INTO shopping_lists (list_id, name, created_at, updated_at, user_id) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (list_id, "hh-b list", datetime.now(timezone.utc).isoformat(),
+         datetime.now(timezone.utc).isoformat(), "hh-b"),
+    )
+    db.conn.commit()
+    item = ShoppingListItem(
+        list_item_id=f"item-{_new_id()}",
+        canonical_name="milk",
+        requested_quantity=1.0,
+        unit="L",
+    )
+    result = db.add_list_item(list_id, item, user_id="owner-b")
+    assert result.canonical_name == "milk"
