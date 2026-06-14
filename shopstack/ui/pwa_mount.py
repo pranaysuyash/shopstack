@@ -82,10 +82,11 @@ def mount_pwa_static(app: gr.Blocks) -> None:
 
     # 1) Add individual routes at root paths. We use ``add_api_route``
     # which appends to the routes list — so our routes are added
-    # AFTER Gradio's. To make OUR manifest win, we replace the
-    # Gradio entry for ``/manifest.json`` in-place (move our
-    # handler to the front of the list).
-    new_routes: list[Any] = []
+    # AFTER Gradio's. Gradio 6.x installs a catch-all ``/{path:path}``
+    # route that matches BEFORE any route appended later, so every
+    # PWA route added here (not just the manifest) must be moved to
+    # the FRONT of ``fastapi_app.routes`` to actually be reached.
+    mounted_paths: set[str] = set()
     for filename, media_type in _PWA_MEDIA_TYPES.items():
         filepath = static_dir / filename
         if not filepath.is_file():
@@ -111,6 +112,7 @@ def mount_pwa_static(app: gr.Blocks) -> None:
             _make_handler(filepath, media_type),
             methods=["GET"],
         )
+        mounted_paths.add(f"/{filename}")
 
     # 2) The manifest content is the user's branded version
     # (``static/manifest.json``). It's loaded as JSON so the
@@ -147,19 +149,32 @@ def mount_pwa_static(app: gr.Blocks) -> None:
             _manifest_handler,
             methods=["GET"],
         )
-        # Move our new manifest route to the front of the routes list
-        # so it's matched before Gradio's default.
+        mounted_paths.add("/manifest.json")
+        # If Gradio already registered a default ``/manifest.json`` route,
+        # drop its (earlier) entry — keep only ours (the one we just added).
         routes = fastapi_app.routes
         manifest_routes = [r for r in routes if getattr(r, "path", None) == "/manifest.json"]
         if len(manifest_routes) > 1:
-            # Keep the FIRST one (most recently added = ours), drop the rest
             ours = manifest_routes[-1]
             others = [r for r in routes if getattr(r, "path", None) != "/manifest.json"]
             routes.clear()
             routes.append(ours)
             routes.extend(others)
 
-    logger.info("PWA shell mounted: %s", static_dir)
+    # 3) Move ALL of our PWA routes to the FRONT of the routes list.
+    # Gradio 6.x installs a catch-all ``/{path:path}`` route during
+    # app construction; anything appended after it (via add_api_route)
+    # is unreachable unless moved ahead of that catch-all. This applies
+    # to sw.js and the icons just as much as the manifest.
+    if mounted_paths:
+        routes = fastapi_app.routes
+        ours = [r for r in routes if getattr(r, "path", None) in mounted_paths]
+        others = [r for r in routes if getattr(r, "path", None) not in mounted_paths]
+        routes.clear()
+        routes.extend(ours)
+        routes.extend(others)
+
+    logger.info("PWA shell mounted: %s (%d routes)", static_dir, len(mounted_paths))
 
 
 def _rewrite_manifest_to_root_paths(manifest: dict[str, Any]) -> dict[str, Any]:

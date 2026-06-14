@@ -208,22 +208,6 @@ def advise_trip(
     )
 
 
-def _build_use_soon_count(db: Database, user_id: str) -> int:
-    """Count inventory items that need to be used soon (within 3 days).
-
-    This is a thin wrapper around ``inventory.get_use_soon`` so the UI screen
-    can render a "use soon" badge in the trip advisor card.
-    """
-    try:
-        items = db.get_inventory(user_id=user_id)
-        from shopstack.services.inventory import InventoryService  # local import to avoid cycles
-        inv = InventoryService(db)
-        use_soon = inv.get_use_soon(days=3, user_id=user_id)
-        return len(use_soon)
-    except Exception:
-        return 0
-
-
 # ─── HTML rendering ────────────────────────────────────────────────
 
 

@@ -65,6 +65,11 @@ class BGEM3EmbeddingProvider:
 
     @property
     def available(self) -> bool:
+        # Trigger lazy init so the registry reflects the real state
+        # instead of reporting "unavailable" until the first embed()
+        # call. Idempotent — _ensure_model() no-ops after the first
+        # invocation.
+        self._ensure_model()
         return self._available
 
 
@@ -162,8 +167,14 @@ class NomicEmbeddingProvider:
 
     @property
     def available(self) -> bool:
+        # Trigger lazy init so the registry/diagnostics panel reflects
+        # the real state instead of reporting "unavailable" until the
+        # first embed() call. Idempotent — _ensure_model() no-ops after
+        # the first invocation.
+        self._ensure_model()
         return self._available
 
     @property
     def error(self) -> str | None:
+        self._ensure_model()
         return self._error

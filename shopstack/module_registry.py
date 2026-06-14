@@ -63,6 +63,7 @@ __all__ = [
     "SOURCES",
     "RUNTIME",
     "SHOPNUTRITION",
+    "SHOPTIMELINE",
     "get_all",
     "get_by_slug",
     "get_by_tab_id",
@@ -99,24 +100,54 @@ def _register(m: ModuleMetadata) -> ModuleMetadata:
 # lowest-order tab, but this dict is the single source of truth for the
 # actual tab bar sequence.
 TAB_ORDER: dict[str, int] = {
-    "today":      10,
-    "cookbook":   20,
-    "basket":     30,
-    "market":     40,
-    "reconcile":  50,
-    "memory":     60,
+    "today":         10,
+    "cookbook":      20,
+    "basket":        30,
+    "market_intel":  35,
+    "trip_advisor":  37,
+    "market":        40,
+    "scanner":       44,
+    "photo_map":     46,
+    "reconcile":     50,
+    "timeline":      55,
+    "find_trail":    56,
+    "store_mode":    57,
+    "memory":        60,
+    "nutrition":     65,
+    "smart_basket":  67,
+    "analytics":     68,
+    "repair_inbox":  70,
+    "consumption":   72,
+    "recipe":        74,
+    "parser":        76,
+    "community":     78,
 }
 
 # ── Tab display labels ────────────────────────────────────────────
 # Canonical display names for every UI tab.
 # A module's `tab_labels` dict overrides these for module-specific labels.
 TAB_LABELS: dict[str, str] = {
-    "today":      "Home",
-    "cookbook":   "Recipes",
-    "basket":     "Groceries",
-    "market":     "While Shopping",
-    "reconcile":  "At Home",
-    "memory":     "Memory",
+    "today":         "Home",
+    "cookbook":      "Recipes",
+    "basket":        "Groceries",
+    "market_intel":  "Market Intel",
+    "trip_advisor":  "Trip Plans",
+    "market":        "While Shopping",
+    "scanner":       "Shelf Scan",
+    "photo_map":     "Photo Map",
+    "reconcile":     "At Home",
+    "timeline":      "Timeline",
+    "find_trail":    "Find",
+    "store_mode":    "Store Mode",
+    "memory":        "Memory",
+    "nutrition":     "Nutrition",
+    "smart_basket":  "Smart Basket",
+    "analytics":     "Analytics",
+    "repair_inbox":  "Repair Inbox",
+    "consumption":   "Consumption",
+    "recipe":        "Recipe Scan",
+    "parser":        "Parser Test",
+    "community":     "Community",
 }
 
 
@@ -141,7 +172,7 @@ SHOPSTOCK = _register(ModuleMetadata(
         "household storage, object trail (find), unified timeline, "
         "photo-anchored map, and condition/damage detection."
     ),
-    tab_ids=("reconcile",),
+    tab_ids=("reconcile", "timeline"),
     tab_labels={"reconcile": "At Home"},
     order=TAB_ORDER.get("reconcile", 999),
     service_modules=(
@@ -197,7 +228,7 @@ SHOPLENS = _register(ModuleMetadata(
     name="ShopLens",
     label="While Shopping",
     description="Scanning and import: barcode, photo, receipt, object detection, OCR, and voice input.",
-    tab_ids=("market",),
+    tab_ids=("market", "scanner"),
     tab_labels={"market": "While Shopping"},
     order=TAB_ORDER.get("market", 999),
     service_modules=(
@@ -279,14 +310,63 @@ SHOPNUTRITION = _register(ModuleMetadata(
     name="ShopNutrition",
     label="Nutrition",
     description="Nutrition lookup for common Indian household items and kitchen macro breakdown from inventory.",
-    tab_ids=("memory",),
-    tab_labels={"memory": "Memory"},
-    order=TAB_ORDER.get("memory", 999),
+    tab_ids=("memory", "nutrition"),
+    tab_labels={"memory": "Memory", "nutrition": "Nutrition"},
+    order=TAB_ORDER.get("nutrition", 999),
     service_modules=(
         "shopstack.services.nutrition",
         "shopstack.ui.screens.nutrition",
+        "shopstack.ui.screens.nutrition_coach",
+        "shopstack.services.nutrition_coach",
     ),
     depends_on=("stock",),
+))
+
+SHOPTIMELINE = _register(ModuleMetadata(
+    slug="timeline",
+    name="ShopTimeline",
+    label="Timeline",
+    description="Unified cross-source event timeline — see what happened to your household items over time.",
+    tab_ids=("timeline",),
+    tab_labels={"timeline": "Timeline"},
+    order=TAB_ORDER.get("timeline", 999),
+    service_modules=(
+        "shopstack.services.timeline",
+        "shopstack.ui.screens.timeline",
+    ),
+    depends_on=("stock",),
+))
+
+SHOPTRIPADVISOR = _register(ModuleMetadata(
+    slug="trip_advisor",
+    name="ShopTripAdvisor",
+    label="Trip Plans",
+    description="Trip planning: combine weather, expiry, and shopping needs into actionable advice before you head out.",
+    tab_ids=("trip_advisor",),
+    tab_labels={"trip_advisor": "Trip Plans"},
+    order=TAB_ORDER.get("trip_advisor", 999),
+    service_modules=(
+        "shopstack.services.trip_advisor",
+        "shopstack.services.trip_context",
+        "shopstack.services.weather",
+        "shopstack.ui.screens.trip_advisor",
+    ),
+    depends_on=("stock", "basket"),
+))
+
+SHOPMARKETINTEL = _register(ModuleMetadata(
+    slug="market_intel",
+    name="ShopMarketIntel",
+    label="Market Intel",
+    description="Market intelligence graph — cross-source price comparison, buy/skip/signal lanes, substitution, and reliability scoring.",
+    tab_labels={"market_intel": "Market Intel"},
+    tab_ids=("market_intel",),
+    order=TAB_ORDER.get("market_intel", 999),
+    service_modules=(
+        "shopstack.services.market_intelligence",
+        "shopstack.ui.screens.market_intelligence",
+    ),
+    depends_on=("sources", "basket"),
 ))
 
 

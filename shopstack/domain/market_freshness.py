@@ -1,20 +1,13 @@
-"""Data freshness service — classifies freshness of market data and inventory.
+"""Market and inventory freshness classification.
 
-SUPERSEDED: Canonical implementations now live in shopstack.domain.market_freshness.
-This module retains the full implementation for backward compatibility.
-New code should import from shopstack.domain.market_freshness instead.
-
-The review (§5.8) identifies this as a dedicated service needed for trust:
-every recommendation should honestly communicate data age.
+Pure business logic — no external dependencies.
+Supersedes shopstack/services/freshness.py for these symbols.
 """
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
-from datetime import date, timedelta
-
-logger = logging.getLogger(__name__)
+from datetime import date
 
 # ── Thresholds ──────────────────────────────────────────────────────────────
 LIVE_MAX_DAYS = 0       # captured today
@@ -54,18 +47,7 @@ def _parse_date(value: str) -> date | None:
 
 
 def classify_freshness(captured_at: str, today: date | None = None) -> FreshnessReport:
-    """Classify data freshness from a captured_at ISO date string.
-
-    This is the canonical freshness classifier for market snapshots,
-    price observations, and any time-stamped data.
-
-    Args:
-        captured_at: ISO date string (e.g. "2026-06-06" or "2026-06-06T14:30:00").
-        today: Override for testing; defaults to date.today().
-
-    Returns:
-        FreshnessReport with status, age, label, and UI-ready warning copy.
-    """
+    """Classify data freshness from a captured_at ISO date string."""
     current = today or date.today()
     captured = _parse_date(captured_at)
 
@@ -82,7 +64,6 @@ def classify_freshness(captured_at: str, today: date | None = None) -> Freshness
     age_days = (current - captured).days
 
     if age_days < 0:
-        # Future date — likely clock skew
         return FreshnessReport(
             status="unknown",
             age_days=age_days,
@@ -126,10 +107,7 @@ def classify_freshness(captured_at: str, today: date | None = None) -> Freshness
 
 
 def classify_snapshot_freshness(snapshot, today: date | None = None) -> FreshnessReport:
-    """Classify freshness for a MarketSnapshot object.
-
-    Convenience wrapper that reads captured_at from the snapshot.
-    """
+    """Classify freshness for a MarketSnapshot object."""
     captured = getattr(snapshot, "captured_at", "")
     return classify_freshness(captured, today)
 
@@ -139,11 +117,7 @@ def inventory_freshness_label(
     shelf_life_days: int = 0,
     today: date | None = None,
 ) -> FreshnessReport:
-    """Assess inventory item freshness from purchase date and shelf life.
-
-    Returns a FreshnessReport describing whether the item is still fresh,
-    approaching expiry, or past expected use-by date.
-    """
+    """Assess inventory item freshness from purchase date and shelf life."""
     current = today or date.today()
 
     if purchase_date is None:
@@ -202,19 +176,6 @@ def inventory_confidence(
 ) -> float:
     """Compute inventory confidence score based on age and freshness.
 
-    The review (§4.1) identifies confidence as essential for reliable inventory:
-
-      | Source                       | Confidence    |
-      | ---------------------------- | ------------- |
-      | Manual user entry            | high          |
-      | Receipt extraction           | high/medium   |
-      | Image/fridge scan            | medium/low    |
-      | Old inferred inventory       | low           |
-      | Planned but unconfirmed cart | not inventory |
-
-    This function computes a confidence decay curve based on how long ago the
-    item was purchased or last confirmed, relative to its shelf life.
-
     Returns 0.0–1.0 where:
       - 1.0 = just purchased / manually confirmed
       - 0.8+ = within shelf life, recently confirmed
@@ -225,9 +186,8 @@ def inventory_confidence(
     current = today or date.today()
 
     if purchase_date is None and last_confirmed is None:
-        return 0.3  # low confidence — entirely unknown provenance
+        return 0.3
 
-    # Use most recent of purchase_date and last_confirmed
     ref_date = purchase_date or last_confirmed or current
     if last_confirmed and purchase_date:
         ref_date = max(last_confirmed, purchase_date)
@@ -237,10 +197,9 @@ def inventory_confidence(
     age_days = (current - ref_date).days
 
     if age_days < 0:
-        return 1.0  # future date? trust
+        return 1.0
 
     if shelf_life_days <= 0:
-        # No shelf life info — use generic decay curve
         if age_days <= 1:
             return 0.95
         if age_days <= 3:
@@ -253,7 +212,6 @@ def inventory_confidence(
             return 0.3
         return 0.15
 
-    # Shelf-life-based decay
     fraction_consumed = age_days / shelf_life_days if shelf_life_days > 0 else 99
 
     if fraction_consumed <= 0.2:
@@ -264,7 +222,6 @@ def inventory_confidence(
         return 0.65
     if fraction_consumed <= 1.0:
         return 0.45
-    # Past shelf life
     over_by = age_days - shelf_life_days
     if over_by <= 3:
         return 0.3
@@ -274,10 +231,7 @@ def inventory_confidence(
 
 
 def needs_confirmation(confidence: float, threshold: float = 0.4) -> bool:
-    """Returns True if an inventory item's confidence is below threshold and needs user confirmation.
-
-    The review: "You bought coriander 7 days ago. It may be gone or spoiled. Confirm?"
-    """
+    """Returns True if confidence is below threshold and needs user confirmation."""
     return confidence < threshold
 
 
@@ -298,7 +252,7 @@ def confirmation_prompt(
 
     age_days = (date.today() - purchase_date).days
     if age_days <= 1:
-        return ""  # too recent to need confirmation
+        return ""
 
     if confidence < 0.2:
         return f"Has {display_name} been used or discarded? It was purchased {age_days} days ago."

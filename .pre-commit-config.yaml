@@ -19,3 +19,14 @@ repos:
         # Don't fail the commit on a score drop; surface the report.
         # CI is the gate. To enforce locally, change to:
         #   args: ["--strict"]
+
+      - id: doc-health
+        name: Doc health audit
+        description: Scan Docs/*.md for stale test counts, stale completion claims, and missing/old 'Last updated' dates.
+        entry: uv run python -m shopstack.tools.doc_health --strict
+        language: system
+        pass_filenames: false
+        always_run: true
+        # Strict by default — blocks the commit if stale test counts are found.
+        # The pre-commit hook uses --strict so the developer catches issues
+        # locally before CI.

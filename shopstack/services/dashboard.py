@@ -62,7 +62,16 @@ def _build_dashboard_state_uncached(
         source_registry=source_registry,
         user_id=user_id,
     )
-    use_soon = inventory.get_use_soon(days=3, user_id=user_id) if hasattr(inventory, "get_use_soon") else inventory.get_use_soon_items(days=3)
+    if hasattr(inventory, "get_use_soon"):
+        use_soon = inventory.get_use_soon(days=3, user_id=user_id)
+    elif hasattr(inventory, "get_use_soon_items"):
+        use_soon = inventory.get_use_soon_items(days=3, user_id=user_id)
+    else:
+        # Callers that don't carry an inventory accessor (e.g. the Today
+        # Intelligence panel, restock card) pass an empty list. Fall back
+        # to a fresh InventoryRepo bound to this db connection.
+        from shopstack.repos.inventory import InventoryRepo
+        use_soon = InventoryRepo(db).get_use_soon(days=3, user_id=user_id)
     active_list = db.get_active_shopping_list(user_id=user_id)
     all_inventory = db.get_inventory(user_id=user_id)
     active_inventory = [lot for lot in all_inventory if lot.status == "active"]

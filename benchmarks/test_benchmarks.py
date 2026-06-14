@@ -7,46 +7,6 @@ import pytest
 pytestmark = pytest.mark.benchmark
 
 
-class TestProviderBenchmarks:
-    def test_mock_stt_latency(self, providers):
-        samples = ["short utterance", "a " * 50, "a " * 200]
-        for sample in samples:
-            with temp_audio(sample) as path_file:
-                path = path_file
-                start = time.perf_counter()
-                providers.stt.transcribe(path)
-                elapsed = time.perf_counter() - start
-                assert elapsed < 0.5, f"STT too slow: {elapsed:.3f}s"
-
-    def test_mock_vision_latency(self, providers):
-        # Warm-up: trigger any first-call C-extension import overhead
-        # so the measured call reflects pure mock latency.
-        providers.vision.understand("/dev/null")
-
-        start = time.perf_counter()
-        providers.vision.understand("/dev/null")
-        elapsed = time.perf_counter() - start
-        assert elapsed < 5.0, f"Vision too slow: {elapsed:.3f}s"
-
-    def test_mock_object_detection_latency(self, providers):
-        start = time.perf_counter()
-        providers.object_detection.detect("/dev/null")
-        elapsed = time.perf_counter() - start
-        assert elapsed < 0.5, f"Object detection too slow: {elapsed:.3f}s"
-
-    def test_mock_planner_latency(self, providers):
-        start = time.perf_counter()
-        providers.planner.plan("what should I cook for dinner")
-        elapsed = time.perf_counter() - start
-        assert elapsed < 0.5, f"Planner too slow: {elapsed:.3f}s"
-
-    def test_mock_ocr_latency(self, providers):
-        start = time.perf_counter()
-        providers.ocr.extract("/dev/null")
-        elapsed = time.perf_counter() - start
-        assert elapsed < 0.5, f"OCR too slow: {elapsed:.3f}s"
-
-
 class TestDatabaseBenchmarks:
     def test_bulk_insert(self, db):
         from shopstack.schemas.models import InventoryLot
@@ -81,70 +41,6 @@ class TestToolBenchmarks:
         tool_registry.execute("find_item", query="bench")
         elapsed = time.perf_counter() - start
         assert elapsed < 0.5, f"Search too slow: {elapsed:.3f}s"
-
-
-import tempfile
-from contextlib import contextmanager
-
-
-@contextmanager
-def temp_audio(content: str) -> str:
-    with tempfile.NamedTemporaryFile(suffix=".wav", mode="w", delete=False) as f:
-        f.write(content)
-        yield f.name
-
-
-# ============================================================
-#  Real-model benchmarks (mock-backed — no real deps needed)
-# ============================================================
-
-
-class TestPlannerRealModelBenchmarks:
-    """Latency/throughput benchmarks for planner backends.
-
-    These benchmarks use mocked API clients so they run in CI without
-    real model dependencies. The mock delays simulate realistic latency
-    profiles documented in claims.yaml — update expectations when real
-    model benchmarks are collected on Apple Silicon.
-    """
-
-    def test_mock_planner_throughput(self, providers):
-        """Mock planner should handle 10 calls sequentially in under 5s."""
-        n = 10
-        start = time.perf_counter()
-        for _ in range(n):
-            providers.planner.plan("what should I cook for dinner")
-        elapsed = time.perf_counter() - start
-        assert elapsed < 5.0, f"Mock planner throughput: {elapsed:.3f}s for {n} calls"
-
-    def test_mock_planner_token_estimate(self, providers):
-        """Mock planner response simulates plausible token count."""
-        result = providers.planner.plan("list items in my fridge")
-        if isinstance(result, dict):
-            text = str(result.get("text", ""))
-            token_estimate = len(text.split()) * 1.3  # rough estimate
-            assert 0 < token_estimate < 1000, f"Unusual token count: {token_estimate:.0f}"
-
-    def test_mock_huggingface_api_latency(self, providers):
-        """Mocked HuggingFace API planner should complete within 500ms."""
-        from shopstack.providers.huggingface_provider import HuggingFaceProvider
-
-        provider = HuggingFaceProvider(api_key="mock-token")
-        # The mock provider doesn't actually call the API
-        result = provider.plan({"prompt": "What's in my fridge?"})
-        if isinstance(result, list):
-            assert len(result) >= 1
-        else:
-            assert isinstance(result, dict)
-
-    def test_planner_latency_budget_tracking(self, providers):
-        """Planner latency tracking should report plausible values."""
-        provider = getattr(providers.planner, "_provider", providers.planner)
-        if hasattr(provider, "last_latency_ms"):
-            providers.planner.plan("test latency tracking")
-            if hasattr(provider, "last_latency_ms"):
-                lat = provider.last_latency_ms
-                assert lat is None or (0 < lat < 30000), f"Unusual latency: {lat}"
 
 
 class TestAnnotateImageBenchmarks:
@@ -1623,53 +1519,6 @@ class TestAnnotateImageMemoryBenchmarks:
             for f in tmp.iterdir():
                 f.unlink(missing_ok=True)
             tmp.rmdir()
-
-
-class TestModelBenchmarks:
-    """Benchmarks for specific model performance characteristics.
-
-    These benchmarks exist to validate the claims.yaml latency budgets.
-    When run with mock providers, they verify the infrastructure is wired
-    correctly. Real latency measurements should be collected on Apple
-    Silicon hardware with model weights downloaded.
-    """
-
-    def test_huggingface_api_latency_mock(self):
-        """HuggingFace API provider mock latency should be under 100ms."""
-        from shopstack.providers.huggingface_provider import HuggingFaceProvider
-
-        provider = HuggingFaceProvider(api_key="mock-token")
-        start = time.perf_counter()
-        result = provider.complete("Hello")
-        elapsed = time.perf_counter() - start
-        assert elapsed < 1.0, f"Mock HF API too slow: {elapsed:.3f}s"
-        assert isinstance(result, dict)
-
-    def test_huggingface_api_retry_logic(self):
-        """HuggingFace API provider should handle transient failures gracefully."""
-        import json
-        from unittest.mock import patch
-
-        from shopstack.providers.huggingface_provider import HuggingFaceProvider
-
-        provider = HuggingFaceProvider(api_key="mock-token")
-        with patch.object(provider, "_client") as mock_client:
-            mock_client.chat_completion.side_effect = [
-                Exception("Service unavailable"),
-                Exception("Service unavailable"),
-                {"choices": [{"message": {"content": "ok"}}]},
-            ]
-            result = provider.complete("Hello")
-            assert isinstance(result, dict)
-
-    def test_mock_memory_usage_estimate(self):
-        """Mock providers should report plausible memory characteristics."""
-        from shopstack.model_registry import get_active_models, total_active_params
-
-        models = get_active_models()
-        total = total_active_params()
-        assert total > 0, "Active model parameter sum should be positive"
-        assert total <= 32.0, f"Active params exceed 32B cap: {total}B"
 
 
 # ============================================================

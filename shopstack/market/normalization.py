@@ -1,3 +1,10 @@
+"""Market product normalization — canonical names, aliases, size parsing.
+
+SUPERSEDED: Canonical implementations now live in shopstack.domain.unit_price.
+This module retains the full implementation for backward compatibility.
+New code should import from shopstack.domain.unit_price instead.
+"""
+
 from __future__ import annotations
 
 import logging

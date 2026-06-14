@@ -740,17 +740,16 @@ class Database:
     def add_inventory_lot(self, lot: InventoryLot, user_id: str = "") -> InventoryLot:
         # ── Phase 11: permission gate (supersession-safe additive check) ──
         # The unwrapped behavior is preserved; we just fail closed
-        # on permission denial. The old method is not renamed or
-        # removed — it stays a single source of truth, with a
-        # permission check at the top.
+        # on permission denial.
         from shopstack.services.permissions import require_write as _rw
         if not user_id:
             user_id = self.active_household_id
-        # user_id doubles as the household scope being written to; check
-        # self-membership (seeded by _seed_default_household for every
-        # household) rather than against self.active_household_id, which
-        # may be a different household than the one being written.
-        _rw(user_id, user_id, self)  # raises PermissionError on deny
+        # InventoryLot.user_id is the household scope for this lot. If
+        # the caller did not set it on the lot, default to the writer's
+        # user_id — that is the household they are writing to. The writer
+        # must be a member of the target household with write access.
+        target_household = lot.user_id or user_id
+        _rw(user_id, target_household, self)
         self.conn.execute(
             """INSERT INTO inventory_lots
                (lot_id, canonical_name, display_name, category, quantity, unit,
@@ -766,7 +765,7 @@ class Database:
                 lot.price_paid, lot.currency, lot.source_event_id,
                 lot.confidence, lot.image_crop_path, lot.status,
                 lot.created_at.isoformat(), lot.updated_at.isoformat(),
-                user_id,
+                target_household,
             ),
         )
         self.conn.commit()
@@ -1021,6 +1020,42 @@ class Database:
             "SELECT * FROM movement_events WHERE lot_id = ? ORDER BY timestamp DESC",
             (lot_id,),
         ).fetchall()
+        return [_row_to_movement(r) for r in rows]
+
+    def get_movements_in_window(
+        self,
+        user_id: str = "",
+        since: str | None = None,
+        until: str | None = None,
+        limit: int = 500,
+    ) -> list[MovementEvent]:
+        """Return movements within a time window, scoped to a household via
+        the linked inventory_lots.user_id column.
+
+        Args:
+            user_id: household id; empty string returns all rows.
+            since: ISO datetime lower bound (inclusive). None = no lower bound.
+            until: ISO datetime upper bound (exclusive). None = no upper bound.
+            limit: hard ceiling on rows returned.
+        """
+        query = (
+            "SELECT me.* FROM movement_events me "
+            "JOIN inventory_lots il ON il.lot_id = me.lot_id "
+            "WHERE 1=1"
+        )
+        params: list[Any] = []
+        if user_id:
+            query += " AND il.user_id = ?"
+            params.append(user_id)
+        if since:
+            query += " AND me.timestamp >= ?"
+            params.append(since)
+        if until:
+            query += " AND me.timestamp < ?"
+            params.append(until)
+        query += " ORDER BY me.timestamp DESC LIMIT ?"
+        params.append(limit)
+        rows = self.conn.execute(query, params).fetchall()
         return [_row_to_movement(r) for r in rows]
 
     # --- Negative Memory (Object Trail) ---
@@ -1349,16 +1384,33 @@ class Database:
         self.conn.commit()
         return event
 
-    def get_inventory_events(self, canonical_name: str = "", lot_id: str = "", limit: int = 50) -> list[InventoryEvent]:
+    def get_inventory_events(
+        self,
+        canonical_name: str = "",
+        lot_id: str = "",
+        limit: int = 50,
+        user_id: str = "",
+        since: str | None = None,
+        until: str | None = None,
+    ) -> list[InventoryEvent]:
         query = "SELECT * FROM inventory_events"
         params: list[Any] = []
-        conditions = []
+        conditions: list[str] = []
         if canonical_name:
             conditions.append("canonical_name = ?")
             params.append(canonical_name.lower())
         if lot_id:
             conditions.append("lot_id = ?")
             params.append(lot_id)
+        if user_id:
+            conditions.append("user_id = ?")
+            params.append(user_id)
+        if since:
+            conditions.append("timestamp >= ?")
+            params.append(since)
+        if until:
+            conditions.append("timestamp < ?")
+            params.append(until)
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
         query += " ORDER BY timestamp DESC LIMIT ?"

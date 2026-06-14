@@ -206,13 +206,137 @@ class ShopFindService:
         }
 
     def semantic_find_inventory_compatible(self, query: str, user_id: str = "") -> dict[str, Any]:
+        q = query.strip()
+        if not q:
+            return {"results": [], "count": 0, "intent": "unknown", "match_type": "none", "semantic_active": False}
+        # Try semantic ranking first when an embedding provider is wired.
+        # Falls back to text matching if embeddings are unavailable or
+        # return no matches above threshold.
+        semantic_results = self._semantic_find_inventory(q, user_id=user_id)
+        if semantic_results:
+            lot_ids = {r.lot["lot_id"] for r in semantic_results if r.lot}
+            text_results = self.find_inventory_compatible(query, user_id=user_id)
+            extra = [r for r in self._text_only_results(query, user_id) if r.lot and r.lot["lot_id"] not in lot_ids]
+            combined = list(semantic_results) + extra
+            return {
+                "results": [_compatible_lot_result(r) for r in combined],
+                "count": len(combined),
+                "intent": self.classify_query_intent(q),
+                "expanded_queries": self._expand_query(q),
+                "match_type": semantic_results[0].match_type if semantic_results else "none",
+                "semantic_active": True,
+            }
+        # No embedding provider or no semantic matches → text-only fallback.
         result = self.find_inventory_compatible(query, user_id=user_id)
         result["match_type"] = (
             result["results"][0].get("match_type", "none")
             if result["results"]
             else "none"
         )
+        result["semantic_active"] = self._embedding_provider is not None and getattr(self._embedding_provider, "available", False)
         return result
+
+    def _semantic_find_inventory(self, query: str, user_id: str) -> list[FindResult]:
+        """Return inventory lots ranked by embedding similarity to ``query``.
+
+        Returns an empty list when no embedding provider is wired, when
+        the provider reports ``available=False`` (e.g. sentence-transformers
+        missing), or when no lot clears the similarity threshold.
+        """
+        provider = self._embedding_provider
+        if provider is None or not getattr(provider, "available", False):
+            return []
+        lots = self.db.get_inventory(user_id=user_id)
+        if not lots:
+            return []
+        locations = {loc.location_id: loc for loc in self.db.get_locations()}
+        lot_texts = [self._lot_search_text(lot, locations.get(lot.storage_location_id)) for lot in lots]
+        try:
+            # Nomic distinguishes query vs document prefixes; BGE-M3 has a single embed().
+            query_emb = (
+                provider.embed_queries([query])[0]
+                if hasattr(provider, "embed_queries")
+                else provider.embed([query])[0]
+            )
+            doc_embs = (
+                provider.embed_documents(lot_texts)
+                if hasattr(provider, "embed_documents")
+                else provider.embed(lot_texts)
+            )
+        except Exception:
+            return []
+        if not query_emb or not doc_embs or len(doc_embs) != len(lots):
+            return []
+
+        # Score every lot; keep matches above 0.50 cosine similarity.
+        threshold = 0.50
+        scored: list[tuple[float, InventoryLot]] = []
+        for lot, doc_emb in zip(lots, doc_embs):
+            if not doc_emb:
+                continue
+            try:
+                score = provider.similarity(query_emb, doc_emb)
+            except Exception:
+                continue
+            if score >= threshold:
+                scored.append((score, lot))
+        if not scored:
+            return []
+        scored.sort(key=lambda pair: pair[0], reverse=True)
+
+        results: list[FindResult] = []
+        for score, lot in scored[:20]:
+            loc = locations.get(lot.storage_location_id)
+            trail = self._movement_trail(lot.lot_id, locations)
+            negative_memory = self._get_negative_memory(lot.lot_id, user_id)
+            person_associations = self._get_person_associations(lot, user_id)
+            container_relationships = self._get_container_relationships(lot, locations)
+            likely_locations = self._likely_locations(lot, locations, trail, negative_memory)
+            current_believed_id, current_believed_name = self._determine_current_believed_location(
+                lot, likely_locations, trail
+            )
+            normal_home_id = lot.storage_location_id
+            normal_home_name = loc.name if loc else None
+            search_plan = _generate_search_plan(likely_locations, negative_memory, normal_home_name)
+            evidence = [
+                FindEvidence(
+                    source="semantic",
+                    message=f"Semantic similarity to '{query}': {score:.2f}.",
+                    confidence=score,
+                )
+            ]
+            if loc:
+                evidence.append(FindEvidence(source="current_location", message=f"Normal home location is {loc.name}.", confidence=0.8))
+            if trail:
+                evidence.append(FindEvidence(source="movement", message=f"Movement history has {len(trail)} event(s).", confidence=0.7))
+            confidence = min(1.0, round(score + (0.1 if loc else 0) + (0.05 if trail else 0), 4))
+            results.append(FindResult(
+                entity_type="inventory_lot",
+                title=lot.display_name or lot.canonical_name,
+                confidence=confidence,
+                location_id=lot.storage_location_id or None,
+                location_name=loc.name if loc else "Unknown",
+                normal_home_location_id=normal_home_id,
+                normal_home_location_name=normal_home_name,
+                current_believed_location_id=current_believed_id,
+                current_believed_location_name=current_believed_name,
+                likely_locations=likely_locations,
+                movement_trail=trail,
+                negative_memory=negative_memory,
+                person_associations=person_associations,
+                container_relationships=container_relationships,
+                evidence=evidence,
+                actions=["mark_found", "move_item", "add_note", "add_negative_memory", "add_person_association"],
+                lot=lot.model_dump(),
+                match_type="semantic",
+                match_score=score,
+                search_plan=search_plan,
+            ))
+        return results
+
+    def _text_only_results(self, query: str, user_id: str) -> list[FindResult]:
+        expanded = self._expand_query(query)
+        return self._find_inventory_lots(expanded, user_id)
 
     def classify_query_intent(self, query: str, expanded_queries: list[str] | None = None) -> FindIntent:
         q = query.lower().strip()

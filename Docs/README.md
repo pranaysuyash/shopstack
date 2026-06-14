@@ -1,5 +1,7 @@
 # Docs Folder
 
+**Last updated:** 2026-06-14
+
 This repository keeps historical design docs and context files out of Git tracking to keep PRs focused on code and runtime behavior.
 
 The active runtime truth remains in source code under `shopstack/` and `app.py`.

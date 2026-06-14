@@ -29,11 +29,19 @@ _USE_SOON_DAYS = 3
 _RECENT_PURCHASE_DAYS = 2
 
 
-def _get_use_soon(inventory: Any, days: int, user_id: str = "") -> dict[str, Any]:
-    """Call get_use_soon (InventoryRepo) or get_use_soon_items (ToolRegistry)."""
+def _get_use_soon(inventory: Any, days: int, user_id: str = "", db: Database | None = None) -> dict[str, Any]:
+    """Call get_use_soon (InventoryRepo) or get_use_soon_items (ToolRegistry).
+
+    Callers that pass a plain list (no accessor) fall back to a fresh
+    ``InventoryRepo`` bound to ``db``, mirroring the fallback in
+    ``shopstack.services.dashboard``.
+    """
     if hasattr(inventory, "get_use_soon"):
         return inventory.get_use_soon(days=days, user_id=user_id)
-    return inventory.get_use_soon_items(days=days, user_id=user_id)
+    if hasattr(inventory, "get_use_soon_items"):
+        return inventory.get_use_soon_items(days=days, user_id=user_id)
+    from shopstack.repos.inventory import InventoryRepo
+    return InventoryRepo(db).get_use_soon(days=days, user_id=user_id)
 
 
 def classify_all(
@@ -50,7 +58,7 @@ def classify_all(
     disliked = set(pref_service.get_disliked(user_id=uid))
 
     active_inv = [lot for lot in db.get_inventory(user_id=uid) if lot.status == "active"]
-    use_soon_items = _get_use_soon(inventory, _USE_SOON_DAYS, user_id=uid).get("items", [])
+    use_soon_items = _get_use_soon(inventory, _USE_SOON_DAYS, user_id=uid, db=db).get("items", [])
     active_list = db.get_active_shopping_list(user_id=uid)
     purchases = db.get_purchase_events(limit=50, user_id=uid)
     recent_dates: set[date] = set()

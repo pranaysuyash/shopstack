@@ -12,6 +12,8 @@ dependencies = [
     "pandas",
     "httpx",
     "pyzbar",
+    "huggingface_hub>=0.20",
+    "opentelemetry-api>=1.0",
     "sentence-transformers",
     "mlx",
     "llama-cpp-python>=0.3",

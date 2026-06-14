@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import date
+import logging
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,58 @@ from shopstack.schemas.shelf import (
 from shopstack.services.expiry_parser import expiry_risk_label, parse_expiry_value
 from shopstack.services.speech_intent import parse_speech_intent
 from shopstack.providers.image_gen_provider import resolve_detection_bbox
+
+logger = logging.getLogger(__name__)
+
+
+def _first_frame_from_video(video_path: str) -> str | None:
+    """Extract the first frame of a video as a temporary PNG.
+
+    Returns the path to the extracted frame, or ``None`` when no
+    decoder is available. We prefer ``cv2`` (OpenCV) and fall back to
+    ``ffmpeg`` via subprocess. Failure is logged at info level and the
+    caller treats it as "no image available".
+    """
+    if not video_path:
+        return None
+    try:
+        import cv2  # type: ignore[import-not-found]
+    except ImportError:
+        cv2 = None
+    if cv2 is not None:
+        try:
+            cap = cv2.VideoCapture(video_path)
+            ok, frame = cap.read()
+            cap.release()
+            if not ok or frame is None:
+                return None
+            fd, out_path = tempfile.mkstemp(suffix=".png", prefix="shelf_frame_")
+            Path(out_path).unlink(missing_ok=True)
+            cv2.imwrite(out_path, frame)
+            return out_path
+        except Exception as exc:
+            logger.info("cv2 frame extraction failed: %s", exc)
+            return None
+    # ffmpeg fallback
+    import shutil
+    import subprocess
+    if not shutil.which("ffmpeg"):
+        return None
+    try:
+        fd, out_path = tempfile.mkstemp(suffix=".png", prefix="shelf_frame_")
+        Path(out_path).unlink(missing_ok=True)
+        result = subprocess.run(
+            ["ffmpeg", "-y", "-i", video_path, "-frames:v", "1", out_path],
+            capture_output=True,
+            check=False,
+            timeout=10,
+        )
+        if result.returncode != 0 or not Path(out_path).is_file():
+            return None
+        return out_path
+    except Exception as exc:
+        logger.info("ffmpeg frame extraction failed: %s", exc)
+        return None
 
 _SCENE_LABELS: dict[ShelfSceneType, str] = {
     ShelfSceneType.AUTO: "Auto",
@@ -88,6 +141,7 @@ _CLEANING_HINTS = (
 
 def analyze_shelf_scene(
     image_path: str | None,
+    video_path: str | None,
     audio_path: str | None,
     scene_type: str | ShelfSceneType | None,
     providers: Any,
@@ -102,21 +156,30 @@ def analyze_shelf_scene(
         audio_path=audio_path,
     )
 
-    if not image_path and not audio_path:
-        result.warnings.append("No image or audio input provided.")
+    if not image_path and not video_path and not audio_path:
+        result.warnings.append("No image, video, or audio input provided.")
         return result
+
+    # When the caller passes a video path, prefer its first frame as the
+    # source image so downstream detection/segmentation/OCR all run on
+    # the same scene. If extraction fails, fall back to no-image mode.
+    source_image = image_path
+    if not source_image and video_path:
+        source_image = _first_frame_from_video(video_path)
+        if source_image:
+            result.image_path = source_image
 
     detections: list[dict[str, Any]] = []
     segments: list[dict[str, Any]] = []
     ocr_payload: dict[str, Any] = {}
     transcript: dict[str, Any] | None = None
 
-    if image_path:
-        detections = _safe_detection(providers, image_path)
-        segments = _safe_segmentation(providers, image_path)
-        ocr_payload = _safe_ocr(providers, image_path)
+    if source_image:
+        detections = _safe_detection(providers, source_image)
+        segments = _safe_segmentation(providers, source_image)
+        ocr_payload = _safe_ocr(providers, source_image)
         if detections:
-            result.annotated_image_path = _annotate_home_scan(image_path, detections, providers)
+            result.annotated_image_path = _annotate_home_scan(source_image, detections, providers)
 
     if audio_path and hasattr(providers, "stt"):
         try:
@@ -124,9 +187,9 @@ def analyze_shelf_scene(
         except Exception:
             transcript = None
 
-    if image_path and audio_path:
+    if source_image and audio_path:
         result.perception_mode = "multimodal"
-    elif image_path:
+    elif source_image:
         result.perception_mode = "vision"
     else:
         result.perception_mode = "speech"
@@ -135,7 +198,7 @@ def analyze_shelf_scene(
         result.perception_mode = "detection_segmentation"
     elif detections:
         result.perception_mode = "detection_only"
-    elif image_path and ocr_payload:
+    elif source_image and ocr_payload:
         result.perception_mode = "ocr_only"
 
     speech_intent = _build_speech_intent(transcript, scene)

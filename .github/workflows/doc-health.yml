@@ -1,0 +1,57 @@
+name: Doc Health Audit
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Run weekly (Sunday midnight) so docs don't drift unnoticed
+    - cron: "0 0 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  doc-health:
+    name: Doc health audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run doc health audit (strict)
+        id: audit
+        # Omit continue-on-error so a non-zero exit naturally fails this
+        # step.  The output is captured to a file for artifact upload.
+        run: uv run python -m shopstack.tools.doc_health --strict 2>&1 | tee doc_health_output.txt
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: doc-health-report
+          path: doc_health_output.txt
+          if-no-files-found: ignore

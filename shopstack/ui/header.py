@@ -296,12 +296,11 @@ def header_block(brand_title: str, brand_subtitle: str, current_locale: str = DE
         + render_shortcuts_script()
         + render_walkthrough_html(current_locale)
         + render_walkthrough_script()
-        + _pwa_block()
         + _pwa_css()
     )
 
 
-def _pwa_block() -> str:
+def pwa_head_html() -> str:
     """Return the PWA manifest link, theme color meta, and service worker JS.
 
     The PWA shell is cached by the service worker registered here, so
@@ -309,10 +308,17 @@ def _pwa_block() -> str:
     itself is served from ``/sw.js`` (mounted by
     :func:`shopstack.ui.pwa_mount.mount_pwa_static` at root path,
     bypassing Gradio 6.x's ``/static/*`` interception).
+
+    Must be passed to ``app.launch(head=...)``, NOT rendered via
+    ``gr.HTML(...)``: Gradio's HTML components set ``innerHTML``, and
+    ``<script>`` tags inserted via ``innerHTML`` never execute. The
+    ``head`` parameter is rendered server-side into the document
+    ``<head>`` by Gradio's template, so its ``<script>`` tag runs
+    normally on page load.
     """
     return """
 <!-- PWA: manifest + theme color (Phase 4 #5) -->
-<link rel="manifest" href="/static/manifest.json">
+<link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#0f172a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -320,7 +326,7 @@ def _pwa_block() -> str:
 // Register service worker for PWA shell caching (Phase 4 #5)
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
-    navigator.serviceWorker.register('/static/sw.js', { scope: '/' })
+    navigator.serviceWorker.register('/sw.js', { scope: '/' })
       .then(function(reg) {
         console.log('[ShopStack PWA] service worker registered, scope:', reg.scope);
       })

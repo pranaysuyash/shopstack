@@ -109,22 +109,29 @@ def test_header_script_includes_keyboard_shortcuts():
 
 
 def test_header_block_combines_html_and_script():
-    """header_block returns HTML + script + PWA block as a single string."""
+    """header_block returns HTML + script as a single string.
+
+    The PWA manifest link + service worker registration are NOT part of
+    header_block — they live in ``pwa_head_html()`` and are injected via
+    ``app.launch(head=...)`` instead, because <script> tags rendered via
+    gr.HTML's innerHTML never execute.
+    """
     from shopstack.ui.header import header_block
     block = header_block("MyApp", "My subtitle")
     assert "MyApp" in block
     assert "toggleTheme" in block
     assert "localStorage" in block
-    assert "manifest.json" in block  # PWA manifest link
-    assert "serviceWorker" in block  # service worker registration
 
 
-def test_pwa_block_includes_manifest_and_sw():
-    """_pwa_block includes the manifest link, theme color, and SW registration."""
-    from shopstack.ui.header import _pwa_block
-    block = _pwa_block()
+def test_pwa_head_html_includes_manifest_and_sw():
+    """pwa_head_html includes the manifest link, theme color, and SW registration
+    at root paths (matching where mount_pwa_static actually serves them)."""
+    from shopstack.ui.header import pwa_head_html
+    block = pwa_head_html()
     assert 'rel="manifest"' in block
-    assert "/static/manifest.json" in block
+    assert 'href="/manifest.json"' in block
     assert 'name="theme-color"' in block
     assert "serviceWorker" in block
-    assert "/static/sw.js" in block
+    assert "register('/sw.js'" in block
+    assert "/static/manifest.json" not in block
+    assert "/static/sw.js" not in block

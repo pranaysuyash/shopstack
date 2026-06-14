@@ -86,16 +86,35 @@ class TestPWAShell:
         assert tag == "svg"
 
     def test_app_py_injects_manifest_link(self):
-        """The app.py header should reference /static/manifest.json
-        so the browser picks it up."""
+        """The app.py header should reference /manifest.json so the
+        browser picks it up.
+
+        Root paths (not /static/...) — Gradio 6.x's framework intercepts
+        all /static/* paths with a JSON 404 handler, so the manifest and
+        service worker must be registered at root paths to match where
+        ``mount_pwa_static`` (shopstack/ui/pwa_mount.py) actually serves
+        them.
+        """
         # The PWA manifest link is now injected via shopstack/ui/header.py
         # (Phase 4 refactor moved it out of app.py into the shared header block
         # so the same HTML is used for tests, brand blocks, and app composition).
         header_path = Path(__file__).resolve().parents[1] / "shopstack" / "ui" / "header.py"
         header_content = header_path.read_text(encoding="utf-8")
-        assert "/static/manifest.json" in header_content, "header.py should reference the manifest"
-        assert "/static/sw.js" in header_content, "header.py should reference the service worker"
+        assert "/manifest.json" in header_content, "header.py should reference the manifest"
+        assert "/sw.js" in header_content, "header.py should reference the service worker"
+        assert "/static/manifest.json" not in header_content, (
+            "manifest must be registered at root path /manifest.json, "
+            "not /static/manifest.json (blocked by Gradio's /static/* handler)"
+        )
+        assert "/static/sw.js" not in header_content, (
+            "service worker must be registered at root path /sw.js, "
+            "not /static/sw.js (blocked by Gradio's /static/* handler)"
+        )
         # The PWA mount wiring still lives in app.py
         app_path = Path(__file__).resolve().parents[1] / "app.py"
         app_content = app_path.read_text(encoding="utf-8")
         assert "StaticFiles" in app_content or "add_route" in app_content or "mount" in app_content
+        # The <script> SW registration must be injected via app.launch(head=...),
+        # not gr.HTML(...) — innerHTML-inserted <script> tags never execute.
+        assert "pwa_head_html" in app_content
+        assert "head=pwa_head_html()" in app_content

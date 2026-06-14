@@ -8,7 +8,7 @@ os.environ.setdefault("SHOPSTACK_DB_PATH", "shopstack.db")
 
 import gradio as gr
 
-from shopstack.ui.header import header_block
+from shopstack.ui.header import header_block, pwa_head_html
 from shopstack.ui.theme import CSS
 from shopstack.ui.tabs.context import TabContext
 from shopstack.ui.tabs.today import build_today_tab, TodayTabHandles
@@ -17,6 +17,11 @@ from shopstack.ui.tabs.cookbook import build_cookbook_tab
 from shopstack.ui.tabs.market import build_market_tab
 from shopstack.ui.tabs.reconcile import build_reconcile_tab, ReconcileTabHandles
 from shopstack.ui.tabs.memory import build_memory_tab
+from shopstack.ui.tabs.timeline import build_timeline_tab
+from shopstack.ui.tabs.scanner import build_scanner_tab
+from shopstack.ui.tabs.trip_advisor import build_trip_advisor_tab
+from shopstack.ui.tabs.market_intel import build_market_intel_tab
+from shopstack.ui.tabs.nutrition_coach import build_nutrition_coach_tab
 from shopstack.ui.household_settings import build_household_settings
 from shopstack.ui.locale_save import build_locale_save
 from shopstack.ui.pwa_mount import mount_pwa_static
@@ -122,12 +127,35 @@ def build_app() -> gr.Blocks:
             # ═══════════════════════════════════════════════════════════════
             reconcile_handles = build_reconcile_tab(blocks=app, app=app, ctx=TabContext())
             p_location = reconcile_handles.p_location
-            move_dest = reconcile_handles.move_dest
+            move_dest = reconcile_handles.move_dest        # ═══════════════════════════════════════════════════════════════
+        # Tab 6: Market Intel — cross-source graph
+        # ═══════════════════════════════════════════════════════════════
+            build_market_intel_tab(blocks=app, app=app, ctx=TabContext())
 
-            # ═══════════════════════════════════════════════════════════════
-            # Tab 6: Memory — what did we learn?
-            # ═══════════════════════════════════════════════════════════════
+        # ═══════════════════════════════════════════════════════════════
+        # Tab 7: Trip Plans — pre-trip advice
+        # ═══════════════════════════════════════════════════════════════
+            build_trip_advisor_tab(blocks=app, app=app, ctx=TabContext())
+
+        # ═══════════════════════════════════════════════════════════════
+        # Tab 8: Shelf Scan — camera/voice scan
+        # ═══════════════════════════════════════════════════════════════
+            build_scanner_tab(blocks=app, app=app, ctx=TabContext())
+
+        # ═══════════════════════════════════════════════════════════════
+        # Tab 9: Timeline — unified event timeline
+        # ═══════════════════════════════════════════════════════════════
+            build_timeline_tab(blocks=app, app=app, ctx=TabContext())
+
+        # ═══════════════════════════════════════════════════════════════
+        # Tab 10: Memory — what did we learn?
+        # ═══════════════════════════════════════════════════════════════
             build_memory_tab(blocks=app, app=app, ctx=TabContext())
+
+        # ═══════════════════════════════════════════════════════════════
+        # Tab 11: Nutrition — coaching
+        # ═══════════════════════════════════════════════════════════════
+            build_nutrition_coach_tab(blocks=app, app=app, ctx=TabContext())
 
         # Household settings accordion (workspace admin panel)
         hh = build_household_settings(app)
@@ -201,4 +229,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     app = build_app()
-    app.launch(server_port=args.port, share=args.share, theme=gr.themes.Base(), css=CSS)
+    # ``app.launch(prevent_thread_lock=True)`` returns once ``app.app``
+    # (the real FastAPI app, created inside launch()) is ready, but
+    # before blocking the main thread. mount_pwa_static() must run
+    # AFTER this point — the early call inside build_app() mounts onto
+    # a throwaway FastAPI app that launch() discards and recreates.
+    app.launch(server_port=args.port, share=args.share, theme=gr.themes.Base(), css=CSS, head=pwa_head_html(), prevent_thread_lock=True)
+    mount_pwa_static(app)
+    app.block_thread()

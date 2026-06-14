@@ -81,3 +81,114 @@ class TestShopFindService:
         assert row["location_name"] == "Bathroom Cabinet"
         assert row["evidence"]
         assert row["likely_locations"]
+
+    # ── Semantic search activation ────────────────────────────────────
+
+    def test_semantic_find_uses_embedding_provider_when_wired(self, db):
+        """semantic_find_inventory_compatible ranks by cosine similarity
+        when an embedding provider reports ``available=True``.
+
+        Uses a deterministic stub provider so the test does not depend
+        on a real model download.
+        """
+        repo = InventoryRepo(db)
+        repo.add_item("paracetamol", "Crocin Pain Relief", 1, "strip", "medicine_box", category="medicine")
+        repo.add_item("rice", "Basmati Rice", 5, "kg", "pantry", category="grains")
+
+        result = ShopFindService(db, embedding_provider=_StubEmbeddingProvider()).semantic_find_inventory_compatible(
+            "headache relief"
+        )
+
+        assert result["semantic_active"] is True
+        # Semantic matches appear above text-only matches.
+        top = result["results"][0]
+        assert top["match_type"] == "semantic"
+        assert top["lot"]["canonical_name"] == "paracetamol"
+        assert top["match_score"] >= 0.5
+
+    def test_semantic_find_falls_back_when_provider_unavailable(self, db):
+        """When the embedding provider is unavailable, semantic_find
+        degrades gracefully to text matching and reports
+        ``semantic_active=False``.
+        """
+        repo = InventoryRepo(db)
+        repo.add_item("milk", "Amul Milk", 2, "L", "fridge", category="dairy")
+
+        result = ShopFindService(db, embedding_provider=_StubEmbeddingProvider(available=False)).semantic_find_inventory_compatible("milk")
+
+        # Text match still works.
+        assert result["count"] >= 1
+        assert result["semantic_active"] is False
+
+    def test_semantic_find_returns_empty_when_no_provider(self, db):
+        """Without an embedding provider at all, semantic_find still
+        serves text matches but reports ``semantic_active=False``."""
+        repo = InventoryRepo(db)
+        repo.add_item("milk", "Amul Milk", 2, "L", "fridge", category="dairy")
+
+        result = ShopFindService(db).semantic_find_inventory_compatible("milk")
+
+        assert result["count"] >= 1
+        assert result["semantic_active"] is False
+
+
+class _StubEmbeddingProvider:
+    """Deterministic stub embedding provider for testing the wiring.
+
+    Returns high similarity when the query is semantically related to
+    the document (by simple keyword overlap), so we can test the
+    integration without a real model.
+    """
+    name = "stub"
+    capabilities = {"embeddings"}
+
+    def __init__(self, available: bool = True):
+        self._available = available
+
+    @property
+    def available(self) -> bool:
+        return self._available
+
+    @property
+    def error(self):
+        return None
+
+    def embed(self, texts):
+        return [self._vec(t) for t in texts]
+
+    def embed_queries(self, queries):
+        return [self._vec(t) for t in queries]
+
+    def embed_documents(self, docs):
+        return [self._vec(t) for t in docs]
+
+    def similarity(self, a, b):
+        if not a or not b or len(a) != len(b):
+            return 0.0
+        dot = sum(x * y for x, y in zip(a, b))
+        na = sum(x * x for x in a) ** 0.5
+        nb = sum(y * y for y in b) ** 0.5
+        return dot / (na * nb) if na and nb else 0.0
+
+    def _vec(self, text: str):
+        """Category-clustered vector for stub-level semantic similarity.
+
+        Returns a one-hot-style vector over semantic categories so that
+        ``similarity("headache relief", "Crocin Pain Relief")`` is high
+        even though no tokens overlap — that's the whole point of
+        semantic embeddings.
+        """
+        t = text.lower()
+        # Category axes — first match wins so each text maps to one
+        # dominant semantic cluster.
+        if any(w in t for w in ("headache", "pain", "fever", "relief", "crocin", "paracetamol", "medicine")):
+            return [1.0, 0.0, 0.0, 0.0, 0.0]
+        if any(w in t for w in ("rice", "grain", "food", "staple", "basmati")):
+            return [0.0, 1.0, 0.0, 0.0, 0.0]
+        if any(w in t for w in ("milk", "dairy", "drink", "bread", "bakery")):
+            return [0.0, 0.0, 1.0, 0.0, 0.0]
+        if any(w in t for w in ("wash", "clean", "detergent", "clothes", "laundry")):
+            return [0.0, 0.0, 0.0, 1.0, 0.0]
+        if any(w in t for w in ("teeth", "toothpaste", "tooth", "brush")):
+            return [0.0, 0.0, 0.0, 0.0, 1.0]
+        return [0.1] * 5

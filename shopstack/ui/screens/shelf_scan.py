@@ -15,18 +15,19 @@ logger = logging.getLogger(__name__)
 
 def shelf_scan_process(
     image_path: str | None,
+    video_path: str | None,
     audio_path: str | None,
     scene_type: str = "auto",
 ) -> tuple[str, str, str, str]:
-    if not image_path and not audio_path:
+    if not image_path and not video_path and not audio_path:
         return (
-            "<div style='color:var(--text-dim);'>No image or audio input provided.</div>",
+            "<div style='color:var(--text-dim);'>No image, video, or audio input provided.</div>",
             "",
             "",
             "",
         )
 
-    result = analyze_shelf_scene(image_path, audio_path, scene_type, providers, tools.inventory, user_id=current_user_id())
+    result = analyze_shelf_scene(image_path, video_path, audio_path, scene_type, providers, tools.inventory, user_id=current_user_id())
     html = _render_shelf_scan(result)
     scan_state = result.model_dump_json()
     trace_id = ""
