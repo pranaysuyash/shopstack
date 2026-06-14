@@ -42,11 +42,29 @@ from shopstack.services.results import (
     ShoppingCompletionResult,
     MarkPurchasedResult,
 )
-from shopstack.services.freshness import (
+from shopstack.domain import (
+    # Freshness classification (pure business logic from domain/market_freshness.py)
     FreshnessReport,
     classify_freshness,
     classify_snapshot_freshness,
     inventory_freshness_label,
+    inventory_confidence,
+    needs_confirmation,
+    confirmation_prompt,
+    # Inventory alerts (pure business logic from domain/inventory_alerts.py)
+    classify_inventory_alert,
+    InventoryAlert,
+    AlertLevel,
+    # Product matching (pure business logic from domain/product_matching.py)
+    score_product_match,
+    MatchScore,
+    MatchReason,
+    # Storage locations (pure business logic from domain/storage_locations.py)
+    is_parent_of,
+    get_location_hierarchy,
+    flatten_hierarchy,
+    location_path,
+    LocationNode,
 )
 from shopstack.services.decision_engine import (
     should_buy,
@@ -125,6 +143,23 @@ __all__ = [
     "classify_freshness",
     "classify_snapshot_freshness",
     "inventory_freshness_label",
+    "inventory_confidence",
+    "needs_confirmation",
+    "confirmation_prompt",
+    # Inventory alerts
+    "classify_inventory_alert",
+    "InventoryAlert",
+    "AlertLevel",
+    # Product matching
+    "score_product_match",
+    "MatchScore",
+    "MatchReason",
+    # Storage locations
+    "is_parent_of",
+    "get_location_hierarchy",
+    "flatten_hierarchy",
+    "location_path",
+    "LocationNode",
     # Decision engine
     "should_buy",
     "should_skip",

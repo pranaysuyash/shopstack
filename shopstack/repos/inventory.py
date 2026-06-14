@@ -165,6 +165,61 @@ class InventoryRepo:
             "to": to_location_id,
         }
 
+    # --- Undo ---
+
+    def undo_last_change(self, lot_id: str, user_id: str = "") -> dict[str, Any]:
+        """Reverse the most recent inventory event for a lot.
+
+        Looks up the latest ``inventory_events`` row for the resolved lot,
+        computes its inverse via :meth:`InventoryEvent.get_undo_event`,
+        applies that inverse to the lot, and records the inverse itself as
+        a new ``action="undo"`` event so the reversal stays in the audit
+        trail rather than rewriting history.
+        """
+        resolved_id, resolve_error = self.resolve_lot_id(lot_id)
+        if resolve_error:
+            return {"success": False, "error": resolve_error}
+        assert resolved_id is not None
+        lot = self.db.get_inventory_lot(resolved_id)
+        if not lot:
+            return {"success": False, "error": f"Lot {lot_id} not found"}
+
+        events = self.db.get_inventory_events(lot_id=resolved_id, limit=1)
+        if not events:
+            return {"success": False, "error": "No history to undo for this lot"}
+        last_event = events[0]
+
+        undo_event = last_event.get_undo_event()
+        if undo_event is None:
+            return {
+                "success": False,
+                "error": f"Cannot undo a '{last_event.action}' event",
+            }
+
+        if undo_event.action == "moved":
+            if not undo_event.location_to:
+                return {"success": False, "error": "Original location is unknown, cannot undo move"}
+            movement = MovementEvent(
+                lot_id=resolved_id,
+                from_location_id=undo_event.location_from,
+                to_location_id=undo_event.location_to,
+                source="manual",
+            )
+            self.db.record_movement(movement, user_id=user_id)
+        else:
+            new_qty = undo_event.quantity_after if undo_event.quantity_after is not None else lot.quantity
+            new_status = "used" if new_qty <= 0 else "active"
+            self.db.update_inventory_lot(resolved_id, {"quantity": new_qty, "status": new_status}, user_id=user_id)
+
+        self.db.record_inventory_event(undo_event, user_id=user_id)
+
+        updated = self.db.get_inventory_lot(resolved_id)
+        return {
+            "success": True,
+            "undone_action": last_event.action,
+            "lot": updated.model_dump() if updated else None,
+        }
+
     # --- Search / query ---
 
     def find(self, query: str, user_id: str = "") -> dict[str, Any]:

@@ -3,8 +3,12 @@ from __future__ import annotations
 
 
 from shopstack.schemas.models import (
+    FindFeedback,
+    HouseholdObject,
     InventoryLot,
     MovementEvent,
+    ObjectNote,
+    ObjectSighting,
     PriceObservation,
     PurchaseEvent,
     ShoppingListItem,
@@ -127,6 +131,45 @@ class TestMovementCRUD:
         db.record_movement(MovementEvent(lot_id=lot.lot_id, to_location_id="pantry", source="manual"))
         movements = db.get_movements_for_lot(lot.lot_id)
         assert len(movements) == 2
+
+
+class TestHouseholdObjectMemoryCRUD:
+    def test_object_home_sighting_note_and_feedback_roundtrip(self, db):
+        obj = db.add_household_object(HouseholdObject(
+            canonical_name="advay test reports",
+            display_name="Advay Test Reports",
+            object_type="document",
+            category="medical document",
+            owner_name="Advay",
+            home_location_id="bedroom_wardrobe",
+        ))
+
+        db.record_object_sighting(ObjectSighting(
+            object_id=obj.object_id,
+            location_id="study_desk",
+            context="hospital_visit",
+            notes="Reviewed after hospital visit",
+        ))
+        db.add_object_note(ObjectNote(
+            object_id=obj.object_id,
+            note_text="Usually keep this in my almirah, but hospital papers drift to work desk.",
+            tags=["hospital", "advay"],
+            location_id="study_desk",
+        ))
+        db.record_find_feedback(FindFeedback(
+            query="advay reports",
+            feedback="found",
+            object_id=obj.object_id,
+            suggested_location_id="bedroom_wardrobe",
+            actual_location_id="study_desk",
+        ))
+
+        loaded = db.get_household_object(obj.object_id)
+        assert loaded is not None
+        assert loaded.current_location_id == "study_desk"
+        assert db.get_object_sightings(obj.object_id)[0].context == "hospital_visit"
+        assert db.get_object_notes(obj.object_id)[0].tags == ["hospital", "advay"]
+        assert db.get_find_feedback("advay reports")[0].actual_location_id == "study_desk"
 
 
 class TestPriceCRUD:

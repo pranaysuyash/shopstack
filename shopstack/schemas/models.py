@@ -15,6 +15,9 @@ LocationType = Literal["fridge", "pantry", "shelf", "cabinet", "room", "drawer",
 SourceType = Literal["photo", "video", "receipt", "voice", "manual"]
 MovementSource = Literal["user_voice", "image_scan", "manual"]
 RuntimeMode = Literal["local_transformers", "llama_cpp", "gguf", "mock", "onnx", "diffusers"]
+ObjectType = Literal["inventory_lot", "document", "durable", "container", "medicine", "electronics", "other"]
+SightingSource = Literal["manual", "image_scan", "voice", "import", "correction", "agent"]
+FindFeedbackType = Literal["found", "not_found", "wrong_place", "not_this", "moved", "temporary_only", "home_location"]
 
 # ── Decision engine types (§7 Priority 4 from review) ──────────────────────
 
@@ -235,6 +238,60 @@ class MovementEvent(BaseModel):
     confidence: float = 1.0
 
 
+class HouseholdObject(BaseModel):
+    """Durable findable object identity, separate from consumable inventory lots."""
+
+    object_id: str = Field(default_factory=new_id)
+    canonical_name: str
+    display_name: str
+    object_type: ObjectType = "other"
+    category: str = ""
+    owner_name: str | None = None
+    home_location_id: str | None = None
+    current_location_id: str | None = None
+    linked_lot_id: str | None = None
+    status: str = "active"
+    importance: str = "normal"
+    notes: str | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
+class ObjectSighting(BaseModel):
+    sighting_id: str = Field(default_factory=new_id)
+    object_id: str
+    location_id: str
+    timestamp: datetime = Field(default_factory=datetime.now)
+    source: SightingSource = "manual"
+    confidence: float = 1.0
+    context: str | None = None
+    notes: str | None = None
+    photo_path: str | None = None
+    trace_id: str | None = None
+
+
+class ObjectNote(BaseModel):
+    note_id: str = Field(default_factory=new_id)
+    object_id: str
+    note_text: str
+    timestamp: datetime = Field(default_factory=datetime.now)
+    tags: list[str] = Field(default_factory=list)
+    location_id: str | None = None
+    source: SightingSource = "manual"
+
+
+class FindFeedback(BaseModel):
+    feedback_id: str = Field(default_factory=new_id)
+    query: str
+    feedback: FindFeedbackType
+    object_id: str | None = None
+    lot_id: str | None = None
+    suggested_location_id: str | None = None
+    actual_location_id: str | None = None
+    notes: str | None = None
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+
 class DecisionEvidence(BaseModel):
     """A single piece of evidence supporting a decision."""
     source: str  # e.g. "market_snapshot", "inventory", "purchase_history", "price_memory"
@@ -432,6 +489,53 @@ class InventoryEvent(BaseModel):
     location_to: str | None = None
     source: str = "manual"  # manual / shopping_list / reconciliation / scan / system
     notes: str | None = None
+
+    def get_undo_event(self) -> "InventoryEvent | None":
+        """Build the inverse of this event, or ``None`` if it cannot be undone.
+
+        The returned event describes the mutation that, if applied, would
+        restore inventory state to what it was *before* this event occurred.
+        It is intended to be applied by the caller (e.g.
+        ``InventoryRepo.undo_last_change``) and then itself recorded as a new
+        ``inventory_events`` row with ``action="undo"`` so the reversal is
+        auditable rather than a silent history rewrite.
+        """
+        base = {
+            "lot_id": self.lot_id,
+            "canonical_name": self.canonical_name,
+            "unit": self.unit,
+            "source": "undo",
+            "notes": f"undo of {self.action} ({self.event_id})",
+        }
+        if self.action == "added":
+            # Reverse of creating the lot: drive quantity back to zero.
+            return InventoryEvent(
+                action="discarded",
+                quantity_before=self.quantity_after,
+                quantity_after=0.0,
+                quantity_delta=-(self.quantity_after or 0.0),
+                location_to=self.location_to,
+                **base,
+            )
+        if self.action == "moved":
+            return InventoryEvent(
+                action="moved",
+                location_from=self.location_to,
+                location_to=self.location_from,
+                **base,
+            )
+        if self.action in ("consumed", "adjusted", "discarded", "status_changed"):
+            # Swap before/after and negate the delta to walk the quantity back.
+            return InventoryEvent(
+                action="adjusted",
+                quantity_before=self.quantity_after,
+                quantity_after=self.quantity_before,
+                quantity_delta=-(self.quantity_delta or 0.0),
+                location_from=self.location_from,
+                location_to=self.location_to,
+                **base,
+            )
+        return None
 
 
 class PreferenceSignal(BaseModel):

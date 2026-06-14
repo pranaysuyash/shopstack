@@ -148,23 +148,6 @@ def test_static_prefixed_pwa_paths_are_not_used(live_app_url: str) -> None:
 # ── Browser-level: the service worker actually registers ──────────────
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Gradio 6.x's app.launch(head=...) inserts the SW registration "
-        "<script> into document.head via innerHTML, and HTML-parsed "
-        "<script> elements never execute per the HTML spec — same as "
-        "gr.HTML(...). The element is present in the DOM (verified) but "
-        "navigator.serviceWorker.getRegistration() stays empty because "
-        "the registration call never runs. This affects ALL inline "
-        "<script> blocks injected this way (header_script, "
-        "render_shortcuts_script, render_i18n_script, etc.), not just "
-        "the SW — see PROJECT_INTELLIGENCE.md 'Inline <head>/<body> "
-        "scripts never execute' for the systemic fix. The PWA assets "
-        "themselves (manifest.json, sw.js, icons) ARE correctly served "
-        "at root paths — see the passing tests above."
-    ),
-    strict=True,
-)
 def test_service_worker_registers_without_error(live_app_url: str) -> None:
     """Drive headless Chromium and confirm ``navigator.serviceWorker.register``
     resolves successfully — i.e. the PWA shell is genuinely installable,

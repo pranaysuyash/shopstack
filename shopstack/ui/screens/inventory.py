@@ -405,6 +405,23 @@ def consume_item(lot_id: str, qty: float) -> str:
 
 
 @aria_live_screen()
+def undo_last_change(lot_id: str) -> str:
+    if not lot_id or not lot_id.strip():
+        return toast("Enter a lot id to undo", kind="error")
+    uid = _user_id()
+    result = tools.undo_last_inventory_change(lot_id.strip(), user_id=uid)
+    if not result.get("success"):
+        return toast(f"Error: {result.get('error', 'Undo failed')}", kind="error")
+    clear_dashboard_cache(uid)
+    lot = result.get("lot") or {}
+    return (
+        f"<div style='color:var(--green);'>Undid '{escape(str(result.get('undone_action', '')))}'. "
+        f"Quantity now {escape(str(lot.get('quantity', '?')))} {escape(str(lot.get('unit', '')))}.</div>"
+        + toast_floating(f"Undid last change for {escape(str(lot.get('canonical_name', lot_id)))}", kind="success")
+    )
+
+
+@aria_live_screen()
 def consume_items_batch(lines_text: str) -> str:
     if not lines_text:
         return "<div style='color:var(--text-dim);'>Add at least one lot id and quantity.</div>"

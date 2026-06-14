@@ -37,6 +37,7 @@ from shopstack.ui.state.household import (
 )
 from shopstack.ui.components.js_helpers import (
     autocomplete_injector_js,
+    script_bootstrap_js,
     url_state_sync_js,
 )
 
@@ -129,6 +130,9 @@ def build_app() -> gr.Blocks:
         # URL state sync: clicking a tab updates the URL hash, and
         # opening the app with `#basket` deep-links to the Shopping tab.
         app.load(None, js=url_state_sync_js())
+        # Bootstrap re-execution: re-run inline <script data-ss-exec> tags
+        # that Gradio's head=/gr.HTML injection left inert (item #99).
+        app.load(None, js=script_bootstrap_js())
 
         # Wire add-household button and form
         add_hh_btn.click(

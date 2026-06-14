@@ -11,6 +11,7 @@ import gradio as gr
 
 from shopstack.module_registry import tab_label as _tab_label
 from shopstack.ui.components.primitives import loading_skeleton
+from shopstack.ui.screens.inventory import undo_last_change
 from shopstack.ui.screens.timeline import timeline_view
 from shopstack.ui.tabs.context import TabContext
 
@@ -57,3 +58,22 @@ def build_timeline_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> No
             api_description="Refresh the unified timeline view",
         )
         app.load(_timeline_refresh, inputs=[tl_filter, tl_days], outputs=tl_output)
+
+        gr.Markdown("### Undo last change")
+        gr.HTML(
+            "<div style='font-size:0.75rem;color:var(--text-dim);margin-bottom:8px;'>"
+            "Made a mistake adding, consuming, or moving an item? Paste its "
+            "lot id below to reverse the most recent change."
+            "</div>"
+        )
+        with gr.Row():
+            tl_undo_lot_id = gr.Textbox(label="Lot id", placeholder="lot id or prefix", scale=2)
+            tl_undo_btn = gr.Button("Undo last change", elem_classes="secondary", scale=0)
+        tl_undo_output = gr.HTML("")
+        tl_undo_btn.click(
+            undo_last_change,
+            tl_undo_lot_id,
+            tl_undo_output,
+            api_name="undo_last_inventory_change",
+            api_description="Undo the most recent change made to an inventory item",
+        )

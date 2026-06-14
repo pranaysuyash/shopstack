@@ -59,6 +59,9 @@ class ToolRegistry:
         self._register("move_inventory_item", inv.move_item,
                        "Move an item to a different storage location",
                        ["lot_id", "to_location_id"])
+        self._register("undo_last_inventory_change", inv.undo_last_change,
+                       "Undo the most recent change made to an inventory item",
+                       ["lot_id"])
         self._register("find_item", inv.find,
                        "Search for an item across inventory and locations",
                        ["query"])
@@ -376,6 +379,7 @@ class ToolRegistry:
     def update_inventory_item(self, *a, **kw): return self.inventory.update_item(*a, **kw)
     def consume_inventory_item(self, *a, **kw): return self.inventory.consume_item(*a, **kw)
     def move_inventory_item(self, *a, **kw): return self.inventory.move_item(*a, **kw)
+    def undo_last_inventory_change(self, *a, **kw): return self.inventory.undo_last_change(*a, **kw)
     def find_item(self, *a, **kw): return self.inventory.find(*a, **kw)
     def semantic_find_item(self, *a, **kw): return self.inventory.semantic_find(*a, **kw)
     def compare_visible_item_to_inventory(self, *a, **kw): return self.inventory.compare_visible(*a, **kw)

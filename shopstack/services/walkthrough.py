@@ -214,7 +214,7 @@ def render_walkthrough_script(max_sessions: int = MAX_TOUR_SESSIONS) -> str:
     """
     max_sessions = int(max_sessions)
     return f"""
-<script>
+<script data-ss-exec="true">
 (function() {{
   var SHOWN_KEY = '{TOUR_SHOWN_KEY}';
   var COUNT_KEY = '{SESSION_COUNT_KEY}';

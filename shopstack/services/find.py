@@ -4,11 +4,13 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Literal
 
+from shopstack.domain.product_matching import score_product_match
+from shopstack.domain.storage_locations import is_parent_of as _is_parent_of
 from shopstack.persistence.database import Database
-from shopstack.schemas.models import HouseholdLocation, InventoryLot
+from shopstack.schemas.models import FindFeedback, HouseholdLocation, HouseholdObject, InventoryLot
 
 
-FindEntityType = Literal["inventory_lot", "location", "not_found"]
+FindEntityType = Literal["inventory_lot", "household_object", "location", "not_found"]
 FindIntent = Literal["item", "location", "category", "need", "unknown"]
 
 # Decay constant for confidence over time (days half-life)
@@ -120,6 +122,7 @@ class FindResult:
     actions: list[str] = field(default_factory=list)
     lot: dict[str, Any] | None = None
     location: dict[str, Any] | None = None
+    household_object: dict[str, Any] | None = None
     contained_items: list[dict[str, Any]] = field(default_factory=list)
     match_type: str = "none"
     match_score: float = 0.0
@@ -200,9 +203,10 @@ class ShopFindService:
         expanded = self._expand_query(q)
         intent = self.classify_query_intent(q, expanded)
         location_results = self._find_locations(expanded, user_id)
+        object_results = self._find_household_objects(expanded, user_id)
         item_results = self._find_inventory_lots(expanded, user_id)
         results = sorted(
-            [*location_results, *item_results],
+            [*location_results, *object_results, *item_results],
             key=lambda result: result.confidence,
             reverse=True,
         )
@@ -259,6 +263,9 @@ class ShopFindService:
         )
         result["semantic_active"] = self._embedding_provider is not None and getattr(self._embedding_provider, "available", False)
         return result
+
+    def record_feedback(self, feedback: FindFeedback, user_id: str = "") -> FindFeedback:
+        return self.db.record_find_feedback(feedback, user_id=user_id)
 
     def _semantic_find_inventory(self, query: str, user_id: str) -> list[FindResult]:
         """Return inventory lots ranked by embedding similarity to ``query``.
@@ -467,6 +474,70 @@ class ShopFindService:
             return lot.storage_location_id, lot.storage_location_id
         return None, None
 
+    # ── Durable household objects ─────────────────────────────────────
+
+    def _find_household_objects(self, expanded_queries: list[str], user_id: str) -> list[FindResult]:
+        objects = self.db.get_household_objects(user_id=user_id)
+        locations = {loc.location_id: loc for loc in self.db.get_locations()}
+        results: list[FindResult] = []
+        for obj in objects:
+            notes = self.db.get_object_notes(obj.object_id, user_id=user_id)
+            sightings = self.db.get_object_sightings(obj.object_id, user_id=user_id)
+            home = locations.get(obj.home_location_id or "")
+            current = locations.get(obj.current_location_id or "")
+            haystack = self._object_search_text(obj, home, current, notes)
+            best = self._best_text_match(expanded_queries, haystack, obj.canonical_name, obj.display_name, obj.category)
+            if best is None:
+                continue
+            match_type, match_score, reason = best
+            likely_locations = self._object_likely_locations(obj, sightings, locations)
+            current_id = likely_locations[0].location_id if likely_locations else (obj.current_location_id or obj.home_location_id)
+            current_name = likely_locations[0].location_name if likely_locations else ((current or home).name if (current or home) else None)
+            trail = [
+                {
+                    "sighting_id": sighting.sighting_id,
+                    "to_location_id": sighting.location_id,
+                    "to_location_name": locations.get(sighting.location_id).name if locations.get(sighting.location_id) else sighting.location_id,
+                    "timestamp": sighting.timestamp.isoformat(),
+                    "source": sighting.source,
+                    "confidence": sighting.confidence,
+                    "context": sighting.context,
+                    "notes": sighting.notes,
+                }
+                for sighting in sightings
+            ]
+            evidence = [FindEvidence(source="match", message=reason, confidence=match_score)]
+            if home:
+                evidence.append(FindEvidence(source="home", message=f"Normal home is {home.name}.", confidence=0.8))
+            if current:
+                evidence.append(FindEvidence(source="current_location", message=f"Current believed location is {current.name}.", confidence=0.85))
+            if sightings:
+                first_loc = locations.get(sightings[0].location_id)
+                evidence.append(FindEvidence(source="sighting", message=f"Last seen at {first_loc.name if first_loc else sightings[0].location_id}.", confidence=sightings[0].confidence))
+            if notes:
+                evidence.append(FindEvidence(source="note", message=notes[0].note_text, confidence=0.7))
+            search_plan = _generate_search_plan(likely_locations, [], home.name if home else None)
+            results.append(FindResult(
+                entity_type="household_object",
+                title=obj.display_name or obj.canonical_name,
+                confidence=min(1.0, round(match_score + (0.1 if current else 0) + (0.08 if sightings else 0), 4)),
+                location_id=current_id,
+                location_name=current_name,
+                normal_home_location_id=obj.home_location_id,
+                normal_home_location_name=home.name if home else None,
+                current_believed_location_id=current_id,
+                current_believed_location_name=current_name,
+                likely_locations=likely_locations,
+                movement_trail=trail,
+                evidence=evidence,
+                actions=["mark_found", "add_sighting", "add_note", "set_home_location"],
+                household_object=obj.model_dump(),
+                match_type=match_type,
+                match_score=match_score,
+                search_plan=search_plan,
+            ))
+        return results
+
     # ── Core search ────────────────────────────────────────────────────
 
     def _find_inventory_lots(self, expanded_queries: list[str], user_id: str) -> list[FindResult]:
@@ -582,6 +653,32 @@ class ShopFindService:
         ).lower()
 
     @staticmethod
+    def _object_search_text(
+        obj: HouseholdObject,
+        home: HouseholdLocation | None,
+        current: HouseholdLocation | None,
+        notes: list[Any],
+    ) -> str:
+        return " ".join(
+            str(part)
+            for part in [
+                obj.canonical_name,
+                obj.display_name,
+                obj.object_type,
+                obj.category,
+                obj.owner_name or "",
+                obj.status,
+                obj.importance,
+                obj.notes or "",
+                home.name if home else "",
+                current.name if current else "",
+                " ".join(note.note_text for note in notes),
+                " ".join(" ".join(note.tags) for note in notes),
+            ]
+            if part
+        ).lower()
+
+    @staticmethod
     def _best_text_match(
         expanded_queries: list[str],
         haystack: str,
@@ -589,21 +686,42 @@ class ShopFindService:
         display_name: str,
         category: str,
     ) -> tuple[str, float, str] | None:
-        canonical = canonical_name.lower()
-        display = display_name.lower()
+        """Score query terms against item names using domain.product_matching, then fall back to category/context.
+
+        Returns ``(match_type, score, reason)`` where match_type is one of
+        ``exact``, ``prefix``, ``alias``, ``category``, ``context``, or ``none``.
+        """
         cat = category.lower()
+        candidates = [canonical_name, display_name]
+
+        # Phase 1: score_product_match on item names (domain.product_matching)
+        # Covers exact match, alias match (e.g. "doodh" → "milk"),
+        # substring, prefix, and word overlap.
+        best_score: float = 0.0
+        best_type: str = "none"
+        best_reason: str = ""
+
         for term in expanded_queries:
-            if term == canonical or term == display:
-                return "exact", 1.0, f"Exact match on item name '{term}'."
-        for term in expanded_queries:
-            if term in canonical or term in display:
-                return "prefix", 0.86, f"Name contains '{term}'."
+            for candidate in candidates:
+                ms = score_product_match(term, candidate)
+                if ms.score > best_score:
+                    best_score = ms.score
+                    best_type = _match_factor_to_type(ms)
+                    best_reason = ms.reasons[0].detail if ms.reasons else ""
+
+        if best_score >= 0.5:
+            return best_type, best_score, best_reason or f"Matched '{best_type}' with score {best_score:.2f}."
+
+        # Phase 2: category match (not covered by domain.product_matching)
         for term in expanded_queries:
             if cat and term in cat:
                 return "category", 0.78, f"Category matches '{term}'."
+
+        # Phase 3: full-text haystack context match
         for term in expanded_queries:
             if term in haystack:
                 return "context", 0.68, f"Search context contains '{term}'."
+
         query_tokens = [token for term in expanded_queries for token in term.split() if len(token) >= 3]
         if query_tokens:
             matched_tokens = [token for token in query_tokens if token in haystack]
@@ -611,7 +729,11 @@ class ShopFindService:
                 return "context", 0.66, f"Search context contains all query tokens: {', '.join(sorted(set(matched_tokens)))}."
             if len(matched_tokens) >= 2:
                 return "context", 0.62, f"Search context contains related query tokens: {', '.join(sorted(set(matched_tokens)))}."
+
+        if best_score > 0:
+            return best_type, best_score, best_reason or f"Weak match (score {best_score:.2f})."
         return None
+
 
     def _movement_trail(self, lot_id: str, locations: dict[str, HouseholdLocation]) -> list[dict[str, Any]]:
         trail = []
@@ -677,21 +799,72 @@ class ShopFindService:
         ]
 
     @staticmethod
+    def _object_likely_locations(
+        obj: HouseholdObject,
+        sightings: list[Any],
+        locations: dict[str, HouseholdLocation],
+    ) -> list[LikelyLocation]:
+        scores: dict[str, float] = {}
+        reasons: dict[str, list[str]] = {}
+        last_seen: dict[str, str] = {}
+
+        def add(location_id: str | None, score: float, reason: str, timestamp: str | None = None) -> None:
+            if not location_id:
+                return
+            scores[location_id] = scores.get(location_id, 0.0) + score
+            reasons.setdefault(location_id, []).append(reason)
+            if timestamp:
+                last_seen[location_id] = timestamp
+
+        add(obj.home_location_id, 0.45, "Normal home location.")
+        add(obj.current_location_id, 0.75, "Current believed location.")
+        for index, sighting in enumerate(sightings[:MAX_MOVEMENT_EVENTS]):
+            score = max(0.08, 0.4 - index * 0.07)
+            add(sighting.location_id, score, "Most recent sighting." if index == 0 else "Prior sighting.", sighting.timestamp.isoformat())
+        ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+        if not ranked:
+            return []
+        max_score = max(score for _, score in ranked) or 1.0
+        return [
+            LikelyLocation(
+                location_id=location_id,
+                location_name=locations.get(location_id).name if locations.get(location_id) else location_id,
+                score=round(min(1.0, score / max_score), 4),
+                reasons=reasons.get(location_id, []),
+                last_seen_at=last_seen.get(location_id),
+                confidence_decay=_calculate_confidence_decay(last_seen.get(location_id)),
+            )
+            for location_id, score in ranked
+        ]
+
+    @staticmethod
     def _lot_in_location_tree(lot: InventoryLot, location: HouseholdLocation, locations: list[HouseholdLocation]) -> bool:
+        # Check direct match first, then delegate ancestor check to domain
         if lot.storage_location_id == location.location_id:
             return True
-        parent_by_id = {loc.location_id: loc.parent_location_id for loc in locations}
-        current = lot.storage_location_id
-        while current:
-            current = parent_by_id.get(current)
-            if current == location.location_id:
-                return True
-        return False
+        return _is_parent_of(location.location_id, lot.storage_location_id, locations)
+
+
+def _match_factor_to_type(ms) -> str:
+    """Map a domain.product_matching MatchScore to the legacy match_type string."""
+    _SCORE_TO_TYPE = {
+        1.0: "exact",
+        0.9: "alias",
+        0.7: "prefix",
+        0.6: "prefix",
+        0.5: "context",
+        0.4: "context",
+    }
+    for score, mtype in sorted(_SCORE_TO_TYPE.items(), reverse=True):
+        if ms.score >= score:
+            return mtype
+    return "none"
 
 
 def _compatible_lot_result(result: FindResult) -> dict[str, Any]:
     return {
         "lot": result.lot,
+        "household_object": result.household_object,
         "location_name": result.location_name,
         "location_id": result.location_id,
         "normal_home_location_id": result.normal_home_location_id,

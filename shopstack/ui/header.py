@@ -203,7 +203,7 @@ def header_script() -> str:
     - `k` / `ArrowLeft` (when not in input): move to previous tab.
     """
     return """
-<script>
+<script data-ss-exec="true">
 (function() {
   var t = localStorage.getItem('shopstack-theme');
   if (t) {
@@ -300,6 +300,105 @@ def header_block(brand_title: str, brand_subtitle: str, current_locale: str = DE
     )
 
 
+def hydration_recovery_js() -> str:
+    """Return a `<script>` that shows a branded recovery shell if Gradio
+    never hydrates (PROJECT_INTELLIGENCE.md item #36).
+
+    Gradio's default loading state is a bare "Loading..." string with no
+    way for a user to recover if the JS bundle fails (e.g. a CDN hiccup or
+    a JS syntax error in injected `app.load(..., js=...)` callbacks — see
+    item #1). This script:
+
+    1. Records any uncaught JS error / unhandled promise rejection.
+    2. After a timeout (default 10s, overridable via the
+       ``?hydration_timeout=<ms>`` query param for testing), checks whether
+       `#main-content` has rendered any tabs.
+    3. If not, replaces the page body with a branded recovery shell: a
+       friendly message, a "Reload page" button, and a collapsible
+       diagnostics panel showing the captured error(s) — pointing the user
+       at something actionable instead of an infinite spinner.
+
+    Must be passed to ``app.launch(head=...)`` — see :func:`pwa_head_html`
+    docstring for why `<script>` tags only execute via `head=`, not
+    ``gr.HTML(...)``.
+    """
+    return """
+<script data-ss-exec="true">
+(function() {
+  var shopstackErrors = [];
+  window.addEventListener('error', function(e) {
+    shopstackErrors.push((e && e.message) || String(e));
+  });
+  window.addEventListener('unhandledrejection', function(e) {
+    shopstackErrors.push('Unhandled rejection: ' + ((e && e.reason && e.reason.message) || String(e.reason)));
+  });
+
+  function hydrated() {
+    var main = document.getElementById('main-content');
+    return !!(main && main.querySelector('[role="tab"], .tabitem, button'));
+  }
+
+  function showRecoveryShell() {
+    if (hydrated()) return;
+    if (document.getElementById('shopstack-recovery-shell')) return;
+    var params = new URLSearchParams(window.location.search);
+    var errorList = shopstackErrors.length
+      ? '<ul style="text-align:left;max-width:480px;margin:8px auto;padding-left:20px;">'
+        + shopstackErrors.map(function(m) {
+            var div = document.createElement('div');
+            div.textContent = m;
+            return '<li>' + div.innerHTML + '</li>';
+          }).join('')
+        + '</ul>'
+      : '<p style="color:#94a3b8;">No JavaScript errors were captured, but the app did not finish loading in time.</p>';
+
+    var shell = document.createElement('div');
+    shell.id = 'shopstack-recovery-shell';
+    shell.setAttribute('role', 'alert');
+    shell.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#0f172a;color:#f1f5f9;'
+      + 'display:flex;align-items:center;justify-content:center;text-align:center;'
+      + 'font-family:system-ui,-apple-system,sans-serif;padding:24px;';
+    shell.innerHTML =
+      '<div style="max-width:520px;">'
+      + '<h1 style="font-size:1.5rem;margin-bottom:8px;">ShopStack is having trouble loading</h1>'
+      + '<p style="color:#cbd5e1;margin-bottom:16px;">'
+      + 'The app did not finish starting up. This is usually a temporary network '
+      + 'or browser issue — reloading the page fixes it most of the time.'
+      + '</p>'
+      + '<button id="shopstack-recovery-reload" style="background:#facc15;color:#0f172a;border:none;'
+      + 'border-radius:8px;padding:10px 20px;font-size:1rem;font-weight:600;cursor:pointer;margin-bottom:16px;">'
+      + 'Reload page</button>'
+      + '<details style="text-align:left;color:#94a3b8;font-size:0.8rem;">'
+      + '<summary style="cursor:pointer;">Diagnostics</summary>'
+      + errorList
+      + '<p>If reloading does not help, check the server logs in your terminal '
+      + 'for the ShopStack process for more detail.</p>'
+      + '</details>'
+      + '</div>';
+    document.body.appendChild(shell);
+    var reloadBtn = document.getElementById('shopstack-recovery-reload');
+    if (reloadBtn) {
+      reloadBtn.addEventListener('click', function() {
+        window.location.reload();
+      });
+    }
+  }
+
+  var timeoutMs = 10000;
+  try {
+    var params = new URLSearchParams(window.location.search);
+    var override = params.get('hydration_timeout');
+    if (override) timeoutMs = parseInt(override, 10) || timeoutMs;
+  } catch (e) { /* ignore malformed query params */ }
+
+  // NOTE: do not gate on `window.addEventListener('load', ...)` — this
+  // script is re-executed by the bootstrap re-execution helper
+  // (PROJECT_INTELLIGENCE.md item #99) *after* `load` has already fired.
+  setTimeout(showRecoveryShell, timeoutMs);
+})();
+</script>"""
+
+
 def pwa_head_html() -> str:
     """Return the PWA manifest link, theme color meta, and service worker JS.
 
@@ -322,20 +421,22 @@ def pwa_head_html() -> str:
 <meta name="theme-color" content="#0f172a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<script>
+<script data-ss-exec="true">
 // Register service worker for PWA shell caching (Phase 4 #5)
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function() {
-    navigator.serviceWorker.register('/sw.js', { scope: '/' })
-      .then(function(reg) {
-        console.log('[ShopStack PWA] service worker registered, scope:', reg.scope);
-      })
-      .catch(function(err) {
-        console.warn('[ShopStack PWA] service worker registration failed:', err);
-      });
-  });
+  // NOTE: do not gate on `window.addEventListener('load', ...)` — this
+  // script is re-executed by the bootstrap re-execution helper
+  // (PROJECT_INTELLIGENCE.md item #99) *after* the `load` event has
+  // already fired, so a `load` listener registered here would never run.
+  navigator.serviceWorker.register('/sw.js', { scope: '/' })
+    .then(function(reg) {
+      console.log('[ShopStack PWA] service worker registered, scope:', reg.scope);
+    })
+    .catch(function(err) {
+      console.warn('[ShopStack PWA] service worker registration failed:', err);
+    });
 }
-</script>"""
+</script>""" + hydration_recovery_js()
 
 
 def _pwa_css() -> str:

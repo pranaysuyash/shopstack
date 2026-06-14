@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from shopstack.repos.inventory import InventoryRepo
+from shopstack.schemas.models import FindFeedback, HouseholdObject, ObjectNote, ObjectSighting
 from shopstack.services.find import ShopFindService
 
 
@@ -81,6 +82,49 @@ class TestShopFindService:
         assert row["location_name"] == "Bathroom Cabinet"
         assert row["evidence"]
         assert row["likely_locations"]
+
+    def test_durable_object_uses_home_sightings_notes_and_feedback(self, db):
+        _add_location(db, "work_desktop_below", "Work Desktop Below", "shelf")
+        _add_location(db, "my_almirah", "My Almirah", "cabinet")
+        obj = db.add_household_object(HouseholdObject(
+            canonical_name="advay test reports",
+            display_name="Advay Test Reports",
+            object_type="document",
+            category="medical document",
+            owner_name="Advay",
+            home_location_id="my_almirah",
+            current_location_id="my_almirah",
+        ))
+        db.record_object_sighting(ObjectSighting(
+            object_id=obj.object_id,
+            location_id="work_desktop_below",
+            context="hospital_visit",
+            notes="After hospital visit",
+        ))
+        db.add_object_note(ObjectNote(
+            object_id=obj.object_id,
+            note_text="Hospital papers often sit on the work desktop below.",
+            tags=["hospital", "advay"],
+        ))
+
+        result = ShopFindService(db).find_anything("advay reports")
+        item = next(r for r in result.results if r.entity_type == "household_object")
+
+        assert item.normal_home_location_id == "my_almirah"
+        assert item.current_believed_location_id == "work_desktop_below"
+        assert item.likely_locations[0].location_id == "work_desktop_below"
+        assert any(e.source == "note" for e in item.evidence)
+        assert "set_home_location" in item.actions
+
+        feedback = ShopFindService(db).record_feedback(FindFeedback(
+            query="advay reports",
+            feedback="found",
+            object_id=obj.object_id,
+            suggested_location_id="my_almirah",
+            actual_location_id="work_desktop_below",
+        ))
+        assert feedback.feedback == "found"
+        assert db.get_find_feedback("advay reports")[0].actual_location_id == "work_desktop_below"
 
     # ── Semantic search activation ────────────────────────────────────
 

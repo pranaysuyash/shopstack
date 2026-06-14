@@ -202,9 +202,50 @@ def url_state_sync_js() -> str:
     )
 
 
+def script_bootstrap_js() -> str:
+    """Return JS that re-executes inline `<script data-ss-exec>` tags.
+
+    PROJECT_INTELLIGENCE.md item #99: `<script>` elements injected via
+    `gr.HTML(...)` or `app.launch(head=...)` are inserted via
+    `innerHTML`/template parsing, which the HTML spec marks "already
+    started" — browsers never execute them. This affects
+    `header_script()`, `render_i18n_script()`, `render_shortcuts_script()`,
+    `render_walkthrough_script()`, and `pwa_head_html()`'s service-worker
+    registration and hydration-recovery scripts alike.
+
+    This helper is itself passed via `app.load(None, js=...)`, which Gradio
+    *does* execute (confirmed by item #1/#35's `autocomplete_injector_js`
+    and `url_state_sync_js`). It finds every `<script data-ss-exec="true">`
+    in the document, clones its text content into a freshly
+    `document.createElement('script')`, and appends that to `<head>` —
+    elements created this way are NOT "already started" and execute
+    normally, running the inert scripts for real.
+
+    Idempotent: marks each original tag with `data-ss-executed` so a
+    second `app.load` pass (or re-render) does not double-execute it.
+    """
+    return (
+        "() => {"
+        "setTimeout(function(){"
+        "document.querySelectorAll('script[data-ss-exec]:not([data-ss-executed])').forEach(function(old){"
+        "old.setAttribute('data-ss-executed','true');"
+        "var fresh=document.createElement('script');"
+        "for(var i=0;i<old.attributes.length;i++){"
+        "var a=old.attributes[i];"
+        "if(a.name!=='data-ss-exec')fresh.setAttribute(a.name,a.value);"
+        "}"
+        "fresh.textContent=old.textContent;"
+        "document.head.appendChild(fresh);"
+        "});"
+        "},0);"
+        "}"
+    )
+
+
 __all__ = [
     "busy_js",
     "autocomplete_injector_js",
     "url_state_sync_js",
+    "script_bootstrap_js",
     "_TAB_IDS_FOR_URL_SYNC",
 ]

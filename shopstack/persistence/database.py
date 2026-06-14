@@ -9,10 +9,14 @@ from typing import Any
 
 from shopstack.config import settings
 from shopstack.schemas.models import (
+    FindFeedback,
+    HouseholdObject,
     InventoryEvent,
     InventoryLot,
     HouseholdLocation,
     MovementEvent,
+    ObjectNote,
+    ObjectSighting,
     new_id,
     PriceObservation,
     PurchaseEvent,
@@ -136,6 +140,72 @@ class Database:
                 confidence REAL DEFAULT 1.0,
                 FOREIGN KEY (lot_id) REFERENCES inventory_lots(lot_id)
             );
+
+            CREATE TABLE IF NOT EXISTS household_objects (
+                object_id TEXT PRIMARY KEY,
+                canonical_name TEXT NOT NULL,
+                display_name TEXT NOT NULL,
+                object_type TEXT DEFAULT 'other',
+                category TEXT DEFAULT '',
+                owner_name TEXT,
+                home_location_id TEXT,
+                current_location_id TEXT,
+                linked_lot_id TEXT,
+                status TEXT DEFAULT 'active',
+                importance TEXT DEFAULT 'normal',
+                notes TEXT,
+                created_at TEXT,
+                updated_at TEXT,
+                user_id TEXT DEFAULT ''
+            );
+            CREATE INDEX IF NOT EXISTS idx_household_objects_user_name
+                ON household_objects(user_id, canonical_name);
+
+            CREATE TABLE IF NOT EXISTS object_sightings (
+                sighting_id TEXT PRIMARY KEY,
+                object_id TEXT NOT NULL,
+                location_id TEXT NOT NULL,
+                timestamp TEXT,
+                source TEXT DEFAULT 'manual',
+                confidence REAL DEFAULT 1.0,
+                context TEXT,
+                notes TEXT,
+                photo_path TEXT,
+                trace_id TEXT,
+                user_id TEXT DEFAULT '',
+                FOREIGN KEY (object_id) REFERENCES household_objects(object_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_object_sightings_object_time
+                ON object_sightings(object_id, timestamp);
+
+            CREATE TABLE IF NOT EXISTS object_notes (
+                note_id TEXT PRIMARY KEY,
+                object_id TEXT NOT NULL,
+                note_text TEXT NOT NULL,
+                timestamp TEXT,
+                tags TEXT DEFAULT '[]',
+                location_id TEXT,
+                source TEXT DEFAULT 'manual',
+                user_id TEXT DEFAULT '',
+                FOREIGN KEY (object_id) REFERENCES household_objects(object_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_object_notes_object_time
+                ON object_notes(object_id, timestamp);
+
+            CREATE TABLE IF NOT EXISTS find_feedback (
+                feedback_id TEXT PRIMARY KEY,
+                query TEXT NOT NULL,
+                feedback TEXT NOT NULL,
+                object_id TEXT,
+                lot_id TEXT,
+                suggested_location_id TEXT,
+                actual_location_id TEXT,
+                notes TEXT,
+                timestamp TEXT,
+                user_id TEXT DEFAULT ''
+            );
+            CREATE INDEX IF NOT EXISTS idx_find_feedback_user_query
+                ON find_feedback(user_id, query);
 
             CREATE TABLE IF NOT EXISTS price_observations (
                 price_id TEXT PRIMARY KEY,
@@ -1078,6 +1148,165 @@ class Database:
         rows = self.conn.execute(query, params).fetchall()
         return [_row_to_movement(r) for r in rows]
 
+    # --- Household Objects / ShopFind memory ---
+
+    def add_household_object(self, obj: HouseholdObject, user_id: str = "") -> HouseholdObject:
+        if not user_id:
+            user_id = self.active_household_id
+        self.conn.execute(
+            """
+            INSERT INTO household_objects
+            (object_id, canonical_name, display_name, object_type, category, owner_name,
+             home_location_id, current_location_id, linked_lot_id, status, importance,
+             notes, created_at, updated_at, user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                obj.object_id, obj.canonical_name, obj.display_name, obj.object_type,
+                obj.category, obj.owner_name, obj.home_location_id,
+                obj.current_location_id, obj.linked_lot_id, obj.status,
+                obj.importance, obj.notes, obj.created_at.isoformat(),
+                obj.updated_at.isoformat(), user_id,
+            ),
+        )
+        self.conn.commit()
+        return obj
+
+    def get_household_object(self, object_id: str, user_id: str = "") -> HouseholdObject | None:
+        query = "SELECT * FROM household_objects WHERE object_id = ?"
+        params: list[Any] = [object_id]
+        if user_id:
+            query += " AND user_id = ?"
+            params.append(user_id)
+        row = self.conn.execute(query, params).fetchone()
+        return _row_to_household_object(row) if row else None
+
+    def get_household_objects(self, user_id: str = "") -> list[HouseholdObject]:
+        query = "SELECT * FROM household_objects"
+        params: list[Any] = []
+        if user_id:
+            query += " WHERE user_id = ?"
+            params.append(user_id)
+        query += " ORDER BY updated_at DESC"
+        rows = self.conn.execute(query, params).fetchall()
+        return [_row_to_household_object(r) for r in rows]
+
+    def update_household_object(self, object_id: str, updates: dict[str, Any], user_id: str = "") -> HouseholdObject | None:
+        allowed = {
+            "canonical_name", "display_name", "object_type", "category", "owner_name",
+            "home_location_id", "current_location_id", "linked_lot_id", "status",
+            "importance", "notes",
+        }
+        clean = {k: v for k, v in updates.items() if k in allowed}
+        if not clean:
+            return self.get_household_object(object_id, user_id=user_id)
+        clean["updated_at"] = datetime.now().isoformat()
+        parts = ", ".join(f"{key} = ?" for key in clean)
+        params = list(clean.values()) + [object_id]
+        query = f"UPDATE household_objects SET {parts} WHERE object_id = ?"
+        if user_id:
+            query += " AND user_id = ?"
+            params.append(user_id)
+        self.conn.execute(query, params)
+        self.conn.commit()
+        return self.get_household_object(object_id, user_id=user_id)
+
+    def record_object_sighting(self, sighting: ObjectSighting, user_id: str = "") -> ObjectSighting:
+        if not user_id:
+            user_id = self.active_household_id
+        self.conn.execute(
+            """
+            INSERT INTO object_sightings
+            (sighting_id, object_id, location_id, timestamp, source, confidence,
+             context, notes, photo_path, trace_id, user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                sighting.sighting_id, sighting.object_id, sighting.location_id,
+                sighting.timestamp.isoformat(), sighting.source, sighting.confidence,
+                sighting.context, sighting.notes, sighting.photo_path, sighting.trace_id,
+                user_id,
+            ),
+        )
+        self.update_household_object(
+            sighting.object_id,
+            {"current_location_id": sighting.location_id},
+            user_id=user_id,
+        )
+        self.conn.commit()
+        return sighting
+
+    def get_object_sightings(self, object_id: str, user_id: str = "") -> list[ObjectSighting]:
+        query = "SELECT * FROM object_sightings WHERE object_id = ?"
+        params: list[Any] = [object_id]
+        if user_id:
+            query += " AND user_id = ?"
+            params.append(user_id)
+        query += " ORDER BY timestamp DESC"
+        rows = self.conn.execute(query, params).fetchall()
+        return [_row_to_object_sighting(r) for r in rows]
+
+    def add_object_note(self, note: ObjectNote, user_id: str = "") -> ObjectNote:
+        if not user_id:
+            user_id = self.active_household_id
+        self.conn.execute(
+            """
+            INSERT INTO object_notes
+            (note_id, object_id, note_text, timestamp, tags, location_id, source, user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                note.note_id, note.object_id, note.note_text,
+                note.timestamp.isoformat(), json.dumps(note.tags), note.location_id,
+                note.source, user_id,
+            ),
+        )
+        self.conn.commit()
+        return note
+
+    def get_object_notes(self, object_id: str, user_id: str = "") -> list[ObjectNote]:
+        query = "SELECT * FROM object_notes WHERE object_id = ?"
+        params: list[Any] = [object_id]
+        if user_id:
+            query += " AND user_id = ?"
+            params.append(user_id)
+        query += " ORDER BY timestamp DESC"
+        rows = self.conn.execute(query, params).fetchall()
+        return [_row_to_object_note(r) for r in rows]
+
+    def record_find_feedback(self, feedback: FindFeedback, user_id: str = "") -> FindFeedback:
+        if not user_id:
+            user_id = self.active_household_id
+        self.conn.execute(
+            """
+            INSERT INTO find_feedback
+            (feedback_id, query, feedback, object_id, lot_id, suggested_location_id,
+             actual_location_id, notes, timestamp, user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                feedback.feedback_id, feedback.query, feedback.feedback,
+                feedback.object_id, feedback.lot_id, feedback.suggested_location_id,
+                feedback.actual_location_id, feedback.notes,
+                feedback.timestamp.isoformat(), user_id,
+            ),
+        )
+        self.conn.commit()
+        return feedback
+
+    def get_find_feedback(self, query: str = "", user_id: str = "") -> list[FindFeedback]:
+        sql = "SELECT * FROM find_feedback WHERE 1=1"
+        params: list[Any] = []
+        if query:
+            sql += " AND query = ?"
+            params.append(query)
+        if user_id:
+            sql += " AND user_id = ?"
+            params.append(user_id)
+        sql += " ORDER BY timestamp DESC"
+        rows = self.conn.execute(sql, params).fetchall()
+        return [_row_to_find_feedback(r) for r in rows]
+
     # --- Negative Memory (Object Trail) ---
 
     def add_negative_memory(self, lot_id: str, location_id: str, location_name: str = "", source: str = "user_feedback", confidence: float = 1.0, user_id: str = "") -> dict:
@@ -1932,6 +2161,70 @@ def _row_to_inventory_event(row: sqlite3.Row) -> InventoryEvent:
         location_to=row["location_to"],
         source=row["source"] or "manual",
         notes=row["notes"],
+    )
+
+
+def _row_to_household_object(row: sqlite3.Row) -> HouseholdObject:
+    return HouseholdObject(
+        object_id=row["object_id"],
+        canonical_name=row["canonical_name"],
+        display_name=row["display_name"],
+        object_type=row["object_type"] or "other",
+        category=row["category"] or "",
+        owner_name=row["owner_name"],
+        home_location_id=row["home_location_id"],
+        current_location_id=row["current_location_id"],
+        linked_lot_id=row["linked_lot_id"],
+        status=row["status"] or "active",
+        importance=row["importance"] or "normal",
+        notes=row["notes"],
+        created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else datetime.now(),
+        updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else datetime.now(),
+    )
+
+
+def _row_to_object_sighting(row: sqlite3.Row) -> ObjectSighting:
+    return ObjectSighting(
+        sighting_id=row["sighting_id"],
+        object_id=row["object_id"],
+        location_id=row["location_id"],
+        timestamp=datetime.fromisoformat(row["timestamp"]) if row["timestamp"] else datetime.now(),
+        source=row["source"] or "manual",
+        confidence=row["confidence"] if row["confidence"] is not None else 1.0,
+        context=row["context"],
+        notes=row["notes"],
+        photo_path=row["photo_path"],
+        trace_id=row["trace_id"],
+    )
+
+
+def _row_to_object_note(row: sqlite3.Row) -> ObjectNote:
+    try:
+        tags = json.loads(row["tags"] or "[]")
+    except json.JSONDecodeError:
+        tags = []
+    return ObjectNote(
+        note_id=row["note_id"],
+        object_id=row["object_id"],
+        note_text=row["note_text"],
+        timestamp=datetime.fromisoformat(row["timestamp"]) if row["timestamp"] else datetime.now(),
+        tags=tags if isinstance(tags, list) else [],
+        location_id=row["location_id"],
+        source=row["source"] or "manual",
+    )
+
+
+def _row_to_find_feedback(row: sqlite3.Row) -> FindFeedback:
+    return FindFeedback(
+        feedback_id=row["feedback_id"],
+        query=row["query"],
+        feedback=row["feedback"],
+        object_id=row["object_id"],
+        lot_id=row["lot_id"],
+        suggested_location_id=row["suggested_location_id"],
+        actual_location_id=row["actual_location_id"],
+        notes=row["notes"],
+        timestamp=datetime.fromisoformat(row["timestamp"]) if row["timestamp"] else datetime.now(),
     )
 
 

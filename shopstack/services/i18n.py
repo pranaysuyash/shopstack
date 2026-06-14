@@ -381,7 +381,7 @@ def render_i18n_script() -> str:
     page render uses the saved locale.
     """
     return f"""
-<script>
+<script data-ss-exec="true">
 (function() {{
   try {{
     var saved = localStorage.getItem('{LOCALE_STORAGE_KEY}');

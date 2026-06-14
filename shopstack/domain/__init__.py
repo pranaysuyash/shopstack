@@ -41,6 +41,8 @@ from .inventory_alerts import (
 from .storage_locations import (
     is_parent_of,
     get_location_hierarchy,
+    flatten_hierarchy,
+    location_path,
     LocationNode,
 )
 from .product_matching import (
@@ -74,6 +76,8 @@ __all__ = [
     # storage_locations
     "is_parent_of",
     "get_location_hierarchy",
+    "flatten_hierarchy",
+    "location_path",
     "LocationNode",
     # product_matching
     "score_product_match",

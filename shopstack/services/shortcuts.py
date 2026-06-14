@@ -147,7 +147,7 @@ def render_shortcuts_script() -> str:
     """
     tab_ids_js = ", ".join(f'"{tid}"' for tid in TAB_IDS)
     return f"""
-<script>
+<script data-ss-exec="true">
 (function() {{
   // Tab ids that we know about (must match Gradio's gr.Tab(id=...))
   var TAB_IDS = [{tab_ids_js}];

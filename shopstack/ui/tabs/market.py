@@ -119,9 +119,10 @@ def build_market_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
 
             with gr.Tab("Put Away"):
                 gr.Markdown("### Scan a shelf, drawer, cabinet, bag, or box")
-                gr.Markdown("Turn what you find at home into household memory.")
+                gr.Markdown("Turn what you find at home into household memory. Use a photo, a short video sweep, or a voice note.")
                 with gr.Row():
                     hs_image_input = gr.Image(type="filepath", label="Shelf / Drawer Photo")
+                    hs_video_input = gr.Video(label="Short Video Sweep")
                     hs_audio_input = gr.Audio(type="filepath", label="Voice Correction")
                 hs_scene_type = gr.Dropdown(
                     choices=[
@@ -155,7 +156,7 @@ def build_market_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                 )
                 hs_scan_btn.click(
                     shelf_scan_process,
-                    [hs_image_input, hs_audio_input, hs_scene_type],
+                    [hs_image_input, hs_video_input, hs_audio_input, hs_scene_type],
                     [hs_results, hs_state, hs_trace_id, hs_annotated],
                     js=busy_js("home-scan-btn", original_label="Scan home area"),
                     api_name="home_scan",

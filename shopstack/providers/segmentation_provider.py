@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import threading
 import time
 from typing import Any
 
@@ -206,7 +207,12 @@ class BiRefNetSegmentationProvider:
         self._available = False
         self._error: str | None = None
         self._last_latency_ms: float | None = None
+        self._weights_pre_downloaded = False
+        self._pre_download_event = threading.Event()
         self._init()
+        # Kick off background weight download so the first segment() call
+        # is fast — weights are cached in huggingface_hub before use.
+        self._start_pre_download()
 
     def _init(self) -> None:
         try:
@@ -226,7 +232,44 @@ class BiRefNetSegmentationProvider:
     def load(self) -> None:
         if self._model is not None:
             return
+        # Give the background pre-download a chance to finish first
+        # so from_pretrained finds files already cached.
+        if not self._weights_pre_downloaded:
+            self._pre_download_event.wait(timeout=15)
         self._load_model()
+
+    # ── Background pre-download ───────────────────────────────────
+
+    def _start_pre_download(self) -> None:
+        """Start downloading model weights in a background daemon thread.
+
+        Uses ``snapshot_download`` to cache all repo files to the
+        HuggingFace cache directory. The actual ``_load_model()``
+        will then find files already cached and skip network I/O.
+        """
+        if not self._available:
+            return
+        t = threading.Thread(target=self._pre_download_weights, daemon=True)
+        t.start()
+
+    def _pre_download_weights(self) -> None:
+        """Download all model files to HuggingFace cache (no model load)."""
+        try:
+            logger.info("Pre-downloading BiRefNet model weights (%s) ...", self._model_name)
+            from huggingface_hub import snapshot_download, hf_hub_download
+            # snapshot_download caches the entire repo
+            snapshot_download(self._model_name)
+            # Also explicitly cache the custom-code files needed by
+            # _load_birefnet_module()
+            hf_hub_download(self._model_name, "birefnet.py")
+            hf_hub_download(self._model_name, "BiRefNet_config.py")
+            self._weights_pre_downloaded = True
+            self._pre_download_event.set()
+            logger.info("BiRefNet model weights pre-downloaded successfully")
+        except Exception:
+            logger.info("BiRefNet background pre-download deferred (weights will download on first segment() call)")
+
+    # ── Model loading ────────────────────────────────────────────
 
     def _load_birefnet_module(self):
         """Load birefnet.py and BiRefNet_config.py from the repo as a package.
@@ -313,8 +356,10 @@ class BiRefNetSegmentationProvider:
         if not os.path.isfile(image_path):
             return [{"error": f"Image file not found: {image_path}"}]
 
-        if self._model is None and not self._load_model():
-            return [{"error": self._error or "Failed to load model"}]
+        if self._model is None:
+            self.load()
+            if self._model is None:
+                return [{"error": self._error or "Failed to load model"}]
 
         try:
             import torch
