@@ -262,11 +262,34 @@ def detect_home_state_from_db(
 
         items = db.get_inventory(user_id=user_id)
         active_items = [lot for lot in items if getattr(lot, "status", "active") == "active"]
+        # Derive signal_count from preference_signals (the canonical
+        # "what does the user care about" source). 2026-06-15
+        # enhancement: previously hard-coded to 0, which meant ACTIVE
+        # state was never reached even for households with clear
+        # preferences. Now we count actual signals.
+        try:
+            signals = db.get_preference_signals(user_id=user_id) if hasattr(db, "get_preference_signals") else []
+            signal_count = len(signals) if signals else 0
+        except Exception:  # noqa: BLE001
+            # Signal query is best-effort; don't fail the whole
+            # state detection on it
+            signal_count = 0
+        # Derive purchase_count from purchase_events (the canonical
+        # "what has the user bought" source). Falls back to 0 if
+        # the method isn't available.
+        try:
+            if hasattr(db, "list_purchase_events"):
+                events = db.list_purchase_events(user_id=user_id)
+                purchase_count = len(events) if events else 0
+            else:
+                purchase_count = 0
+        except Exception:  # noqa: BLE001
+            purchase_count = 0
         return detect_home_state(
             onboarding_complete=is_onboarding_complete(db),
             item_count=len(active_items),
-            purchase_count=0,  # dashboard service fills this in
-            signal_count=0,    # dashboard service fills this in
+            purchase_count=purchase_count,
+            signal_count=signal_count,
         )
     except Exception as exc:  # noqa: BLE001
         # Log at error level so operators can see the failure.

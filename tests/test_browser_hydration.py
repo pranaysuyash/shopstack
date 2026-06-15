@@ -36,6 +36,13 @@ from typing import Any
 import pytest
 from playwright.sync_api import ConsoleMessage, Page, sync_playwright
 
+# Per 2026-06-14 test isolation hardening: these tests launch a real
+# Gradio server and use Playwright to drive a real browser. They must
+# run in their own pytest process (not in parallel with other tests
+# that touch the same db singleton or Gradio state). Use
+# ``pytest -m standalone`` to run in a clean invocation.
+pytestmark = pytest.mark.standalone
+
 # ── Module-level env setup (must happen before any shopstack import) ──
 # Sets LOCAL_AUTO_DOWNLOAD=false so the app doesn't attempt model
 # downloads during the test.  SHOPSTACK_DB_PATH is set to a shared

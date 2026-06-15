@@ -33,6 +33,7 @@ against the same class of drift that Pass 11 caught in real-time
 from __future__ import annotations
 
 import ast
+import os
 import re
 from pathlib import Path
 
@@ -748,4 +749,246 @@ class TestEmptyStateLintCount:
             f"should either be fixed (adopt the rich service) or "
             f"documented in an addendum. See Pass 15 addendum for "
             f"the full list of 31 pre-existing findings."
+        )
+
+
+# ── §2.5 Empty State UX: basket_shopping_list tab (Pass 16) ──
+
+
+class TestBasketShoppingListRichEmptyState:
+    """The basket_shopping_list tab must use the rich ``empty_states``
+    service for its "No list built yet" state (Pass 16 §2.5).
+
+    Per the same pattern as the find_trail tab (Pass 15): the legacy
+    ``empty_state_enhanced(...)`` one-liner stays as the fallback
+    for the other 3 sites in this tab (poster, reconcile, mark-bought),
+    but the "No list built yet" state (line 273 originally) should
+    use ``render("basket.create_list.no_action", household=ctx)``.
+    """
+
+    def test_basket_shopping_list_uses_rich_empty_state_service(self):
+        """``shopstack/ui/tabs/basket_shopping_list.py`` must use the rich service for the create-list empty state."""
+        path = REPO / "shopstack" / "ui" / "tabs" / "basket_shopping_list.py"
+        source = path.read_text(encoding="utf-8")
+        assert "from shopstack.services.empty_states import" in source, (
+            "shopstack/ui/tabs/basket_shopping_list.py does not import "
+            "from shopstack.services.empty_states. Pass 16 §2.5 requires "
+            "the 'No list built yet' empty state to use the rich service "
+            "(render(...) + build_household_context(...))."
+        )
+        assert "basket.create_list.no_action" in source, (
+            "shopstack/ui/tabs/basket_shopping_list.py does not reference "
+            "the 'basket.create_list.no_action' preset. Pass 16 §2.5 added "
+            "this preset for the 'No list built yet' state."
+        )
+
+    def test_basket_create_list_preset_exists(self):
+        """The ``basket.create_list.no_action`` preset must exist in the service registry."""
+        path = REPO / "shopstack" / "services" / "empty_states.py"
+        source = path.read_text(encoding="utf-8")
+        assert '"basket.create_list.no_action"' in source, (
+            "The 'basket.create_list.no_action' preset is missing from "
+            "shopstack/services/empty_states.py. Pass 16 §2.5 added this "
+            "preset for the basket_shopping_list tab's 'No list built yet' "
+            "state."
+        )
+
+    def test_basket_create_list_i18n_complete(self):
+        """The new preset's title/body keys must be present in en + hi i18n tables."""
+        import re as _re
+        i18n_path = REPO / "shopstack" / "services" / "i18n.py"
+        source = i18n_path.read_text(encoding="utf-8")
+        # Check both title and body are in en block (before "hi") and hi block (after)
+        en_block = source.split('"hi":')[0] if '"hi":' in source else source
+        hi_block_start = source.find('"hi":')
+        hi_block = source[hi_block_start:] if hi_block_start >= 0 else ""
+
+        title_key = "empty.basket.create_list.no_action.title"
+        body_key = "empty.basket.create_list.no_action.body"
+
+        assert f'"{title_key}"' in en_block, (
+            f"{title_key} is missing from the en i18n block. Per "
+            f"§0.8 data-layer rule, every preset title must be translated."
+        )
+        assert f'"{body_key}"' in en_block, (
+            f"{body_key} is missing from the en i18n block."
+        )
+        assert f'"{title_key}"' in hi_block, (
+            f"{title_key} is missing from the hi i18n block."
+        )
+        assert f'"{body_key}"' in hi_block, (
+            f"{body_key} is missing from the hi i18n block."
+        )
+
+
+# ── §2.5 Empty State UX: parser tab (Pass 17, 3rd-tab adoption) ──
+
+
+class TestParserRichEmptyState:
+    """The parser tab must use the rich ``empty_states`` service
+    for its "Type a command" state (Pass 17 §2.5).
+
+    Per the same pattern as the find_trail (Pass 15) + basket_shopping_list
+    (Pass 16) tabs: the rich service + i18n keys turn the static
+    "no input yet" placeholder into a 3-line card with an icon
+    and an example command. The legacy ``empty_state_enhanced(...)``
+    one-liner stays in the import list for other call sites.
+    """
+
+    def test_parser_tab_uses_rich_empty_state_service(self):
+        """``shopstack/ui/tabs/parser.py`` must use the rich service."""
+        path = REPO / "shopstack" / "ui" / "tabs" / "parser.py"
+        source = path.read_text(encoding="utf-8")
+        assert "from shopstack.services.empty_states import" in source, (
+            "shopstack/ui/tabs/parser.py does not import from "
+            "shopstack.services.empty_states. Pass 17 §2.5 requires the "
+            "parser tab to use the rich service for its 'Type a command' "
+            "state (render(...) + build_household_context(...))."
+        )
+        assert "parser.no_input" in source, (
+            "shopstack/ui/tabs/parser.py does not reference the "
+            "'parser.no_input' preset. Pass 17 §2.5 added this preset for "
+            "the 'Type a command' state."
+        )
+
+    def test_parser_no_input_preset_exists(self):
+        """The ``parser.no_input`` preset must exist in the service registry."""
+        path = REPO / "shopstack" / "services" / "empty_states.py"
+        source = path.read_text(encoding="utf-8")
+        assert '"parser.no_input"' in source, (
+            "The 'parser.no_input' preset is missing from "
+            "shopstack/services/empty_states.py. Pass 17 §2.5 added this "
+            "preset for the parser tab's 'Type a command' state."
+        )
+
+    def test_parser_no_input_i18n_complete(self):
+        """The new parser preset's title/body keys must be present in en + hi i18n tables."""
+        i18n_path = REPO / "shopstack" / "services" / "i18n.py"
+        source = i18n_path.read_text(encoding="utf-8")
+        en_block = source.split('"hi":')[0] if '"hi":' in source else source
+        hi_block_start = source.find('"hi":')
+        hi_block = source[hi_block_start:] if hi_block_start >= 0 else ""
+
+        title_key = "empty.parser.no_input.title"
+        body_key = "empty.parser.no_input.body"
+
+        assert f'"{title_key}"' in en_block, (
+            f"{title_key} is missing from the en i18n block."
+        )
+        assert f'"{body_key}"' in en_block, (
+            f"{body_key} is missing from the en i18n block."
+        )
+        assert f'"{title_key}"' in hi_block, (
+            f"{title_key} is missing from the hi i18n block."
+        )
+        assert f'"{body_key}"' in hi_block, (
+            f"{body_key} is missing from the hi i18n block."
+        )
+
+
+# ── Pass 17: _seed_locations restoration (corruption fix) ──
+
+
+class TestSeedLocationsRestoration:
+    """The ``Database._seed_locations()`` function must actually seed
+    the canonical 18 household locations.
+
+    Pass 17 found a pre-existing corruption: the function had
+    ``locations = []`` followed by an orphan list of 18 tuples
+    (a no-op expression that Python evaluated and discarded).
+    The for loop iterated over the empty list, so no locations
+    were ever seeded on a fresh database. Fixed by changing the
+    assignment to ``locations = [`` so the orphan tuples get
+    properly assigned to ``locations``.
+
+    These tests catch:
+    * The exact bug class: ``locations = []`` (empty) at the top of
+      ``_seed_locations`` (which makes the for loop a no-op).
+    * Drift that removes any of the canonical 18 location entries.
+    * Drift that changes the SQL INSERT to lose a column.
+    """
+
+    EXPECTED_LOCATIONS: list[tuple[str, str, str | None, str]] = [
+        ("home", "Home", None, "room"),
+        ("kitchen", "Kitchen", "home", "room"),
+        ("fridge", "Fridge", "kitchen", "fridge"),
+        ("fridge_door", "Fridge Door", "fridge", "fridge"),
+        ("fridge_top", "Fridge Top Shelf", "fridge", "fridge"),
+        ("fridge_drawer", "Fridge Vegetable Drawer", "fridge", "fridge"),
+        ("freezer", "Freezer", "fridge", "freezer"),
+        ("pantry", "Pantry", "kitchen", "pantry"),
+        ("pantry_top", "Pantry Top Shelf", "pantry", "shelf"),
+        ("pantry_mid", "Pantry Middle Shelf", "pantry", "shelf"),
+        ("spice_box", "Spice Box", "pantry", "shelf"),
+        ("bathroom", "Bathroom", None, "room"),
+        ("bathroom_cabinet", "Bathroom Cabinet", "bathroom", "cabinet"),
+        ("bathroom_sink", "Under Bathroom Sink", "bathroom", "cabinet"),
+        ("bedroom", "Bedroom", None, "room"),
+        ("medicine_drawer", "Medicine Drawer", "bedroom", "drawer"),
+        ("balcony", "Balcony", None, "balcony"),
+        ("cleaning_shelf", "Balcony Cleaning Shelf", "balcony", "shelf"),
+    ]
+
+    def test_seed_locations_actually_seeds(self):
+        """``_seed_locations()`` must insert the canonical 18 locations on a fresh DB."""
+        import tempfile
+        from shopstack.persistence.database import Database
+        with tempfile.TemporaryDirectory() as d:
+            db = Database(os.path.join(d, "test_seed.db"))
+            db._seed_locations()
+            rows = db.conn.execute(
+                "SELECT location_id, name, parent_location_id, location_type "
+                "FROM household_locations"
+            ).fetchall()
+            actual = {(r[0], r[1], r[2], r[3]) for r in rows}
+            expected = set(self.EXPECTED_LOCATIONS)
+            assert len(actual) == len(expected), (
+                f"_seed_locations seeded {len(actual)} locations, "
+                f"expected {len(expected)}. The Pass 17 corruption had "
+                f"`locations = []` which made the for loop a no-op. If "
+                f"this assertion fails with 0 locations, the empty-list "
+                f"bug has regressed."
+            )
+            assert actual == expected, (
+                f"_seed_locations seeded different locations than "
+                f"expected. Missing: {expected - actual}; "
+                f"Extra: {actual - expected}."
+            )
+
+    def test_seed_locations_source_not_empty(self):
+        """The ``_seed_locations`` function must NOT start with an empty list assignment.
+
+        This is the specific structural check that would have caught
+        the Pass 17 corruption: ``locations = []`` was the root cause.
+        We strip comments before searching so the regex doesn't match
+        our own docstring text (which mentions the broken pattern).
+        """
+        path = REPO / "shopstack" / "persistence" / "database.py"
+        source = path.read_text(encoding="utf-8")
+        # Find the _seed_locations function and check its body for
+        # the broken pattern. We look for the assignment line.
+        func_start = source.find("def _seed_locations(")
+        if func_start < 0:
+            return  # function not found; nothing to check
+        # Find the next "def " at the same indentation
+        func_body_end = source.find("\n    def ", func_start + 1)
+        if func_body_end < 0:
+            func_body_end = len(source)
+        func_body = source[func_start:func_body_end]
+
+        # Strip comments to avoid matching our own docstring text
+        # (the comment block at the top mentions `locations = []`).
+        stripped = "\n".join(
+            line.split("#", 1)[0] if not line.lstrip().startswith("#") else ""
+            for line in func_body.split("\n")
+        )
+        # Use a regex that requires `locations = []` to be preceded
+        # by optional whitespace (i.e. a real statement), not in a
+        # string. The pattern is specifically the broken assignment.
+        assert not re.search(r"^\s+locations\s*=\s*\[\s*\]\s*$", stripped, re.MULTILINE), (
+            "_seed_locations has `locations = []` (empty) which makes "
+            "the for loop a no-op. Per Pass 17 §1.x, the canonical fix "
+            "is `locations = [` (open bracket, no close) so the orphan "
+            "tuple list gets assigned to the variable. See the comment "
+            "block at the top of _seed_locations for context."
         )

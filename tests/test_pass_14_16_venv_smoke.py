@@ -30,14 +30,41 @@ app.build_app()" class of regression.
 """
 from __future__ import annotations
 
-import os
-
-# Set the canonical test env BEFORE any shopstack import.
-os.environ.setdefault("SHOPSTACK_DB_PATH", ":memory:")
-os.environ.setdefault("SHOPSTACK_LOCAL_AUTO_DOWNLOAD", "false")
-os.environ.setdefault("SHOPSTACK_OFF_THE_GRID", "true")
+# Per the 2026-06-14 test isolation hardening pattern, the
+# full-app build test in this file launches a Gradio
+# ``gr.Blocks`` instance that mutates the ``app`` module's
+# global state. It must run in its own pytest process
+# (or with -m standalone in a separate invocation) so it
+# does not pollute the in-process ``app`` module state for
+# other tests (e.g. test_browser_hydration.py, which is
+# also marked standalone). The subprocess implementation
+# in TestAppBuildsInVenv mitigates in-process pollution,
+# but the canonical pattern across the project is to mark
+# any test that touches the live Gradio stack as
+# ``standalone`` so a bulk test runner can filter it.
+# NOTE: do NOT override os.environ here. conftest.py
+# (tests/conftest.py) already sets SHOPSTACK_DB_PATH to a
+# session-scoped temp FILE path, which is the safe default
+# for tests that build the full Gradio app (the prior
+# :memory: choice broke under Gradio worker threads — see
+# the conftest comment block). The env-smoke test reuses
+# that same DB; we do not re-set it.
 
 import pytest
+
+# Per the 2026-06-14 test isolation hardening pattern, the
+# full-app build test in this file launches a Gradio
+# ``gr.Blocks`` instance that mutates the ``app`` module's
+# global state. It must run in its own pytest process
+# (or with -m standalone in a separate invocation) so it
+# does not pollute the in-process ``app`` module state for
+# other tests (e.g. test_browser_hydration.py, which is
+# also marked standalone). The subprocess implementation
+# in TestAppBuildsInVenv mitigates in-process pollution,
+# but the canonical pattern across the project is to mark
+# any test that touches the live Gradio stack as
+# ``standalone`` so a bulk test runner can filter it.
+pytestmark = pytest.mark.standalone
 
 from shopstack.schemas.models import ToolCall, Trace
 from shopstack.services.training_capture import (
@@ -157,16 +184,91 @@ class TestAppBuildsInVenv:
     errors. A failure here means a new module is breaking
     app composition — the kind of regression that unit
     tests on individual modules can't catch.
+
+    Implementation note (motto_v3 §0.6 reliability +
+    §6 blast-radius): we run the build in a *subprocess*
+    so the smoke check never pollutes the in-process
+    ``app`` module state. Without the subprocess, calling
+    ``build_app()`` here creates a second ``gr.Blocks``
+    instance that can interfere with browser-hydration
+    tests (which also call ``build_app()``) — the
+    Playwright test would then see "toggleTheme is not
+    defined" because the global Gradio JS shim registry
+    was reset between the two builds.
+
+    The subprocess is a one-off cost: the second
+    ``build_app()`` invocation in a fresh Python process
+    is fast (~10s) and we only run it once per test
+    session.
     """
 
     def test_build_app_succeeds(self):
-        from app import build_app
-        app = build_app()
-        # The app should have at least one tab (a sanity check
-        # that build_all_tabs actually ran).
-        assert app is not None
-        children = getattr(app, "children", [])
-        assert len(children) > 0, (
-            "build_app() returned an app with no children — "
-            "build_all_tabs() didn't render any tabs."
-        )
+        import subprocess
+        import sys
+        import tempfile
+        from pathlib import Path
+
+        # Use a private temp DB so the subprocess's Settings()
+        # picks up its own DB rather than the test session's
+        # file DB. This is the same defense-in-depth as the
+        # SHOPSTACK_LOCAL_AUTO_DOWNLOAD=false env in conftest.
+        with tempfile.NamedTemporaryFile(
+            suffix=".db", prefix="shopstack_env_smoke_", delete=False
+        ) as f:
+            smoke_db_path = f.name
+        try:
+            env_overrides = {
+                "SHOPSTACK_DB_PATH": smoke_db_path,
+                "SHOPSTACK_LOCAL_AUTO_DOWNLOAD": "false",
+                "SHOPSTACK_OFF_THE_GRID": "true",
+                # Pin all backends to mock so the subprocess doesn't
+                # try to load real providers (which would slow the
+                # test and possibly fail in CI without HF tokens).
+                "SHOPSTACK_PLANNER_BACKEND": "mock",
+                "SHOPSTACK_STT_BACKEND": "mock",
+                "SHOPSTACK_TTS_BACKEND": "mock",
+                "SHOPSTACK_VISION_BACKEND": "mock",
+                "SHOPSTACK_OBJECT_DETECTION_BACKEND": "mock",
+                "SHOPSTACK_GROUNDING_BACKEND": "mock",
+                "SHOPSTACK_SEGMENTATION_BACKEND": "mock",
+                "SHOPSTACK_OCR_BACKEND": "mock",
+                "SHOPSTACK_TOOL_CALL_PARSER_BACKEND": "mock",
+                "SHOPSTACK_EMBEDDINGS_BACKEND": "mock",
+                "SHOPSTACK_IMAGE_EDIT_BACKEND": "mock",
+                "SHOPSTACK_IMAGE_GEN_BACKEND": "mock",
+            }
+            result = subprocess.run(
+                [sys.executable, "-c", _BUILD_APP_SCRIPT],
+                capture_output=True,
+                text=True,
+                timeout=180,
+                env={**__import__("os").environ, **env_overrides},
+            )
+            assert result.returncode == 0, (
+                f"build_app() in subprocess exited {result.returncode}. "
+                f"stderr:\n{result.stderr[-2000:]}\n"
+                f"stdout:\n{result.stdout[-1000:]}"
+            )
+            # The script prints "OK:<n_children>" on success.
+            assert result.stdout.strip().startswith("OK:"), (
+                f"Unexpected subprocess output: {result.stdout[:200]!r}"
+            )
+        finally:
+            # Clean up the smoke test's private DB.
+            base = Path(smoke_db_path)
+            for suffix in ("", "-wal", "-shm"):
+                base.with_suffix(base.suffix + suffix).unlink(missing_ok=True)
+
+
+# Script run in the subprocess. Kept as a module-level
+# constant (not a function) so the subprocess can exec it
+# without needing the test module's imports.
+_BUILD_APP_SCRIPT = (
+    "import sys; "
+    "sys.path.insert(0, '.'); "
+    "from app import build_app; "
+    "app = build_app(); "
+    "n = len(getattr(app, 'children', [])); "
+    "assert n > 0, f'build_app() returned app with no children: {n}'; "
+    "print(f'OK:{n}')"
+)

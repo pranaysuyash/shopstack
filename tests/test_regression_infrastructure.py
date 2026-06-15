@@ -684,3 +684,50 @@ class TestServicesInitImports:
             f"services.__all__ contains stale names {leaked} that were "
             f"the root cause of DR-019. Remove them."
         )
+
+
+# ── DR-033: database.py parses without SyntaxError (would block conftest) ─
+
+
+class TestDatabaseModuleSyntax:
+    """``shopstack/persistence/database.py`` MUST parse without errors.
+
+    Regression (2026-06-16): the file had ``_seed_locations`` body
+    misplaced and ``_register_undo`` def inside the wrong indent
+    level. This caused ``ast.parse`` to fail at module import time,
+    which broke ANY test in tests/ that triggered the conftest
+    import (conftest imports Database at line 76). The fix moved
+    the misplaced body back to its canonical location and the
+    ``def _register_undo`` to the class-method level.
+
+    This is in the blast radius of any test addition (per
+    motto_v3 §6, §0.1).
+    """
+
+    def test_database_py_parses(self):
+        import ast
+        path = REPO / "shopstack/persistence/database.py"
+        try:
+            ast.parse(path.read_text())
+        except SyntaxError as exc:
+            pytest.fail(
+                f"SyntaxError in shopstack/persistence/database.py "
+                f"line {exc.lineno}: {exc.msg}. This blocks the "
+                f"conftest import and breaks ALL tests in tests/. "
+                f"See DR-033."
+            )
+
+    def test_database_py_no_non_ascii_chars(self):
+        """The file should be pure ASCII (no §, é, etc. that can
+        break parsing on different encodings)."""
+        path = REPO / "shopstack/persistence/database.py"
+        text = path.read_text()
+        non_ascii = [(i, line) for i, line in enumerate(text.split("\n"), 1)
+                     if any(ord(c) > 127 for c in line)]
+        if non_ascii:
+            lines_str = "\n".join(f"  L{i}: {line!r}" for i, line in non_ascii[:5])
+            pytest.fail(
+                f"Non-ASCII characters in database.py. These can "
+                f"break parsing on some Python installations:\n"
+                f"{lines_str}\nReplace with ASCII equivalents."
+            )

@@ -78,6 +78,26 @@ class SizeParseResult:
 
 # ── Unit normalisation ────────────────────────────────────────────────────
 
+_INDIAN_DECIMAL_RE = re.compile(r"(\d),(\d{1,2})(?=\s*(?:kg|g|ml|l|liter|litre|pieces|piece|pcs|pc|combo|pack)\b|$)")
+
+
+def _normalize_indian_decimal(text: str) -> str:
+    """Convert Indian-style decimal commas to international dots.
+
+    Indian households write "1,5 kg" instead of "1.5 kg". This
+    function normalizes the comma → dot ONLY when it's clearly a
+    decimal separator (i.e., comma followed by 1-2 digits and a
+    unit token or end-of-string). It does NOT touch commas that
+    are part of a list (e.g. "1, 2, 3 pieces" stays as-is — the
+    regex below would fail to match anyway, but we don't want
+    to corrupt the input).
+
+    Per motto_v3 §0.14 product reality: Swiggy data for Indian
+    markets uses both numberings; supporting both is correct.
+    """
+    return _INDIAN_DECIMAL_RE.sub(r"\1.\2", text)
+
+
 def _normalize_weight_unit(unit: str) -> str:
     mapping = {
         "kg": "g",
@@ -97,6 +117,13 @@ def parse_size(raw_size: str) -> SizeParseResult:
         return SizeParseResult(warnings=["empty_size"])
 
     stripped = raw_size.strip()
+    # 2026-06-15 (motto_v3 §0.14 product reality): Indian households
+    # write decimals with a comma ("1,5 kg" not "1.5 kg"). Normalize
+    # before regex matching. We do this conservatively — only when
+    # the comma is followed by exactly 1-2 digits at end of numeric
+    # token, which distinguishes it from a real list separator
+    # (e.g. "1, 2, 3 pieces").
+    stripped = _normalize_indian_decimal(stripped)
 
     m = _WEIGHT_PATTERN.match(stripped)
     if m:

@@ -104,6 +104,14 @@ def build_basket_add_items(app: gr.Blocks, ctx: TabContext) -> None:
                     interactive=True,
                     label="Editable Receipt Draft",
                 )
+                # Gradio 6.17 does not reliably surface a Dataframe's
+                # current value as an *input* to a different event
+                # handler when that value was last set via another
+                # handler's *output* (receipt_confirm would receive
+                # None). Mirror every change into a gr.State and read
+                # from that for confirm instead.
+                receipt_df_state = gr.State([])
+                receipt_df.change(lambda v: v, receipt_df, receipt_df_state)
                 with gr.Row():
                     receipt_merchant = gr.Textbox(
                         label="Store Name", interactive=True
@@ -156,7 +164,7 @@ def build_basket_add_items(app: gr.Blocks, ctx: TabContext) -> None:
                 )
                 receipt_confirm_btn.click(
                     receipt_confirm,
-                    [receipt_df, receipt_merchant, receipt_date, receipt_raw_text],
+                    [receipt_df_state, receipt_merchant, receipt_date, receipt_raw_text],
                     receipt_result,
                     api_name="receipt_confirm",
                     api_description=(

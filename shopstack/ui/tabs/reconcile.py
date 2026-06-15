@@ -189,7 +189,13 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                         placeholder="abcdef123456",
                     )
                     cons_qty = gr.Number(label="Quantity to Consume", value=1.0)
-                    cons_btn = gr.Button("Mark used")
+                    cons_btn = gr.Button("Mark used", variant="stop")
+                cons_confirm = gr.Group(visible=False)
+                with cons_confirm:
+                    gr.Markdown("⚠ **Mark this item as used?** Inventory is reduced by the quantity above.")
+                    with gr.Row():
+                        cons_yes = gr.Button("Yes, mark used", variant="stop")
+                        cons_no = gr.Button("Cancel", elem_classes="secondary")
                 cons_result = gr.HTML(
                     empty_state_enhanced(
                         "No items marked as used yet.",
@@ -225,12 +231,23 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                     api_description="Refresh inventory card tiles",
                 )
                 cons_btn.click(
+                    confirm_toggle_updates,
+                    outputs=[cons_btn, cons_confirm],
+                )
+                cons_yes.click(
                     consume_item,
                     [cons_lot, cons_qty],
                     cons_result,
                     api_name="consume_item",
                     api_description="Consume quantity from a lot",
                     js="() => showToast('Marking as used...', 'info')",
+                ).then(
+                    confirm_hide_updates,
+                    outputs=[cons_btn, cons_confirm],
+                )
+                cons_no.click(
+                    confirm_hide_updates,
+                    outputs=[cons_btn, cons_confirm],
                 )
                 gr.HTML(
                     "**Quick use** (one per line: `batch: qty`, or just `batch` for qty 1)")
@@ -245,7 +262,17 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                     placeholder="abc123: 0.5\ndef456: 1\nghi789",
                     elem_id="batch_consume_input",
                 )
-                batch_consume_btn = gr.Button("Mark batch used")
+                batch_consume_btn = gr.Button("Mark batch used", variant="stop")
+                batch_confirm = gr.Group(visible=False)
+                with batch_confirm:
+                    gr.Markdown(
+                        "⚠ **Mark all these items as used?** "
+                        "This may consume multiple lots at once. Lines you typed "
+                        "above that don't match a known lot will be skipped."
+                    )
+                    with gr.Row():
+                        batch_yes = gr.Button("Yes, mark used", variant="stop")
+                        batch_no = gr.Button("Cancel", elem_classes="secondary")
                 batch_consume_result = gr.HTML(
                     empty_state_enhanced(
                         "No batch consumption results yet.",
@@ -254,12 +281,23 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                     )
                 )
                 batch_consume_btn.click(
+                    confirm_toggle_updates,
+                    outputs=[batch_consume_btn, batch_confirm],
+                )
+                batch_yes.click(
                     consume_items_batch,
                     batch_consume_input,
                     batch_consume_result,
                     api_name="consume_batch",
                     api_description="Consume multiple lot quantities from batch input",
                     js="() => showToast('Marking batch as used...', 'info')",
+                ).then(
+                    confirm_hide_updates,
+                    outputs=[batch_consume_btn, batch_confirm],
+                )
+                batch_no.click(
+                    confirm_hide_updates,
+                    outputs=[batch_consume_btn, batch_confirm],
                 )
                 app.load(inventory_view, outputs=inv_table)
                 app.load(inventory_cards_view, outputs=inv_cards)

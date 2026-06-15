@@ -32,19 +32,22 @@ class TestRepoTruthCounts:
     """The script must report accurate counts that match the live code."""
 
     def test_db_tables_count(self):
-        """25 tables currently: app_config, condition_events, find_feedback,
-        household_locations, household_members, household_objects,
+        """Currently 26 tables: app_config, condition_events, correction_events,
+        find_feedback, household_locations, household_members, household_objects,
         households, inventory_events, inventory_lots, market_record_components,
         market_records, market_snapshots, movement_events, negative_memory,
         object_notes, object_sightings, person_associations, preference_signals,
         price_observations, purchase_events, reconciliation_events,
         shopping_list_items, shopping_lists, stores, traces.
+
+        The ``correction_events`` table was added by a parallel agent
+        (2026-06-14) to track user corrections to AI recommendations.
         """
         result = _run_repo_truth("--format", "json")
         assert result.returncode == 0, f"Script failed: {result.stderr}"
         data = json.loads(result.stdout)
-        assert data["database"]["tables"] == 25, (
-            f"Expected 25 tables, got {data['database']['tables']}. "
+        assert data["database"]["tables"] == 26, (
+            f"Expected 26 tables, got {data['database']['tables']}. "
             f"Update this test if you intentionally added/removed tables."
         )
 

@@ -231,6 +231,31 @@ PRESETS: dict[str, EmptyStatePreset] = {
         body_key="empty.cookbook.body",
         icon="🍳",
     ),
+    # Pass 16 §2.5: empty state for the basket_shopping_list tab's
+    # "No list built yet" placeholder (originally at line 273 of
+    # basket_shopping_list.py). The previous generic one-liner was a
+    # static "no action yet" state that didn't tell the user what to
+    # do next. The rich service + i18n keys turn it into a 3-line
+    # card with an icon and a clear call-to-action.
+    "basket.create_list.no_action": EmptyStatePreset(
+        preset_id="basket.create_list.no_action",
+        tier="transient",
+        title_key="empty.basket.create_list.no_action.title",
+        body_key="empty.basket.create_list.no_action.body",
+        icon="🛒",
+    ),
+    # Pass 17 §2.5: empty state for the Parser Test tab's
+    # "Type a command and click Parse" placeholder (line 30 of
+    # parser.py). The previous generic one-liner was a static
+    # "no input yet" state that didn't tell the user what kinds of
+    # commands ShopStack understands.
+    "parser.no_input": EmptyStatePreset(
+        preset_id="parser.no_input",
+        tier="transient",
+        title_key="empty.parser.no_input.title",
+        body_key="empty.parser.no_input.body",
+        icon="🧠",
+    ),
     "global_search.no_results": EmptyStatePreset(
         preset_id="global_search.no_results",
         tier="transient",

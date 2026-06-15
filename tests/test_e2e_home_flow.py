@@ -261,3 +261,105 @@ def test_e2e_subhead_offers_a_recovery_or_action():
             f"{state.subhead!r} (only {len(words)} words). "
             f"User-facing copy should be a meaningful sentence."
         )
+
+
+# ── detect_home_state_from_db (real DB integration) ─────────────────
+
+
+class _FakeDB:
+    """Minimal DB stub for testing detect_home_state_from_db.
+
+    The real Database has many methods; we only stub the ones
+    that ``detect_home_state_from_db`` actually uses so the
+    integration test exercises the real branching logic.
+    """
+
+    def __init__(self, *, items=None, signals=None, purchases=None,
+                 onboarding_complete=False):
+        self._items = items or []
+        self._signals = signals or []
+        self._purchases = purchases or []
+        self._onboarding = onboarding_complete
+        # Get/set for onboarding state
+        self._config = {"onboarding_complete": "1" if onboarding_complete else "0"}
+
+    def get_inventory(self, user_id: str = ""):
+        return self._items
+
+    def get_preference_signals(self, user_id: str = ""):
+        return list(self._signals)
+
+    def list_purchase_events(self, user_id: str = ""):
+        return list(self._purchases)
+
+    def get_config_value(self, key: str, default: str = "") -> str:
+        return self._config.get(key, default)
+
+
+def test_e2e_detect_home_state_from_db_counts_signals_and_purchases():
+    """2026-06-15 enhancement: detect_home_state_from_db must
+    actually count signals and purchases from the DB, not
+    hard-code them to 0. Previously ACTIVE was never reached
+    even for households with clear preferences.
+    """
+    # 10 active items, 3 purchases, 5 signals → ACTIVE
+    db = _FakeDB(
+        items=[type("Lot", (), {"status": "active"})() for _ in range(10)],
+        signals=[f"s{i}" for i in range(5)],
+        purchases=[f"p{i}" for i in range(3)],
+        onboarding_complete=True,
+    )
+    state = detect_home_state_from_db(db, user_id="h1")
+    assert state.state == HomeState.ACTIVE, (
+        f"Expected ACTIVE with 10 items / 3 purchases / 5 signals, "
+        f"got {state.state.value}"
+    )
+    assert state.signal_count == 5
+    assert state.purchase_count == 3
+
+    # 10 items, 0 signals → QUIET (not ACTIVE)
+    quiet_db = _FakeDB(
+        items=[type("Lot", (), {"status": "active"})() for _ in range(10)],
+        signals=[],
+        purchases=[],
+        onboarding_complete=True,
+    )
+    quiet_state = detect_home_state_from_db(quiet_db, user_id="h1")
+    assert quiet_state.state == HomeState.QUIET
+    assert quiet_state.signal_count == 0
+    assert quiet_state.purchase_count == 0
+
+
+def test_e2e_detect_home_state_from_db_handles_missing_methods():
+    """If the DB doesn't have get_preference_signals or
+    list_purchase_events (older DB instance), the function
+    must not crash — just fall back to 0."""
+    class OldDB:
+        def get_inventory(self, user_id: str = ""):
+            return [type("Lot", (), {"status": "active"})() for _ in range(10)]
+        def get_config_value(self, key: str, default: str = "") -> str:
+            return "1"  # onboarding complete
+
+    state = detect_home_state_from_db(OldDB(), user_id="h1")
+    # Without signals → QUIET (not ACTIVE)
+    assert state.state == HomeState.QUIET
+    assert state.signal_count == 0
+    assert state.purchase_count == 0
+
+
+def test_e2e_detect_home_state_from_db_handles_method_exception():
+    """If the signal/purchase queries throw exceptions, the
+    state machine must still work (fall back to 0 for those
+    counts). Don't let a flaky signal table break the home page."""
+    class FlakySignalsDB(_FakeDB):
+        def get_preference_signals(self, user_id: str = ""):
+            raise RuntimeError("signal table is locked")
+        def list_purchase_events(self, user_id: str = ""):
+            raise RuntimeError("purchase table is locked")
+
+    state = detect_home_state_from_db(FlakySignalsDB(), user_id="h1")
+    # 10 items / 0 signals (because the exception was caught) / 0 purchases
+    # → QUIET
+    assert state.state == HomeState.QUIET
+    assert state.signal_count == 0
+    assert state.purchase_count == 0

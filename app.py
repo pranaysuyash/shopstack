@@ -4,9 +4,91 @@ import os
 
 # HF Spaces: ensure DB_PATH defaults to a writable location before
 # shopstack.config instantiates Settings() at module import time.
-os.environ.setdefault("SHOPSTACK_DB_PATH", "shopstack.db")
+# Only do this on Spaces (SPACE_ID is set by the HF runtime) — locally
+# this must NOT override shopstack.config's data/shopstack.db default,
+# or every write silently lands in a stray ./shopstack.db at repo root.
+if os.environ.get("SPACE_ID"):
+    os.environ.setdefault("SHOPSTACK_DB_PATH", "shopstack.db")
 
 import gradio as gr
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
+
+
+class PermissionsPolicyMiddleware(BaseHTTPMiddleware):
+    """Add a restrictive Permissions-Policy header to all responses.
+
+    The policy restricts access to sensitive browser APIs by default.
+    Only features needed by the app should be explicitly allowed.
+    """
+
+    # Valid Permissions-Policy features (per W3C spec)
+    # We disable all by default. Enable only what the app actually uses.
+    PERMISSIONS_POLICY = (
+        "accelerometer=(), "
+        "ambient-light-sensor=(), "
+        "autoplay=(), "
+        "battery=(), "
+        "camera=(), "
+        "display-capture=(), "
+        "document-domain=(), "
+        "encrypted-media=(), "
+        "fullscreen=(), "
+        "gamepad=(), "
+        "geolocation=(), "
+        "gyroscope=(), "
+        "hid=(), "
+        "identity-credentials-get=(), "
+        "idle-detection=(), "
+        "keyboard-map=(), "
+        "local-fonts=(), "
+        "magnetometer=(), "
+        "microphone=(), "
+        "midi=(), "
+        "otp-credentials=(), "
+        "payment=(), "
+        "picture-in-picture=(), "
+        "publickey-credentials-create=(), "
+        "publickey-credentials-get=(), "
+        "screen-wake-lock=(), "
+        "serial=(), "
+        "speaker-selection=(), "
+        "sync-xhr=(), "
+        "usb=(), "
+        "web-share=(), "
+        "window-management=(), "
+        "xr-spatial-tracking=()"
+    )
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["Permissions-Policy"] = self.PERMISSIONS_POLICY
+        return response
+
+
+def _install_permissions_policy_middleware(app: gr.Blocks) -> None:
+    """Install the Permissions-Policy middleware on the Gradio app's FastAPI instance."""
+    fastapi_app = app.app
+    fastapi_app.add_middleware(PermissionsPolicyMiddleware)
+
+
+def _install_post_launch_hooks(app: gr.Blocks) -> None:
+    """Install hooks that re-mount PWA routes and middleware after Gradio's launch() recreates the FastAPI app."""
+    original_launch = app.launch
+
+    def wrapped_launch(*args, **kwargs):
+        result = original_launch(*args, **kwargs)
+        # Re-mount PWA routes and middleware after launch() creates a new FastAPI app
+        from shopstack.ui.pwa_mount import mount_pwa_static
+        from shopstack.services.health_mount import mount_health_endpoint
+        from shopstack.app_context import db
+        mount_pwa_static(app)
+        mount_health_endpoint(app, db)
+        _install_permissions_policy_middleware(app)
+        return result
+
+    app.launch = wrapped_launch
 
 from shopstack.ui.header import header_block, pwa_head_html
 from shopstack.ui.theme import CSS
@@ -191,6 +273,7 @@ def build_app() -> gr.Blocks:
     # while inside the context.
     mount_pwa_static(app)
     mount_health_endpoint(app, db)
+    _install_permissions_policy_middleware(app)
     _install_post_launch_hooks(app)
 
     return app

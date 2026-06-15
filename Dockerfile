@@ -37,9 +37,10 @@ COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/pytho
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /app/shopstack /app/shopstack
 
-# Copy app entry point and data directory structure
+# Copy app entry point, data directory structure, and static assets
 COPY app.py .
 COPY data/ data/
+COPY static/ static/
 
 # Create non-root user for security
 RUN adduser --system --no-create-home shopstack && \
@@ -86,6 +87,7 @@ RUN uv pip install --system --no-cache -e ".[dev]"
 COPY app.py ./
 COPY data/ data/
 COPY shopstack/ shopstack/
+COPY static/ static/
 COPY tests/ tests/
 COPY benchmarks/ benchmarks/
 

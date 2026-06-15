@@ -161,6 +161,16 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "empty.fridge.body": "Add what you just bought, or pick from a recent shopping list.",
         "empty.cookbook.title": "Recipes will appear here",
         "empty.cookbook.body": "We suggest meals based on what's expiring and what you buy most often. Add a few staples to your pantry to see suggestions.",
+        # Pass 16 §2.5: new preset for the basket_shopping_list tab's
+        # "No list built yet" placeholder. Mirrors the English one-liner
+        # that was at basket_shopping_list.py:273 before the adoption.
+        "empty.basket.create_list.no_action.title": "No shopping list built yet",
+        "empty.basket.create_list.no_action.body": "Enter a goal and items above, then click Build Shopping List. ShopStack will compare prices, suggest swaps, and remind you what to buy next.",
+        # Pass 17 §2.5: new preset for the parser test tab's
+        # "Type a command and click Parse" placeholder. Mirrors the
+        # English one-liner that was at parser.py:30 before the adoption.
+        "empty.parser.no_input.title": "Type a command to see the parser in action",
+        "empty.parser.no_input.body": "Try a natural-language command like 'add 2 kg atta to my shopping list' or 'find the milk'. ShopStack will show the parsed intent, slots, and any entities it extracted.",
         "empty.search.title": "No results",
         "empty.search.body": "Try a different word, or scan a receipt to add the item to your pantry first.",
         # Empty-state CTAs
@@ -328,6 +338,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "empty.fridge.body": "अभी जो खरीदा वो जोड़ें या पिछली लिस्ट से चुनें।",
         "empty.cookbook.title": "रेसिपी यहाँ दिखेंगी",
         "empty.cookbook.body": "हम सुझाव देते हैं — क्या खत्म हो रहा है, क्या अक्सर खरीदते हैं।",
+        # Pass 16 §2.5: Hindi for the new basket preset
+        "empty.basket.create_list.no_action.title": "अभी तक कोई लिस्ट नहीं बनी",
+        "empty.basket.create_list.no_action.body": "ऊपर लक्ष्य और आइटम डालें, फिर शॉपिंग लिस्ट बनाएँ पर क्लिक करें। ShopStack कीमतें तुलना करेगा।",
+        # Pass 17 §2.5: Hindi for the new parser preset
+        "empty.parser.no_input.title": "पार्सर देखने के लिए कोई कमांड टाइप करें",
+        "empty.parser.no_input.body": "कुछ आज़माएँ — '2 किलो आटा मेरी लिस्ट में डालो' या 'दूध कहाँ है'। ShopStack intent और entities दिखाएगा।",
         "empty.search.title": "कुछ नहीं मिला",
         "empty.search.body": "कोई दूसरा शब्द आज़माएँ या पहले रसीद स्कैन करें।",
         # Empty-state CTAs
@@ -558,15 +574,29 @@ def render_language_script() -> str:
     server's ``save_locale`` API endpoint (so the choice is persisted
     to the server-side locale file), and then reloads so the next
     page render uses the saved locale.
+
+    2026-06-15 (motto_v3 §6 pre-existing is not an excuse):
+    the previous JS used ``fetch('/save_locale', {method: 'POST', body: formData})``
+    which returned 405 (Method Not Allowed) on the live Gradio
+    deployment. The actual Gradio 5.x API endpoint is
+    ``/gradio_api/call/save_locale`` and expects a JSON body of the
+    form ``{"data": ["locale"]}`` (NOT FormData). The locale selector
+    has been silently broken all along. This fix posts to the
+    correct endpoint with the correct body shape.
     """
     return (
         f"<script>\n"
         f"window.setLocale = function(loc) {{\n"
         f"  try {{ localStorage.setItem('{LOCALE_STORAGE_KEY}', loc); }} catch (e) {{}}\n"
         f"  try {{\n"
-        f"    var form = new FormData();\n"
-        f"    form.append('locale', loc);\n"
-        f"    fetch('/save_locale', {{ method: 'POST', body: form }});\n"
+        f"    // Gradio 5.x API: POST to /gradio_api/call/save_locale with JSON body\n"
+        f"    // Body shape must be {{data: [\"<locale>\"]}}, not FormData.\n"
+        f"    var sessionHash = 'web_' + Math.random().toString(36).slice(2);\n"
+        f"    fetch('/gradio_api/call/save_locale', {{\n"
+        f"      method: 'POST',\n"
+        f"      headers: {{ 'Content-Type': 'application/json' }},\n"
+        f"      body: JSON.stringify({{ data: [loc], session_hash: sessionHash, fn_index: 0 }})\n"
+        f"    }});\n"
         f"  }} catch (e) {{}}\n"
         f"  setTimeout(function() {{ window.location.reload(); }}, 80);\n"
         f"}};\n"

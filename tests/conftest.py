@@ -364,6 +364,14 @@ def pytest_configure(config):
         "(e.g. tests that build the full app or download models). "
         "Run with `pytest -m slow` to execute them explicitly.",
     )
+    config.addinivalue_line(
+        "markers",
+        "standalone: tests that mutate the global db singleton or launch a "
+        "Gradio server. Must run in their own pytest process (not in parallel "
+        "with other tests that touch the same singletons). Per the 2026-06-14 "
+        "test isolation hardening, run these via `pytest -m standalone` in a "
+        "separate invocation, or skip them in bulk test runs.",
+    )
 
 
 def pytest_unconfigure(config):

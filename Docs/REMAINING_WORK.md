@@ -162,6 +162,32 @@ Closed in Pass 13:
     the `CONFIG_ERROR: Gradio version does not exist` failure
     on the HF Space.
 
+### Addendum (2026-06-15) — E2E flow harness re-run (post-fix)
+- ✅ Re-ran `scripts/e2e_full_run.py` against the current codebase
+  (after the 2026-06-15 hardening pass).
+- ✅ **10/10 flows passed, 0 page errors, 0 console errors** in
+  ~80 seconds.
+- ✅ The harness exercises 4 real image uploads from the repo:
+  - `data/fresh_mart.png` (Shelf Scan / vision)
+  - `data/maa_laxmi.png` (Smart Basket / receipt OCR)
+  - `data/sai_pharma.png` (Parser Test / label OCR)
+  - `benchmarks/modal/assets/household_grounding/fridge.png` (Analytics)
+- ✅ "After" screenshots are significantly larger than "open"
+  (e.g., `04b_shelf_after.png` = 726KB vs `04a_shelf_open.png` = 75KB),
+  confirming AI inference produced real rendered output.
+- ✅ New regression test: `tests/test_regression_e2e_harness.py`
+  (14 tests) — guards the harness, test images, FLOWS table, and
+  the 10/10 + 0-errors result contract. Catches:
+  - Missing E2E script or test images
+  - Script syntax errors
+  - FLOWS table corruption (parallel-agent deletion of flows)
+  - Screenshot capture failures (empty/blank pages)
+  - Per-flow page-error regression
+  - Image upload step regression
+- ✅ E2E report + results updated at
+  `Docs/qa/2026-06-15_e2e_audit_run/{report.md,results.json}`
+  and re-uploaded to HF Space.
+
 ### Addendum (2026-06-15) — final state
 - **Test suite (serial):** 3550 passed, 21 skipped, 0 failed
   (`tests/` excluding the 3 known browser/visual suites that need

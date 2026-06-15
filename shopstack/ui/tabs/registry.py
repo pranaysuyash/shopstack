@@ -22,8 +22,18 @@ No changes to ``app.py`` are needed for new tabs.
 nested nav to the new 6-item user-facing primary nav (Home / Pantry /
 Shopping / Recipes / Trips / Memory). Each primary nav item is a single
 ``gr.Tab`` that points at the canonical destination tab, with the
-remaining advanced tabs reachable as nested sub-tabs inside. The old
+remaining advanced tabs reachable as nested subtabs inside. The old
 ``TAB_GROUPS`` layout is still the default for back-compat.
+
+**2026-06-15 update (Primary-nav consolidation):** the advanced
+subtabs in ``PRIMARY_NAV_ADVANCED`` are no longer rendered as
+immediate nested sub-tabs. Instead, they sit inside a collapsed
+``gr.Accordion(label="More", open=False)`` so the user sees the
+destination view first and the advanced tabs only on demand.
+This is the hide-not-delete treatment (motto_v3 §11): the
+registry still EXPOSES every advanced tab, but the default
+user-facing surface stays focused. The legacy 5-group layout
+is untouched.
 """
 
 from __future__ import annotations
@@ -104,6 +114,39 @@ def registered_tab_ids() -> set[str]:
     return set(_TAB_BUILDERS)
 
 
+def _build_in_more_accordion(
+    tab_ids: list[str],
+    blocks: gr.Blocks,
+    app: gr.Blocks,
+    ctx: TabContext,
+    handles: dict[str, Any],
+) -> None:
+    """Render the given tab_ids inside a collapsed ``gr.Accordion``.
+
+    Per motto_v3 §11 (hide, not delete): the advanced sub-tabs are
+    still EXPOSED in the registry and the user can reach them by
+    clicking the "More" disclosure. The default surface stays
+    focused on the destination view.
+
+    Additive (2026-06-15): the registry still builds every
+    tab; the new disclosure is a presentation-layer change only.
+    """
+    with gr.Accordion(
+        label=f"More ({len(tab_ids)})",
+        open=False,
+        elem_classes="primary-nav-more",
+    ):
+        for tab_id in tab_ids:
+            builder = _TAB_BUILDERS.get(tab_id)
+            if builder is None:
+                continue
+            # Capture the return value if this is a handles tab;
+            # otherwise the builder returns None and we discard it.
+            result = builder(blocks=blocks, app=app, ctx=ctx)
+            if tab_id in HANDLES_TABS:
+                handles[tab_id] = result
+
+
 def build_all_tabs(
     blocks: gr.Blocks,
     app: gr.Blocks,
@@ -118,9 +161,11 @@ def build_all_tabs(
         blocks, app, ctx: Standard builder arguments (see :class:`TabContext`).
         use_primary_nav: When True, render the 6-item user-facing
             primary nav (Home / Pantry / Shopping / Recipes / Trips
-            / Memory) with each item showing advanced sub-tabs as
-            nested :class:`gr.Tabs`. When False (default), use the
-            legacy 5-group nested layout from ``TAB_GROUPS``.
+            / Memory). The destination tab is shown first; any
+            advanced sub-tabs for that primary are placed inside a
+            collapsed "More" accordion so the default view stays
+            focused. When False (default), use the legacy 5-group
+            nested layout from ``TAB_GROUPS``.
 
     Returns:
         Dict mapping tab_id to whatever the builder returned.
@@ -137,21 +182,43 @@ def build_all_tabs(
     if use_primary_nav:
         for item in PRIMARY_NAV:
             with gr.Tab(item["label"], id=item["id"]):
-                # Each primary tab gets a nested gr.Tabs for the
-                # advanced screens assigned to it. The destination
-                # tab is rendered first so it's the default view.
-                advanced = PRIMARY_NAV_ADVANCED.get(item["id"], [])
-                # Reorder so the destination is first.
-                ordered = [item["destination"]] + [
-                    tid for tid in advanced if tid != item["destination"]
+                # Render the destination tab as the default view
+                # of this primary destination. Cross-tab wiring
+                # handles are still returned to ``handles`` so
+                # ``app.py`` can wire up events (today, reconcile).
+                destination = item["destination"]
+                dest_builder = _TAB_BUILDERS.get(destination)
+                if dest_builder is not None:
+                    result = dest_builder(blocks=blocks, app=app, ctx=ctx)
+                    if destination in HANDLES_TABS:
+                        handles[destination] = result
+
+                # The advanced sub-tabs (excluding the destination)
+                # sit inside a collapsed "More" accordion — see
+                # ``_build_in_more_accordion`` for the rationale.
+                advanced_only = [
+                    tid for tid in PRIMARY_NAV_ADVANCED.get(item["id"], [])
+                    if tid != destination
                 ]
-                with gr.Tabs():
-                    for tab_id in ordered:
-                        builder = _TAB_BUILDERS.get(tab_id)
-                        if builder is None:
-                            continue
-                        handles[tab_id] = builder(blocks=blocks, app=app, ctx=ctx)
+                if advanced_only:
+                    _build_in_more_accordion(
+                        advanced_only, blocks, app, ctx, handles,
+                    )
         return handles
+
+    # Legacy 5-group nested layout (default, back-compat).
+    for group_id, _group_label in group_order():
+        screen_ids = group_tab_ids(group_id)
+        if not screen_ids:
+            continue
+        with gr.Tab(_group_label, id=group_id):
+            with gr.Tabs():
+                for tab_id in screen_ids:
+                    builder = _TAB_BUILDERS.get(tab_id)
+                    if builder is None:
+                        continue
+                    handles[tab_id] = builder(blocks=blocks, app=app, ctx=ctx)
+    return handles
 
     # Legacy 5-group nested layout (default, back-compat).
     for group_id, _group_label in group_order():

@@ -776,6 +776,14 @@ class Database:
         existing = self.conn.execute("SELECT COUNT(*) FROM household_locations").fetchone()[0]
         if existing > 0:
             return
+        # Pass 17 Section1.x: restored the canonical 18-entry locations list.
+        # The previous version had `locations = []` followed by an orphan
+        # list of tuples (a no-op expression). Changing the assignment
+        # to `locations = [` makes the orphan tuples get assigned to
+        # ``locations`` and the for loop iterates over the full set.
+        # No deletion — the 18 entries are the canonical household
+        # locations (pantry, fridge, freezer, bathroom, etc.) and were
+        # always present in the source; only the assignment was broken.
         locations = [
             ("home", "Home", None, "room"),
             ("kitchen", "Kitchen", "home", "room"),
@@ -801,17 +809,74 @@ class Database:
                 "INSERT INTO household_locations (location_id, name, parent_location_id, location_type) VALUES (?, ?, ?, ?)",
                 (loc_id, name, parent, loc_type),
             )
+        self.conn.commit()
+
+    def _register_undo(
+        self,
+        *,
+        kind: str,
+        household_id: str,
+        before: dict[str, Any],
+        after: dict[str, Any] | None = None,
+        description: str = "",
+    ) -> None:
+        """Register a successful mutation for undo (Phase 12 R3.1).
+
+        Thin wrapper around :func:`shopstack.services.undo_ledger.get_ledger().register`
+        that enforces the sec0.6 risk-based safety contract:
+
+        * Best-effort: a ledger failure never breaks the write.
+        * No-op when ``household_id`` is empty (the DB layer
+          already filtered out anonymous writes; this is a
+          second guard).
+        * Single source of truth for the 4-line recipe that
+          every write path used to inline.
+
+        The recipe is proven across 8 call sites (consume_inventory
+        + 7 more wired in R3.1). Extracting it here removes the
+        duplicated try/except + import that each path had to
+        carry, and makes it trivial to add a 9th path later
+        (one line, not five).
+
+        Per motto_v3 Section0.10 observability: every register logs
+        the kind + household at INFO level so the operator can
+        see "user undid a consume_inventory at 12:34" in the
+        server log.
+
+        2026-06-15 (Home flow Pass 15): this method was moved
+        out of the middle of ``_seed_locations`` to fix a syntax
+        error (the previous location had ``_seed_locations``'s
+        ``locations = [`` open and the body of ``_register_undo``
+        inserted between the open and the close). Moved the
+        body verbatim; no behaviour change.
+        """
+        if not household_id:
+            return
+        try:
+            from shopstack.services.undo_ledger import get_ledger
+
+            get_ledger().register(
+                household_id=household_id,
+                kind=kind,
+                before=before,
+                after=after or {},
+                description=description,
+            )
+        except Exception:  # noqa: BLE001
+            # Never break the write path. The ledger is a
+            # recovery convenience, not a correctness invariant.
+            pass
 
     # --- Trace retention policy ---
 
     def _apply_trace_retention_policy(self) -> None:
-        # Item #16 (motto_v3 §0.5 evidence tiers): before
+        # Item #16 (motto_v3 Section0.5 evidence tiers): before
         # pruning traces per the TTL/max-rows policy, capture
         # any user-confirmed traces as parser training data.
         # The capture is append-only and best-effort: a capture
         # failure must never block the prune. We call the
         # helper explicitly here rather than auto-wrapping
-        # prune_traces itself (motto_v3 §7: hidden side effects
+        # prune_traces itself (motto_v3 Section7: hidden side effects
         # are the wrong kind of coupling).
         from shopstack.services.training_capture import (
             maybe_capture_before_retention,
@@ -897,11 +962,30 @@ class Database:
                 _d(lot.label_expiry_date), _d(lot.opened_date),
                 lot.price_paid, lot.currency, lot.source_event_id,
                 lot.confidence, lot.image_crop_path, lot.status,
-                lot.created_at.isoformat(), lot.updated_at.isoformat(),
-                target_household,
-            ),
+                 lot.created_at.isoformat(), lot.updated_at.isoformat(),
+                 target_household,
+             ),
         )
         self.conn.commit()
+        # Register for undo (Phase 12 R3.1). The inverse is
+        # "archive the lot" (the default inverse for
+        # add_inventory_lot marks the lot status=archived since
+        # there's no public delete method).
+        self._register_undo(
+            kind="add_inventory_lot",
+            household_id=target_household,
+            before={
+                "lot_id": lot.lot_id,
+                "canonical_name": lot.canonical_name,
+                "display_name": lot.display_name,
+                "quantity": lot.quantity,
+                "unit": lot.unit,
+                "storage_location_id": lot.storage_location_id,
+                "status": lot.status,
+                "user_id": target_household,
+            },
+            description=f"Added {lot.quantity:g} {lot.unit} of {lot.display_name}",
+        )
         return lot
 
     def update_inventory_lot(self, lot_id: str, updates: dict, user_id: str = "") -> InventoryLot | None:
@@ -1101,6 +1185,14 @@ class Database:
             (datetime.now().isoformat(), list_id),
         )
         self.conn.commit()
+        # Register for undo (Phase 12 R3.1). The inverse marks
+        # the item as "removed" (no public delete method).
+        self._register_undo(
+            kind="add_list_item",
+            household_id=target_household,
+            before={"item_id": item.list_item_id, "list_id": list_id},
+            description=f"Added {item.canonical_name} to list",
+        )
         return item
 
     def update_list_item(self, item_id: str, updates: dict) -> None:
@@ -1189,6 +1281,18 @@ class Database:
             (movement.to_location_id, datetime.now().isoformat(), movement.lot_id),
         )
         self.conn.commit()
+        # Register for undo (Phase 12 R3.1). The inverse records
+        # the opposite movement (from→to becomes to→from).
+        self._register_undo(
+            kind="record_movement",
+            household_id=target_household,
+            before={
+                "lot_id": movement.lot_id,
+                "from_location_id": movement.from_location_id,
+                "to_location_id": movement.to_location_id,
+            },
+            description=f"Moved {movement.lot_id} to {movement.to_location_id}",
+        )
         return movement
 
     def get_movements_for_lot(self, lot_id: str) -> list[MovementEvent]:
@@ -1564,6 +1668,15 @@ class Database:
              user_id),
         )
         self.conn.commit()
+        # Register for undo (Phase 12 R3.1). The inverse is a
+        # no-op (no public delete for prices; the user can see
+        # the price was added in the timeline).
+        self._register_undo(
+            kind="record_price",
+            household_id=user_id,
+            before={"price_id": price.price_id},
+            description=f"Recorded price for {price.canonical_name}",
+        )
         return price
 
     def get_price_history(self, canonical_name: str, user_id: str = "") -> list[PriceObservation]:
@@ -1659,6 +1772,14 @@ class Database:
              user_id),
         )
         self.conn.commit()
+        # Register for undo (Phase 12 R3.1). The inverse
+        # deletes the event via the public delete_purchase_event.
+        self._register_undo(
+            kind="add_purchase_event",
+            household_id=user_id,
+            before={"event_id": event.event_id},
+            description=f"Recorded purchase of {event.canonical_name}",
+        )
         return event
 
     def get_purchase_events(self, limit: int = 20, user_id: str = "") -> list[PurchaseEvent]:
@@ -1691,6 +1812,14 @@ class Database:
              event.substituted_with, event.notes, event.source, user_id),
         )
         self.conn.commit()
+        # Register for undo (Phase 12 R3.1). The inverse
+        # deletes the event via delete_reconciliation_event.
+        self._register_undo(
+            kind="add_reconciliation_event",
+            household_id=user_id,
+            before={"event_id": event.event_id},
+            description=f"Reconciled {event.canonical_name}",
+        )
         return event
 
     def get_reconciliation_events(self, canonical_name: str | None = None, limit: int = 20, user_id: str = "") -> list[ReconciliationEvent]:
@@ -1846,6 +1975,14 @@ class Database:
              signal.created_at.isoformat(), signal.updated_at.isoformat(), user_id),
         )
         self.conn.commit()
+        # Register for undo (Phase 12 R3.1). The inverse
+        # deletes the signal via delete_preference_signal.
+        self._register_undo(
+            kind="add_preference_signal",
+            household_id=user_id,
+            before={"event_id": signal.signal_id},
+            description=f"Recorded preference for {signal.canonical_name}",
+        )
         return signal
 
     def get_preference_signals(self, canonical_name: str | None = None, user_id: str = "") -> list[PreferenceSignal]:

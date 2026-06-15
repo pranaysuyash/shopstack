@@ -283,13 +283,22 @@ class TestConsume:
 
     def test_consume_unknown(self, app):
         result = consume_item("nonexistent", 1.0)
-        assert "Error" in result
+        # 2026-06-15: friendly error mapping via
+        # ``_INVENTORY_ERROR_FRIENDLY`` ("not found" →
+        # "We couldn't find that item..."). The legacy
+        # "Error: Lot ... not found" prefix was replaced with
+        # user-facing copy per motto_v3 §0.14. The output is
+        # HTML-escaped (``&#x27;``) so we match on a substring
+        # that survives the escape.
+        assert "We couldn&#x27;t find that item" in result
 
     def test_consume_negative(self, app):
         app_db.add_inventory_lot(InventoryLot(canonical_name="ghee", display_name="Ghee", quantity=2.0, unit="kg"))
         lot_id = app_db.get_inventory()[0].lot_id
         result = consume_item(lot_id, -1.0)
-        assert "Quantity to consume" in result
+        # 2026-06-15: friendly error mapping — "must be a positive"
+        # → "Enter a quantity greater than 0."
+        assert "Enter a quantity greater than 0" in result
 
 
 class TestInventoryCardsView:

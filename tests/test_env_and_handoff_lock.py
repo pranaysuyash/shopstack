@@ -42,6 +42,8 @@ import re
 import sys
 from pathlib import Path
 
+import pytest
+
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -204,6 +206,9 @@ class TestHandoffDocInventory:
         # Audit hardening handoff
         ("Docs/HANDOFF_AUDIT_HEALTH_HARDENING_2026-06-13.md",
          "Audit health hardening (percentage tolerance + 120s timeout + 2 regression checks)"),
+        # Database seed-locations regression lock handoff
+        ("Docs/HANDOFF_DATABASE_SEED_LOCATIONS_LOCK_2026-06-13.md",
+         "Database seed-locations regression lock (Pass 15/17 trap + canonical 18 locations)"),
     ]
 
     def test_all_handoff_docs_exist(self):
@@ -418,4 +423,160 @@ class TestAuditPatternLocks:
             f"but the test count audit must use >= 120s. With 4000+ tests, "
             f"`pytest --collect-only` takes ~70-100s; a smaller timeout "
             f"causes silent skipping (a false-confidence failure mode)."
+        )
+
+
+# ─── Pre-existing WIP fix lock ─────────────────────────────────────
+
+
+class TestDatabaseSeedLocationsRegression:
+    """The _seed_locations / _register_undo syntax-error trap must not
+    regress.
+
+    History: this function pair went through several broken states
+    (Pass 15: _register_undo was nested inside _seed_locations'
+    unclosed ``locations = [``; Pass 17: stale orphan tuples after
+    the closing ``]``). Each iteration left the file unparseable,
+    which blocked the i18n module from being importable (because
+    services → decisions → rules → database).
+
+    This test locks in the **canonical** structure via source-level
+    checks (cheap; doesn't need to instantiate the Database):
+
+      1. database.py is parseable (re-import with cleared cache)
+      2. The 18 canonical location ids are present in the file
+      3. _register_undo is declared at class scope (not nested)
+      4. A for-loop iterating ``loc_id`` exists in the file body
+    """
+
+    DB_FILE = REPO / "shopstack/persistence/database.py"
+
+    def test_database_module_parses(self):
+        """shopstack.persistence.database must import without SyntaxError.
+
+        The .pyc cache may be stale; force a re-import.
+        """
+        import sys
+        for mod_name in list(sys.modules):
+            if mod_name.startswith("shopstack.persistence") or mod_name == "shopstack.persistence.database":
+                del sys.modules[mod_name]
+        import shopstack.persistence.database  # noqa: F401
+
+    def test_canonical_18_locations_in_source(self):
+        """The 18 canonical household location ids must be in database.py.
+
+        Per the data model: home, kitchen, fridge (+4 children),
+        pantry (+3 children), bathroom (+2 children), bedroom,
+        medicine_drawer, balcony, cleaning_shelf — 18 entries.
+
+        This is a source-level check (cheap; doesn't need to
+        instantiate the Database). It catches the Pass 15 bug
+        (stale tuples removed) and the Pass 17 bug (orphan
+        tuples after the closing ``]``).
+        """
+        text = self.DB_FILE.read_text()
+        canonical_ids = [
+            "home", "kitchen", "fridge", "fridge_door", "fridge_top",
+            "fridge_drawer", "freezer", "pantry", "pantry_top",
+            "pantry_mid", "spice_box", "bathroom", "bathroom_cabinet",
+            "bathroom_sink", "bedroom", "medicine_drawer", "balcony",
+            "cleaning_shelf",
+        ]
+        # Each id should appear in the file at least once
+        missing = [loc_id for loc_id in canonical_ids if f'"{loc_id}"' not in text]
+        assert not missing, (
+            f"database.py is missing {len(missing)} canonical location id(s): "
+            f"{missing}. The household_locations table needs all 18 entries. "
+            "If this fails, someone may have accidentally truncated the "
+            "locations list (e.g., re-introduced the Pass 17 stale-tuple "
+            "regression or the Pass 15 nesting regression)."
+        )
+
+    def test_locations_list_closes_before_next_def(self):
+        """The ``locations = [ ... ]`` list must close BEFORE the next
+        function (``_register_undo``) starts.
+
+        The Pass 15 regression had ``_register_undo`` inserted
+        between the open and close of the locations list. The
+        Pass 17 regression had stale tuples AFTER the closing
+        ``]`` at the function-body indent (8 spaces). The
+        canonical pattern is: list opens → 18 entries → close →
+        for loop iterates → self.conn.commit() → blank line →
+        def _register_undo.
+        """
+        text = self.DB_FILE.read_text()
+        lines = text.splitlines()
+        loc_open_idx = None
+        for i, line in enumerate(lines):
+            if line.strip() == "locations = [":
+                loc_open_idx = i
+                break
+        assert loc_open_idx is not None, (
+            "Could not find `locations = [` in database.py. "
+            "_seed_locations should declare a locations list."
+        )
+        # Find the next `def _register_undo(`
+        reg_idx = None
+        for i in range(loc_open_idx, len(lines)):
+            if "def _register_undo(" in lines[i]:
+                reg_idx = i
+                break
+        assert reg_idx is not None, "Could not find `def _register_undo(`"
+        # Find the closing ] of the locations list
+        loc_close_idx = None
+        for i in range(loc_open_idx + 1, reg_idx):
+            if lines[i].strip() == "]":
+                loc_close_idx = i
+                break
+        assert loc_close_idx is not None, (
+            f"Could not find closing `]` for `locations = [` (opened at line "
+            f"{loc_open_idx+1}) before `def _register_undo(` (line {reg_idx+1}). "
+            "This is the Pass 15 regression: the list opened but never closed."
+        )
+        # After the closing ], look for a for loop. The Pass 17 bug had
+        # stale tuples before the for loop, so check that the first
+        # non-trivial, non-comment, non-blank line after the closing ]
+        # is a for loop.
+        for_loop_idx = None
+        for i in range(loc_close_idx + 1, reg_idx):
+            stripped = lines[i].strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            # The first non-trivial line should be a for loop
+            assert stripped.startswith("for "), (
+                f"After the closing `]` of locations list (line {loc_close_idx+1}), "
+                f"the first non-trivial line is line {i+1}:\n"
+                f"  {lines[i]!r}\n"
+                f"Expected `for ...` (the seed loop). The Pass 17 bug had "
+                f"stale tuples at this position."
+            )
+            for_loop_idx = i
+            break
+        assert for_loop_idx is not None, (
+            "Could not find a for loop between the closing `]` of the "
+            "locations list and `def _register_undo`. The seed function "
+            "is incomplete (no actual insert logic)."
+        )
+
+    def test_for_loop_iterates_locations(self):
+        """A `for loc_id ... in locations:` loop must exist in database.py.
+
+        This is the actual seed logic. Without this loop, the locations
+        list is declared but never inserted into the table.
+        """
+        text = self.DB_FILE.read_text()
+        assert "for loc_id" in text, (
+            "database.py must contain `for loc_id ... in locations:` — "
+            "this is the actual seed logic that inserts the canonical "
+            "household locations into the table. If missing, the seed "
+            "function is a no-op (the locations table will be empty)."
+        )
+        assert "INSERT INTO household_locations" in text, (
+            "database.py must contain the INSERT statement for "
+            "household_locations. Without it, the seed is a no-op."
+        )
+        assert "self.conn.commit()" in text, (
+            "database.py must commit the seed transaction. Without a "
+            "commit, the inserted rows are not visible to subsequent "
+            "connections."
         )

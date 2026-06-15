@@ -9,6 +9,10 @@ from __future__ import annotations
 import gradio as gr
 
 from shopstack.module_registry import tab_label as _tab_label
+from shopstack.services.empty_states import (
+    build_household_context,
+    render,
+)
 from shopstack.ui.components.primitives import empty_state_enhanced
 from shopstack.ui.screens.parser_preview import parser_preview_screen
 from shopstack.ui.tabs.context import TabContext
@@ -16,6 +20,15 @@ from shopstack.ui.tabs.context import TabContext
 
 def build_parser_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None:
     """Build the Parser Test tab."""
+    # Pass 17 §2.5: rich empty-state for the "Type a command to see
+    # the parser in action" placeholder. The previous generic
+    # one-liner (line 30 before Pass 17) was a static "no input yet"
+    # state. The rich service + i18n keys turn it into a 3-line
+    # card with an icon and an example command.
+    household_ctx = build_household_context(ctx.db)
+    parser_empty_state = render(
+        "parser.no_input", household=household_ctx
+    )
     with gr.Tab(_tab_label("parser"), id="parser"):
         gr.Markdown("### Parser Test")
         gr.HTML(
@@ -27,9 +40,7 @@ def build_parser_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
         pr_input = gr.Textbox(label="Natural language command", lines=3,
                               placeholder="e.g. add doodh and 2 kg atta to my shopping list")
         pr_parse = gr.Button("Parse", variant="primary")
-        pr_output = gr.HTML(empty_state_enhanced(
-            "Type a command and click Parse.", icon="\U0001f9e0"
-        ))
+        pr_output = gr.HTML(parser_empty_state)
 
         pr_parse.click(
             parser_preview_screen,

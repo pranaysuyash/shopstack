@@ -215,6 +215,38 @@ def test_render_i18n_script_sets_data_locale():
     assert "setLocale" in out
 
 
+def test_render_language_script_posts_to_correct_gradio_endpoint():
+    """2026-06-15 regression: the JS used to POST to ``/save_locale``
+    which 405'd on the live Gradio deployment. The actual endpoint
+    is ``/gradio_api/call/save_locale`` and expects a JSON body of
+    the form ``{"data": ["<locale>"]}``.
+
+    This test pins the correct endpoint and body shape so the
+    locale-selector button doesn't silently fail in production.
+    """
+    out = render_language_script()
+    # Correct endpoint (Gradio 5.x)
+    assert "/gradio_api/call/save_locale" in out, (
+        "i18n script must POST to /gradio_api/call/save_locale "
+        "(the Gradio 5.x API endpoint), not /save_locale which 405s"
+    )
+    # Correct body shape
+    assert "JSON.stringify" in out, (
+        "i18n script must use JSON.stringify (Gradio 5.x expects JSON body), "
+        "not FormData which Gradio 5.x does not accept"
+    )
+    assert "Content-Type" in out, "i18n script must set Content-Type header"
+    # Old broken pattern must NOT be present
+    assert "new FormData" not in out, (
+        "i18n script must not use FormData (the old broken pattern that "
+        "caused /save_locale to 405)"
+    )
+    assert "fetch('/save_locale'" not in out, (
+        "i18n script must not POST to /save_locale (which 405s); "
+        "use /gradio_api/call/save_locale instead"
+    )
+
+
 # ── XSS safety ────────────────────────────────────────────────────────
 
 

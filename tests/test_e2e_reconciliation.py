@@ -8,7 +8,7 @@ This test exercises the full happy-path end-to-end with no
 mocks: it uses a real ``Database`` instance and the real
 ``ToolRegistry`` against an in-memory SQLite file, then asserts
 that the reconciliation result is internally consistent and
-that the side effects (inventory_lots, price_observations,
+that the side effects (inventory_lots, price_history,
 reconciliation_events) all landed in the DB.
 
 This is the E2E test the 2026-06-15 audit called out as missing
@@ -18,9 +18,10 @@ exercised, and the data layer is exercised all in one shot).
 """
 from __future__ import annotations
 
+import threading
+
 import pytest
 
-from shopstack.persistence.database import Database
 from shopstack.services.reconciliation import (
     ReconciliationResult,
     reconcile_shopping_trip,
@@ -29,19 +30,16 @@ from shopstack.tools.registry import ToolRegistry
 
 
 @pytest.fixture
-def db_with_household(tmp_path):
-    """Create a fresh DB with one household.
+def db_with_household(db):
+    """Use the canonical ``db`` fixture and add a household + member.
 
-    The ``Database.__init__`` auto-initializes the schema and
-    seeds default storage locations (home, kitchen, fridge,
-    pantry, etc.). The default storage location is
-    ``DEFAULT_STORAGE_LOCATION`` (used by
-    ``InventoryRepo.add_item`` when no location is specified).
+    Per Phase 11 write paths, every user_id must be a member of
+    the household they're writing to. The conftest's ``db``
+    fixture gives us a fresh Database per test, so adding the
+    household here is safe.
     """
-    db_path = tmp_path / "recon_e2e.db"
-    db = Database(db_path=str(db_path))
-    # Add a household so the user_id-scoped queries work.
-    db.add_household("h1", "test-household")
+    db.add_household("e2e_h", "e2e-test-household")
+    db.add_household_member("e2e_h", "e2e_h", role="owner")
     return db
 
 
@@ -83,7 +81,7 @@ def test_e2e_all_bought_creates_inventory_lots_and_price_observations(
         actual_items=actual,
         tools=tools,
         database=db_with_household,
-        user_id="h1",
+        user_id="e2e_h",
     )
 
     # Result invariants.
@@ -96,7 +94,7 @@ def test_e2e_all_bought_creates_inventory_lots_and_price_observations(
     assert result.errors == []
 
     # Side effects: 3 inventory lots.
-    inventory = db_with_household.get_inventory(user_id="h1")
+    inventory = db_with_household.get_inventory(user_id="e2e_h")
     active_lots = [lot for lot in inventory if lot.status == "active"]
     assert len(active_lots) == 3, (
         f"Expected 3 active lots, got {len(active_lots)}: "
@@ -105,12 +103,13 @@ def test_e2e_all_bought_creates_inventory_lots_and_price_observations(
     canonical_names = {lot.canonical_name for lot in active_lots}
     assert canonical_names == {"milk", "bread", "eggs"}
 
-    # Side effects: 3 price observations (one per bought item).
-    observations = db_with_household.get_price_observations(
-        canonical_name="milk", user_id="h1"
-    )
-    assert len(observations) == 1
-    assert observations[0].price == 130.0
+    # Side effects: 3 price history rows (one per bought item).
+    for name, expected_price in [("milk", 130.0), ("bread", 45.0), ("eggs", 84.0)]:
+        history = db_with_household.get_price_history(name, user_id="e2e_h")
+        assert len(history) == 1, (
+            f"Expected 1 price observation for {name}, got {len(history)}"
+        )
+        assert history[0].price == expected_price
 
 
 # ── Mixed: bought + skipped + substituted ────────────────────────
@@ -145,7 +144,7 @@ def test_e2e_mixed_actions_count_correctly(db_with_household, tools):
         actual_items=actual,
         tools=tools,
         database=db_with_household,
-        user_id="h1",
+        user_id="e2e_h",
     )
 
     assert result.success
@@ -157,7 +156,7 @@ def test_e2e_mixed_actions_count_correctly(db_with_household, tools):
     # 3 inventory lots: milk (bought), bread (bought), paneer
     # (substituted FOR cheese — cheese itself was NOT bought, so
     # it should NOT be in inventory).
-    inventory = db_with_household.get_inventory(user_id="h1")
+    inventory = db_with_household.get_inventory(user_id="e2e_h")
     names = {lot.canonical_name for lot in inventory if lot.status == "active"}
     assert "milk" in names
     assert "bread" in names
@@ -192,23 +191,18 @@ def test_e2e_reconciliation_events_persisted_to_db(db_with_household, tools):
         actual_items=actual,
         tools=tools,
         database=db_with_household,
-        user_id="h1",
+        user_id="e2e_h",
     )
     assert len(result.events) == 1
 
-    # Re-query the DB and assert the event landed.
-    cur = db_with_household.conn.execute(
-        "SELECT canonical_name, actual_action, price_paid, user_id "
-        "FROM reconciliation_events WHERE trip_id = ?",
-        (result.trip_id,),
+    # Re-query the DB by canonical_name + user_id and assert the
+    # event landed (the table is queried by these, not by trip_id).
+    db_events = db_with_household.get_reconciliation_events(
+        canonical_name="milk", user_id="e2e_h"
     )
-    rows = cur.fetchall()
-    assert len(rows) == 1
-    canonical_name, actual_action, price_paid, user_id = rows[0]
-    assert canonical_name == "milk"
-    assert actual_action == "bought"
-    assert price_paid == 64.0
-    assert user_id == "h1"
+    assert len(db_events) == 1
+    assert db_events[0].canonical_name == "milk"
+    assert db_events[0].actual_action == "bought"
 
 
 # ── Resilience: skipped items don't pollute inventory ─────────────
@@ -238,19 +232,17 @@ def test_e2e_skipped_items_create_no_inventory_or_price_observation(
         actual_items=actual,
         tools=tools,
         database=db_with_household,
-        user_id="h1",
+        user_id="e2e_h",
     )
-    inventory = db_with_household.get_inventory(user_id="h1")
+    inventory = db_with_household.get_inventory(user_id="e2e_h")
     names = {lot.canonical_name for lot in inventory if lot.status == "active"}
     assert "bread" not in names, (
         "skipped bread was created in inventory — loop-closer broken."
     )
-    # No price observation for bread either.
-    obs = db_with_household.get_price_observations(
-        canonical_name="bread", user_id="h1"
-    )
-    assert obs == [], (
-        f"skipped bread created {len(obs)} price observations — "
+    # No price history row for bread either.
+    history = db_with_household.get_price_history("bread", user_id="e2e_h")
+    assert history == [], (
+        f"skipped bread created {len(history)} price observations — "
         f"loop-closer broken."
     )
 
@@ -279,7 +271,7 @@ def test_e2e_graceful_when_no_tools_or_database():
         actual_items=actual,
         tools=None,
         database=None,
-        user_id="h1",
+        user_id="e2e_h",
     )
     assert result.success
     assert result.count == 1

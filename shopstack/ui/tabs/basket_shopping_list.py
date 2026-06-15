@@ -33,6 +33,10 @@ from __future__ import annotations
 
 import gradio as gr
 
+from shopstack.services.empty_states import (
+    build_household_context,
+    render,
+)
 from shopstack.ui.components.primitives import (
     confirm_hide_updates,
     confirm_toggle_updates,
@@ -76,6 +80,16 @@ def build_basket_shopping_list(app: gr.Blocks, ctx: TabContext) -> None:
         no Handles dataclass is needed (matches the existing
         pattern for self-contained sub-tabs).
     """
+    # Pass 16 §2.5: rich empty-state for the "No list built yet"
+    # placeholder. Uses the same smart household context as the
+    # find_trail tab (Pass 15). The legacy ``empty_state_enhanced``
+    # one-liner stays as the fallback for the other 3 sites in
+    # this tab (poster, reconcile, mark-bought) — they're
+    # addressed in future passes per the §0.13 scope discipline.
+    household_ctx = build_household_context(ctx.db)
+    create_list_empty_state = render(
+        "basket.create_list.no_action", household=household_ctx
+    )
     with gr.Tab("Shopping List"):
         sl_cards = gr.HTML(loading_skeleton("card"))
         sl_substitutions = gr.HTML(loading_skeleton("text"))
@@ -269,13 +283,7 @@ def build_basket_shopping_list(app: gr.Blocks, ctx: TabContext) -> None:
                 complete_no = gr.Button(
                     "Cancel", elem_classes="secondary"
                 )
-        create_output = gr.HTML(
-            empty_state_enhanced(
-                "No list built yet.",
-                icon="🛒",
-                secondary_text="Enter a goal and items above, then click Build Shopping List.",
-            )
-        )
+        create_output = gr.HTML(create_list_empty_state)
         create_btn.click(
             build_shopping_list_and_refresh,
             [goal_input, items_input],

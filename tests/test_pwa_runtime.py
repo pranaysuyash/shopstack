@@ -33,6 +33,13 @@ from playwright.sync_api import ConsoleMessage, Page, sync_playwright
 
 os.environ.setdefault("SHOPSTACK_LOCAL_AUTO_DOWNLOAD", "false")
 
+# Per 2026-06-14 test isolation hardening: this test mutates the global
+# db singleton (changes db.db_path) and launches a Gradio server. It
+# must run in its own pytest process, not in parallel with other tests
+# that touch the same singletons. Use ``pytest -m standalone`` to run
+# in a clean invocation.
+pytestmark = pytest.mark.standalone
+
 
 def _find_free_port() -> int:
     import socket

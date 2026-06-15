@@ -541,6 +541,83 @@ class TestLiveWriteEndpoints:
         if result.get("msg") == "error":
             assert "Traceback" not in result.get("error", ""), result
 
+    def test_live_notes_reload_returns_current_state(self):
+        """The 'notes_reload' handler must return the current persisted
+        field notes (or a sensible empty state). Exercises the DB
+        read path for the notes table."""
+        fn_index = self._find_api_fn_index("notes_reload")
+        if fn_index is None:
+            pytest.skip("notes_reload not in live config")
+        result = _call_gradio_api(fn_index=fn_index, data=[])
+        assert result.get("msg") == "process_completed", result
+        output_data = result.get("output", {}).get("data", [])
+        # Notes handler returns at least one output (may be empty state)
+        assert output_data is not None, f"notes_reload returned no data: {result}"
+
+    def test_live_cookbook_refresh_responds(self):
+        """The 'cookbook_refresh' handler rebuilds the cookbook grid.
+        Verifies the recipe DB read path works on the live deploy."""
+        fn_index = self._find_api_fn_index("cookbook_refresh")
+        if fn_index is None:
+            pytest.skip("cookbook_refresh not in live config")
+        result = _call_gradio_api(fn_index=fn_index, data=[])
+        assert result.get("msg") == "process_completed", result
+
+    def test_live_activity_log_refresh_responds(self):
+        """The 'activity_log_refresh' handler must return the
+        activity log for the active household. Exercises the
+        per-household DB read path."""
+        fn_index = self._find_api_fn_index("activity_log_refresh")
+        if fn_index is None:
+            pytest.skip("activity_log_refresh not in live config")
+        result = _call_gradio_api(fn_index=fn_index, data=[])
+        assert result.get("msg") == "process_completed", result
+
+    def test_live_analytics_refresh_responds(self):
+        """The 'analytics_refresh' handler must return household
+        analytics. Exercises the price-history + per-item stats
+        pipeline on the live deploy."""
+        fn_index = self._find_api_fn_index("analytics_refresh")
+        if fn_index is None:
+            pytest.skip("analytics_refresh not in live config")
+        result = _call_gradio_api(fn_index=fn_index, data=[])
+        assert result.get("msg") == "process_completed", result
+
+    def test_live_switch_household_returns_state(self):
+        """The 'switch_household' handler is the most user-facing
+        state mutation: it switches which household the user is
+        operating on. Must not crash on the live deploy."""
+        fn_index = self._find_api_fn_index("switch_household")
+        if fn_index is None:
+            pytest.skip("switch_household not in live config")
+        result = _call_gradio_api(
+            fn_index=fn_index,
+            data=["default_household"],
+        )
+        # switch_household can complete or error (no default household),
+        # what matters is no stack trace
+        assert result.get("msg") in ("process_completed", "error"), result
+        if result.get("msg") == "error":
+            assert "Traceback" not in result.get("error", ""), result
+
+    def test_live_create_household_handles_existing_name(self):
+        """Calling 'create_household' with an existing name must
+        return a graceful error, not a stack trace. This is a
+        classic input-validation regression in the household
+        state machine."""
+        fn_index = self._find_api_fn_index("create_household")
+        if fn_index is None:
+            pytest.skip("create_household not in live config")
+        # Use a likely-existing name
+        result = _call_gradio_api(
+            fn_index=fn_index,
+            data=["default_household", "test name", "test reason"],
+        )
+        # Either creates (process_completed) or errors gracefully
+        assert result.get("msg") in ("process_completed", "error"), result
+        if result.get("msg") == "error":
+            assert "Traceback" not in result.get("error", ""), result
+
     @staticmethod
     def _find_api_fn_index(api_name: str) -> int | None:
         """Look up the fn_index for a named API on the live config."""
@@ -551,3 +628,89 @@ class TestLiveWriteEndpoints:
             if evt.get("api_name") == api_name:
                 return evt["id"]
         return None
+
+
+# ── Live i18n endpoint coverage ─────────────────────────────────────────
+
+
+class TestLiveI18nEndpoints:
+    """Verify the live app's i18n endpoints (locale save, etc.) work.
+
+    2026-06-15: discovered a real production bug — the i18n script
+    was posting to ``/save_locale`` (literal string in the JS),
+    which returns 405 on Gradio 5.x. The actual endpoint is
+    ``/gradio_api/call/save_locale`` and expects a JSON body
+    of ``{"data": ["<locale>"]}``. This class catches that
+    bug at the live-deployment level so a future regression
+    can't silently break the locale selector.
+    """
+
+    def test_live_save_locale_endpoint_exists(self):
+        """The /gradio_api/call/save_locale endpoint must exist on
+        the live deployment and return 200 (not 405) for a valid
+        POST. This is a basic liveness check."""
+        req = urllib.request.Request(
+            f"{LIVE_BASE}/gradio_api/call/save_locale",
+            data=b'{"data": ["en"], "fn_index": 0, "session_hash": "test"}',
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                assert resp.status == 200, (
+                    f"save_locale endpoint returned {resp.status}; "
+                    f"expected 200. The endpoint may not be wired up."
+                )
+        except urllib.error.HTTPError as e:
+            # 405 is the failure mode the bug had; surface it loudly
+            assert e.code != 405, (
+                f"save_locale endpoint returned 405 (Method Not Allowed). "
+                f"This is the old broken pattern. The endpoint exists "
+                f"but rejects the request shape."
+            )
+            raise
+
+    def test_live_save_locale_accepts_json_body(self):
+        """The save_locale endpoint must accept a JSON body
+        ``{"data": ["<locale>"]}`` and return an event_id."""
+        req = urllib.request.Request(
+            f"{LIVE_BASE}/gradio_api/call/save_locale",
+            data=b'{"data": ["hi"], "fn_index": 0, "session_hash": "live_regression"}',
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+        # Gradio returns {"event_id": "<uuid>"} for a successful join
+        assert "event_id" in body, (
+            f"save_locale did not return event_id; got: {body}"
+        )
+
+    def test_live_old_formdata_endpoint_does_not_exist(self):
+        """The /save_locale (without /gradio_api/) must return a
+        non-200 status. This is the old broken pattern that
+        caused the locale selector to silently fail in production.
+
+        HF Spaces may return 403 (Forbidden) for unknown routes
+        rather than 404. Both are correct — anything other than
+        200 means the old URL is not actually a working endpoint.
+        """
+        req = urllib.request.Request(
+            f"{LIVE_BASE}/save_locale",
+            data=b"locale=en",
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                pytest.fail(
+                    f"/save_locale returned {resp.status}; this route "
+                    f"should not exist (Gradio serves the API at "
+                    f"/gradio_api/call/save_locale). The i18n script "
+                    f"would incorrectly use the old URL."
+                )
+        except urllib.error.HTTPError as e:
+            # 403/404/405 are all correct — the old route is not live
+            assert e.code in (403, 404, 405), (
+                f"/save_locale returned {e.code}; expected 403/404/405"
+            )

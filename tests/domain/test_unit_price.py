@@ -44,6 +44,37 @@ class TestParseSize:
         assert r.is_combo
         assert "combo_or_pack_no_weight" in (r.warnings or [])
 
+    def test_indian_decimal_kg(self):
+        # Indian households write decimals with a comma
+        # ("1,5 kg" not "1.5 kg"). The Swiggy data for Indian
+        # markets uses both numberings.
+        r = parse_size("1,5 kg")
+        assert r.normalized_quantity == 1500
+        assert r.normalized_unit == "g"
+        assert r.is_weight_based
+
+    def test_indian_decimal_l(self):
+        r = parse_size("0,5 l")
+        assert r.normalized_quantity == 500
+        assert r.normalized_unit == "mL"
+
+    def test_indian_decimal_g_small(self):
+        r = parse_size("0,5 g")
+        assert r.normalized_quantity == 0.5
+        assert r.normalized_unit == "g"
+
+    def test_indian_decimal_with_multipack(self):
+        r = parse_size("1,5 kg x 2")
+        assert r.normalized_quantity == 3000
+        assert r.package_count == 2
+
+    def test_list_separator_not_converted(self):
+        # A real list separator "1, 2, 3 pieces" must not be
+        # wrongly converted to "1. 2. 3 pieces"
+        r = parse_size("1, 2, 3 pieces")
+        # The regex won't match (spaces in input); we just verify
+        # we didn't corrupt the input
+        assert r.warnings and "unrecognized_size" in r.warnings[0]
     def test_pack(self):
         r = parse_size("5 pack")
         assert r.is_pack
