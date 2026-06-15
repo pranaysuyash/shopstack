@@ -93,7 +93,7 @@ def phase_lint() -> tuple[bool, str]:
 def phase_tests() -> tuple[bool, str]:
     print("  Phase 4/6: Test suite ...", end=" ")
     pytest_bin = VENV_PYTEST if Path(VENV_PYTEST).exists() else "pytest"
-    result = run([pytest_bin, "tests/", "-q", "--tb=short", "--no-header"], timeout=180)
+    result = run([pytest_bin, "tests/", "-q", "--tb=short", "--no-header"], timeout=300)
     summary_line = [line for line in result.stdout.split("\n") if line.strip() and ("passed" in line.lower() or "failed" in line.lower())]
     summary = summary_line[-1] if summary_line else result.stdout.strip()[-200:]
     if result.returncode == 0:

@@ -185,11 +185,15 @@ def _collect_and_submit(
 COMMON_STAPLES_MAP = {s["canonical_name"]: s["label"] for s in COMMON_STAPLES}
 
 
-def build_onboarding_wizard(app: gr.Blocks) -> None:
+def build_onboarding_wizard(app: gr.Blocks) -> gr.Group:
     """Add the onboarding wizard as a modal overlay on the app.
 
     This is called once during app construction. The wizard is hidden
     by default and shown via the onboarding gate in the dashboard.
+
+    Returns:
+        The :class:`gr.Group` handle for the wizard so callers can
+        toggle its visibility (e.g. on first-run via ``app.load``).
     """
     with gr.Group(visible=False, elem_id="onboarding-wizard") as onboarding_group:
         gr.Markdown("### 🏠 Set up your household")
@@ -253,3 +257,5 @@ def build_onboarding_wizard(app: gr.Blocks) -> None:
         inputs=onboarding_result,
         outputs=onboarding_group,
     )
+
+    return onboarding_group

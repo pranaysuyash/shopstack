@@ -95,7 +95,14 @@ def _get_search_files() -> list[Path]:
 
 
 def _find_references() -> set[str]:
-    """Walk search files; collect any name that appears as a Name or Attribute."""
+    """Walk search files; collect any name that appears as a Name or Attribute.
+
+    AI-21 enhancement: also track import aliases (``as`` clauses). This
+    eliminates false positives for functions that are imported under
+    a different name (e.g., ``from ... import set_opt_in_screen as
+    _set_opt_in`` should still count as a reference to the original
+    name).
+    """
     all_funcs = _collect_public_functions()
     func_names = set(all_funcs.keys())
     referenced: set[str] = set()
@@ -111,10 +118,19 @@ def _find_references() -> set[str]:
             continue
 
         for node in ast.walk(tree):
+            # Direct name reference: ``foo()`` or ``foo.attr``
             if isinstance(node, ast.Name) and node.id in func_names:
                 referenced.add(node.id)
             elif isinstance(node, ast.Attribute) and node.attr in func_names:
                 referenced.add(node.attr)
+            # Import alias: ``from x import y as z`` — the AST stores
+            # both ``name=y`` and ``asname=z``. The original name is
+            # still importable as ``y``, so it IS a reference.
+            elif isinstance(node, ast.alias) and node.name in func_names:
+                # The alias might be a dotted path; check the last segment
+                bare_name = node.name.split(".")[-1]
+                if bare_name in func_names:
+                    referenced.add(bare_name)
 
     return referenced
 

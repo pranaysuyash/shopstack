@@ -2478,6 +2478,8 @@ dependencies = [
     { name = "pydub" },
     { name = "pyzbar" },
     { name = "sentence-transformers" },
+    { name = "torch" },
+    { name = "transformers" },
 ]
 
 [package.optional-dependencies]
@@ -2508,6 +2510,8 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'dev'" },
     { name = "pyzbar" },
     { name = "sentence-transformers" },
+    { name = "torch" },
+    { name = "transformers" },
 ]
 provides-extras = ["dev"]
 

@@ -63,8 +63,8 @@ def today_intelligence_screen(
         user_id = current_user_id() or ""
         state = build_dashboard_state(db, [], user_id=user_id, city=city)
         # Use-soon items for community lookup
-        use_soon = _safe_get(state, "use_soon_items", default=[]) or []
-        restock = _safe_get(state, "restock_predictions", default=[]) or []
+        use_soon = safe_get(state, "use_soon_items", default=[]) or []
+        restock = safe_get(state, "restock_predictions", default=[]) or []
         # Build a small set of canonical names to consult the
         # community pool for. Use-soon + restock is a tight
         # 10-item cap, which is well-bounded.
@@ -111,15 +111,6 @@ def today_intelligence_screen(
         )
 
 
-def _safe_get(obj: Any, *keys: str, default: Any = None) -> Any:
-    for k in keys:
-        if obj is None:
-            return default
-        if isinstance(obj, dict):
-            obj = obj.get(k, default)
-        else:
-            obj = getattr(obj, k, default)
-    return obj
 
 
 __all__ = ["today_intelligence_screen"]

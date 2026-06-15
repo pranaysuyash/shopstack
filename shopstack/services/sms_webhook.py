@@ -3,21 +3,22 @@
 This module wires the inbound webhook for SMS and WhatsApp
 messages onto the Gradio app's underlying FastAPI app at
 ``/api/sms/incoming``. The actual parse + dispatch logic lives
-in :mod:`shopstack.services.sms_quick_add`; this module is
-the thin transport adapter.
+in :mod:`shopstack.services.sms_quick_add`; the per-intent DB
+handlers live in :mod:`shopstack.services.sms_intent_handlers`.
+This module is the **thin transport adapter** (HTTP boundary,
+signature verification, dispatcher closure wiring).
 
 **Why a separate module from ``sms_quick_add``:**
 
 ``sms_quick_add`` is the parse + dispatch + adapter logic — it's
-domain code, transport-agnostic. This module is the HTTP
-endpoint that exposes ``sms_quick_add`` over the wire. Splitting
-them lets you:
+domain code, transport-agnostic. ``sms_intent_handlers`` is the
+per-intent DB layer. This module is the HTTP endpoint that exposes
+them over the wire. The three layers let you:
 
 * Unit-test the parse / dispatch logic without a Starlette app.
+* Unit-test each per-intent handler against a fake DB.
 * Swap the transport (e.g. expose a gRPC endpoint) without
-  changing the dispatch logic.
-* Mount the endpoint conditionally (only in deployments that
-  enable SMS / WhatsApp).
+  changing the dispatch or intent logic.
 
 **Adapter selection:**
 
@@ -25,18 +26,6 @@ Twilio sends ``From`` and ``Body`` keys in its webhook payload;
 other providers (WhatsApp Business via Meta, MessageBird, etc.)
 should pre-normalize to ``{from, body}``. The endpoint picks
 the adapter by payload shape — no config needed.
-
-**Dispatcher shape:**
-
-The dispatcher maps a parsed ``(intent, args)`` to a database
-operation. Today it handles two intents:
-
-* ``add_inventory_item`` → :func:`db.add_inventory_lot`
-* ``consume_item`` → :func:`db.consume_inventory`
-
-Other intents are acknowledged with ``ok=True`` but no action.
-Future work: a registry of intent handlers that any tab can
-register, so the dispatcher becomes plug-and-play.
 
 **Failure mode:**
 
@@ -46,9 +35,6 @@ returns 200 with ``status: parse_error``). The provider
 failures are logged but not propagated. This is the standard
 webhook pattern — never let the provider retry on a logic
 error.
-
-Extracted from ``app.py`` in Pass 7 to keep ``build_app()`` as
-a true composition root.
 """
 from __future__ import annotations
 
@@ -65,65 +51,24 @@ from shopstack.config import settings
 logger = logging.getLogger(__name__)
 
 
-# ─── Default intent dispatcher ─────────────────────────────────────
-#
-# Maps a parsed (intent, args) pair to a database operation. Returns
-# a small result dict with ``ok`` and a user-facing ``message``.
-#
-# Why a closure and not a service:
-#   The dispatcher needs the ``db`` singleton from ``app_context``,
-#   which is only available after the app boots. The default
-#   implementation closes over ``db`` at mount time; tests can
-#   substitute a fake dispatcher that doesn't touch the DB.
-
 def _default_intent_dispatcher(db: Any) -> Callable[[str, dict], dict]:
     """Build the default intent dispatcher bound to ``db``.
 
-    Handles two intents:
-
-    * ``add_inventory_item`` → ``db.add_inventory_lot``
-    * ``consume_item`` → ``db.consume_inventory``
-
-    Other intents return ``{"ok": True, "message": ...}`` with a
-    no-action note.
+    Looks up the per-intent handler in
+    :data:`shopstack.services.sms_intent_handlers.INTENT_HANDLERS`
+    and delegates. Unknown intents return
+    ``{"ok": True, "message": ...}`` with a no-action note (the
+    provider treats 200 as success; ack-but-do-nothing is the
+    right answer for future intents we haven't built yet).
     """
+    from shopstack.services.sms_intent_handlers import INTENT_HANDLERS
 
     def _dispatch(user_id: str, parsed: dict) -> dict:
         intent = parsed.get("intent", "")
-        args = parsed.get("args", {})
-        # Map to the inventory API
-        if intent == "add_inventory_item" and args.get("canonical_name"):
-            try:
-                from shopstack.schemas.models import InventoryLot
-                canonical = str(args["canonical_name"])
-                lot = InventoryLot(
-                    canonical_name=canonical,
-                    display_name=str(args.get("display_name", canonical)),
-                    quantity=float(args.get("quantity", 1.0)),
-                    unit=str(args.get("unit", "unit")),
-                )
-                db.add_inventory_lot(lot, user_id=user_id)
-                return {"ok": True, "message": f"Added {canonical}"}
-            except Exception as exc:
-                return {"ok": False, "message": f"DB error: {exc}"}
-        if intent == "consume_item" and args.get("canonical_name"):
-            try:
-                canonical = str(args["canonical_name"])
-                quantity = float(args.get("quantity", 1.0))
-                # Resolve canonical_name → active lot (FIFO: oldest first).
-                # The DB layer's get_inventory is the canonical accessor and
-                # already supports household scoping via user_id.
-                candidates = db.get_inventory(
-                    status="active", canonical_name=canonical, user_id=user_id
-                )
-                if not candidates:
-                    return {"ok": False, "message": f"No active {canonical} in inventory"}
-                candidates.sort(key=lambda l: l.created_at)
-                target = candidates[0]
-                db.consume_inventory(target.lot_id, quantity, user_id=user_id)
-                return {"ok": True, "message": f"Consumed {canonical}"}
-            except Exception as exc:
-                return {"ok": False, "message": f"DB error: {exc}"}
+        args = parsed.get("args", {}) or {}
+        handler = INTENT_HANDLERS.get(intent)
+        if handler is not None:
+            return handler(user_id, args, db)
         return {"ok": True, "message": f"Parsed {intent} (no action configured)."}
 
     return _dispatch
@@ -178,7 +123,7 @@ def _household_scoped_dispatcher(
     db: Any,
     fallback_user_id: str,
 ) -> Callable[[str, dict], dict]:
-    """Build a dispatcher that uses the phone-resolved household.
+    """Wrap a dispatcher so DB writes always scope to the phone-resolved id.
 
     The SMS flow resolves the sender's household from the phone registry
     (``sms_quick_add.handle_webhook`` → ``lookup_phone``). That resolved
@@ -221,10 +166,6 @@ def mount_sms_webhook(app: gr.Blocks) -> None:
     invalid ``X-Twilio-Signature`` header is rejected with HTTP 403 before
     the dispatcher runs.
 
-    Args:
-        app: The root ``gr.Blocks`` instance. The underlying FastAPI app
-            is ``app.app``.
-
     Why best-effort route registration:
         If the route can't be registered (e.g. the app was already
         started), logs a warning and continues. The webhook is an
@@ -263,12 +204,7 @@ def mount_sms_webhook(app: gr.Blocks) -> None:
     async def _sms_webhook_endpoint(request: _SMSRequest):
         # ── Authentication: verify Twilio HMAC signature (fail-closed) ──
         signature_header = request.headers.get("X-Twilio-Signature", "")
-        # Reconstruct the full URL Twilio called (scheme + host + path + query).
-        # Starlette's request.url gives the full URL; for proxy/forwarded setups
-        # the X-Forwarded-* headers are respected by Gradio/FastAPI's config.
         full_url = str(request.url)
-        # Parse the POST body. Twilio sends form-encoded data; accept JSON too
-        # for flexibility, but signature verification always uses the raw params.
         content_type = (request.headers.get("content-type") or "").lower()
         try:
             if "application/x-www-form-urlencoded" in content_type:
@@ -316,3 +252,4 @@ def mount_sms_webhook(app: gr.Blocks) -> None:
         logger.info("SMS webhook mounted at /api/sms/incoming (signature-verified)")
     except Exception as exc:  # noqa: BLE001 — best-effort webhook bootstrap
         logger.warning("SMS webhook mount failed: %s", exc)
+

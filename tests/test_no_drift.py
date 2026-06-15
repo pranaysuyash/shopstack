@@ -226,6 +226,20 @@ _FORBIDDEN_PATHS: list[tuple[str, str]] = [
     # the old file only by porting its tests to the canonical API.
     ("tests/test_swiggy_data_source.py",
      "Old test file for the deprecated swiggy API (Pass 9 supersession); migration is in tests/test_market_swiggy_migration.py."),
+
+    # Pass 10: deprecated re-exports from primitives.py. The 4 symbols
+    # were moved to canonical modules (js_helpers, decorators) and
+    # have been fully migrated (0 production callers). If drift
+    # re-adds the deprecated aliases, the canonical migration is
+    # broken.
+    ("shopstack/ui/components/primitives.busy_js",
+     "Deprecated alias removed in Pass 10. Use shopstack.ui.components.js_helpers.busy_js."),
+    ("shopstack/ui/components/primitives.autocomplete_injector_js",
+     "Deprecated alias removed in Pass 10. Use shopstack.ui.components.js_helpers.autocomplete_injector_js."),
+    ("shopstack/ui/components/primitives.url_state_sync_js",
+     "Deprecated alias removed in Pass 10. Use shopstack.ui.components.js_helpers.url_state_sync_js."),
+    ("shopstack/ui/components/primitives.aria_live_screen",
+     "Deprecated alias removed in Pass 10. Use shopstack.ui.components.decorators.aria_live_screen."),
 ]
 
 

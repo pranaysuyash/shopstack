@@ -109,8 +109,6 @@ class SmartBasket:
 # ─── Build a smart basket ────────────────────────────────────────
 
 
-def _safe_get(obj: Any, *keys: str, default: Any = None) -> Any:
-    """Walk a chain of dict keys / dataclass attributes.
 
     Returns ``default`` if any step yields None. Stops at the
     first key that produces a non-None value (so we don't
@@ -193,9 +191,9 @@ def _build_smart_line(
 
 def _find_line_for(basket_comparison: Any, canonical_name: str) -> Any | None:
     """Return the BasketLine matching ``canonical_name``, if any."""
-    lines = _safe_get(basket_comparison, "lines", default=[]) or []
+    lines = safe_get(basket_comparison, "lines", default=[]) or []
     for line in lines:
-        cname = _safe_get(line, "canonical_name", default="") or ""
+        cname = safe_get(line, "canonical_name", default="") or ""
         if cname.lower() == canonical_name.lower():
             return line
     return None
@@ -203,10 +201,10 @@ def _find_line_for(basket_comparison: Any, canonical_name: str) -> Any | None:
 
 def _line_total(line: Any) -> float | None:
     """Return the cheapest total for a single line."""
-    t = _safe_get(line, "cheapest_total", default=None)
+    t = safe_get(line, "cheapest_total", default=None)
     if t is None:
         # Alternative field name
-        t = _safe_get(line, "total", default=None)
+        t = safe_get(line, "total", default=None)
     if t is None:
         return None
     try:
@@ -217,7 +215,7 @@ def _line_total(line: Any) -> float | None:
 
 def _line_store(line: Any) -> str:
     """Return the source label for a line's cheapest price."""
-    return str(_safe_get(line, "best_source", "cheapest_source", default="") or "")
+    return str(safe_get(line, "best_source", "cheapest_source", default="") or "")
 
 
 def _is_use_soon_critical(use_soon: dict) -> bool:

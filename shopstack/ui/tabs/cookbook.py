@@ -123,7 +123,7 @@ def _refresh_grid_and_selector(
     cuisine: str | None,
     quick_only: bool | str,
     search: str,
-) -> tuple[str, list[tuple[str, str]]]:
+):
     """Re-render the cookbook grid AND rebuild the recipe-selector choices.
 
     Returns a tuple ``(grid_html, recipe_choices)`` so the same handler
@@ -161,4 +161,9 @@ def _refresh_grid_and_selector(
         # has a non-empty ``choices`` list (Gradio warns on empty).
         choices = [("(no recipes match)", "")]
 
-    return grid, choices
+    # A bare list output for a Dropdown component is interpreted by
+    # Gradio as the new *value* (stringified, since allow_custom_value=True
+    # accepts non-choice values) -- not as the new ``choices``. That made
+    # the "Open recipe" dropdown display the raw choices list as text.
+    # gr.update(choices=..., value=...) is required to refresh choices.
+    return grid, gr.update(choices=choices, value="")

@@ -45,18 +45,6 @@ def _user_id() -> str:
     return current_user_id()
 
 
-_ITEM_ALIASES_LOCAL: dict[str, list[str]] = {
-    "tomato": ["tamatar", "tomatoes"],
-    "coriander": ["dhania", "cilantro"],
-    "curd": ["dahi", "yogurt"],
-    "wheat flour": ["atta", "aata"],
-    "rice": ["chawal"],
-    "lentils": ["dal", "daal"],
-    "onion": ["pyaaz", "pyaz"],
-    "potato": ["aloo", "alu"],
-}
-
-
 def shopping_list_view():
     """LEGACY: 4-tuple return. Superseded by `shopping_list_view_with_cards`
     (6-tuple return).

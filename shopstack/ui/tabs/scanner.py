@@ -54,14 +54,14 @@ def build_scanner_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> Non
                 scale=2,
             )
             ss_scene = gr.Dropdown(
-                label="Scene type",
+                label="Image type",
                 choices=["auto", "pantry", "fridge", "freezer", "spice_rack", "medicine"],
                 value="auto",
                 scale=1,
             )
         ss_scan_btn = gr.Button("Scan", variant="primary")
         ss_state = gr.Textbox(visible=False, label="Scan State")
-        ss_trace = gr.Textbox(visible=False, label="Trace ID")
+        ss_trace = gr.Textbox(visible=False, label="Internal ref")
         ss_annotated = gr.Image(
             label="Annotated image",
             type="filepath",

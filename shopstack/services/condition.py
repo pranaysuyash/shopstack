@@ -144,6 +144,10 @@ def record_condition_event(
 ) -> str:
     """Persist a single condition event to the DB.
 
+    If ``canonical_name`` is not provided, it is auto-derived from the
+    lot record so the view always has a stable display label even when
+    the lot is not visible through household-scoped queries.
+
     Returns:
         The generated event_id.
 
@@ -154,6 +158,10 @@ def record_condition_event(
         kind = _coerce_kind(kind)
     if isinstance(severity, str):
         severity = _coerce_severity(severity)
+    if not canonical_name:
+        lot = db.get_inventory_lot(lot_id)
+        if lot:
+            canonical_name = lot.canonical_name
     return db.add_condition_event(
         lot_id=lot_id,
         kind=kind.value,

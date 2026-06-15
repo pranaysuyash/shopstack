@@ -76,7 +76,12 @@ def build_market_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                     [ml_results, ml_items, ml_analysis, ml_last_trace_id, ml_barcode_state],
                     js=busy_js("market-scan-btn", original_label="Check and compare"),
                     api_name="market_scan",
-                    api_description="Scan image or voice input to classify and compare products",
+                    api_description=(
+                        "Scan image or voice input to classify and compare products. "
+                        "File-type parameters (image_input, audio_input) require the "
+                        "{\"meta\": {\"_type\": \"gradio.FileData\"}} envelope for programmatic "
+                        "consumers (per gradio.Client protocol)."
+                    ),
                 ).then(
                     with_loading_state(scan_btn, [])[1],
                     outputs=[scan_btn],
@@ -160,7 +165,12 @@ def build_market_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                     [hs_results, hs_state, hs_trace_id, hs_annotated],
                     js=busy_js("home-scan-btn", original_label="Scan home area"),
                     api_name="home_scan",
-                    api_description="Scan a shelf or household scene and return household memory updates",
+                    api_description=(
+                        "Scan a shelf or household scene and return household memory updates. "
+                        "File-type parameters (image_input, audio_input) require the "
+                        "{\"meta\": {\"_type\": \"gradio.FileData\"}} envelope for programmatic "
+                        "consumers (per gradio.Client protocol)."
+                    ),
                 ).then(
                     with_loading_state(hs_scan_btn, [])[1],
                     outputs=[hs_scan_btn],

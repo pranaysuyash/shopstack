@@ -13,6 +13,7 @@ from shopstack.ui.theme import CSS
 from shopstack.ui.tabs.context import TabContext
 from shopstack.ui.tabs.registry import build_all_tabs
 from shopstack.ui.household_settings import build_household_settings
+from shopstack.ui.tabs.onboarding import build_onboarding_wizard
 from shopstack.ui.locale_save import build_locale_save
 from shopstack.ui.pwa_mount import mount_pwa_static
 from shopstack.ui.runtime_status import build_runtime_status
@@ -63,7 +64,7 @@ def build_app() -> gr.Blocks:
     Adding a new tab does NOT require editing this file — register it
     in ``module_registry.TAB_ORDER`` and ``shopstack.ui.tabs.registry``.
     """
-    with gr.Blocks(title=APP_NAME) as app:
+    with gr.Blocks(title=APP_NAME, css=CSS) as app:
         mount_pwa_static(app)
         mount_sms_webhook(app)
 
@@ -83,9 +84,26 @@ def build_app() -> gr.Blocks:
         with gr.Tabs(elem_classes="tabs", elem_id="main-content"):
             handles = build_all_tabs(blocks=app, app=app, ctx=TabContext())
 
-        # Extract handles from tabs that expose them for cross-tab wiring
+        # Extract handles from tabs that expose them for cross-tab wiring.
+        # These are P0 guards: if a builder silently returns None or is
+        # skipped, we fail fast with a clear error rather than crashing
+        # with AttributeError deep inside the event wiring below.
         today_handles = handles.get("today")
         reconcile_handles = handles.get("reconcile")
+        if today_handles is None:
+            raise RuntimeError(
+                "Today tab builder did not return required handles. "
+                "Check that build_today_tab() returns a TodayTabHandles "
+                "dataclass and that the builder is registered in "
+                "shopstack/ui/tabs/registry.py."
+            )
+        if reconcile_handles is None:
+            raise RuntimeError(
+                "Reconcile tab builder did not return required handles. "
+                "Check that build_reconcile_tab() returns a "
+                "ReconcileTabHandles dataclass and that the builder is "
+                "registered in shopstack/ui/tabs/registry.py."
+            )
         today_stats = today_handles.today_stats
         today_soon = today_handles.today_soon
         today_list = today_handles.today_list
@@ -100,6 +118,21 @@ def build_app() -> gr.Blocks:
         household_dropdown = hh.household_dropdown
         add_hh_btn = hh.add_hh_btn
         hh_add_row = hh.hh_add_row
+
+        # ── Onboarding wizard (first-run household setup) ──
+        # Hidden by default; auto-shown on first load if the active
+        # household hasn't completed onboarding yet. See
+        # Docs/HANDOFF_ONBOARDING_WIRING_2026-06-13.md.
+        onboarding_wizard = build_onboarding_wizard(app)
+
+        def _show_onboarding_if_first_run() -> gr.update:
+            from shopstack.services.onboarding import is_onboarding_complete
+            return gr.update(visible=not is_onboarding_complete(db))
+
+        app.load(
+            _show_onboarding_if_first_run,
+            outputs=[onboarding_wizard],
+        )
         hh_name_input = hh.hh_name_input
         hh_create_btn = hh.hh_create_btn
         hh_cancel_btn = hh.hh_cancel_btn
@@ -176,7 +209,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     app = build_app()
-    app.launch(server_port=args.port, share=args.share, theme=gr.themes.Base(), css=CSS, head=pwa_head_html(), prevent_thread_lock=True)
+    app.launch(server_port=args.port, share=args.share, theme=gr.themes.Base(), head=pwa_head_html(), prevent_thread_lock=True)
     # Post-launch re-mounts: launch() discards the FastAPI app constructed
     # during build_app() and creates a new one, so any custom routes we
     # registered in build_app() are lost. Re-mount PWA + health here so

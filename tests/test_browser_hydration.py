@@ -276,6 +276,7 @@ def test_dark_mode_toggle_persistence(tmp_path: Path) -> None:
         "signal is aborted",        # AbortError on WebSocket close
         "Failed to fetch",          # fetch() rejected during teardown
         "Connection errored out",   # Gradio streaming-server wording
+        "network error",            # TypeError on WebSocket teardown during reload
     )
 
     def _is_reload_noise(text: str) -> bool:

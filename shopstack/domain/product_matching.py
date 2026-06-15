@@ -74,7 +74,7 @@ _PRODUCT_ALIASES: dict[str, list[str]] = {
     "ginger": ["adrak"],
     "chicken": ["murg", "chicken breast", "chicken thigh"],
     "paneer": ["cottage cheese"],
-    "yogurt": ["dahi", "curd", "yoghurt"],
+    "curd": ["dahi", "yogurt", "yoghurt", "mosaru", "perugu", "thayir"],
     "butter": ["makhan"],
     "lentils": ["dal", "daal", "masoor dal", "moong dal", "toor dal"],
     "soap": ["sabun", "hand soap", "dish soap"],

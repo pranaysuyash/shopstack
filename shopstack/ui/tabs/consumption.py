@@ -33,14 +33,14 @@ def build_consumption_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) ->
         gr.Markdown("---")
         gr.Markdown("### Quick consume")
         with gr.Row():
-            cn_lot = gr.Textbox(label="Lot ID", scale=2)
+            cn_lot = gr.Textbox(label="Batch", scale=2)
             cn_qty = gr.Number(label="Quantity", value=1.0, scale=1)
             cn_go = gr.Button("Consume", scale=0)
         cn_result = gr.HTML("")
 
         gr.Markdown("---")
         gr.Markdown("### Batch consume with context")
-        cn_batch = gr.Textbox(label="Items (one per line: lot_id:qty)", lines=4,
+        cn_batch = gr.Textbox(label="Items (one per line: batch:qty)", lines=4,
                               placeholder="abc123: 0.5\ndef456: 1")
         with gr.Row():
             cn_meal = gr.Dropdown(label="Meal", choices=["breakfast", "lunch", "dinner", "snack", "other"],

@@ -1196,12 +1196,16 @@ details.home-details > *:not(summary),
   color: var(--text-dim, #6F6254);
   margin-top: 1px;
 }
+/* !important: Gradio's own ``span { display: inline; margin: 0 }`` reset
+   inside gr.HTML content has higher cascade priority than this rule, so
+   without !important the tags render with zero gap between them
+   (e.g. "VegetarianVegan" with no visible separator). */
 .cb-tag {
-  display: inline-block;
+  display: inline-block !important;
   font-size: 0.5625rem;
   padding: 1px 6px;
   border-radius: 3px;
-  margin-right: 4px;
+  margin-right: 4px !important;
   margin-top: 3px;
   font-weight: 500;
 }
@@ -1633,6 +1637,286 @@ details.home-details > *:not(summary),
   font-size: 0.6875rem;
   padding: 2px 8px;
   border-radius: 3px;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Empty states (used by shopstack.services.empty_states)
+
+   A reusable card-style empty state. The compact variant is a
+   one-liner with no icon/CTAs; the full variant is a centered card
+   with icon, title, body, and 0-2 CTA buttons. The card respects
+   the dark-theme tokens already in :root and is keyboard-friendly
+   (the CTA buttons are real <button> elements, focus visible, no
+   click-jacking). WCAG: AAA-level contrast on the body text, 44px
+   min-height on CTAs (1.4.10 + 2.5.5).
+   ──────────────────────────────────────────────────────────────── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 32px 24px;
+  margin: 16px auto;
+  max-width: 480px;
+  border: 1px dashed var(--border, #E5D5B7);
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-card, #FFFFFF);
+  color: var(--text, #1F1812);
+}
+.empty-state--wide { max-width: 720px; }
+.empty-state-icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+  opacity: 0.85;
+  /* Emoji are decorative — hide from assistive tech via aria-hidden. */
+}
+.empty-state-title {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  margin: 0 0 6px 0;
+  color: var(--text, #1F1812);
+}
+.empty-state-body {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin: 0 0 14px 0;
+  color: var(--text-muted, #5F5144);
+  max-width: 360px;
+}
+.empty-state-ctas {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.empty-state-cta {
+  font: inherit;
+  font-size: 0.875rem;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  transition: opacity 120ms ease, background 120ms ease;
+}
+.empty-state-cta:hover { opacity: 0.92; }
+.empty-state-cta:focus-visible {
+  outline: 2px solid var(--accent, #B8623F);
+  outline-offset: 2px;
+}
+.empty-state-cta--primary {
+  background: var(--accent, #B8623F);
+  color: var(--bg-card, #FFFFFF);
+  border: 1px solid var(--accent, #B8623F);
+}
+.empty-state-cta--secondary {
+  background: transparent;
+  color: var(--accent, #B8623F);
+  border: 1px solid var(--border, #E5D5B7);
+}
+.empty-state--compact {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  max-width: none;
+  text-align: left;
+  align-items: flex-start;
+  color: var(--text-muted, #5F5144);
+  font-size: 0.875rem;
+}
+.empty-state--compact .empty-state-body {
+  margin: 0 0 0 6px;
+  display: inline;
+  max-width: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Inline help / tooltips (used by shopstack.services.tooltips)
+
+   A pure-CSS tooltip triggered by hover/focus on the .help-target
+   element. The tooltip lives inside the .help-target wrapper so it
+   inherits the page's positioning context. Long-form help text
+   appears below the inline icon; the user can click the icon to
+   toggle a persistent popover (used for the longer descriptions
+   that overflow on hover).
+   ──────────────────────────────────────────────────────────────── */
+.help-target {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: help;
+}
+.help-target-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 0.75rem;
+  border-radius: 50%;
+  background: var(--bg-warm, #FFF1D6);
+  color: var(--text-muted, #5F5144);
+  border: 1px solid var(--border, #E5D5B7);
+  user-select: none;
+  /* WCAG: 44px click target via parent padding (target group below). */
+}
+.help-target[aria-describedby]:focus .help-tooltip,
+.help-target[aria-describedby]:hover .help-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+.help-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: var(--bg-card, #FFFFFF);
+  color: var(--text, #1F1812);
+  border: 1px solid var(--border, #E5D5B7);
+  border-radius: var(--radius-sm, 6px);
+  padding: 8px 12px;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  max-width: 280px;
+  width: max-content;
+  text-align: left;
+  box-shadow: 0 2px 8px rgba(31, 24, 18, 0.12);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
+  pointer-events: none;
+  z-index: 50;
+  /* WCAG 1.4.13: focus indicator on the tooltip itself is implicit
+     (the parent has focus-visible). */
+}
+.help-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: var(--border, #E5D5B7);
+}
+.help-tooltip strong {
+  color: var(--accent, #B8623F);
+  display: block;
+  margin-bottom: 2px;
+  font-size: 0.8125rem;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Undo toast (used by shopstack.services.undo_ledger)
+
+   A dedicated toast style for "X has been undone" with a brief
+   confirm icon and a smaller secondary line for context. Renders
+   in the same toast container as the standard toasts but with a
+   distinct accent.
+   ──────────────────────────────────────────────────────────────── */
+.toast.toast-undo {
+  border-left: 3px solid var(--accent, #B8623F);
+}
+.toast.toast-undo .toast-detail {
+  font-size: 0.75rem;
+  color: var(--text-muted, #5F5144);
+  margin-top: 2px;
+  display: block;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Global search / command palette (used by shopstack.services.global_search)
+
+   A fixed-position overlay triggered by ⌘K / Ctrl+K. The palette
+   has a single text input at the top, a results list below, and a
+   small status bar at the bottom. Designed to work with both
+   keyboard navigation (arrow keys + Enter) and mouse.
+   ──────────────────────────────────────────────────────────────── */
+.global-search-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(31, 24, 18, 0.45);
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+  z-index: 800;
+}
+.global-search-overlay[data-open="true"] { display: flex; }
+.global-search-panel {
+  width: min(640px, 92vw);
+  background: var(--bg-card, #FFFFFF);
+  color: var(--text, #1F1812);
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border, #E5D5B7);
+  box-shadow: 0 12px 32px rgba(31, 24, 18, 0.25);
+  overflow: hidden;
+}
+.global-search-input {
+  width: 100%;
+  font: inherit;
+  font-size: 1rem;
+  padding: 14px 16px;
+  border: none;
+  border-bottom: 1px solid var(--border, #E5D5B7);
+  background: transparent;
+  color: inherit;
+  box-sizing: border-box;
+  outline: none;
+}
+.global-search-input:focus {
+  border-bottom-color: var(--accent, #B8623F);
+}
+.global-search-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.global-search-result {
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--bg-warm, #FFF1D6);
+}
+.global-search-result:last-child { border-bottom: none; }
+.global-search-result:hover,
+.global-search-result[data-selected="true"] {
+  background: var(--bg-warm, #FFF1D6);
+}
+.global-search-result-kind {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim, #6F6254);
+  min-width: 76px;
+}
+.global-search-result-title {
+  flex: 1;
+  font-size: 0.9375rem;
+}
+.global-search-result-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted, #5F5144);
+}
+.global-search-status {
+  font-size: 0.75rem;
+  color: var(--text-muted, #5F5144);
+  padding: 8px 16px;
+  border-top: 1px solid var(--bg-warm, #FFF1D6);
+  background: var(--bg-warm, #FFF1D6);
+}
+.global-search-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--text-muted, #5F5144);
+  font-size: 0.875rem;
 }
 """
 

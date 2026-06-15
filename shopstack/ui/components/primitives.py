@@ -717,10 +717,10 @@ def loading_skeleton(
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# Card — wrapper primitive for the home-card CSS class
+# HomeCard — wrapper primitive for the home-card CSS class
 # ═══════════════════════════════════════════════════════════════════════
 
-def card(
+def home_card(
     title: str = "",
     body: str = "",
     style: str = "",
@@ -735,24 +735,28 @@ def card(
         <div class='home-card' style='text-align:center;padding:20px;'>{content}</div>
 
     This primitive consolidates all three forms into a single canonical call.
-    All content passes through ``html.escape()``.
 
     Args:
         title: Optional h4 title (rendered before the body).
-        body: The card content (HTML string, already escaped by caller or by
-            ``html.escape()`` inside).
-        style: Inline CSS to apply to the card div (caller-escaped).
+        body: The card content (HTML string).
+        style: Inline CSS to apply to the card div.
         extra_class: Additional CSS classes to add beyond ``home-card``.
 
     Returns:
         The rendered ``<div class='home-card'>...</div>`` HTML.
+
+    Note:
+        There is a separate ``card()`` in :mod:`cards` with a more specific
+        signature (h3 title, ARIA region, optional compact mode). Use
+        ``home_card()`` for the common ``<div class='home-card'>`` wrapper
+        pattern; use ``card()`` when you need the structured region with
+        h3 heading and ARIA wiring.
     """
     safe_title = escape(str(title)) if title else ""
-    safe_body = body or ""
     style_attr = f" style='{style}'" if style else ""
     class_attr = f"home-card {extra_class}".strip() if extra_class else "home-card"
     title_html = f"<h4>{safe_title}</h4>" if title else ""
-    return f"<div class='{class_attr}'{style_attr}>{title_html}{safe_body}</div>"
+    return f"<div class='{class_attr}'{style_attr}>{title_html}{body}</div>"
 
 
 # ═══════════════════════════════════════════════════════════════════════

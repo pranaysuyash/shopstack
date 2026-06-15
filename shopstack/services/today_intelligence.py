@@ -97,15 +97,6 @@ class TodayIntelligence:
 # ─── Build intelligence ──────────────────────────────────────────
 
 
-def _safe_get(obj: Any, *keys: str, default: Any = None) -> Any:
-    for k in keys:
-        if obj is None:
-            return default
-        if isinstance(obj, dict):
-            obj = obj.get(k, default)
-        else:
-            obj = getattr(obj, k, default)
-    return obj
 
 
 def _rank(actions: list[TodayAction], max_top: int = 5) -> TodayIntelligence:
@@ -195,7 +186,7 @@ def build_today_intelligence(
     actions: list[TodayAction] = []
 
     # 1. Use-soon items (highest urgency — food going bad)
-    use_soon = _safe_get(dashboard_state, "use_soon_items", default=[]) or []
+    use_soon = safe_get(dashboard_state, "use_soon_items", default=[]) or []
     for it in use_soon:
         cname = str(it.get("canonical_name") or it.get("name") or "")
         if not cname:
@@ -216,7 +207,7 @@ def build_today_intelligence(
         ))
 
     # 2. Restock due (high urgency — running out)
-    restock = _safe_get(dashboard_state, "restock_predictions", default=[]) or []
+    restock = safe_get(dashboard_state, "restock_predictions", default=[]) or []
     for r in restock:
         cname = str(r.get("canonical_name") or "")
         if not cname:
@@ -240,7 +231,7 @@ def build_today_intelligence(
         ))
 
     # 3. Price drops (opportunity — act fast)
-    price_drops = _safe_get(dashboard_state, "price_drops", default=[]) or []
+    price_drops = safe_get(dashboard_state, "price_drops", default=[]) or []
     for d in price_drops:
         cname = str(d.get("canonical_name") or "")
         if not cname:

@@ -32,6 +32,7 @@ ALIASES: dict[str, list[str]] = {
     # Hindi / Hinglish food aliases for cross-language search
     "doodh": ["milk"],
     "dudh": ["milk"],
+    "dahi": ["curd", "yogurt"],
     "anda": ["egg"],
     "chawal": ["rice"],
     "atta": ["flour"],

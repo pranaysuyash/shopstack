@@ -40,12 +40,12 @@ def build_find_trail_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> 
         gr.Markdown("---")
         gr.Markdown("### Actions")
         with gr.Row():
-            ft_neg_lot = gr.Textbox(label="Lot ID", placeholder="lot_id", scale=2)
+            ft_neg_lot = gr.Textbox(label="Batch", placeholder="batch ID or prefix", scale=2)
             ft_neg_loc = gr.Textbox(label="Location", placeholder="location_id", scale=2)
             ft_neg_btn = gr.Button("Mark NOT here", scale=0)
         ft_neg_result = gr.HTML("")
         with gr.Row():
-            ft_person_lot = gr.Textbox(label="Lot ID", placeholder="lot_id", scale=2)
+            ft_person_lot = gr.Textbox(label="Batch", placeholder="batch ID or prefix", scale=2)
             ft_person_name = gr.Textbox(label="Person name", placeholder="e.g. Ravi", scale=2)
             ft_person_rel = gr.Dropdown(
                 label="Relationship",

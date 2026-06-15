@@ -249,6 +249,7 @@ def test_known_endpoints_exist():
     # Core endpoints that consumers depend on
     required = {
         "save_locale",
+        "runtime_status",  # AI-9: external deployment verification
         "switch_household",
         "create_household",
         "ask",

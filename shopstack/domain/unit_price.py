@@ -276,8 +276,9 @@ _CANONICAL_MAP: dict[str, str] = {
     "lehsun": "garlic",
     "adrak": "ginger",
     "murg": "chicken",
-    "dahi": "yogurt",
-    "curd": "yogurt",
+    "dahi": "curd",
+    "curd": "curd",
+    "yogurt": "curd",
     "makhan": "butter",
     "dal": "lentils",
     "daal": "lentils",
@@ -322,7 +323,7 @@ ITEM_ALIASES: dict[str, list[str]] = {
     "potato": ["aloo", "alu", "chikka aloo", "batata", "urulai kazhangu"],
     "baby_potato": ["baby aloo", "baby batata"],
     "sweet_potato": ["shakarkand", "shakarkandi", "genasu"],
-    "carrot": ["gajar", "padavalakayi"],
+    "carrot": ["gajar", "gajjari gedde", "gajjari"],
     "cucumber": ["sowthekaayi", "kheera", "kakdi"],
     "brinjal": ["baingan", "vankaya", "kathirikai", "eggplant", "aubergine"],
     "capsicum": ["shimla mirch", "donna mirchi", "kudaimilagai"],
@@ -440,11 +441,25 @@ def _detect_combo(name: str) -> bool:
 
 
 def _extract_combo_components(cleaned_name: str) -> list[str]:
+    """Extract the individual component items from a combo product name.
+
+    For known combos (sambar veg, herbs mix), returns a hardcoded
+    component list. For ad-hoc combos with '&' or ',' separators,
+    resolves each part to its canonical name.
+
+    TODO (long-term): parse the product ``description`` field for
+    component lists instead of hardcoding. The Swiggy snapshot at
+    ``data/swiggy_fresh_vegetables_cards_6jun26.json`` stores the
+    actual component list in the description (e.g. "Sambar Veg Combo"
+    description = "Drumstick, Brinjal, Raw Banana and Pumpkin"). Once
+    the source loader passes the description to this function, the
+    hardcoded fallback below can be removed.
+    """
     lowered = cleaned_name.lower()
     if "herbs mix" in lowered:
         return ["curry_leaves", "coriander", "mint"]
     if "sambar veg" in lowered:
-        return ["drumstick", "radish", "cluster_beans", "ladys_finger"]
+        return ["drumstick", "brinjal", "raw_banana", "pumpkin"]
     parts = re.split(r"[,&]|, and | and ", lowered)
     components: list[str] = []
     for part in parts:

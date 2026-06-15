@@ -308,7 +308,7 @@ def _redact_args_dict(args: dict) -> dict:
 
 def _redact_obj(value):
     if isinstance(value, dict):
-        return {k: _redact_obj(v) for k, v in value.items()}
+        return _redact_args_dict(value)
     if isinstance(value, list):
         return [_redact_obj(v) for v in value]
     if isinstance(value, str):

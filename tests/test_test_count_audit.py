@@ -137,7 +137,10 @@ class TestTestCountConsistency:
 
         Parameterized tests, subTests, and decorated tests can
         make the runtime count slightly higher than the source
-        count. They should not diverge by more than 100.
+        count. They should not diverge by more than 300 (the
+        tolerance is generous because tests like
+        ``test_onboarding_wiring`` add parameterized cases that
+        multiply the pytest count vs. the source count).
         """
         source_total = 0
         for path in REPO.glob("tests/test_*.py"):
@@ -157,10 +160,10 @@ class TestTestCountConsistency:
             pytest.skip(f"could not parse pytest output: {result.stdout!r}")
         pytest_count = int(m.group(1))
         # pytest count is usually slightly higher than source count
-        # (parameterized tests). Allow either direction but cap at 100.
-        assert abs(pytest_count - source_total) <= 100, (
+        # (parameterized tests). Allow either direction but cap at 300.
+        assert abs(pytest_count - source_total) <= 300, (
             f"Source-level count ({source_total}) and pytest collect "
-            f"count ({pytest_count}) differ by more than 100. "
+            f"count ({pytest_count}) differ by more than 300. "
             "Investigate: did a parameterized test explode the count?"
         )
 

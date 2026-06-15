@@ -19,6 +19,7 @@ from shopstack.services.dashboard import clear_dashboard_cache
 from shopstack.ui.screens._utils import safe_render
 from shopstack.ui.components.cards import card as ui_card
 from shopstack.ui.components.decorators import aria_live_screen  # canonical path (replaces primitives import)
+from shopstack.ui.components.primitives import home_card
 
 logger = logging.getLogger(__name__)
 
@@ -57,10 +58,9 @@ def _active_inventory_rows(uid: str) -> list[dict[str, Any]]:
 def _render_quick_consume_grid(items: list[dict[str, Any]]) -> str:
     """Render inventory items as a grid of consume buttons."""
     if not items:
-        return (
-            "<div class='home-card' style='text-align:center;padding:20px;color:var(--text-dim);'>"
-            "No active inventory. Add purchases to start tracking consumption."
-            "</div>"
+        return home_card(
+            body="No active inventory. Add purchases to start tracking consumption.",
+            style="text-align:center;padding:20px;color:var(--text-dim);",
         )
 
     rows_html = ""
@@ -139,19 +139,20 @@ def _render_quick_consume_grid(items: list[dict[str, Any]]) -> str:
         "max-width:360px;'></div>"
     )
 
-    return (
-        "<div class='home-card'><h4>Quick Consume</h4>"
-        "<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:8px;'>"
-        "Tap to log what you use.</div>"
-        f"{rows_html}</div>"
-        f"{consume_script}{toast_div}"
-    )
+    return home_card(
+        title="Quick Consume",
+        body=(
+            "<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:8px;'>"
+            "Tap to log what you use.</div>"
+            f"{rows_html}"
+        ),
+    ) + f"{consume_script}{toast_div}"
 
 
 def _render_recent_events(events: list[Any]) -> str:
     """Render recent consumption events as a timeline."""
     if not events:
-        return "<div class='home-card'>No consumption history yet.</div>"
+        return home_card(body="No consumption history yet.")
 
     rows = []
     for ev in events[:20]:
@@ -172,9 +173,9 @@ def _render_recent_events(events: list[Any]) -> str:
             f"</div>"
         )
 
-    return (
-        "<div class='home-card'><h4>Recent Consumption</h4>"
-        + "".join(rows) + "</div>"
+    return home_card(
+        title="Recent Consumption",
+        body="".join(rows),
     )
 
 
@@ -246,16 +247,17 @@ def consumption_dashboard() -> tuple[str, str, str]:
                 f"<span>{rate:.2f}/day ({total:.1f} over {days}d)</span>"
                 f"</div>"
             )
-        rates_html = (
-            "<div class='home-card'><h4>Consumption Rates</h4>"
-            "<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>"
-            "Average daily usage based on consumption history.</div>"
-            + "".join(rate_rows) + "</div>"
+        rates_html = home_card(
+            title="Consumption Rates",
+            body=(
+                "<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>"
+                "Average daily usage based on consumption history.</div>"
+                + "".join(rate_rows)
+            ),
         )
     else:
-        rates_html = (
-            "<div class='home-card'>No consumption rate data yet. "
-            "Log consumption to start tracking rates.</div>"
+        rates_html = home_card(
+            body="No consumption rate data yet. Log consumption to start tracking rates."
         )
 
     return grid_html, history_html, rates_html
@@ -355,7 +357,7 @@ def consumption_rates() -> str:
     rates = _compute_consumption_rates(uid)
 
     if not rates:
-        return "<div class='home-card'>No consumption rate data available.</div>"
+        return home_card(body="No consumption rate data available.")
 
     rate_rows = []
     for r in rates[:20]:
@@ -372,7 +374,7 @@ def consumption_rates() -> str:
             f"</div>"
         )
 
-    return (
-        "<div class='home-card'><h4>Consumption Rates</h4>"
-        + "".join(rate_rows) + "</div>"
+    return home_card(
+        title="Consumption Rates",
+        body="".join(rate_rows),
     )

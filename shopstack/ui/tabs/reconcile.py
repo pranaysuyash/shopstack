@@ -169,7 +169,7 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                 inv_table = gr.DataFrame(label="All Inventory Items")
                 with gr.Row():
                     cons_lot = gr.Textbox(
-                        label="Lot ID (full or prefix)",
+                        label="Batch (full or prefix)",
                         placeholder="abcdef123456",
                     )
                     cons_qty = gr.Number(label="Quantity to Consume", value=1.0)
@@ -216,10 +216,10 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                     js="() => showToast('Marking as used...', 'info')",
                 )
                 gr.HTML(
-                    "**Quick use** (one per line: `lot_id: qty`, or just `lot_id` for qty 1)")
+                    "**Quick use** (one per line: `batch: qty`, or just `batch` for qty 1)")
                 gr.HTML(help_text(
-                    "Format: one lot per line. Each line is either a lot ID by itself "
-                    "(uses quantity 1) or `lot_id: qty` to use a specific amount. "
+                    "Format: one item per line. Each line is either a batch reference by itself "
+                    "(uses quantity 1) or `batch: qty` to use a specific amount. "
                     "Example: `abc123: 0.5` or just `abc123`.",
                     label_for="batch_consume_input",
                 ))
@@ -284,7 +284,7 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                 gr.Markdown("### Quick use")
                 with gr.Row():
                     cons_lot_input = gr.Textbox(
-                        label="Lot ID",
+                        label="Batch",
                         placeholder="e.g. abc123",
                         scale=2,
                     )
@@ -325,13 +325,13 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                 gr.Markdown("---")
                 gr.Markdown("### Batch use with context")
                 gr.HTML(help_text(
-                    "Format: one item per line as `lot_id:qty` (e.g. `abc123: 0.5`). "
+                    "Format: one item per line as `batch:qty` (e.g. `abc123: 0.5`). "
                     "Add a meal context and mark as Wasted only if the food was thrown "
                     "out without being eaten.",
                     label_for="cons_batch_input",
                 ))
                 cons_batch_input = gr.Textbox(
-                    label="Items (one per line: lot_id:qty)",
+                    label="Items (one per line: batch:qty)",
                     lines=4,
                     placeholder="abc123: 0.5\ndef456: 1",
                     elem_id="cons_batch_input",
@@ -371,7 +371,7 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                 gr.Markdown("### Move item between locations")
                 with gr.Row():
                     move_lot_input = gr.Textbox(
-                        label="Lot ID (or prefix)",
+                        label="Batch (or prefix)",
                         placeholder="e.g. abc123",
                     )
                     move_dest = gr.Dropdown(

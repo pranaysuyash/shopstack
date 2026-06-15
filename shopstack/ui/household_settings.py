@@ -174,10 +174,10 @@ def build_household_settings(app: gr.Blocks) -> HouseholdSettingsHandles:
                 gr.Markdown("---")
                 gr.Markdown("**📡 Federation**")
                 gr.Markdown(
-                    "Export your local pool as a JSONL bundle to share "
-                    "with another household, or import a bundle a friend "
+                    "Export your local price pool as a shareable file to share "
+                    "with another household, or import a file a friend "
                     "sent you. The salt fingerprint lets you verify the "
-                    "bundle was produced by a participant."
+                    "file was produced by a participant."
                 )
                 from shopstack.services.community_federation import (
                     export_bundle_to_string as _export_bundle,
@@ -186,15 +186,15 @@ def build_household_settings(app: gr.Blocks) -> HouseholdSettingsHandles:
                 federation_status_html = gr.HTML(_sync_status(""))
                 with gr.Row():
                     federation_export_btn = gr.Button(
-                        "📤 Export bundle", elem_classes="secondary", scale=1
+                        "📤 Export share file", elem_classes="secondary", scale=1
                     )
                     federation_export_file = gr.File(
-                        label="Bundle (.jsonl)",
+                        label="Share file (.jsonl)",
                         file_count="single",
                         visible=False,
                     )
                     federation_import_file = gr.File(
-                        label="Import bundle (.jsonl)",
+                        label="Import share file (.jsonl)",
                         file_count="single",
                         scale=2,
                     )

@@ -63,12 +63,12 @@ def build_timeline_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> No
         gr.HTML(
             "<div style='font-size:0.75rem;color:var(--text-dim);margin-bottom:8px;'>"
             "Made a mistake adding, consuming, or moving an item? Paste its "
-            "lot id below to reverse the most recent change."
+            "batch reference below to reverse the most recent change."
             "</div>"
         )
         with gr.Row():
             tl_undo_lot_id = gr.Textbox(
-                label="Lot id", placeholder="lot id or prefix", scale=2, elem_id="tl_undo_lot_id"
+                label="Batch", placeholder="batch ID or prefix", scale=2, elem_id="tl_undo_lot_id"
             )
             tl_undo_btn = gr.Button(
                 "Undo last change", elem_classes="secondary", scale=0, elem_id="tl_undo_btn"

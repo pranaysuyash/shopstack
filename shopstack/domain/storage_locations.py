@@ -129,9 +129,16 @@ def get_location_hierarchy(
         _assign_depth(root, 0)
         return [root]
 
-    # Find all roots (no parent or parent not in set)
-    all_parent_ids = {node.parent_location_id for node in nodes.values() if node.parent_location_id}
-    roots = [nodes[lid] for lid in nodes if lid not in all_parent_ids]
+    # Find all roots: a node is a root if its parent is None
+    # or its parent is not in the set (orphan). Note: a node that
+    # *appears as* someone else's parent is not necessarily a root
+    # itself — only nodes that have no valid parent are roots.
+    roots = [
+        node
+        for node in nodes.values()
+        if node.parent_location_id is None
+        or node.parent_location_id not in nodes
+    ]
 
     for root in roots:
         root.children = _build_tree(root.location_id)

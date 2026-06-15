@@ -88,7 +88,7 @@ class TestTraceRedaction:
             "proposed_tool_calls": [],
         }
         redacted = _redact_trace(trace_dict)
-        assert "[REDACTED_NUMBER]" in redacted["user_goal"]
+        assert "[REDACTED_AADHAAR]" in redacted["user_goal"]
 
     def test_redact_pan(self):
         trace_dict = {
