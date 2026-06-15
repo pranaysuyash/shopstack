@@ -38,9 +38,9 @@ def _new_id() -> str:
 
 
 @pytest.fixture()
-def db():
+def db(db_path):
     """Fresh in-memory Database with a hh-1 owner."""
-    d = Database()
+    d = Database(db_path)
     d.add_household("hh-1", "Test Home")
     d.add_household_member("hh-1", "hh-1", role="owner")
     yield d

@@ -55,10 +55,15 @@ def render_restock_card_html(predictions: list[dict[str, Any]]) -> str:
     "more..." summary.
     """
     if not predictions:
-        return (
-            "<div class='restock-card restock-empty'>"
-            "🛒 No restock predictions yet. Add a few purchases to seed the engine."
-            "</div>"
+        from shopstack.ui.components.primitives import empty_state_enhanced
+        return empty_state_enhanced(
+            "No restock predictions yet",
+            icon="🛒",
+            secondary_text=(
+                "ShopStack predicts restock dates after you log a few purchases. "
+                "Add 3-5 common purchases (milk, rice, atta) using the command box above, "
+                "then check back in a few days."
+            ),
         )
     # Sort: soonest first, None last
     sorted_preds = sorted(

@@ -16,6 +16,14 @@ Adding a new tab is now a three-line change:
   3. Optionally add the tab_id to the appropriate module's ``tab_ids``.
 
 No changes to ``app.py`` are needed for new tabs.
+
+**2026-06-15 update (Home screen review):** the registry now supports a
+``use_primary_nav=True`` flag that switches from the legacy 5-group
+nested nav to the new 6-item user-facing primary nav (Home / Pantry /
+Shopping / Recipes / Trips / Memory). Each primary nav item is a single
+``gr.Tab`` that points at the canonical destination tab, with the
+remaining advanced tabs reachable as nested sub-tabs inside. The old
+``TAB_GROUPS`` layout is still the default for back-compat.
 """
 
 from __future__ import annotations
@@ -24,7 +32,13 @@ from typing import Any, Callable
 
 import gradio as gr
 
-from shopstack.module_registry import group_order, group_tab_ids
+from shopstack.module_registry import (
+    PRIMARY_NAV,
+    PRIMARY_NAV_ADVANCED,
+    group_order,
+    group_tab_ids,
+    group_label as _group_label,
+)
 from shopstack.ui.tabs.context import TabContext
 from shopstack.ui.tabs.today import build_today_tab
 from shopstack.ui.tabs.cookbook import build_cookbook_tab
@@ -94,22 +108,52 @@ def build_all_tabs(
     blocks: gr.Blocks,
     app: gr.Blocks,
     ctx: TabContext,
+    *,
+    use_primary_nav: bool = False,
 ) -> dict[str, Any]:
-    """Build all tabs in the grouped structure defined by ``TAB_GROUPS``.
+    """Build all tabs in either the new 6-item primary nav or the
+    legacy 5-group nested layout.
 
-    Top-level tabs correspond to module groups (Home, Groceries, Shopping,
-    At Home, Memory). Each group contains its screen tabs as nested
-    ``gr.Tabs`` sub-tabs.
+    Args:
+        blocks, app, ctx: Standard builder arguments (see :class:`TabContext`).
+        use_primary_nav: When True, render the 6-item user-facing
+            primary nav (Home / Pantry / Shopping / Recipes / Trips
+            / Memory) with each item showing advanced sub-tabs as
+            nested :class:`gr.Tabs`. When False (default), use the
+            legacy 5-group nested layout from ``TAB_GROUPS``.
 
-    Returns a dict mapping ``tab_id`` to whatever the builder returned.
-    Most builders return ``None``. Tabs in ``HANDLES_TABS`` return
-    dataclass handles (e.g. ``TodayTabHandles``, ``ReconcileTabHandles``)
-    that ``app.py`` uses for cross-tab event wiring.
+    Returns:
+        Dict mapping tab_id to whatever the builder returned.
+        Most builders return ``None``. Tabs in ``HANDLES_TABS``
+        return dataclass handles (e.g. ``TodayTabHandles``,
+        ``ReconcileTabHandles``) that ``app.py`` uses for cross-tab
+        event wiring.
 
-    If a tab_id is in a group but has no registered builder, it is
-    silently skipped.
+    Note:
+        If a tab_id is in a group but has no registered builder, it
+        is silently skipped in both modes.
     """
     handles: dict[str, Any] = {}
+    if use_primary_nav:
+        for item in PRIMARY_NAV:
+            with gr.Tab(item["label"], id=item["id"]):
+                # Each primary tab gets a nested gr.Tabs for the
+                # advanced screens assigned to it. The destination
+                # tab is rendered first so it's the default view.
+                advanced = PRIMARY_NAV_ADVANCED.get(item["id"], [])
+                # Reorder so the destination is first.
+                ordered = [item["destination"]] + [
+                    tid for tid in advanced if tid != item["destination"]
+                ]
+                with gr.Tabs():
+                    for tab_id in ordered:
+                        builder = _TAB_BUILDERS.get(tab_id)
+                        if builder is None:
+                            continue
+                        handles[tab_id] = builder(blocks=blocks, app=app, ctx=ctx)
+        return handles
+
+    # Legacy 5-group nested layout (default, back-compat).
     for group_id, _group_label in group_order():
         screen_ids = group_tab_ids(group_id)
         if not screen_ids:

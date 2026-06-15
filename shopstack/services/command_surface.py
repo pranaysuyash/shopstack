@@ -80,12 +80,20 @@ class CommandIntent:
 # Each tuple: (action, prefix regex, canonical normaliser).
 # Order matters — the first matching prefix wins. Keep most-specific
 # patterns first (consume > purchase > stock > buy > add).
+#
+# Note on the item regex: the prefix matchers consume one whitespace
+# at most, then the pattern requires a single ``\s+`` separator
+# before the item. The item itself uses greedy ``(?P<item>.+)``
+# (not non-greedy) so the regex engine backtracks the item to leave
+# a possible trailing dot. The end-anchor ``$`` pins the match.
 _INTENT_PATTERNS: tuple[tuple[str, re.Pattern[str], str], ...] = (
-    # Mark consumed
+    # Mark consumed — note: ``consume[d]?`` and ``ate`` are full words
+    # (no trailing space), so the next pattern's ``\s+`` separator
+    # is what consumes the space between keyword and item.
     (
         "mark_consumed",
         re.compile(
-            r"^\s*(?:we\s+(?:finished|used|ran\s+out\s+of)|consume[d]?\s+|used\s+up\s+|ate)\s+(?P<item>[\w\s\-]+?)\s*\.?\s*$",
+            r"^\s*(?:we\s+(?:finished|used|ran\s+out\s+of)|consume[d]?|used\s+up|ate)\s+(?P<item>.+?)\s*\.?\s*$",
             re.IGNORECASE,
         ),
         "consume",
@@ -94,7 +102,8 @@ _INTENT_PATTERNS: tuple[tuple[str, re.Pattern[str], str], ...] = (
     (
         "log_purchase",
         re.compile(
-            r"^\s*(?:i\s+(?:bought|got|picked\s+up|just\s+bought)|bought|purchased)\s+(?P<item>[\w\s\-]+?)\s*\.?\s*$",
+            r"^\s*(?:i\s+(?:bought|got|picked\s+up|just\s+bought)|just\s+bought|"
+            r"bought|purchased|got\s+it|got\s+some)\s+(?P<item>.+?)\s*\.?\s*$",
             re.IGNORECASE,
         ),
         "purchase",
@@ -103,7 +112,7 @@ _INTENT_PATTERNS: tuple[tuple[str, re.Pattern[str], str], ...] = (
     (
         "add_stock",
         re.compile(
-            r"^\s*(?:we\s+have|got\s+in|at\s+home|stocked|stash(?:ed)?|put\s+away)\s+(?P<item>[\w\s\-]+?)\s*\.?\s*$",
+            r"^\s*(?:we\s+have|got\s+in|at\s+home|stocked|stash(?:ed)?|put\s+away)\s+(?P<item>.+?)\s*\.?\s*$",
             re.IGNORECASE,
         ),
         "stock",
@@ -112,7 +121,7 @@ _INTENT_PATTERNS: tuple[tuple[str, re.Pattern[str], str], ...] = (
     (
         "add_to_list",
         re.compile(
-            r"^\s*(?:add|need|buy|get|put\s+on\s+(?:the\s+)?list|shop(?:ping)?\s+for)\s+(?P<item>[\w\s\-]+?)\s*\.?\s*$",
+            r"^\s*(?:add|need|buy|get|put\s+on\s+(?:the\s+)?list|shop(?:ping)?\s+for)\s+(?P<item>.+?)\s*\.?\s*$",
             re.IGNORECASE,
         ),
         "list",

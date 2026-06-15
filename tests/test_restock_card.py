@@ -17,7 +17,7 @@ from shopstack.services.restock_card import (
 def test_render_empty_returns_empty_state():
     html = render_restock_card_html([])
     assert "No restock predictions" in html
-    assert "restock-empty" in html
+    assert "empty-state" in html
 
 
 def test_render_basic_prediction():

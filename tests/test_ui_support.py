@@ -116,6 +116,10 @@ def test_build_price_memory_view_computes_unit_price(db: Database):
     view = build_price_memory_view(db, "rice")
 
     assert view.unit_price_latest == 160.0
+    assert view.unit_price_best == 160.0
+    assert "unit_price" in view.df.columns
+    unit_prices = view.df["unit_price"].dropna().tolist()
+    assert unit_prices == [180.0, 160.0]
 
 
 # ── Item #41 rollout: last_updated_stamp in price memory panel ───

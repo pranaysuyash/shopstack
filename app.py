@@ -108,8 +108,16 @@ def build_app() -> gr.Blocks:
         mount_undo_endpoint(app)
 
         initial_locale = load_locale_preference(current_user_id() or "default_household")
+        # 2026-06-15 (Home screen review): the brand subtitle now
+        # answers the user's actual job instead of the abstract
+        # "platform" copy. The legacy APP_DESCRIPTION is still
+        # passed as a tooltip / fallback via header attributes.
         gr.HTML(
-            header_block(APP_NAME, APP_DESCRIPTION, current_locale=initial_locale),
+            header_block(
+                APP_NAME,
+                "Know what is at home, what to buy next, and what to skip.",
+                current_locale=initial_locale,
+            ),
             padding=True,
         )
 
@@ -149,8 +157,15 @@ def build_app() -> gr.Blocks:
         hh_cancel_btn = hh.hh_cancel_btn
 
         # ── Tab bar — driven by module_registry.TAB_ORDER via the builder registry ──
-        with gr.Tabs(elem_classes="tabs", elem_id="main-content"):
-            handles = build_all_tabs(blocks=app, app=app, ctx=TabContext())
+        # 2026-06-15: switched to the 6-item user-facing primary nav
+        # (Home / Pantry / Shopping / Recipes / Trips / Memory). The
+        # old 5-group nested layout is still available via
+        # ``build_all_tabs(use_primary_nav=False)`` for back-compat.
+        with gr.Tabs(elem_classes="tabs primary-nav", elem_id="main-content"):
+            handles = build_all_tabs(
+                blocks=app, app=app, ctx=TabContext(),
+                use_primary_nav=True,
+            )
 
         # Extract handles from tabs that expose them for cross-tab wiring.
         # These are P0 guards: if a builder silently returns None or is

@@ -395,7 +395,7 @@ class TestRetentionIntegration:
         # with the DB instance — the call count includes both
         # the implicit init and the explicit test call. We
         # assert "called with our DB" rather than a count.
-        db = Database()
+        db = Database(str(tmp_path / "ret.db"))
         # Stub prune_traces so the test doesn't depend on real
         # trace rows / dates.
         db.prune_traces = lambda *a, **kw: 0  # type: ignore[assignment]
@@ -438,7 +438,7 @@ class TestRetentionIntegration:
         os.environ["SHOPSTACK_LOCAL_AUTO_DOWNLOAD"] = "false"
         from shopstack.persistence.database import Database
 
-        db = Database()
+        db = Database(str(tmp_path / "ret2.db"))
         db.prune_traces = lambda *a, **kw: 0  # type: ignore[assignment]
 
         # Should not raise. The try/except inside

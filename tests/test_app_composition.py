@@ -157,3 +157,29 @@ def test_app_py_guards_required_handles():
         f"Without these guards, a broken tab builder would crash with "
         f"a confusing AttributeError deep in the event wiring."
     )
+
+
+def test_app_py_refreshes_home_flow_on_household_switch():
+    """The household switch wiring must refresh the new home_flow handle.
+
+    Added 2026-06-15 (Home screen review). The state-aware home flow
+    panel (Home flow state machine) must re-render when the user
+    switches households — otherwise a new household with different
+    data would still show the old household's hero. The wiring is
+    in app.py's ``household_dropdown.change`` and
+    ``hh_create_btn.click`` handlers.
+    """
+    app_source = (Path(__file__).resolve().parents[1] / "app.py").read_text()
+    # The home_flow handle should appear in the outputs list of the
+    # household-dropdown change handler.
+    assert "home_flow" in app_source, (
+        "app.py must reference 'home_flow' so the state-aware hero "
+        "re-renders when the active household changes."
+    )
+    # It should be wired into the switch_household_state outputs.
+    # The wiring is in app.py's switch_household_state call.
+    switch_section = app_source[app_source.find("household_dropdown.change"):]
+    # Look for the home_flow output in the first 800 chars of the section.
+    assert "home_flow" in switch_section[:1200], (
+        "app.py: household_dropdown.change must include home_flow in outputs"
+    )

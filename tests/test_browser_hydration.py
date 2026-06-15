@@ -63,9 +63,23 @@ def setup_module() -> None:
     os.environ["SHOPSTACK_DB_PATH"] = db_path
     _shared_db_path = db_path
 
+    # Redirect app_context db singleton to this unique file
+    from shopstack.app_context import db
+    db.db_path = db_path
+    if hasattr(db, "_local"):
+        db._local.conn = None
+    db._init_db()
+
 
 def teardown_module() -> None:
     """Remove the shared temp database after all tests finish."""
+    # Restore app_context db singleton to the session DB
+    from shopstack.app_context import db
+    from tests.conftest import _SESSION_DB_PATH
+    db.db_path = _SESSION_DB_PATH
+    if hasattr(db, "_local"):
+        db._local.conn = None
+
     if _shared_db_path:
         try:
             Path(_shared_db_path).unlink(missing_ok=True)
@@ -150,118 +164,124 @@ def test_dark_mode_toggle_persistence(tmp_path: Path) -> None:
     collected: list[dict[str, Any]] = []
     js_errors: list[str] = []
 
-    with sync_playwright() as pw:
-        browser = pw.chromium.launch(headless=True)
-        page: Page = browser.new_page()
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True)
+            page: Page = browser.new_page()
 
-        def _on_console(msg: ConsoleMessage) -> None:
-            collected.append({
-                "type": msg.type,
-                "text": msg.text,
-                "location": msg.location,
-            })
+            def _on_console(msg: ConsoleMessage) -> None:
+                collected.append({
+                    "type": msg.type,
+                    "text": msg.text,
+                    "location": msg.location,
+                })
 
-        def _on_pageerror(exc: str) -> None:
-            js_errors.append(str(exc))
+            def _on_pageerror(exc: str) -> None:
+                js_errors.append(str(exc))
 
-        page.on("console", _on_console)
-        page.on("pageerror", _on_pageerror)
+            page.on("console", _on_console)
+            page.on("pageerror", _on_pageerror)
 
-        # Navigate and wait for initial load.
-        page.goto(base_url, wait_until="load")
-        # Give deferred JS helpers time to run.
-        page.wait_for_timeout(1500)
+            # Navigate and wait for initial load.
+            page.goto(base_url, wait_until="load")
+            # Give deferred JS helpers time to run.
+            page.wait_for_timeout(1500)
 
-        # ── Step 3: Assert initial state ────────────────────────────────
-        initial_theme = page.evaluate(
-            "document.documentElement.getAttribute('data-theme')"
-        )
-        initial_ls = page.evaluate(
-            "localStorage.getItem('shopstack-theme')"
-        )
-        # With no localStorage value and no system preference match,
-        # data-theme should be None (no explicit attribute).
-        # localStorage may also be null on first visit.
+            # ── Step 3: Assert initial state ────────────────────────────────
+            initial_theme = page.evaluate(
+                "document.documentElement.getAttribute('data-theme')"
+            )
+            initial_ls = page.evaluate(
+                "localStorage.getItem('shopstack-theme')"
+            )
+            # With no localStorage value and no system preference match,
+            # data-theme should be None (no explicit attribute).
+            # localStorage may also be null on first visit.
 
-        # ── Step 4: Toggle to dark ──────────────────────────────────────
-        page.evaluate("toggleTheme()")
-        page.wait_for_timeout(100)
+            # ── Step 4: Toggle to dark ──────────────────────────────────────
+            page.evaluate("toggleTheme()")
+            page.wait_for_timeout(100)
 
-        dark_theme = page.evaluate(
-            "document.documentElement.getAttribute('data-theme')"
-        )
-        dark_ls = page.evaluate(
-            "localStorage.getItem('shopstack-theme')"
-        )
-        assert dark_theme == "dark", (
-            f"Expected data-theme='dark' after toggleTheme(), got: {dark_theme!r}"
-        )
-        assert dark_ls == "dark", (
-            f"Expected localStorage['shopstack-theme']='dark' after toggle, got: {dark_ls!r}"
-        )
+            dark_theme = page.evaluate(
+                "document.documentElement.getAttribute('data-theme')"
+            )
+            dark_ls = page.evaluate(
+                "localStorage.getItem('shopstack-theme')"
+            )
+            assert dark_theme == "dark", (
+                f"Expected data-theme='dark' after toggleTheme(), got: {dark_theme!r}"
+            )
+            assert dark_ls == "dark", (
+                f"Expected localStorage['shopstack-theme']='dark' after toggle, got: {dark_ls!r}"
+            )
 
-        # ── Step 5: Toggle back to light ────────────────────────────────
-        page.evaluate("toggleTheme()")
-        page.wait_for_timeout(100)
+            # ── Step 5: Toggle back to light ────────────────────────────────
+            page.evaluate("toggleTheme()")
+            page.wait_for_timeout(100)
 
-        light_theme = page.evaluate(
-            "document.documentElement.getAttribute('data-theme')"
-        )
-        light_ls = page.evaluate(
-            "localStorage.getItem('shopstack-theme')"
-        )
-        assert light_theme == "light", (
-            f"Expected data-theme='light' after second toggle, got: {light_theme!r}"
-        )
-        assert light_ls == "light", (
-            f"Expected localStorage['shopstack-theme']='light' after second toggle, got: {light_ls!r}"
-        )
+            light_theme = page.evaluate(
+                "document.documentElement.getAttribute('data-theme')"
+            )
+            light_ls = page.evaluate(
+                "localStorage.getItem('shopstack-theme')"
+            )
+            assert light_theme == "light", (
+                f"Expected data-theme='light' after second toggle, got: {light_theme!r}"
+            )
+            assert light_ls == "light", (
+                f"Expected localStorage['shopstack-theme']='light' after second toggle, got: {light_ls!r}"
+            )
 
-        # ── Step 6: Reload and verify persistence ───────────────────────
-        page.reload(wait_until="load")
-        page.wait_for_timeout(1500)
+            # ── Step 6: Reload and verify persistence ───────────────────────
+            page.reload(wait_until="load")
+            page.wait_for_timeout(1500)
 
-        reload_theme = page.evaluate(
-            "document.documentElement.getAttribute('data-theme')"
-        )
-        reload_ls = page.evaluate(
-            "localStorage.getItem('shopstack-theme')"
-        )
-        assert reload_theme == "light", (
-            f"data-theme should persist as 'light' after reload, got: {reload_theme!r}"
-        )
-        assert reload_ls == "light", (
-            f"localStorage should still be 'light' after reload, got: {reload_ls!r}"
-        )
+            reload_theme = page.evaluate(
+                "document.documentElement.getAttribute('data-theme')"
+            )
+            reload_ls = page.evaluate(
+                "localStorage.getItem('shopstack-theme')"
+            )
+            assert reload_theme == "light", (
+                f"data-theme should persist as 'light' after reload, got: {reload_theme!r}"
+            )
+            assert reload_ls == "light", (
+                f"localStorage should still be 'light' after reload, got: {reload_ls!r}"
+            )
 
-        # ── Step 7: Toggle one more time after reload ───────────────────
-        page.evaluate("toggleTheme()")
-        page.wait_for_timeout(100)
+            # ── Step 7: Toggle one more time after reload ───────────────────
+            page.evaluate("toggleTheme()")
+            page.wait_for_timeout(100)
 
-        final_theme = page.evaluate(
-            "document.documentElement.getAttribute('data-theme')"
-        )
-        final_ls = page.evaluate(
-            "localStorage.getItem('shopstack-theme')"
-        )
-        assert final_theme == "dark", (
-            f"Expected data-theme='dark' after post-reload toggle, got: {final_theme!r}"
-        )
-        assert final_ls == "dark", (
-            f"Expected localStorage='dark' after post-reload toggle, got: {final_ls!r}"
-        )
+            final_theme = page.evaluate(
+                "document.documentElement.getAttribute('data-theme')"
+            )
+            final_ls = page.evaluate(
+                "localStorage.getItem('shopstack-theme')"
+            )
+            assert final_theme == "dark", (
+                f"Expected data-theme='dark' after post-reload toggle, got: {final_theme!r}"
+            )
+            assert final_ls == "dark", (
+                f"Expected localStorage='dark' after post-reload toggle, got: {final_ls!r}"
+            )
 
-        # Take a screenshot for evidence.
-        screenshot_path = str(tmp_path / "dark_mode_final.png")
-        page.screenshot(path=screenshot_path, full_page=True)
+            # Take a screenshot for evidence.
+            screenshot_path = str(tmp_path / "dark_mode_final.png")
+            page.screenshot(path=screenshot_path, full_page=True)
 
-        # Verify the page still rendered meaningful content.
-        body_text = page.locator("body").inner_text()
-        assert "ShopStack" in body_text or "shopstack" in body_text.lower(), (
-            f"Expected 'ShopStack' in body text after dark mode toggle, got:\n{body_text[:500]}"
-        )
+            # Verify the page still rendered meaningful content.
+            body_text = page.locator("body").inner_text()
+            assert "ShopStack" in body_text or "shopstack" in body_text.lower(), (
+                f"Expected 'ShopStack' in body text after dark mode toggle, got:\n{body_text[:500]}"
+            )
 
-        browser.close()
+            browser.close()
+    finally:
+        try:
+            app.close()
+        except Exception:
+            pass
 
     # ── Step 8: Assert no errors (include warnings for consistency with
     #     test_browser_hydration) ───────────────────────────────────────
@@ -363,47 +383,53 @@ def test_browser_hydration(tmp_path: Path) -> None:
     collected: list[dict[str, Any]] = []
     js_errors: list[str] = []
 
-    with sync_playwright() as pw:
-        browser = pw.chromium.launch(headless=True)
-        page: Page = browser.new_page()
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True)
+            page: Page = browser.new_page()
 
-        # Capture all console output (log, warn, error, info, debug).
-        def _on_console(msg: ConsoleMessage) -> None:
-            collected.append({
-                "type": msg.type,
-                "text": msg.text,
-                "location": msg.location,
-            })
+            # Capture all console output (log, warn, error, info, debug).
+            def _on_console(msg: ConsoleMessage) -> None:
+                collected.append({
+                    "type": msg.type,
+                    "text": msg.text,
+                    "location": msg.location,
+                })
 
-        # Capture uncaught JS exceptions (page-level errors).
-        def _on_pageerror(exc: str) -> None:
-            js_errors.append(str(exc))
+            # Capture uncaught JS exceptions (page-level errors).
+            def _on_pageerror(exc: str) -> None:
+                js_errors.append(str(exc))
 
-        page.on("console", _on_console)
-        page.on("pageerror", _on_pageerror)
+            page.on("console", _on_console)
+            page.on("pageerror", _on_pageerror)
 
-        # Navigate and wait for the initial page load to complete.
-        # Use ``wait_until="load"`` instead of ``"networkidle"`` because
-        # Gradio opens persistent WebSocket connections for its event
-        # queue — ``networkidle`` will never be satisfied on a page with
-        # an active WebSocket connection.
-        page.goto(base_url, wait_until="load")
+            # Navigate and wait for the initial page load to complete.
+            # Use ``wait_until="load"`` instead of ``"networkidle"`` because
+            # Gradio opens persistent WebSocket connections for its event
+            # queue — ``networkidle`` will never be satisfied on a page with
+            # an active WebSocket connection.
+            page.goto(base_url, wait_until="load")
 
-        # Give deferred JS helpers time to run (autocomplete_injector_js
-        # fires at 100 ms, url_state_sync_js at 200 ms).
-        page.wait_for_timeout(1000)
+            # Give deferred JS helpers time to run (autocomplete_injector_js
+            # fires at 100 ms, url_state_sync_js at 200 ms).
+            page.wait_for_timeout(1000)
 
-        # Take a screenshot for visual evidence.
-        screenshot_path = str(tmp_path / "app_initial_load.png")
-        page.screenshot(path=screenshot_path, full_page=True)
+            # Take a screenshot for visual evidence.
+            screenshot_path = str(tmp_path / "app_initial_load.png")
+            page.screenshot(path=screenshot_path, full_page=True)
 
-        # Verify the page actually rendered meaningful content.
-        body_text = page.locator("body").inner_text()
-        assert "ShopStack" in body_text or "shopstack" in body_text.lower(), (
-            f"Expected 'ShopStack' in page body text after load, got:\n{body_text[:500]}"
-        )
+            # Verify the page actually rendered meaningful content.
+            body_text = page.locator("body").inner_text()
+            assert "ShopStack" in body_text or "shopstack" in body_text.lower(), (
+                f"Expected 'ShopStack' in page body text after load, got:\n{body_text[:500]}"
+            )
 
-        browser.close()
+            browser.close()
+    finally:
+        try:
+            app.close()
+        except Exception:
+            pass
 
     # ── Step 3: Assert no errors ─────────────────────────────────────
     error_messages = [

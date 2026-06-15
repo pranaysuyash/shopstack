@@ -70,8 +70,9 @@ def build_memory_history(app: gr.Blocks, ctx: TabContext) -> None:
         )
     trace_timeline = gr.HTML(
         empty_state_enhanced(
-            "Select a record above to see the timeline and details.",
+            "No activity selected.",
             icon="📜",
+            secondary_text="Select a record above to see the timeline and details.",
         )
     )
     trace_raw = gr.HTML("")

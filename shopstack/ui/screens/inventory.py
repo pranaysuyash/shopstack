@@ -345,7 +345,7 @@ def inventory_cards_view(search: str = "") -> str:
     items, match_mode = _search_inventory_items(search)
     locations = {loc.location_id: loc.name for loc in db.get_locations()}
     if not items:
-        return empty_state("Your inventory is empty. Add one item in Add Purchase to start.")
+        return empty_state("No inventory items yet. Add items via the Add Purchase tab to start tracking your pantry.")
 
     search_note = ""
     if search and match_mode == "semantic":

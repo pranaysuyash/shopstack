@@ -133,8 +133,6 @@ def test_critical_endpoints_present():
         # Market lens
         "market_scan",
         "home_scan",
-        # Today tab (restock predictions)
-        "restock_quick_add",  # was: restock_add_to_list (supersession)
         # Basket tab (key endpoints)
         "build_list",
         "mark_purchased",

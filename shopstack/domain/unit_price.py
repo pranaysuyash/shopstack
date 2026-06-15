@@ -254,7 +254,7 @@ _CANONICAL_MAP: dict[str, str] = {
     "tomatoes": "tomato",
     "potatoes": "potato",
     "paneer": "paneer",
-    "yogurt": "yogurt",
+    "yogurt": "curd",
     "butter": "butter",
     "ghee": "ghee",
     "lentils": "lentils",

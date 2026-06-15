@@ -100,7 +100,7 @@ def today_dashboard():
 
     hero = render_hero_panel(
         "What's happening at home?",
-        "See what to cook tonight, what to buy next, and what should be used first — so the household stays steady.",
+        "Cook tonight, buy next, or use first — ShopStack tells you what matters right now.",
         APP_NAME,
     )
     market_chips = _render_market_summary_chips(market_graph)
@@ -179,14 +179,14 @@ def today_dashboard():
     tonight_section = _details_section(
         "Tonight",
         f"{cook_tonight_html}{seasonal_html}",
-        "Recipes and what the weather or expiring items suggest for tonight.",
+        "What to cook with what you have, plus seasonal picks.",
         f"{len(state.cook_tonight_matches)} recipe{'s' if len(state.cook_tonight_matches) != 1 else ''}",
         open=bool(state.cook_tonight_matches),  # open when there are matches
     )
     plan_section = _details_section(
         "Plan the trip",
         f"{decision_panel}{market_basket}",
-        "Use what you have first, then see what to buy next.",
+        "What to buy, compare, or substitute before you go.",
         f"{len(ds.use_soon) + len(ds.buy) + len(ds.compare) + len(ds.substitute)} item{'s' if (len(ds.use_soon) + len(ds.buy) + len(ds.compare) + len(ds.substitute)) != 1 else ''}",
         open=bool(ds.use_soon or ds.buy or ds.compare or ds.substitute),
     )
@@ -200,14 +200,14 @@ def today_dashboard():
     household_state = _details_section(
         "After you shop",
         f"{inventory_overview}{fridge_html}{alert_html}{needs_confirm}{what_changed}",
-        "Freshness, inventory, and recent changes live here.",
+        "Put items away, check freshness, and see what changed.",
         f"{len(state.active_inventory)} item{'s' if len(state.active_inventory) != 1 else ''}",
         open=bool(state.active_inventory),  # open when there's something to show
     )
     market_signals = _details_section(
         "Compare and history",
         f"{_render_compare_preview(market_graph)}{compare_panel}{cadence_html}{waste_html}{waste_coach_html}{restock_html}{deals_html}{drops_html}{best_store_html}{basket_summary_html}",
-        "The deeper price, compare, and substitution cues.",
+        "Prices, substitutes, waste, and buy history over time.",
         f"{len(market_graph.buy) + len(market_graph.compare) + len(market_graph.substitute)} signal{'s' if (len(market_graph.buy) + len(market_graph.compare) + len(market_graph.substitute)) != 1 else ''}",
     )
 

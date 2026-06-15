@@ -2206,6 +2206,47 @@ details.home-details > *:not(summary),
   background: rgba(23, 107, 73, 0.05);
 }
 
+/* Voice memo status banner (clean fallback, no truncation) */
+.vm-status {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-style: italic;
+  margin: 4px 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PRIMARY NAV (2026-06-15)
+   The 6-item user-facing nav is wider / calmer than the legacy
+   5-group nested layout, with a subtle bottom border on the
+   active item and a hover state. ═════════════════════════════════════ */
+
+.tabs.primary-nav {
+  margin-top: 8px !important;
+}
+.tabs.primary-nav > .tab-nav,
+.tabs.primary-nav > [role="tablist"] {
+  gap: 10px !important;
+}
+.tabs.primary-nav button[role="tab"] {
+  font-size: 0.9375rem !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em !important;
+  padding: 12px 18px !important;
+}
+.tabs.primary-nav button[role="tab"][aria-selected="true"] {
+  font-weight: 700 !important;
+  box-shadow: inset 0 -2px 0 var(--accent) !important;
+}
+
+/* Hide nested sub-tab bar when there's only one sub-tab (single-screen
+   primary nav items like Home→Today, Recipes→Cookbook, Trips→TripAdvisor).
+   The nested gr.Tabs wrapper from the registry creates a redundant tab bar
+   with a single button — this CSS removes it so the destination content
+   renders directly inside the primary nav item. */
+.primary-nav .tab-nav:has(> button:only-child) {
+  display: none !important;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    LAYOUT — wider centred container (2026-06-15) ════════════════════════ */
 /* The .gradio-container is already max-width 1280px from the base
@@ -2217,6 +2258,40 @@ details.home-details > *:not(summary),
   .today-home-flow {
     max-width: 1080px;
   }
+}
+
+/* ── Two-column desktop layout (Phase 6) ───────────────────────────── */
+/* On desktop (≥960px), the Today tab splits into a two-column grid:
+   left column = intelligence + commands, right column = signals + restock.
+   On mobile it stacks into a single column. */
+@media (min-width: 960px) {
+  .today-two-col {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-xl);
+    align-items: start;
+  }
+  .today-two-col > * {
+    min-width: 0; /* Prevent grid blowout from long HTML strings */
+  }
+}
+@media (max-width: 959px) {
+  .today-two-col {
+    display: flex;
+    flex-direction: column;
+  }
+}
+/* The left column (intelligence + commands) should feel primary. */
+.today-col-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+/* The right column (signals + restock) is supplementary. */
+.today-col-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
 }
 """
 

@@ -122,8 +122,8 @@ class NomicEmbeddingProvider:
             self._model = SentenceTransformer(self._model_name, trust_remote_code=True)
             try:
                 self._model.max_seq_length = self._max_seq_length
-            except (AttributeError, TypeError):
-                pass  # newer sentence-transformers may make this immutable
+            except (AttributeError, TypeError) as exc:
+                logger.debug("Could not set max_seq_length: %s", exc)
             self._available = True
             self._error = None
             logger.info("Nomic-embed provider initialised (model=%s)", self._model_name)

@@ -76,14 +76,14 @@ def build_ask_panel(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> AskPa
         AskPanelHandles: the input and output components, in case future
         cross-tab interactions need them.
     """
-    gr.Markdown("---")
     gr.Markdown("### Ask about home, shopping, or prices")
     ask_input = gr.Textbox(
         label="Your question",
         placeholder="Do we have milk?  |  What should I buy today?  |  Where is toothpaste?",
         lines=2,
+        elem_id="ask-input",
     )
-    ask_btn = gr.Button("Ask")
+    ask_btn = gr.Button("Ask", elem_id="ask-btn")
     # Pre-populate with an empty-state so users see the panel is ready
     # and so the panel has an aria-live region for screen readers from
     # the very first render.
@@ -125,12 +125,17 @@ def build_ask_panel(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> AskPa
     )
 
     # ── Phase 8 #23 Voice memo (continuous-listening) ─────────────
+    # 2026-06-15: voice memo is now a secondary input method, not a
+    # major first-page section. Copy is user-facing (no developer
+    # jargon), the end-session button is renamed to "Stop recording"
+    # and is hidden until a session is active, and the microphone
+    # status is a clean fallback (no truncated "No microphone f..."
+    # string).
     gr.Markdown("---")
-    gr.Markdown("### 🎙️ Voice memo")
+    gr.Markdown("### 🎙️ Add by voice (optional)")
     gr.Markdown(
-        "Push to record, speak one or more commands ('add milk', "
-        "'consume bread'), then release. Each utterance is parsed "
-        "and dispatched. Say 'stop' to end the session."
+        "Say things like: **“Add milk”**, **“I bought rice”**, "
+        "or **“We finished bread”**."
     )
     from shopstack.services.voice_memo import end_session as _end_vm
     from shopstack.services.voice_memo import start_session as _start_vm
@@ -143,16 +148,27 @@ def build_ask_panel(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> AskPa
             sources=["microphone"],
             type="filepath",
             label="Hold to record",
+            elem_id="voice-record",
         )
-        voice_process_btn = gr.Button("Process audio", variant="primary")
+        voice_process_btn = gr.Button("Process audio", variant="primary", elem_id="voice-process")
+    # Microphone status: clean fallback instead of a truncated string.
+    voice_status = gr.HTML(
+        "<div class='vm-status'>Tip: if your browser blocks the "
+        "microphone, type the same command in the box above instead.</div>"
+    )
     voice_session_html = gr.HTML("<div class='vm-empty'>No voice memo captured yet.</div>")
-    voice_reset_btn = gr.Button("End session", elem_classes="secondary")
+    # Stop button is hidden until a session actually starts recording.
+    voice_reset_btn = gr.Button("Stop recording", elem_classes="secondary", visible=False, elem_id="voice-stop")
 
     def _process_voice(audio_path, session):
         from shopstack.app_context import db as _db
         from shopstack.app_context import providers as _providers
         if not audio_path:
-            return session, "<div class='vm-empty'>No audio captured. Press the mic and try again.</div>"
+            return (
+                session,
+                "<div class='vm-empty'>No audio captured. Press the mic and try again.</div>",
+                gr.update(visible=False),
+            )
         # Find an STT provider (whisper, local_whisper, sensevoice, mock_stt)
         stt = None
         try:
@@ -163,33 +179,53 @@ def build_ask_panel(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> AskPa
         except Exception:
             stt = None
         if stt is None:
-            return session, "<div class='vm-empty'>No STT provider loaded — voice memo needs an STT backend.</div>"
+            return (
+                session,
+                "<div class='vm-empty'>No STT provider loaded — voice memo needs an STT backend. "
+                "Type your command in the box above instead.</div>",
+                gr.update(visible=False),
+            )
         # Best-effort dispatcher: append to a local list, no real DB write
         # (the user reviews in the voice session summary).
         log: list[dict] = []
         from shopstack.services.voice_memo import make_recording_dispatcher
         _capture_vm(session, audio_path, stt,
                     dispatcher=make_recording_dispatcher(log))
-        return session, _render_vm(_end_vm(session))
+        return (
+            session,
+            _render_vm(_end_vm(session)),
+            gr.update(visible=True),  # show "Stop recording" once a session is active
+        )
 
     def _reset_voice():
-        return _start_vm(), "<div class='vm-empty'>New session started.</div>"
+        return _start_vm(), "<div class='vm-empty'>New session started.</div>", gr.update(visible=False)
 
     voice_process_btn.click(
         _process_voice,
         [voice_record, voice_memo_state],
-        [voice_memo_state, voice_session_html],
+        [voice_memo_state, voice_session_html, voice_reset_btn],
         api_name="voice_memo_process",
         api_description="Transcribe the latest audio chunk and dispatch commands",
     )
     voice_reset_btn.click(
         _reset_voice,
-        outputs=[voice_memo_state, voice_session_html],
+        outputs=[voice_memo_state, voice_session_html, voice_reset_btn],
         api_name="voice_memo_reset",
         api_description="End the current voice memo session and start a new one",
     )
 
     return AskPanelHandles(ask_input=ask_input, ask_output=ask_output)
+
+
+def build_voice_memo_section(app: gr.Blocks) -> None:
+    """Build the voice memo section — now rendered below the command surface.
+
+    This is a thin wrapper that delegates to
+    :mod:`shopstack.ui.tabs.voice_memo`. Kept here for backward
+    compatibility with any code that imports from ask_panel.
+    """
+    from shopstack.ui.tabs.voice_memo import build_voice_memo_section as _build
+    _build(app)
 
 
 def _parser_preview_and_reveal(utterance: str) -> str:

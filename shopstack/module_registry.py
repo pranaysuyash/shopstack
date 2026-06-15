@@ -185,7 +185,7 @@ PRIMARY_NAV: list[dict[str, str]] = [
 # Kept for advanced users; first-time users see only the primary
 # destination and don't have to wade through 21 tabs.
 PRIMARY_NAV_ADVANCED: dict[str, list[str]] = {
-    "home":       ["today", "trip_advisor"],
+    "home":       ["today"],
     "pantry":     ["reconcile", "timeline", "find_trail", "photo_map",
                    "repair_inbox", "consumption", "nutrition"],
     "shopping":   ["basket", "smart_basket", "store_mode", "market",

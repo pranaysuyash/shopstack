@@ -81,7 +81,16 @@ def test_advise_trip_good_weather_no_urgency_is_neutral():
 
 
 def test_advise_trip_no_weather_falls_back_to_neutral():
-    advice = advise_trip(weather=None, active_list_size=5)
+    # weather=None means "I don't have weather, please fetch it".
+    # The trip advisor fetches a fresh weather state and uses it.
+    # To verify the "no weather signal → neutral" path without depending
+    # on the weather service's mock data, we patch get_weather to
+    # raise (which causes the code to fall through to the "best-effort
+    # default: friendly=True" path).
+    from unittest.mock import patch
+    with patch("shopstack.services.trip_advisor.get_weather",
+               side_effect=Exception("no weather available")):
+        advice = advise_trip(weather=None, active_list_size=5)
     # No weather info → assume trip-friendly → neutral
     assert advice.recommendation in ("neutral", "go_in_store")
 

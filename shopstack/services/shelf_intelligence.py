@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import date
+import os
 import logging
 import tempfile
 from pathlib import Path
@@ -29,6 +30,11 @@ from shopstack.providers.image_gen_provider import resolve_detection_bbox
 logger = logging.getLogger(__name__)
 
 
+def _frame_tag(frame_path: str, index: int) -> str:
+    stem = Path(frame_path).stem or f"frame_{index:02d}"
+    return f"frame:{stem}"
+
+
 def _first_frame_from_video(video_path: str) -> str | None:
     """Extract the first frame of a video as a temporary PNG.
 
@@ -51,31 +57,26 @@ def _first_frame_from_video(video_path: str) -> str | None:
             if not ok or frame is None:
                 return None
             fd, out_path = tempfile.mkstemp(suffix=".png", prefix="shelf_frame_")
+            os.close(fd)
             Path(out_path).unlink(missing_ok=True)
             cv2.imwrite(out_path, frame)
             return out_path
         except Exception as exc:
             logger.info("cv2 frame extraction failed: %s", exc)
             return None
-    # ffmpeg fallback
-    import shutil
-    import subprocess
-    if not shutil.which("ffmpeg"):
-        return None
     try:
-        fd, out_path = tempfile.mkstemp(suffix=".png", prefix="shelf_frame_")
-        Path(out_path).unlink(missing_ok=True)
-        result = subprocess.run(
-            ["ffmpeg", "-y", "-i", video_path, "-frames:v", "1", out_path],
-            capture_output=True,
-            check=False,
-            timeout=10,
-        )
-        if result.returncode != 0 or not Path(out_path).is_file():
-            return None
-        return out_path
+        import imageio.v3 as iio  # type: ignore[import-not-found]
+        from PIL import Image
+
+        for frame in iio.imiter(video_path):
+            fd, out_path = tempfile.mkstemp(suffix=".png", prefix="shelf_frame_")
+            os.close(fd)
+            Path(out_path).unlink(missing_ok=True)
+            Image.fromarray(frame).save(out_path)
+            return out_path
+        return None
     except Exception as exc:
-        logger.info("ffmpeg frame extraction failed: %s", exc)
+        logger.info("video first-frame extraction failed: %s", exc)
         return None
 
 
@@ -126,6 +127,7 @@ def _extract_video_frames(video_path: str, max_frames: int = 6) -> list[str]:
                 if not ok:
                     break
                 fd, out_path = tempfile.mkstemp(suffix=".png", prefix="shelf_frame_")
+                os.close(fd)
                 Path(out_path).unlink(missing_ok=True)
                 cv2.imwrite(out_path, frame)
                 frames.append(out_path)
@@ -145,16 +147,15 @@ def _extract_video_frames(video_path: str, max_frames: int = 6) -> list[str]:
             except Exception:
                 pass
     # ffmpeg fallback
-    import shutil
-    import subprocess
-    if not shutil.which("ffmpeg"):
-        return []
     try:
         frames.clear()
+        import imageio.v3 as iio  # type: ignore[import-not-found]
+        from PIL import Image
         for idx, frame in enumerate(iio.imiter(video_path)):
             if idx >= max_frames:
                 break
             fd, out_path = tempfile.mkstemp(suffix=".png", prefix="shelf_frame_")
+            os.close(fd)
             Path(out_path).unlink(missing_ok=True)
             Image.fromarray(frame).save(out_path)
             frames.append(out_path)
@@ -223,6 +224,52 @@ _CLEANING_HINTS = (
     "garbage",
     "sponge",
 )
+
+
+def _candidate_ground_prompts(
+    detections: list[dict[str, Any]],
+    speech_intent: SpeechIntent,
+    ocr_payload: dict[str, Any],
+) -> list[str]:
+    prompts: list[str] = []
+    seen: set[str] = set()
+
+    def _add(prompt: str) -> None:
+        canonical = normalize_item_name(prompt)
+        if not canonical or canonical in seen:
+            return
+        seen.add(canonical)
+        prompts.append(canonical.replace("_", " "))
+
+    for item in speech_intent.canonical_items:
+        _add(item)
+    for det in detections:
+        _add(str(det.get("label", "")))
+    for key in ("product_name", "brand", "text", "raw_text"):
+        _add(str(ocr_payload.get(key, "")))
+    return prompts[:4]
+
+
+def _run_frame_perception(
+    providers: Any,
+    frame_path: str,
+    speech_intent: SpeechIntent,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any], bool]:
+    detections = _safe_detection(providers, frame_path)
+    ocr_payload = _safe_ocr(providers, frame_path)
+
+    grounding_prompts = _candidate_ground_prompts(detections, speech_intent, ocr_payload)
+    if grounding_prompts:
+        grounded = _safe_grounding(providers, frame_path, grounding_prompts)
+        if grounded:
+            detections.extend(grounded)
+
+    segments = _safe_segmentation(providers, frame_path)
+    promptable_segments = _safe_promptable_segmentation(providers, frame_path, detections, speech_intent)
+    if promptable_segments:
+        segments = promptable_segments
+
+    return detections, segments, ocr_payload, bool(promptable_segments)
 
 
 def analyze_shelf_scene(

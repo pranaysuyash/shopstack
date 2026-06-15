@@ -116,8 +116,9 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                 p_submit = gr.Button("Add to Pantry", interactive=False)
                 p_result = gr.HTML(
                     empty_state_enhanced(
-                        "Items you add will appear here with what was saved.",
+                        "No items added yet.",
                         icon="\U0001f6d2",
+                        secondary_text="Fill in the item name, quantity, and unit above, then click Add to Pantry.",
                     )
                 )
                 # Item #45 (motto_v3 §0.14): enable the button only
@@ -160,8 +161,9 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                 p_batch_btn = gr.Button("Add batch")
                 p_batch_result = gr.HTML(
                     empty_state_enhanced(
-                        "Batch results will appear here after you click Add batch.",
+                        "No batch results yet.",
                         icon="📦",
+                        secondary_text="Paste multiple items above (one per line) and click Add batch.",
                     )
                 )
                 p_batch_btn.click(
@@ -190,8 +192,9 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                     cons_btn = gr.Button("Mark used")
                 cons_result = gr.HTML(
                     empty_state_enhanced(
-                        "Mark an item as used by entering its lot ID and quantity above.",
+                        "No items marked as used yet.",
                         icon="✓",
+                        secondary_text="Enter a lot ID and quantity above, then click Mark used.",
                     )
                 )
                 inv_cards = gr.HTML(loading_skeleton("card"))
@@ -245,8 +248,9 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                 batch_consume_btn = gr.Button("Mark batch used")
                 batch_consume_result = gr.HTML(
                     empty_state_enhanced(
-                        "Batch consumption results will appear here.",
+                        "No batch consumption results yet.",
                         icon="✓",
+                        secondary_text="Enter lot IDs above (one per line) and click Mark batch used.",
                     )
                 )
                 batch_consume_btn.click(
@@ -312,8 +316,9 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                         cons_quick_no = gr.Button("Cancel", elem_classes="secondary")
                 cons_result = gr.HTML(
                     empty_state_enhanced(
-                        "Use an item by entering its lot ID and quantity above.",
+                        "No items marked as used yet.",
                         icon="✓",
+                        secondary_text="Enter a lot ID and quantity above, then click Mark used.",
                     )
                 )
                 cons_btn_quick.click(
@@ -366,8 +371,9 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                 cons_batch_btn = gr.Button("Log batch")
                 cons_batch_result = gr.HTML(
                     empty_state_enhanced(
-                        "Batch results will appear here.",
+                        "No batch results yet.",
                         icon="📋",
+                        secondary_text="Enter items above (one per line: batch:qty) and click Log batch.",
                     )
                 )
                 cons_batch_btn.click(
@@ -404,8 +410,9 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                         move_no = gr.Button("Cancel", elem_classes="secondary")
                 move_result = gr.HTML(
                     empty_state_enhanced(
-                        "Move results will appear here.",
+                        "No moves recorded yet.",
                         icon="📍",
+                        secondary_text="Enter a lot ID and destination above, then click Move.",
                     )
                 )
                 move_btn.click(

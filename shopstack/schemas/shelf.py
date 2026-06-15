@@ -80,6 +80,7 @@ class AggregatedVisibleItem(BaseModel):
     canonical_name: str
     display_name: str
     count: int = 0
+    frame_hits: int = 0
     estimated_quantity: float = 0.0
     unit: str = "unit"
     confidence: float = 0.0
@@ -139,4 +140,3 @@ class ShelfIntelligenceResult(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     corrections_needed: list[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.now)
-

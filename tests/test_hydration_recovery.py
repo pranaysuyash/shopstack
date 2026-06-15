@@ -94,6 +94,13 @@ def live_app_url():
     os.close(db_fd)
     os.environ["SHOPSTACK_DB_PATH"] = db_path
 
+    # Redirect app_context db singleton to this unique file
+    from shopstack.app_context import db
+    db.db_path = db_path
+    if hasattr(db, "_local"):
+        db._local.conn = None
+    db._init_db()
+
     from app import build_app
     from shopstack.ui.header import pwa_head_html
     from shopstack.ui.pwa_mount import mount_pwa_static
@@ -121,6 +128,17 @@ def live_app_url():
     base_url = f"http://127.0.0.1:{port}"
     _wait_for_server(base_url)
     yield base_url
+
+    try:
+        app.close()
+    except Exception:
+        pass
+
+    # Restore app_context db singleton to the session DB
+    from tests.conftest import _SESSION_DB_PATH
+    db.db_path = _SESSION_DB_PATH
+    if hasattr(db, "_local"):
+        db._local.conn = None
 
     Path(db_path).unlink(missing_ok=True)
 

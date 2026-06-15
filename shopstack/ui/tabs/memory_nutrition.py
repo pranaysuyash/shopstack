@@ -64,8 +64,9 @@ def build_memory_nutrition(app: gr.Blocks, ctx: TabContext) -> None:
     nutrition_search_btn = gr.Button("Look up")
     nutrition_result = gr.HTML(
         empty_state_enhanced(
-            "Type an item and click Look up to see nutrition facts.",
+            "No nutrition data yet.",
             icon="🥗",
+            secondary_text="Type an item above (e.g. milk, atta, rice) and click Look up.",
         )
     )
     nutrition_search_btn.click(

@@ -122,58 +122,56 @@ def build_today_tab(
             "Know what is at home, what to buy next, and what to skip."
         )
 
-        # ── Home flow panel (state-aware hero + intelligence) ──
-        # Single component replaces the old 4-block breakdown
-        # (today_intel + restock_card + empty hints + start_here)
-        # for a single, state-driven narrative.
-        home_flow = gr.HTML(loading_skeleton("card"), elem_classes="today-home-flow")
-        home_flow_refresh = gr.Button(
-            "Refresh",
-            elem_classes="inline-refresh",
-            size="sm",
-        )
-        home_flow_refresh.click(
-            _render_home_flow,
-            outputs=home_flow,
-            api_name="today_home_flow_refresh",
-            api_description="Refresh the state-aware home flow panel (hero + intelligence + setup gate)",
-        )
-        app.load(_render_home_flow, outputs=home_flow)
+        # ── Two-column desktop layout ──────────────────────────
+        # Left: intelligence + commands (primary actions)
+        # Right: signals + restock (supplementary detail)
+        with gr.Row(elem_classes="today-two-col"):
+            with gr.Column(elem_classes="today-col-main"):
+                # ── Home flow panel (state-aware hero + intelligence) ──
+                home_flow = gr.HTML(loading_skeleton("card"), elem_classes="today-home-flow")
+                home_flow_refresh = gr.Button(
+                    "Refresh",
+                    elem_classes="inline-refresh",
+                    size="sm",
+                )
+                home_flow_refresh.click(
+                    _render_home_flow,
+                    outputs=home_flow,
+                    api_name="today_home_flow_refresh",
+                    api_description="Refresh the state-aware home flow panel (hero + intelligence + setup gate)",
+                )
+                app.load(_render_home_flow, outputs=home_flow)
 
-        # ── Command surface (the unified input) ────────────────
-        # Replaces the old "Quick add" row and the "Ask ShopStack"
-        # panel. The voice memo remains below the input (moved
-        # out of the Ask panel into a dedicated sub-section).
-        gr.Markdown("### Quick action")
-        cmd_handles = build_command_surface(blocks=app, app=app, ctx=ctx)
+                # ── Command surface (the unified input) ────────────────
+                gr.Markdown("### Quick action")
+                cmd_handles = build_command_surface(blocks=app, app=app, ctx=ctx)
 
-        # ── Detailed signals (legacy 6-component dashboard) ───
-        # Kept for back-compat — many tests reference these handles.
-        # New code should read from ``home_flow`` instead.
-        gr.Markdown("---")
-        gr.Markdown("### Detailed signals")
-        today_stats = gr.HTML(loading_skeleton("card"))
-        today_soon = gr.HTML(loading_skeleton("card"))
-        today_list = gr.HTML(loading_skeleton("card"))
-        today_low = gr.HTML(loading_skeleton("card"))
-        today_recent = gr.HTML(loading_skeleton("card"))
-        today_changed = gr.HTML(loading_skeleton("card"))
-        app.load(
-            today_dashboard,
-            outputs=[
-                today_stats, today_soon, today_list,
-                today_low, today_recent, today_changed,
-            ],
-        )
+                # ── Voice memo (secondary input, below command) ──────
+                from shopstack.ui.tabs.voice_memo import build_voice_memo_section
+                build_voice_memo_section(app=app)
 
-        # ── Ask ShopStack (full panel — voice memo below) ──────
-        # The Ask panel is now an *advanced* surface — most users
-        # will use the command surface above for one-off inputs.
-        # The Ask panel is still useful for multi-turn questions
-        # and for the parser preview / voice memo features.
-        gr.Markdown("---")
-        gr.Markdown("### Ask ShopStack (advanced)")
-        build_ask_panel(blocks=app, app=app, ctx=ctx)
+            with gr.Column(elem_classes="today-col-side"):
+                # ── Detailed signals (legacy 6-component dashboard) ───
+                # Kept for back-compat — many tests reference these handles.
+                # New code should read from ``home_flow`` instead.
+                gr.Markdown("### Signals")
+                today_stats = gr.HTML(loading_skeleton("card"))
+                today_soon = gr.HTML(loading_skeleton("card"))
+                today_list = gr.HTML(loading_skeleton("card"))
+                today_low = gr.HTML(loading_skeleton("card"))
+                today_recent = gr.HTML(loading_skeleton("card"))
+                today_changed = gr.HTML(loading_skeleton("card"))
+                app.load(
+                    today_dashboard,
+                    outputs=[
+                        today_stats, today_soon, today_list,
+                        today_low, today_recent, today_changed,
+                    ],
+                )
+
+                # ── Ask ShopStack (full panel — voice memo below) ──────
+                gr.Markdown("### Ask ShopStack")
+                build_ask_panel(blocks=app, app=app, ctx=ctx)
 
     return TodayTabHandles(
         today_stats=today_stats,

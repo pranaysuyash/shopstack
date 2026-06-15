@@ -290,7 +290,7 @@ def build_price_overpriced_card(
         kind="price_overpriced",
         title=item,
         subtitle=(
-            f"You paid ₹{observed_price:.0f} per {unit}; community median is "
+            f"{item} — you paid ₹{observed_price:.0f} per {unit}; community median is "
             f"₹{community_median:.0f} ({pct:+.0f}%)."
         ),
         secondary="verify on next receipt",

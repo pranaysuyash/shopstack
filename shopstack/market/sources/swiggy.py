@@ -92,6 +92,7 @@ def normalize_record(
 ) -> NormalizedMarketRecord:
     raw_name = str(raw.get("name", "")).strip()
     raw_size = str(raw.get("size", "")).strip()
+    description = str(raw.get("description", "")).strip()
 
     canonical, variety, components = canonicalize_name(raw_name, description)
     size_result: SizeParseResult = parse_size(raw_size)

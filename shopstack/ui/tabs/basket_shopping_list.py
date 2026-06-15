@@ -114,8 +114,9 @@ def build_basket_shopping_list(app: gr.Blocks, ctx: TabContext) -> None:
                 )
             poster_status = gr.HTML(
                 empty_state_enhanced(
-                    "Poster generation status will appear here.",
+                    "No poster generated yet.",
                     icon="🖼️",
+                    secondary_text="Click Generate Poster to create a printable version of your shopping list.",
                 )
             )
             with gr.Row():
@@ -168,8 +169,9 @@ def build_basket_shopping_list(app: gr.Blocks, ctx: TabContext) -> None:
                 )
             sl_reconcile_result = gr.HTML(
                 empty_state_enhanced(
-                    "Put-away results will appear here.",
+                    "No put-away results yet.",
                     icon="📋",
+                    secondary_text="Click Load Active List to review items before confirming.",
                 )
             )
 
@@ -199,8 +201,9 @@ def build_basket_shopping_list(app: gr.Blocks, ctx: TabContext) -> None:
                 )
         sl_mark_result = gr.HTML(
             empty_state_enhanced(
-                "Select items above and click Mark as Bought to record the purchase.",
+                "No purchases recorded yet.",
                 icon="✓",
+                secondary_text="Select items above and click Mark as Bought.",
             )
         )
         sl_item_refresh.click(
@@ -268,8 +271,9 @@ def build_basket_shopping_list(app: gr.Blocks, ctx: TabContext) -> None:
                 )
         create_output = gr.HTML(
             empty_state_enhanced(
-                "Build results will appear here.",
+                "No list built yet.",
                 icon="🛒",
+                secondary_text="Enter a goal and items above, then click Build Shopping List.",
             )
         )
         create_btn.click(
