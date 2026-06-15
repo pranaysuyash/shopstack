@@ -335,8 +335,7 @@ class ToolRegistry:
                 priority_norm = str(priority).strip().lower()
                 if priority_norm not in allowed_priorities:
                     return [], (
-                        f"Item {idx} in '{arg.name}' has invalid priority '{priority}'. "
-                        f"Expected {', '.join(allowed_priorities)}."
+                        f"Item {idx} in '{arg.name}' has invalid priority '{priority}'. Expected {', '.join(allowed_priorities)}."
                     )
                 normalized_item["priority"] = priority_norm
 

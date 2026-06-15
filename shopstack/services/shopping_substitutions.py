@@ -181,19 +181,14 @@ def render_substitutions_html(items: list[ItemSubstitutions]) -> str:
         more = ""
         if len(item.suggestions) > 1:
             more = (
-                f" <span style='font-size: 0.625rem;color:var(--text-dim);'>"
-                f"+{len(item.suggestions) - 1} more</span>"
+                f" <span style='font-size: 0.625rem;color:var(--text-dim);'>+{len(item.suggestions) - 1} more</span>"
             )
 
         rows.append(
-            f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
-            f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>"
-            f"<strong>{escape(item.display_name)}</strong>{sold_out_badge}"
-            f"</div>"
-            f"<div style='font-size: 0.75rem;'>"
-            f"&#x21B3; <strong>{sub_name}</strong> "
-            f"<span style='color:var(--green);'>{price_str}{per_kg_str}</span>"
-            f" &middot; <span style='color:var(--text-dim);'>{reason}</span>"
+            f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'><div style='font-size: 0.6875rem;color:var(--text-dim);'>"
+            f"<strong>{escape(item.display_name)}</strong>{sold_out_badge}</div>"
+            f"<div style='font-size: 0.75rem;'>&#x21B3; <strong>{sub_name}</strong> "
+            f"<span style='color:var(--green);'>{price_str}{per_kg_str}</span> &middot; <span style='color:var(--text-dim);'>{reason}</span>"
             f"{more}</div></div>"
         )
 
@@ -201,12 +196,9 @@ def render_substitutions_html(items: list[ItemSubstitutions]) -> str:
         return ""
 
     return (
-        f"<div class='home-card' style='margin-bottom:12px;'>"
-        f"<h3 style='margin:0 0 4px 0;'>Substitution Suggestions</h3>"
-        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>"
-        f"For items that are sold out or have better alternatives."
-        f"</div>"
-        f"{''.join(rows)}"
+        f"<div class='home-card' style='margin-bottom:12px;'><h3 style='margin:0 0 4px 0;'>Substitution Suggestions</h3>"
+        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>For items that are sold out or have better alternatives."
+        f"</div>{''.join(rows)}"
         f"</div>"
     )
 

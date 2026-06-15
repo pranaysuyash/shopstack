@@ -205,6 +205,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # Global search palette (used by shopstack.services.global_search)
         "search.placeholder": "Search items, lists, recipes, or run a command",
         "search.status_idle": "Type to search",
+        # Privacy / data retention panel
+        "privacy.title": "Your data",
+        "privacy.subtitle": "How long we keep each piece of your data, and how to delete it.",
+        "privacy.trace_ttl": "Action history",
+        "privacy.community_retention": "Community price pool",
+        "privacy.voice_memo_retention": "Voice memos",
+        "privacy.sms_retention": "SMS phone registry",
+        "privacy.backup_retention": "Backups on disk",
+        "privacy.locale_persistence": "Remember my language",
+        "privacy.community_optin": "Share prices with the community",
+        "privacy.delete_data": "Delete my data",
+        "privacy.delete_warning": "This deletes traces, community pool, voice memos, SMS registry, and backups. Your inventory and lists are kept.",
         "error.generic": "Something went wrong. Please try again.",
     },
     # ── Hindi (हिन्दी) ──────────────────────────────────────────────
@@ -356,6 +368,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # Global search palette
         "search.placeholder": "आइटम, लिस्ट, रेसिपी सर्च करें या कमांड चलाएँ",
         "search.status_idle": "सर्च के लिए टाइप करें",
+        # Privacy / data retention panel
+        "privacy.title": "आपका डेटा",
+        "privacy.subtitle": "हम आपका डेटा कब तक रखते हैं, और कैसे हटाएँ।",
+        "privacy.trace_ttl": "एक्शन हिस्ट्री",
+        "privacy.community_retention": "कम्युनिटी प्राइस पूल",
+        "privacy.voice_memo_retention": "वॉइस मेमो",
+        "privacy.sms_retention": "SMS फ़ोन रजिस्ट्री",
+        "privacy.backup_retention": "डिस्क पर बैकअप",
+        "privacy.locale_persistence": "मेरी भाषा याद रखें",
+        "privacy.community_optin": "कम्युनिटी के साथ कीमतें साझा करें",
+        "privacy.delete_data": "मेरा डेटा हटाएँ",
+        "privacy.delete_warning": "यह ट्रेस, कम्युनिटी पूल, वॉइस मेमो, SMS रजिस्ट्री, बैकअप हटा देगा। इन्वेंटरी और लिस्ट रहेंगी।",
         "error.generic": "कुछ गड़बड़ हो गई। फिर से कोशिश करें।",
     },
 }
@@ -505,8 +529,7 @@ def render_language_selector_html(current_locale: str = DEFAULT_LOCALE) -> str:
         }.get(loc, loc.upper())
         active = " active" if loc == current_locale else ""
         buttons.append(
-            f"<button class='locale-btn{active}' "
-            f"onclick=\"setLocale('{loc}')\" "
+            f"<button class='locale-btn{active}' onclick=\"setLocale('{loc}')\" "
             f"aria-label='{escape(label)}'>{escape(label)}</button>"
         )
     return (

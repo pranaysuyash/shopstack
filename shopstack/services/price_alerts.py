@@ -184,28 +184,19 @@ def render_price_drops_html(alerts: list[PriceDropAlert]) -> str:
     for a in actionable:
         # Each row: item name, current price (green), median (dim), drop %
         rows.append(
-            f"<div style='padding:5px 0;border-bottom:1px solid var(--border);'>"
-            f"<strong>{escape(a.display_name)}</strong> "
-            f"<span style='color:var(--text-dim);font-size: 0.625rem;'>"
-            f"at {escape(a.source.title())}</span>"
-            f"<br>"
-            f"<span style='color:var(--green);font-weight:600;'>"
-            f"&#8377;{a.current_price:.0f}</span>"
-            f" <span style='color:var(--text-dim);font-size: 0.625rem;'>"
-            f"(was &#8377;{a.median_price:.0f})</span>"
-            f" &middot; "
-            f"<span style='color:var(--green);font-size: 0.625rem;'>"
-            f"↓ {a.drop_pct:.0f}% (save &#8377;{a.drop_amount:.0f})</span>"
+            f"<div style='padding:5px 0;border-bottom:1px solid var(--border);'><strong>{escape(a.display_name)}</strong> "
+            f"<span style='color:var(--text-dim);font-size: 0.625rem;'>at {escape(a.source.title())}</span>"
+            f"<br><span style='color:var(--green);font-weight:600;'>"
+            f"&#8377;{a.current_price:.0f}</span> <span style='color:var(--text-dim);font-size: 0.625rem;'>"
+            f"(was &#8377;{a.median_price:.0f})</span> &middot; "
+            f"<span style='color:var(--green);font-size: 0.625rem;'>↓ {a.drop_pct:.0f}% (save &#8377;{a.drop_amount:.0f})</span>"
             f"</div>"
         )
 
     return (
-        f"<div class='home-card' style='margin-bottom:12px;'>"
-        f"<h3 style='margin:0 0 4px 0;'>📉 Price Drops</h3>"
-        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>"
-        f"Items currently priced noticeably below your historical median."
-        f"</div>"
-        f"{''.join(rows)}"
+        f"<div class='home-card' style='margin-bottom:12px;'><h3 style='margin:0 0 4px 0;'>📉 Price Drops</h3>"
+        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>Items currently priced noticeably below your historical median."
+        f"</div>{''.join(rows)}"
         f"</div>"
     )
 

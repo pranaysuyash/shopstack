@@ -88,10 +88,8 @@ def render_restock_card_html(predictions: list[dict[str, Any]]) -> str:
         urgency = str(p.get("urgency", "due_soon"))
         rows.append(
             "<div class='restock-row' style='border-left:3px solid "
-            f"{color};'>"
-            f"<div class='restock-name'>{escape(display)}</div>"
-            f"<div class='restock-meta'>"
-            f"<span class='restock-days' style='color:{color};'>{days_str}</span>"
+            f"{color};'><div class='restock-name'>{escape(display)}</div>"
+            f"<div class='restock-meta'><span class='restock-days' style='color:{color};'>{days_str}</span>"
             f" · {qty:g} {escape(unit)} · {escape(urgency)}"
             "</div>"
             "</div>"

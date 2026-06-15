@@ -315,14 +315,10 @@ def _action_html(a: TodayAction, *, secondary: bool = False) -> str:
     )
     cls = "ti-action ti-secondary" if secondary else "ti-action"
     return (
-        f"<div class='{cls}' style='border-left:3px solid {color};'>"
-        f"<span class='ti-rank' style='color:{color};'>{rank_badge}</span>"
-        f"<span class='ti-icon'>{icon}</span>"
-        f"<span class='ti-body'>"
-        f"<span class='ti-name'>{escape(a.display_name)}</span>"
-        f"<span class='ti-reason'>{escape(a.reason)}</span>"
-        f"{sub}"
-        f"</span>"
+        f"<div class='{cls}' style='border-left:3px solid {color};'><span class='ti-rank' style='color:{color};'>{rank_badge}</span>"
+        f"<span class='ti-icon'>{icon}</span><span class='ti-body'>"
+        f"<span class='ti-name'>{escape(a.display_name)}</span><span class='ti-reason'>{escape(a.reason)}</span>"
+        f"{sub}</span>"
         f"</div>"
     )
 
@@ -352,8 +348,7 @@ def render_today_intelligence_html(intel: TodayIntelligence) -> str:
         parts.append("</div>")
     if intel.secondary:
         parts.append(
-            f"<details class='ti-secondary-block'>"
-            f"<summary>{len(intel.secondary)} more</summary>"
+            f"<details class='ti-secondary-block'><summary>{len(intel.secondary)} more</summary>"
             "<div class='ti-actions'>"
         )
         for a in intel.secondary:

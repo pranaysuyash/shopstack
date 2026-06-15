@@ -179,8 +179,7 @@ def cookbook_shop_missing(
         added = result["count"]
         return (
             "<div class='home-card' style='border-left:3px solid var(--green);'>"
-            f"✓ Added {added} missing item{'s' if added != 1 else ''} from "
-            f"{recipe.name} to the active shopping list."
+            f"✓ Added {added} missing item{'s' if added != 1 else ''} from {recipe.name} to the active shopping list."
             "</div>"
         )
     if result.get("count", 0) == 0 and result.get("reason", "").startswith("Nothing missing"):
@@ -192,8 +191,7 @@ def cookbook_shop_missing(
     # Catch-all: anything else the service reports (no list, db error, etc.)
     return (
         "<div class='home-card' style='border-left:3px solid var(--amber);'>"
-        f"⚠ {result.get('reason', 'No items added.')} "
-        f"({recipe.name})</div>"
+        f"⚠ {result.get('reason', 'No items added.')} ({recipe.name})</div>"
     )
 
 

@@ -104,10 +104,8 @@ def render_walkthrough_html(locale: str = DEFAULT_LOCALE) -> str:
     for i, step in enumerate(steps, start=1):
         # Only the first step is visible; JS toggles `data-active`.
         step_html_parts.append(
-            f"<div class='tour-step' data-step='{i}' "
-            f"{'data-active=true' if i == 1 else ''}>"
-            f"<div class='tour-step-title'>{escape(step['title'])}</div>"
-            f"<div class='tour-step-body'>{escape(step['body'])}</div>"
+            f"<div class='tour-step' data-step='{i}' {'data-active=true' if i == 1 else ''}>"
+            f"<div class='tour-step-title'>{escape(step['title'])}</div><div class='tour-step-body'>{escape(step['body'])}</div>"
             f"</div>"
         )
     step_html = "".join(step_html_parts)

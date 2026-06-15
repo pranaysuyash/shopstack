@@ -157,8 +157,7 @@ def multi_source_price_view() -> str:
             is_stale = f.get("is_stale", False)
             color = "var(--red)" if is_stale else "var(--text-dim)"
             freshness_html += (
-                f"<span style='font-size: 0.625rem;color:{color};margin-right:12px;'>"
-                f"{escape(source_labels.get(sid, sid))}: {escape(label)}</span>"
+                f"<span style='font-size: 0.625rem;color:{color};margin-right:12px;'>{escape(source_labels.get(sid, sid))}: {escape(label)}</span>"
             )
         except Exception as exc:
             logger.debug("freshness check failed for %s: %s", sid, exc)
@@ -179,8 +178,7 @@ def multi_source_price_view() -> str:
     body = format_cross_source_html(comparisons)
 
     return (
-        f"<div style='display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;'>{summary_cards}</div>"
-        f"{freshness_section}"
+        f"<div style='display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;'>{summary_cards}</div>{freshness_section}"
         f"{body}"
     )
 

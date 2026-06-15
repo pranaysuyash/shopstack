@@ -84,8 +84,7 @@ def repair_inbox_view(severity: str = "") -> str:
     parts: list[str] = []
     parts.append("<h3>Repair Inbox</h3>")
     parts.append(
-        f"<div style='font-size:0.75rem;color:var(--text-dim);margin-bottom:8px;'>"
-        f"{len(items)} open issue(s), sorted by severity and recency."
+        f"<div style='font-size:0.75rem;color:var(--text-dim);margin-bottom:8px;'>{len(items)} open issue(s), sorted by severity and recency."
         f"</div>"
     )
     for item in items:
@@ -96,28 +95,19 @@ def repair_inbox_view(severity: str = "") -> str:
         occ = item.occurrences
         # Confirm-status badge
         confirm_badge = (
-            f"<span style='font-size:0.625rem;background:var(--green);color:#fff;"
-            f"padding:2px 6px;border-radius:8px;margin-left:6px;'>confirmed</span>"
+            f"<span style='font-size:0.625rem;background:var(--green);color:#fff;padding:2px 6px;border-radius:8px;margin-left:6px;'>confirmed</span>"
             if item.user_confirmed
             else f"<span style='font-size:0.625rem;background:var(--amber);color:#fff;"
-            f"padding:2px 6px;border-radius:8px;margin-left:6px;'>"
-            f"{item.pending_user_confirmation} pending</span>"
+            f"padding:2px 6px;border-radius:8px;margin-left:6px;'>{item.pending_user_confirmation} pending</span>"
         )
         parts.append(
-            f"<div class='stat-card' style='text-align:left;margin-bottom:8px;'>"
-            f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
-            f"<div style='font-weight:600;color:var(--text);'>{escape(item.canonical_name)}{confirm_badge}</div>"
-            f"<span style='background:{sev_color};color:#fff;padding:2px 8px;"
-            f"border-radius:10px;font-size:0.625rem;font-weight:600;'>"
-            f"{escape(item.severity.value.upper())}</span>"
-            f"</div>"
-            f"<div style='font-size:0.75rem;color:var(--text-dim);margin-top:4px;'>"
-            f"{escape(item.dominant_kind.value)} · {occ}x · last {escape(last_seen)} · first {escape(first_seen)}"
-            f"</div>"
-            f"<div style='font-size:0.75rem;margin-top:4px;'>"
-            f"📍 {escape(item.location_name or 'unknown')} · "
-            f"<strong>Action:</strong> {escape(action_label)}"
-            f"</div>"
+            f"<div class='stat-card' style='text-align:left;margin-bottom:8px;'><div style='display:flex;justify-content:space-between;align-items:center;'>"
+            f"<div style='font-weight:600;color:var(--text);'>{escape(item.canonical_name)}{confirm_badge}</div><span style='background:{sev_color};color:#fff;padding:2px 8px;"
+            f"border-radius:10px;font-size:0.625rem;font-weight:600;'>{escape(item.severity.value.upper())}</span>"
+            f"</div><div style='font-size:0.75rem;color:var(--text-dim);margin-top:4px;'>"
+            f"{escape(item.dominant_kind.value)} · {occ}x · last {escape(last_seen)} · first {escape(first_seen)}</div>"
+            f"<div style='font-size:0.75rem;margin-top:4px;'>📍 {escape(item.location_name or 'unknown')} · "
+            f"<strong>Action:</strong> {escape(action_label)}</div>"
             f"{('<div style=\"font-size:0.6875rem;color:var(--text-dim);margin-top:4px;font-style:italic;\">'
               f'\"' + escape(item.latest_description) + '\"</div>') if item.latest_description else ''}"
             f"</div>"
@@ -162,8 +152,7 @@ def report_damage(
     except ValueError as exc:
         return f"<div style='color:var(--red);'>{escape(str(exc))}</div>"
     return (
-        f"<div style='color:var(--green);'>"
-        f"Recorded {escape(severity)} {escape(kind)} issue for {escape(lot.canonical_name)}."
+        f"<div style='color:var(--green);'>Recorded {escape(severity)} {escape(kind)} issue for {escape(lot.canonical_name)}."
         f"</div>"
     )
 

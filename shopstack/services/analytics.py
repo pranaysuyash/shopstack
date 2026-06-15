@@ -249,8 +249,7 @@ def aggregate_analytics(
 
 def _bar(pct: float, color: str = "var(--accent, #176B49)") -> str:
     return (
-        f"<div class='ha-bar-track'>"
-        f"<div class='ha-bar-fill' style='width:{max(0, min(100, pct)):.0f}%;background:{color};'></div>"
+        f"<div class='ha-bar-track'><div class='ha-bar-fill' style='width:{max(0, min(100, pct)):.0f}%;background:{color};'></div>"
         f"</div>"
     )
 
@@ -276,20 +275,16 @@ def render_analytics_html(analytics: HouseholdAnalytics) -> str:
     # Headline metrics
     parts.append(
         "<div class='ha-headline'>"
-        f"<strong>₹{analytics.spend_this_month:,.0f}</strong> spent this month · "
-        f"<strong>₹{analytics.spend_this_year:,.0f}</strong> this year · "
-        f"<strong>{analytics.purchase_count}</strong> purchases · "
-        f"<strong>{analytics.new_items_added}</strong> new items"
+        f"<strong>₹{analytics.spend_this_month:,.0f}</strong> spent this month · <strong>₹{analytics.spend_this_year:,.0f}</strong> this year · "
+        f"<strong>{analytics.purchase_count}</strong> purchases · <strong>{analytics.new_items_added}</strong> new items"
         "</div>"
     )
     # Spend trend
     if analytics.spend_trend:
         max_spend = max(s for _, s in analytics.spend_trend) or 1
         rows = "".join(
-            f"<div class='ha-bar-row'>"
-            f"<div class='ha-bar-label'>{escape(month)}</div>"
-            f"{_bar(spend / max_spend * 100)}"
-            f"<div class='ha-bar-value'>₹{spend:,.0f}</div>"
+            f"<div class='ha-bar-row'><div class='ha-bar-label'>{escape(month)}</div>"
+            f"{_bar(spend / max_spend * 100)}<div class='ha-bar-value'>₹{spend:,.0f}</div>"
             f"</div>"
             for month, spend in analytics.spend_trend
         )
@@ -297,10 +292,8 @@ def render_analytics_html(analytics: HouseholdAnalytics) -> str:
     # Top items
     if analytics.top_items:
         chips = "".join(
-            f"<span class='ha-chip'>"
-            f"{escape(name.replace('_', ' ').title())} "
-            f"<span class='ha-chip-amt'>₹{amt:,.0f}</span>"
-            f"</span>"
+            f"<span class='ha-chip'>{escape(name.replace('_', ' ').title())} "
+            f"<span class='ha-chip-amt'>₹{amt:,.0f}</span></span>"
             for name, amt in analytics.top_items[:8]
         )
         parts.append(f"<div class='ha-section-h'>Top items</div><div class='ha-chips'>{chips}</div>")
@@ -321,8 +314,7 @@ def render_analytics_html(analytics: HouseholdAnalytics) -> str:
         )
         parts.append(
             "<div class='ha-waste'>"
-            f"Waste rate (use-soon / consume): "
-            f"<strong style='color:{rate_color};'>{rate}%</strong> "
+            f"Waste rate (use-soon / consume): <strong style='color:{rate_color};'>{rate}%</strong> "
             f"({analytics.use_soon_count} / {analytics.consume_count})"
             "</div>"
         )

@@ -417,8 +417,7 @@ def render_community_indicator_html(
     median = summary["median_price"]
     sample = summary["sample_size"]
     badge = (
-        f"<span class='cm-pill' title='Median of {sample} community observation(s)'>"
-        f"👥 ₹{median:.0f}</span>"
+        f"<span class='cm-pill' title='Median of {sample} community observation(s)'>👥 ₹{median:.0f}</span>"
     )
     if own_price is not None and own_price > 0:
         delta = community_delta(canonical_name, own_price, city=city, when=when)
@@ -431,8 +430,7 @@ def render_community_indicator_html(
             }[verdict]
             sign = "+" if delta["delta_pct"] >= 0 else ""
             badge += (
-                f" <span class='cm-delta' style='color:{color};' "
-                f"title='You paid ₹{own_price:.0f} vs ₹{median:.0f} community median'>"
+                f" <span class='cm-delta' style='color:{color};' title='You paid ₹{own_price:.0f} vs ₹{median:.0f} community median'>"
                 f"you {sign}{delta['delta_pct']:.1f}%</span>"
             )
     return badge

@@ -381,8 +381,7 @@ def analyze_shelf_scene(
                         agg = get_lot_condition(db, lot_id, include_closed=False)
                         if agg.has_open_issue and agg.highest_severity.value in {"broken", "spoiled"}:
                             result.warnings.append(
-                                f"⚠ {match.canonical_name}: open {agg.highest_severity.value} issue"
-                                f" ({agg.occurrences}x, {agg.dominant_kind.value})."
+                                f"⚠ {match.canonical_name}: open {agg.highest_severity.value} issue ({agg.occurrences}x, {agg.dominant_kind.value})."
                             )
         except Exception as exc:
             # Best-effort: never let the condition hook break the scan.

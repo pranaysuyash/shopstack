@@ -273,8 +273,7 @@ def _role_badge(role: str) -> str:
         GUEST:  "var(--text-dim, #6F6254)",
     }.get(role, "var(--text-dim, #6F6254)")
     return (
-        f"<span class='perm-role-badge' style='background:{color};color:#fff;'>"
-        f"{escape(role.title())}</span>"
+        f"<span class='perm-role-badge' style='background:{color};color:#fff;'>{escape(role.title())}</span>"
     )
 
 
@@ -295,8 +294,7 @@ def render_members_html(members: list[dict[str, str]]) -> str:
         joined_short = joined[:10] if len(joined) >= 10 else joined
         rows.append(
             "<div class='perm-member-row'>"
-            f"<div class='perm-member-name'>{escape(uid)}</div>"
-            f"<div class='perm-member-role'>{_role_badge(role)}</div>"
+            f"<div class='perm-member-name'>{escape(uid)}</div><div class='perm-member-role'>{_role_badge(role)}</div>"
             f"<div class='perm-member-joined'>since {escape(joined_short)}</div>"
             "</div>"
         )

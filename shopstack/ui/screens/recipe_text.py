@@ -57,7 +57,11 @@ def recipe_text_to_shopping_list(raw_text: str) -> str:
     """
     if not raw_text or not raw_text.strip():
         return (
-            "home_card(body='"\n            "Paste a recipe\'s ingredients section. Example:<br>"\n            "<code style=\'font-size: 0.75rem;\'>"\n            "- 2 cups rice<br>- 1 cup chickpea<br>- 1 tsp turmeric"\n            "</code>', style='text-align:center;padding:16px;color:var(--text-dim);')"
+            "home_card(body='"
+            "Paste a recipe's ingredients section. Example:<br>"
+            "<code style='font-size: 0.75rem;'>"
+            "- 2 cups rice<br>- 1 cup chickpea<br>- 1 tsp turmeric"
+            "</code>', style='text-align:center;padding:16px;color:var(--text-dim);')"
         )
 
     parsed = parse_recipe_text(raw_text)
@@ -89,23 +93,19 @@ def recipe_text_to_shopping_list(raw_text: str) -> str:
         status_color = "var(--green)" if status == "have" else "var(--red)"
         status_label = "✓ have" if status == "have" else "✗ need"
         rows.append(
-            f"<tr>"
-            f"<td style='padding:4px 8px;border-bottom:1px solid var(--border);'>{name}</td>"
-            f"<td style='padding:4px 8px;border-bottom:1px solid var(--border);text-align:right;'>{p.quantity:g} {escape(p.unit)}</td>"
-            f"<td style='padding:4px 8px;border-bottom:1px solid var(--border);text-align:right;color:{status_color};'>{status_label}</td>"
+            f"<tr><td style='padding:4px 8px;border-bottom:1px solid var(--border);'>{name}</td>"
+            f"<td style='padding:4px 8px;border-bottom:1px solid var(--border);text-align:right;'>{p.quantity:g} {escape(p.unit)}</td><td style='padding:4px 8px;border-bottom:1px solid var(--border);text-align:right;color:{status_color};'>{status_label}</td>"
             f"</tr>"
         )
 
     return (
-        f"home_card(body='"\n        f"<h3 style=\'margin:0 0 8px 0;\'>📋 Recipe → Shopping List</h3>"\n        f"<div style=\'font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;\'>"\n        f"Parsed {len(parsed)} ingredient(s). {have_count} at home, "\n        f"<strong style=\'color:var(--red);\'>{missing_count} to buy</strong>."\n        f"')"
-        f"<table style='width:100%;font-size: 0.75rem;border-collapse:collapse;'>"
-        f"<thead><tr style='border-bottom:2px solid var(--border);'>"
-        f"<th style='text-align:left;padding:4px 8px;'>Item</th>"
-        f"<th style='text-align:right;padding:4px 8px;'>Qty</th>"
-        f"<th style='text-align:right;padding:4px 8px;'>Status</th>"
-        f"</tr></thead>"
-        f"<tbody>{''.join(rows)}</tbody>"
-        f"</table>"
+        f"home_card(body='<h3 style='margin:0 0 8px 0;'>📋 Recipe → Shopping List</h3>"
+            f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>Parsed {len(parsed)} ingredient(s). {have_count} at home, "
+            f"<strong style='color:var(--red);'>{missing_count} to buy</strong>.')"
+        f"<table style='width:100%;font-size: 0.75rem;border-collapse:collapse;'><thead><tr style='border-bottom:2px solid var(--border);'>"
+        f"<th style='text-align:left;padding:4px 8px;'>Item</th><th style='text-align:right;padding:4px 8px;'>Qty</th>"
+        f"<th style='text-align:right;padding:4px 8px;'>Status</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>"
         f"</div>"
     )
 
@@ -271,8 +271,7 @@ def recipe_text_add_missing_to_list(raw_text: str) -> str:
         )
     if added == 0:
         return toast(
-            f"✓ All {skipped} ingredient{'s' if skipped != 1 else ''} "
-            f"already on your list — nothing new to add.",
+            f"✓ All {skipped} ingredient{'s' if skipped != 1 else ''} already on your list — nothing new to add.",
             kind="success",
         )
     sample = ", ".join(
@@ -282,8 +281,7 @@ def recipe_text_add_missing_to_list(raw_text: str) -> str:
     more = "" if len(missing_items) <= 3 else f" (+{len(missing_items) - 3} more)"
     skip_note = f" ({skipped} already on list)" if skipped else ""
     return toast(
-        f"✓ Added {added} missing item{'s' if added != 1 else ''} to your shopping list: "
-        f"{sample}{more}{skip_note}.",
+        f"✓ Added {added} missing item{'s' if added != 1 else ''} to your shopping list: {sample}{more}{skip_note}.",
         kind="success",
     )
 
@@ -443,8 +441,7 @@ def recipe_image_to_text(file_input: Any) -> tuple[str, str]:
     stage = ocr_result.get("pipeline_stage", "?")
     latency = ocr_result.get("latency_ms", 0)
     status = toast(
-        f"✓ Extracted {len(raw_text)} characters via {model} "
-        f"({stage}, {latency:.0f}ms). "
+        f"✓ Extracted {len(raw_text)} characters via {model} ({stage}, {latency:.0f}ms). "
         "Review the text below, then click 'Parse & Diff' or 'Add missing to my list'.",
         kind="success",
     )

@@ -79,8 +79,7 @@ def render_shortcuts_help_html() -> str:
     for s in SHORTCUTS:
         rows.append(
             "<div class='sc-row'>"
-            f"<kbd class='sc-key'>{escape(s['key'])}</kbd>"
-            f"<span class='sc-desc'>{escape(s['desc'])}</span>"
+            f"<kbd class='sc-key'>{escape(s['key'])}</kbd><span class='sc-desc'>{escape(s['desc'])}</span>"
             f"</div>"
         )
     return f"""

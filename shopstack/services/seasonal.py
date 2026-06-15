@@ -237,8 +237,7 @@ def _recommend_price_drops(price_drops: list[dict[str, Any]] | None) -> Seasonal
         body = f"{name} is {pct:.0f}% below your historical median — good day to buy extra."
     else:
         body = (
-            f"{name} dropped {pct:.0f}% this week, plus {n - 1} other item(s). "
-            f"Stock up on what you'll actually use."
+            f"{name} dropped {pct:.0f}% this week, plus {n - 1} other item(s). Stock up on what you'll actually use."
         )
     return SeasonalRecommendation(
         severity="opportunity",
@@ -328,12 +327,10 @@ def render_seasonal_html(rec: SeasonalRecommendation) -> str:
     """Render a single ``SeasonalRecommendation`` as XSS-safe HTML."""
     color = _SEVERITY_COLOR.get(rec.severity, "var(--text-dim)")
     return (
-        f"<div class='home-card' style='margin-bottom:12px;'>"
-        f"<h3 style='margin:0 0 4px 0;color:{color};'>{escape(rec.icon)} {escape(rec.title)}</h3>"
+        f"<div class='home-card' style='margin-bottom:12px;'><h3 style='margin:0 0 4px 0;color:{color};'>{escape(rec.icon)} {escape(rec.title)}</h3>"
         f"<div style='font-size: 0.8125rem;color:var(--text);'>{escape(rec.body)}</div>"
         + (
-            f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:6px;'>"
-            f"<strong>Suggested:</strong> {escape(rec.action)}</div>"
+            f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:6px;'><strong>Suggested:</strong> {escape(rec.action)}</div>"
             if rec.action
             else ""
         )

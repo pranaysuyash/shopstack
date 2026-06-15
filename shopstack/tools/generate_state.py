@@ -186,8 +186,7 @@ def _read_wcag_score() -> tuple[int, str] | None:
     fail_m = re.search(r"\*\*Fail:\*\*\s+(\d+)", text)
     return (
         int(m.group(1)),
-        f"{pass_m.group(1) if pass_m else '?'} pass / "
-        f"{warn_m.group(1) if warn_m else '?'} warn / "
+        f"{pass_m.group(1) if pass_m else '?'} pass / {warn_m.group(1) if warn_m else '?'} warn / "
         f"{fail_m.group(1) if fail_m else '?'} fail",
     )
 
@@ -353,8 +352,7 @@ def render_markdown(snap: StateSnapshot) -> str:
         f"| Tabs | {snap.tab_count} | `walk` |",
         f"| Providers | {snap.provider_count} | `walk` |",
         (
-            f"| WCAG 2.1 AA | {snap.wcag_score} / 100 | "
-            f"breakdown: {snap.wcag_breakdown} |"
+            f"| WCAG 2.1 AA | {snap.wcag_score} / 100 | breakdown: {snap.wcag_breakdown} |"
             if snap.wcag_score is not None
             else "| WCAG 2.1 AA | not audited | run `python -m shopstack.tools.audit_wcag` |"
         ),
@@ -466,8 +464,7 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError:
         json_label = str(OUTPUT_JSON)
     print(
-        f"→ {md_label} "
-        f"({snap.test_count} tests, "
+        f"→ {md_label} ({snap.test_count} tests, "
         f"WCAG {snap.wcag_score if snap.wcag_score is not None else '?'}/100)"
     )
     print(f"→ {json_label}")

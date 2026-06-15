@@ -64,12 +64,9 @@ def price_intelligence_view() -> str:
                 if best.get("last_seen"):
                     as_of_label = f"<span style='color:var(--text-dim);font-size: 0.6875rem;'> &middot; as of {escape(best['last_seen'])}</span>"
                 comparisons.append(
-                    f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
-                    f"<strong>{escape(name)}</strong>: Best at {escape(best['store'])} "
-                    f"(&#8377;{best['median_price']:.0f}{ppk_label}) vs "
-                    f"{escape(worst['store'])} (&#8377;{worst['median_price']:.0f}) "
-                    f"&mdash; save {ranking.spread_pct}%{as_of_label}"
-                    f"</div>"
+                    f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'><strong>{escape(name)}</strong>: Best at {escape(best['store'])} "
+                    f"(&#8377;{best['median_price']:.0f}{ppk_label}) vs {escape(worst['store'])} (&#8377;{worst['median_price']:.0f}) "
+                    f"&mdash; save {ranking.spread_pct}%{as_of_label}</div>"
                 )
 
         # Price drop detection from history
@@ -89,10 +86,8 @@ def price_intelligence_view() -> str:
                         if recent_date else ""
                     )
                     alerts.append(
-                        f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
-                        f"<strong>{escape(name)}</strong> price dropped {drop_pct}% "
-                        f"(&#8377;{older_p:.0f} &#8594; &#8377;{recent_p:.0f}) "
-                        f"&mdash; good time to buy{as_of_label}"
+                        f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'><strong>{escape(name)}</strong> price dropped {drop_pct}% "
+                        f"(&#8377;{older_p:.0f} &#8594; &#8377;{recent_p:.0f}) &mdash; good time to buy{as_of_label}"
                         f"</div>"
                     )
 
@@ -102,10 +97,8 @@ def price_intelligence_view() -> str:
             deal = service.score_deal(name, summary.last_price, per_kg=summary.normalized_per_kg)
             if deal.is_good_deal:
                 deal_scores.append(
-                    f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
-                    f"<strong>{escape(name)}</strong>: {escape(deal.reason)} "
-                    f"<span style='color:var(--green);font-weight:600;'>[{deal.score.upper()}]</span>"
-                    f"</div>"
+                    f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'><strong>{escape(name)}</strong>: {escape(deal.reason)} "
+                    f"<span style='color:var(--green);font-weight:600;'>[{deal.score.upper()}]</span></div>"
                 )
 
     html_parts: list[str] = []
@@ -140,12 +133,9 @@ def price_intelligence_view() -> str:
             savings = f"&#8377;{best_store.estimated_savings_vs_worst:.0f}" if best_store.estimated_savings_vs_worst > 0 else "N/A"
             html_parts.append(
                 "<div class='home-card' style='text-align:left;margin-bottom:12px;'>"
-                f"<h3>Best Store Overall</h3>"
-                f"<div style='padding:8px;font-size: 0.875rem;'>"
-                f"<strong>{escape(best_store.store)}</strong> has the best price for "
-                f"{best_store.items_with_best_price}/{best_store.total_items_compared} items "
-                f"({coverage} coverage). Estimated savings vs worst store: {savings}."
-                f"</div></div>"
+                f"<h3>Best Store Overall</h3><div style='padding:8px;font-size: 0.875rem;'>"
+                f"<strong>{escape(best_store.store)}</strong> has the best price for {best_store.items_with_best_price}/{best_store.total_items_compared} items "
+                f"({coverage} coverage). Estimated savings vs worst store: {savings}.</div></div>"
             )
 
     # Cross-source comparison from market snapshots
@@ -217,7 +207,6 @@ def seed_swiggy_prices() -> str:
             count += 1
 
     return (
-        f"<div style='color:var(--green);'>Seeded {count} price observations "
-        f"from Swiggy Instamart ({snapshot.captured_at}). "
+        f"<div style='color:var(--green);'>Seeded {count} price observations rom Swiggy Instamart ({snapshot.captured_at}). "
         f"Price Memory and Price Intelligence now have real data.</div>"
     )

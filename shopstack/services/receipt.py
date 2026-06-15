@@ -379,7 +379,6 @@ def confirm_receipt(database: Any, result: ReceiptResult, user_id: str = "") -> 
             ir.errors.append(f"Failed to record price for '{line.display_name}': {e}")
 
     ir.messages.append(
-        f"Receipt from {result.merchant} ({result.purchase_date}): "
-        f"{len(result.lines)} items, total {result.total:.2f}"
+        f"Receipt from {result.merchant} ({result.purchase_date}): {len(result.lines)} items, total {result.total:.2f}"
     )
     return ir

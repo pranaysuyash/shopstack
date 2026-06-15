@@ -40,13 +40,16 @@ def _step1_household_size() -> str:
     buttons = []
     for size in HOUSEHOLD_SIZES:
         buttons.append(
-            f"<button class='onboarding-btn' data-value='{size['key']}'>"
-            f"<strong>{escape(size['label'])}</strong></button>"
+            f"<button class='onboarding-btn' data-value='{size['key']}'><strong>{escape(size['label'])}</strong></button>"
         )
-    return (
-        "home_card(body='"\n        "<h3>Step 1 of 5 — How big is your household?</h3>"\n        "<div class=\'muted\' style=\'margin-bottom:12px;\'>This helps us scale "\n        "quantities for your starter inventory.', style='text-align:left;')"
-        f"{''.join(buttons)}"
-        "</div>"
+    return home_card(
+        title="Step 1 of 5 — How big is your household?",
+        body=(
+            "<div class='muted' style='margin-bottom:12px;'>This helps us scale "
+            "quantities for your starter inventory.</div>"
+            f"{''.join(buttons)}"
+        ),
+        style="text-align:left;",
     )
 
 
@@ -55,11 +58,13 @@ def _step2_diet() -> str:
     buttons = []
     for pref in DIETARY_PREFERENCES:
         buttons.append(
-            f"<button class='onboarding-btn' data-value='{pref['key']}'>"
-            f"<strong>{escape(pref['label'])}</strong></button>"
+            f"<button class='onboarding-btn' data-value='{pref['key']}'><strong>{escape(pref['label'])}</strong></button>"
         )
     return (
-        "home_card(body='"\n        "<h3>Step 2 of 5 — Dietary preference</h3>"\n        "<div class=\'muted\' style=\'margin-bottom:12px;\'>We\'ll exclude "\n        "non-veg items if you\'re vegetarian or vegan.', style='text-align:left;')"
+        "home_card(body='"
+            "<h3>Step 2 of 5 — Dietary preference</h3>"
+            "<div class='muted' style='margin-bottom:12px;'>We'll exclude "
+            "non-veg items if you're vegetarian or vegan.', style='text-align:left;')"
         f"{''.join(buttons)}"
         "</div>"
     )
@@ -70,14 +75,15 @@ def _step3_staples() -> str:
     items_html = []
     for item in COMMON_STAPLES:
         items_html.append(
-            f"<div style='padding:4px 0;'>"
-            f"<label><input type='checkbox' class='staple-cb' "
-            f"value='{item['canonical_name']}'> "
-            f"{escape(item['label'])} <span class='muted'>({escape(item['category'])})</span></label>"
+            f"<div style='padding:4px 0;'><label><input type='checkbox' class='staple-cb' "
+            f"value='{item['canonical_name']}'> {escape(item['label'])} <span class='muted'>({escape(item['category'])})</span></label>"
             f"</div>"
         )
     return (
-        "home_card(body='"\n        "<h3>Step 3 of 5 — Common staples</h3>"\n        "<div class=\'muted\' style=\'margin-bottom:12px;\'>Select the items "\n        "your household always needs.', style='text-align:left;')"
+        "home_card(body='"
+            "<h3>Step 3 of 5 — Common staples</h3>"
+            "<div class='muted' style='margin-bottom:12px;'>Select the items "
+            "your household always needs.', style='text-align:left;')"
         f"{''.join(items_html)}"
         "</div>"
     )
@@ -88,11 +94,13 @@ def _step4_retailers() -> str:
     buttons = []
     for r in RETAILERS:
         buttons.append(
-            f"<button class='onboarding-btn retailer-btn' data-value='{r['key']}'>"
-            f"<strong>{escape(r['label'])}</strong></button>"
+            f"<button class='onboarding-btn retailer-btn' data-value='{r['key']}'><strong>{escape(r['label'])}</strong></button>"
         )
     return (
-        "home_card(body='"\n        "<h3>Step 4 of 5 — Your preferred stores</h3>"\n        "<div class=\'muted\' style=\'margin-bottom:12px;\'>Select the stores "\n        "you shop at most. This helps us prioritize market data.', style='text-align:left;')"
+        "home_card(body='"
+            "<h3>Step 4 of 5 — Your preferred stores</h3>"
+            "<div class='muted' style='margin-bottom:12px;'>Select the stores "
+            "you shop at most. This helps us prioritize market data.', style='text-align:left;')"
         f"{''.join(buttons)}"
         "</div>"
     )
@@ -101,9 +109,11 @@ def _step4_retailers() -> str:
 def _step5_city() -> str:
     """Render step 5: city."""
     return (
-        "home_card(body='"\n        "<h3>Step 5 of 5 — Your city</h3>"\n        "<div class=\'muted\' style=\'margin-bottom:12px;\'>Used for weather-aware "\n        "suggestions and local market context.', style='text-align:left;')"
-        f"<input type='text' id='onboarding-city' "
-        f"placeholder='{DEFAULT_CITY}' class='onboarding-city-input' />"
+        "home_card(body='"
+            "<h3>Step 5 of 5 — Your city</h3>"
+            "<div class='muted' style='margin-bottom:12px;'>Used for weather-aware "
+            "suggestions and local market context.', style='text-align:left;')"
+        f"<input type='text' id='onboarding-city' placeholder='{DEFAULT_CITY}' class='onboarding-city-input' />"
         "</div>"
     )
 
@@ -118,12 +128,16 @@ def _collect_and_submit(
     """Collect wizard inputs and call submit_onboarding()."""
     if not household_size or household_size not in {s["key"] for s in HOUSEHOLD_SIZES}:
         return (
-            "home_card(body='"\n            "<h3>Setup incomplete</h3>"\n            "<div>Please select a household size.', style='border:2px solid var(--red);')"
+            "home_card(body='"
+            "<h3>Setup incomplete</h3>"
+            "<div>Please select a household size.', style='border:2px solid var(--red);')"
             "</div>"
         )
     if not dietary_preference or dietary_preference not in {d["key"] for d in DIETARY_PREFERENCES}:
         return (
-            "home_card(body='"\n            "<h3>Setup incomplete</h3>"\n            "<div>Please select a dietary preference.', style='border:2px solid var(--red);')"
+            "home_card(body='"
+            "<h3>Setup incomplete</h3>"
+            "<div>Please select a dietary preference.', style='border:2px solid var(--red);')"
             "</div>"
         )
 
@@ -145,7 +159,9 @@ def _collect_and_submit(
     if result.success:
         items_list = ", ".join(COMMON_STAPLES_MAP.get(c, c.replace("_", " ").title()) for c in common_items[:8])
         return (
-            "home_card(body='"\n            "<h3>✅ Household set up!</h3>"\n            f"<div style=\'margin-bottom:8px;\'>Added <strong>{result.items_added}</strong> "\n            f"starter item{\'s\' if result.items_added != 1 else \'\'} to your pantry.', style='border:2px solid var(--green);text-align:left;')"
+            "home_card(body='"
+            "<h3>✅ Household set up!</h3>"
+            f"<div style='margin-bottom:8px;'>Added <strong>{result.items_added}</strong> starter item{'s' if result.items_added != 1 else ''} to your pantry.', style='border:2px solid var(--green);text-align:left;')"
             f"<div style='margin-bottom:8px;'>{items_list}</div>"
             "<div class='muted'>Your first shopping list is ready. "
             "Head to the <strong>Today</strong> tab to see what's happening.</div>"
@@ -153,7 +169,9 @@ def _collect_and_submit(
         )
     else:
         return (
-            "home_card(body='"\n            "<h3>Setup failed</h3>"\n            f"<div>{escape(result.error) if result.error else \'An unexpected error occurred.\'}', style='border:2px solid var(--red);')"
+            "home_card(body='"
+            "<h3>Setup failed</h3>"
+            f"<div>{escape(result.error) if result.error else 'An unexpected error occurred.'}', style='border:2px solid var(--red);')"
             "</div>"
         )
 

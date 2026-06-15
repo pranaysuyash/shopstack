@@ -39,8 +39,7 @@ def search_input(
     return (
         "<div class='search-input-wrapper'>"
         "<span class='search-icon' aria-hidden='true'>&#9906;</span>"
-        f"<input id='{escape(input_id)}' type='search' class='search-input-field' "
-        f"placeholder='{escape(placeholder)}' value='{escape(value)}' "
+        f"<input id='{escape(input_id)}' type='search' class='search-input-field' placeholder='{escape(placeholder)}' value='{escape(value)}' "
         f"{clear_btn}"
         "</div>"
     )
@@ -67,10 +66,8 @@ def filter_bar(
         return ""
     chips = "".join(
         "<button type='button' "
-        f"class='filter-chip{' is-active' if f.get('active') else ''}' "
-        f"data-filter-key='{escape(str(f.get('key', '')))}' "
-        f"aria-pressed='{'true' if f.get('active') else 'false'}'>"
-        f"{escape(str(f.get('label', '')))}"
+        f"class='filter-chip{' is-active' if f.get('active') else ''}' data-filter-key='{escape(str(f.get('key', '')))}' "
+        f"aria-pressed='{'true' if f.get('active') else 'false'}'>{escape(str(f.get('label', '')))}"
         + (f"<span class='filter-chip-count'>{f['count']}</span>" if f.get("count") is not None else "")
         + "</button>"
         for f in filters
@@ -84,8 +81,7 @@ def filter_bar(
         )
     return (
         "<div class='filter-bar'>"
-        f"<div class='filter-chips'>{chips}</div>"
-        f"{clear_all}"
+        f"<div class='filter-chips'>{chips}</div>{clear_all}"
         "</div>"
     )
 
@@ -156,8 +152,7 @@ def pagination_footer(
 
     return (
         "<div class='pagination-footer'>"
-        f"<span class='pagination-info'>Showing {start_item}&ndash;{end_item} of {total_items}</span>"
-        f"<div class='pagination-controls'>{prev_btn}{page_buttons}{next_btn}</div>"
+        f"<span class='pagination-info'>Showing {start_item}&ndash;{end_item} of {total_items}</span><div class='pagination-controls'>{prev_btn}{page_buttons}{next_btn}</div>"
         "</div>"
     )
 
@@ -204,8 +199,7 @@ def timeline(
             "<div class='timeline-step'>"
             f"<div class='timeline-dot {dot_class}'></div>"
             "<div class='timeline-content'>"
-            f"<div class='timeline-label'>{label}</div>"
-            f"<div class='timeline-value'>{value}</div>"
+            f"<div class='timeline-label'>{label}</div><div class='timeline-value'>{value}</div>"
             "</div>"
             "</div>"
             f"{connector}"
@@ -229,8 +223,7 @@ def price_chart_empty_state(item_name: str = "") -> str:
     return (
         "<div class='home-card' style='text-align:center;padding:40px 20px;'>"
         "<div class='section-kicker'>Price Trend</div>"
-        f"<div class='muted' style='font-size: 0.875rem;margin-top:8px;'>"
-        f"No price data yet for {label}.</div>"
+        f"<div class='muted' style='font-size: 0.875rem;margin-top:8px;'>No price data yet for {label}.</div>"
         "<div class='muted' style='font-size: 0.75rem;margin-top:4px;'>"
         "Record purchases with price to build trend history.</div>"
         "</div>"
@@ -264,24 +257,20 @@ def price_summary_card(
         "<div class='home-card' style='text-align:left;'>",
         f"<h3>{safe_name}</h3>",
         "<div style='display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;'>",
-        f"<div><div class='stat-value'>"
-        f"&pound;{latest_price:.0f}</div>"
+        f"<div><div class='stat-value'>&pound;{latest_price:.0f}</div>"
         f"<div class='stat-label'>Latest price</div></div>",
     ]
     if best_price is not None:
         parts.append(
-            f"<div><div class='stat-value'>"
-            f"&pound;{best_price:.0f}</div>"
+            f"<div><div class='stat-value'>&pound;{best_price:.0f}</div>"
             f"<div class='stat-label'>Best ({escape(best_store[:15]) if best_store else 'all stores'})</div></div>"
         )
     parts.append(
-        f"<div><div class='stat-value' style='color:{direction_color};'>"
-        f"{direction_icon}</div>"
+        f"<div><div class='stat-value' style='color:{direction_color};'>{direction_icon}</div>"
         f"<div class='stat-label'>Trend</div></div>"
     )
     parts.append(
-        f"<div><div class='stat-value'>{observation_count}</div>"
-        f"<div class='stat-label'>Observations</div></div>"
+        f"<div><div class='stat-value'>{observation_count}</div><div class='stat-label'>Observations</div></div>"
     )
     parts.append("</div></div>")
     return "".join(parts)
@@ -323,8 +312,7 @@ def location_card(
     icon = type_icons.get(location_type.lower(), "")
     if icon or location_type:
         type_badge = (
-            f"<span class='chip' style='font-size: 0.625rem;'>"
-            f"{icon} {safe_type}</span>"
+            f"<span class='chip' style='font-size: 0.625rem;'>{icon} {safe_type}</span>"
         )
 
     hierarchy = f"<span style='color:var(--text-dim);font-size: 0.6875rem;'>&#x2192; {safe_parent}</span>" if parent_name else ""
@@ -341,8 +329,7 @@ def location_card(
             "<div style='margin-top:8px;font-size: 0.6875rem;color:var(--text-dim);'>"
             + "".join(f"<div class='item-row' style='padding:2px 0;'>{escape(item)}</div>" for item in items_preview[:8])
             + (
-                f"<div class='muted' style='margin-top:4px;'>"
-                f"... and {len(items_preview) - 8} more</div>"
+                f"<div class='muted' style='margin-top:4px;'>... and {len(items_preview) - 8} more</div>"
                 if len(items_preview) > 8
                 else ""
             )
@@ -357,8 +344,7 @@ def location_card(
         "<div class='home-card' style='text-align:left;margin-bottom:8px;'>"
         "<div style='display:flex;justify-content:space-between;align-items:center;'>"
         "<div>"
-        f"<div style='font-weight:600;color:var(--text);'>{safe_name}</div>"
-        f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>{type_badge} {hierarchy}</div>"
+        f"<div style='font-weight:600;color:var(--text);'>{safe_name}</div><div style='font-size: 0.6875rem;color:var(--text-dim);'>{type_badge} {hierarchy}</div>"
         "</div>"
         f"<div>{count_badge}</div>"
         "</div>"

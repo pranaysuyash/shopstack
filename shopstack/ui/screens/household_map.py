@@ -11,7 +11,7 @@ from shopstack.services.dashboard import clear_dashboard_cache
 from shopstack.ui.components.decorators import aria_live_screen
 from shopstack.ui.components.primitives import (
     item_row,
-    stat_card,,
+    stat_card,
     home_card,
 )
 from shopstack.ui.screens._utils import safe_render

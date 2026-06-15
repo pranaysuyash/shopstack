@@ -460,26 +460,19 @@ def _savings_callout(comparison: BasketComparison) -> str:
         return ""
     if comparison.total_savings_inr <= 0:
         return (
-            f"<div class='home-card' style='margin-bottom:12px;'>"
-            f"<h3 style='margin:0 0 4px 0;'>Basket Comparison</h3>"
-            f"<div style='font-size: 0.8125rem;'>"
-            f"All loaded sources price this basket within ₹0–₹10 of each other."
+            f"<div class='home-card' style='margin-bottom:12px;'><h3 style='margin:0 0 4px 0;'>Basket Comparison</h3>"
+            f"<div style='font-size: 0.8125rem;'>All loaded sources price this basket within ₹0–₹10 of each other."
             f"</div></div>"
         )
     label = SOURCE_LABELS.get(
         comparison.cheapest_source_id, comparison.cheapest_source_id.title()
     )
     return (
-        f"<div class='home-card' style='margin-bottom:12px;'>"
-        f"<h3 style='margin:0 0 4px 0;'>Basket Comparison</h3>"
-        f"<div style='font-size: 0.875rem;'>"
-        f"<strong>Cheapest:</strong> {escape(label)} · "
-        f"<strong>Save up to:</strong> "
-        f"<span style='color:var(--green);font-weight:600;'>"
-        f"₹{comparison.total_savings_inr:.0f} ({comparison.savings_pct:.0f}%)"
-        f"</span></div>"
-        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:4px;'>"
-        f"{comparison.matched_count}/{comparison.total_requested} items matched across sources"
+        f"<div class='home-card' style='margin-bottom:12px;'><h3 style='margin:0 0 4px 0;'>Basket Comparison</h3>"
+        f"<div style='font-size: 0.875rem;'><strong>Cheapest:</strong> {escape(label)} · "
+        f"<strong>Save up to:</strong> <span style='color:var(--green);font-weight:600;'>"
+        f"₹{comparison.total_savings_inr:.0f} ({comparison.savings_pct:.0f}%)</span></div>"
+        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:4px;'>{comparison.matched_count}/{comparison.total_requested} items matched across sources"
         f"</div></div>"
     )
 
@@ -500,12 +493,9 @@ def _source_totals_row(comparison: BasketComparison) -> str:
             else ""
         )
         parts.append(
-            f"<div style='flex:1;min-width:140px;padding:10px;"
-            f"border:2px solid {border};border-radius:6px;background:{bg};'>"
-            f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>{escape(s.label)}</div>"
-            f"<div style='font-size: 1.25rem;font-weight:600;'>₹{s.basket_total:.0f}</div>"
-            f"<div style='font-size: 0.625rem;color:var(--text-dim);'>"
-            f"{s.coverage_pct:.0f}% covered · {len(s.line_totals)} items"
+            f"<div style='flex:1;min-width:140px;padding:10px;border:2px solid {border};border-radius:6px;background:{bg};'>"
+            f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>{escape(s.label)}</div><div style='font-size: 1.25rem;font-weight:600;'>₹{s.basket_total:.0f}</div>"
+            f"<div style='font-size: 0.625rem;color:var(--text-dim);'>{s.coverage_pct:.0f}% covered · {len(s.line_totals)} items"
             f"{stale_badge}</div></div>"
         )
     parts.append("</div>")
@@ -519,14 +509,10 @@ def _line_rows(comparison: BasketComparison) -> str:
         if not line.line_totals:
             unavail = ", ".join(escape(s) for s in line.unavailable_at) or "any source"
             parts.append(
-                f"<tr>"
-                f"<td style='padding:6px;'>"
-                f"{escape(line.canonical_name.replace('_', ' ').title())}"
-                f"<br><span style='font-size: 0.625rem;color:var(--text-dim);'>"
-                f"{line.requested_quantity:.1f} {escape(line.unit)}</span></td>"
-                f"<td colspan='{n_sources}' style='padding:6px;color:var(--text-dim);'>"
-                f"not available at {unavail}</td>"
-                f"</tr>"
+                f"<tr><td style='padding:6px;'>"
+                f"{escape(line.canonical_name.replace('_', ' ').title())}<br><span style='font-size: 0.625rem;color:var(--text-dim);'>"
+                f"{line.requested_quantity:.1f} {escape(line.unit)}</span></td><td colspan='{n_sources}' style='padding:6px;color:var(--text-dim);'>"
+                f"not available at {unavail}</td></tr>"
             )
             continue
 
@@ -537,8 +523,7 @@ def _line_rows(comparison: BasketComparison) -> str:
                 p = line.line_totals[s.source_id]
                 if s.source_id == cheapest:
                     cells.append(
-                        f"<td style='padding:6px;color:var(--green);font-weight:600;"
-                        f"text-align:right;'>₹{p:.0f}</td>"
+                        f"<td style='padding:6px;color:var(--green);font-weight:600;text-align:right;'>₹{p:.0f}</td>"
                     )
                 else:
                     cells.append(
@@ -554,19 +539,14 @@ def _line_rows(comparison: BasketComparison) -> str:
             diff = line.worst_total - line.cheapest_total
             if diff > 0:
                 savings_html = (
-                    f"<br><span style='color:var(--green);font-size: 0.625rem;'>"
-                    f"save ₹{diff:.0f}</span>"
+                    f"<br><span style='color:var(--green);font-size: 0.625rem;'>save ₹{diff:.0f}</span>"
                 )
 
         parts.append(
-            f"<tr>"
-            f"<td style='padding:6px;'>"
-            f"<strong>{escape(line.canonical_name.replace('_', ' ').title())}</strong>"
-            f"<br><span style='font-size: 0.625rem;color:var(--text-dim);'>"
-            f"{line.requested_quantity:.1f} {escape(line.unit)}</span>"
-            f"{savings_html}</td>"
-            f"{''.join(cells)}"
-            f"</tr>"
+            f"<tr><td style='padding:6px;'>"
+            f"<strong>{escape(line.canonical_name.replace('_', ' ').title())}</strong><br><span style='font-size: 0.625rem;color:var(--text-dim);'>"
+            f"{line.requested_quantity:.1f} {escape(line.unit)}</span>{savings_html}</td>"
+            f"{''.join(cells)}</tr>"
         )
     return "".join(parts)
 
@@ -577,8 +557,7 @@ def _freshness_footer(comparison: BasketComparison) -> str:
         return ""
     names = ", ".join(escape(s.label) for s in stale)
     return (
-        f"<div style='font-size: 0.625rem;color:var(--red);margin-top:8px;'>"
-        f"⚠️ Snapshot data may be outdated for: {names}. "
+        f"<div style='font-size: 0.625rem;color:var(--red);margin-top:8px;'>⚠️ Snapshot data may be outdated for: {names}. "
         f"Verify prices before checkout.</div>"
     )
 
@@ -615,19 +594,14 @@ def render_basket_comparison_html(comparison: BasketComparison) -> str:
         )
 
     header_cells = "".join(
-        f"<th style='padding:6px;text-align:right;font-size: 0.6875rem;"
-        f"color:var(--text-dim);'>{escape(s.label)}</th>"
+        f"<th style='padding:6px;text-align:right;font-size: 0.6875rem;color:var(--text-dim);'>{escape(s.label)}</th>"
         for s in comparison.per_source
     )
     table = (
-        f"<div class='home-card'>"
-        f"<table style='width:100%;border-collapse:collapse;font-size: 0.75rem;'>"
-        f"<thead><tr style='border-bottom:2px solid var(--border);'>"
-        f"<th style='text-align:left;padding:6px;'>Item</th>"
-        f"{header_cells}"
-        f"</tr></thead>"
-        f"<tbody>{_line_rows(comparison)}</tbody>"
-        f"</table></div>"
+        f"<div class='home-card'><table style='width:100%;border-collapse:collapse;font-size: 0.75rem;'>"
+        f"<thead><tr style='border-bottom:2px solid var(--border);'><th style='text-align:left;padding:6px;'>Item</th>"
+        f"{header_cells}</tr></thead>"
+        f"<tbody>{_line_rows(comparison)}</tbody></table></div>"
     )
 
     return (

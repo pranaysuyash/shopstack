@@ -131,8 +131,7 @@ def _trace_timeline_html(trace) -> str:
     ]
     
     rows_html = "".join(
-        f"<div style='display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);'>"
-        f"<strong style='min-width:140px;color:var(--text-dim);'>{label}</strong>"
+        f"<div style='display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);'><strong style='min-width:140px;color:var(--text-dim);'>{label}</strong>"
         f"<span style='text-align:right;'>{escape(str(value))}</span></div>"
         for label, value in steps
     )

@@ -230,8 +230,7 @@ def render_activity_log_html(summary: ActivitySummary, *, max_days: int = 14) ->
     parts.append("<div class='al-block'>")
     parts.append(
         "<div class='al-headline'>"
-        f"<strong>{summary.total_traces}</strong> actions in the last "
-        f"{summary.window_days} days"
+        f"<strong>{summary.total_traces}</strong> actions in the last {summary.window_days} days"
     )
     if summary.top_action:
         parts.append(
@@ -255,12 +254,9 @@ def render_activity_log_html(summary: ActivitySummary, *, max_days: int = 14) ->
             pct = round(count / max_count * 100, 1)
             parts.append(
                 "<div class='al-bar-row'>"
-                f"<div class='al-bar-label'>{escape(action.replace('_', ' '))}</div>"
-                f"<div class='al-bar-track'>"
-                f"<div class='al-bar-fill' style='width:{pct:.0f}%;'></div>"
-                f"</div>"
-                f"<div class='al-bar-pct'>{count}</div>"
-                f"</div>"
+                f"<div class='al-bar-label'>{escape(action.replace('_', ' '))}</div><div class='al-bar-track'>"
+                f"<div class='al-bar-fill' style='width:{pct:.0f}%;'></div></div>"
+                f"<div class='al-bar-pct'>{count}</div></div>"
             )
 
     # Top items as chips
@@ -278,10 +274,8 @@ def render_activity_log_html(summary: ActivitySummary, *, max_days: int = 14) ->
         parts.append("<ul class='al-timeline'>")
         for day in summary.days[-max_days:]:
             parts.append(
-                f"<li class='al-tl-day'>"
-                f"<span class='al-tl-date'>{escape(day.date)}</span>"
-                f"<span class='al-tl-count'>{len(day.traces)} event(s)</span>"
-                f"</li>"
+                f"<li class='al-tl-day'><span class='al-tl-date'>{escape(day.date)}</span>"
+                f"<span class='al-tl-count'>{len(day.traces)} event(s)</span></li>"
             )
         parts.append("</ul>")
 

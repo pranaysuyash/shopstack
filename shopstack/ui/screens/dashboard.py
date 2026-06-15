@@ -58,8 +58,7 @@ def _details_section(title: str, body: str, description: str = "", count_label: 
     summary_html = (
         "<div class='home-details-summary'>"
         "<div class='home-details-copy'>"
-        f"<span class='home-details-title'>{escape(title)}</span>"
-        f"<span class='home-details-hint'>{escape(description)}</span>"
+        f"<span class='home-details-title'>{escape(title)}</span><span class='home-details-hint'>{escape(description)}</span>"
         "</div>"
         "<div class='home-details-meta'>"
         f"{f'<span class=\"home-details-count\">{escape(count_label)}</span>' if count_label else ''}"
@@ -71,8 +70,7 @@ def _details_section(title: str, body: str, description: str = "", count_label: 
     )
     open_attr = " open" if open else ""
     return (
-        f"<details class='home-details'{open_attr}>"
-        f"<summary>{summary_html}</summary>"
+        f"<details class='home-details'{open_attr}><summary>{summary_html}</summary>"
         f"{body}"
         "</details>"
     )
@@ -104,10 +102,8 @@ def today_dashboard():
 
     quick_actions = (
         "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:12px 0 16px 0;'>"
-        f"{stat_card(str(len(state.active_inventory)), 'In pantry', on_click_tab='reconcile')}"
-        f"{stat_card(str(state.use_soon_count), 'Use first', variant='warning', on_click_tab='reconcile')}"
-        f"{stat_card(str(len(state.low_items)), 'Need shopping', variant='danger', on_click_tab='reconcile')}"
-        f"{stat_card(str(len(state.recent_purchases)), 'Just bought', on_click_tab='reconcile')}"
+        f"{stat_card(str(len(state.active_inventory)), 'In pantry', on_click_tab='reconcile')}{stat_card(str(state.use_soon_count), 'Use first', variant='warning', on_click_tab='reconcile')}"
+        f"{stat_card(str(len(state.low_items)), 'Need shopping', variant='danger', on_click_tab='reconcile')}{stat_card(str(len(state.recent_purchases)), 'Just bought', on_click_tab='reconcile')}"
         "</div>"
     )
 
@@ -225,8 +221,7 @@ def _render_today_start_here(state, ds) -> str:
     if state.active_list is not None:
         item_count = len(state.active_list.items or [])
         subtitle = (
-            f"You have a shopping list with {item_count} item"
-            f"{'' if item_count == 1 else 's'}."
+            f"You have a shopping list with {item_count} item{'' if item_count == 1 else 's'}."
         )
         action_label = "Keep shopping moving"
         body = "Finish the list, then put the groceries away when you get home."
@@ -260,8 +255,7 @@ def _render_today_start_here(state, ds) -> str:
         body = "Use soon items first, then restock only what is still missing."
         # Item 10: Cook-with-this — suggest recipes that use expiring items
         cook_with_hint = (
-            f"<div style='font-size:0.75rem;color:var(--amber);margin-bottom:8px;'>"
-            f"🍳 These can make a meal: {escape(use_soon_names)}. "
+            f"<div style='font-size:0.75rem;color:var(--amber);margin-bottom:8px;'>🍳 These can make a meal: {escape(use_soon_names)}. "
             f"<a href='#cookbook' style='color:var(--accent);'>Browse recipes →</a></div>"
             if use_soon_names else ""
         )
@@ -336,10 +330,8 @@ def _render_today_start_here(state, ds) -> str:
 
     return ui_card(
         action_label,
-        f"<div class='muted' style='margin-bottom:8px;'>{subtitle}</div>"
-        f"{cook_with_hint}"
-        f"<div style='margin-bottom:10px;'>{body}</div>"
-        f"{render_action_grid(actions)}",
+        f"<div class='muted' style='margin-bottom:8px;'>{subtitle}</div>{cook_with_hint}"
+        f"<div style='margin-bottom:10px;'>{body}</div>{render_action_grid(actions)}",
     )
 
 
@@ -348,13 +340,34 @@ def _render_onboarding_gate(state, ds) -> str:
 
     Shows a welcoming first-run screen that guides the user through
     the onboarding wizard instead of a dead dashboard.
+
+    The "Set up my household" button uses a ``custom_onclick`` to
+    show the wizard (which has ``elem_id="onboarding-wizard"``) by
+    toggling its CSS display. The "Skip for now" button is still a
+    tab-jump (to the market tab where users can browse the app).
+
+    Note: a household that has already skipped onboarding will
+    never see this gate (because ``should_show_onboarding`` returns
+    False in that case — see ``app.py:_show_onboarding_if_first_run``).
+    This gate only appears for fresh households that have not yet
+    seen the auto-shown wizard.
     """
+    # The custom_onclick body: show the wizard by toggling its
+    # CSS display. The wizard has elem_id="onboarding-wizard".
+    # We also scroll the user to the wizard so they see it
+    # immediately.
+    show_wizard_js = (
+        "var w=document.getElementById('onboarding-wizard');"
+        "if(w){w.style.display='block';"
+        "w.scrollIntoView({behavior:'smooth',block:'center'});}"
+    )
     action_items = [
         {
             'label': 'Set up my household',
             'subtitle': 'Tell us about your home so we can help',
-            'tab_id': 'reconcile',
+            'tab_id': '',  # ignored; custom_onclick takes over
             'tone': 'primary',
+            'custom_onclick': show_wizard_js,
         },
         {
             'label': 'Skip for now',
@@ -461,8 +474,7 @@ def _render_compare_preview(graph) -> str:
         signal = cluster.reasons[0] if cluster.reasons else "Compare signal available"
         rows.append(
             "<div style='display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);'>"
-            f"<strong>{cluster.display_name}</strong>"
-            f"<span style='color:var(--text-dim);font-size: 0.75rem;'>{signal}</span>"
+            f"<strong>{cluster.display_name}</strong><span style='color:var(--text-dim);font-size: 0.75rem;'>{signal}</span>"
             "</div>"
         )
 
@@ -532,10 +544,8 @@ def _render_market_next_steps(graph) -> str:
 
     return ui_card(
         "Next steps",
-        f"<div class='muted' style='margin-bottom:8px;'>"
-        f"{' · '.join(top_signals) if top_signals else 'The graph is quiet right now.'}"
-        f"</div>"
-        f"{render_action_grid(actions)}",
+        f"<div class='muted' style='margin-bottom:8px;'>{' · '.join(top_signals) if top_signals else 'The graph is quiet right now.'}"
+        f"</div>{render_action_grid(actions)}",
     )
 
 
@@ -544,10 +554,8 @@ def _render_market_map_teaser(state, graph) -> str:
     freshness = graph.snapshot_freshness_label or graph.snapshot_freshness or "unknown"
     compare_preview = _render_compare_preview(graph)
     body = (
-        f"{graph.summary.get('items_scored', 0)} items scored · "
-        f"{graph.summary.get('buy', 0)} buy · "
-        f"{graph.summary.get('compare', 0)} compare · "
-        f"{graph.summary.get('substitute', 0)} substitute"
+        f"{graph.summary.get('items_scored', 0)} items scored · {graph.summary.get('buy', 0)} buy · "
+        f"{graph.summary.get('compare', 0)} compare · {graph.summary.get('substitute', 0)} substitute"
     )
     if state.market_snapshot is None and graph.summary.get("items_scored", 0) == 0:
         body = "No market snapshot is loaded yet. Add one and the graph will start ranking buy / compare / substitute signals."
@@ -575,8 +583,6 @@ def _render_market_map_teaser(state, graph) -> str:
 
     return ui_card(
         "Market Map",
-        f"<div class='muted' style='margin-bottom:8px;'>{freshness}</div>"
-        f"<div style='margin-bottom:10px;'>{body}</div>"
-        f"{compare_preview}"
-        f"{render_action_grid(actions)}",
+        f"<div class='muted' style='margin-bottom:8px;'>{freshness}</div><div style='margin-bottom:10px;'>{body}</div>"
+        f"{compare_preview}{render_action_grid(actions)}",
     )

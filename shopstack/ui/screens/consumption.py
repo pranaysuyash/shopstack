@@ -76,27 +76,17 @@ def _render_quick_consume_grid(items: list[dict[str, Any]]) -> str:
         qty_display = f"{qty:.1f} {unit}" if qty != int(qty) else f"{int(qty)} {unit}"
 
         rows_html += (
-            f"<div style='display:flex;justify-content:space-between;align-items:center;"
-            f"padding:6px 0;border-bottom:1px solid var(--border);'>"
-            f"<div>"
-            f"<strong>{name}</strong> "
-            f"<span style='font-size: 0.6875rem;color:{status_color};'>({qty_display})</span>"
-            f" <span style='font-size: 0.625rem;color:var(--text-dim);'>{loc}</span>"
-            f"</div>"
-            f"<div style='display:flex;gap:4px;'>"
+            f"<div style='display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);'>"
+            f"<div><strong>{name}</strong> "
+            f"<span style='font-size: 0.6875rem;color:{status_color};'>({qty_display})</span> <span style='font-size: 0.625rem;color:var(--text-dim);'>{loc}</span>"
+            f"</div><div style='display:flex;gap:4px;'>"
             f"<button onclick=\"_shopstack_consume('{lot_id}', 0.5)\" "
-            f"aria-label='Consume half of {name}' "
-            f"style='font-size: 0.625rem;padding:2px 8px;border:1px solid var(--border);"
-            f"border-radius:3px;cursor:pointer;background:none;'>½</button>"
-            f"<button onclick=\"_shopstack_consume('{lot_id}', 1)\" "
-            f"aria-label='Consume 1 {unit} of {name}' "
-            f"style='font-size: 0.625rem;padding:2px 8px;border:1px solid var(--blue);"
-            f"border-radius:3px;cursor:pointer;background:none;color:var(--blue);'>Use 1</button>"
-            f"<button onclick=\"_shopstack_consume('{lot_id}', {qty})\" "
-            f"aria-label='Consume all {name}' "
-            f"style='font-size: 0.625rem;padding:2px 8px;border:1px solid var(--red);"
-            f"border-radius:3px;cursor:pointer;background:none;color:var(--red);'>All</button>"
-            f"</div></div>"
+            f"aria-label='Consume half of {name}' style='font-size: 0.625rem;padding:2px 8px;border:1px solid var(--border);"
+            f"border-radius:3px;cursor:pointer;background:none;'>½</button><button onclick=\"_shopstack_consume('{lot_id}', 1)\" "
+            f"aria-label='Consume 1 {unit} of {name}' style='font-size: 0.625rem;padding:2px 8px;border:1px solid var(--blue);"
+            f"border-radius:3px;cursor:pointer;background:none;color:var(--blue);'>Use 1</button><button onclick=\"_shopstack_consume('{lot_id}', {qty})\" "
+            f"aria-label='Consume all {name}' style='font-size: 0.625rem;padding:2px 8px;border:1px solid var(--red);"
+            f"border-radius:3px;cursor:pointer;background:none;color:var(--red);'>All</button></div></div>"
         )
 
     consume_script = (
@@ -164,12 +154,9 @@ def _render_recent_events(events: list[Any]) -> str:
         sign = "-" if delta < 0 else "+"
         color = "var(--red)" if delta < 0 else "var(--green)"
         rows.append(
-            f"<div style='display:flex;justify-content:space-between;padding:3px 0;"
-            f"border-bottom:1px solid var(--border);font-size: 0.75rem;'>"
-            f"<div><strong>{name}</strong> "
-            f"<span style='color:{color};'>{sign}{abs(delta):.1f}</span></div>"
-            f"<div><span style='color:var(--text-dim);'>{action}</span> "
-            f"<span style='font-size: 0.625rem;color:var(--text-dim);'>{ts}</span></div>"
+            f"<div style='display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);font-size: 0.75rem;'>"
+            f"<div><strong>{name}</strong> <span style='color:{color};'>{sign}{abs(delta):.1f}</span></div>"
+            f"<div><span style='color:var(--text-dim);'>{action}</span> <span style='font-size: 0.625rem;color:var(--text-dim);'>{ts}</span></div>"
             f"</div>"
         )
 
@@ -241,10 +228,8 @@ def consumption_dashboard() -> tuple[str, str, str]:
             total = r["total_consumed"]
             days = r["days_tracked"]
             rate_rows.append(
-                f"<div style='display:flex;justify-content:space-between;padding:3px 0;"
-                f"border-bottom:1px solid var(--border);font-size: 0.75rem;'>"
-                f"<strong>{name}</strong>"
-                f"<span>{rate:.2f}/day ({total:.1f} over {days}d)</span>"
+                f"<div style='display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);font-size: 0.75rem;'>"
+                f"<strong>{name}</strong><span>{rate:.2f}/day ({total:.1f} over {days}d)</span>"
                 f"</div>"
             )
         rates_html = home_card(
@@ -281,8 +266,7 @@ def quick_consume(lot_id: str, qty: float) -> str:
     remaining = result.get("remaining", 0)
     name = result.get("canonical_name", lot_id[:8]).replace("_", " ").title()
     return (
-        f"<div style='color:var(--green);'>"
-        f"Consumed {escape(str(qty))} of {escape(name)}. "
+        f"<div style='color:var(--green);'>Consumed {escape(str(qty))} of {escape(name)}. "
         f"Remaining: {escape(str(remaining))}</div>"
     )
 
@@ -331,8 +315,7 @@ def batch_consume_with_context(lines_text: str, meal_context: str, is_waste: str
 
     clear_dashboard_cache(uid)
     return (
-        f"<div style='margin-top:8px;line-height:1.6;font-size: 0.75rem;'>"
-        f"<div style='color:var(--text-dim);margin-bottom:4px;'>Context: {escape(meal)}"
+        f"<div style='margin-top:8px;line-height:1.6;font-size: 0.75rem;'><div style='color:var(--text-dim);margin-bottom:4px;'>Context: {escape(meal)}"
         f"{', marked as waste' if is_waste_flag else ''}</div>"
         + "<br>".join(summary) + "</div>"
     )
@@ -366,12 +349,9 @@ def consumption_rates() -> str:
         total = r["total_consumed"]
         days = r["days_tracked"]
         rate_rows.append(
-            f"<div style='display:flex;justify-content:space-between;padding:4px 0;"
-            f"border-bottom:1px solid var(--border);'>"
-            f"<strong>{name}</strong>"
-            f"<span style='font-size: 0.75rem;'>"
-            f"{rate:.2f}/day ({total:.1f} over {days}d, {r['events']} events)</span>"
-            f"</div>"
+            f"<div style='display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);'>"
+            f"<strong>{name}</strong><span style='font-size: 0.75rem;'>"
+            f"{rate:.2f}/day ({total:.1f} over {days}d, {r['events']} events)</span></div>"
         )
 
     return home_card(

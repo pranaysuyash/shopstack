@@ -149,8 +149,7 @@ def _build_smart_line(
         # Significantly above community median — recommend waiting
         verdict = WAIT
         reason = (
-            f"{display} is {pct_above:.0f}% above the community median "
-            f"(₹{community_median_value:.0f}). Consider waiting."
+            f"{display} is {pct_above:.0f}% above the community median (₹{community_median_value:.0f}). Consider waiting."
         )
     else:
         verdict = BUY_NOW
@@ -315,14 +314,10 @@ def _line_html(line: SmartLine) -> str:
             f"<span class='sp-community'>👥 ₹{line.community_median:.0f}{delta}</span>"
         )
     return (
-        f"<div class='sp-line' style='border-left:3px solid {color};'>"
-        f"<span class='sp-icon'>{icon}</span>"
-        f"<span class='sp-body'>"
-        f"<span class='sp-name'>{escape(line.display_name)}</span>"
-        f"<span class='sp-store'>{escape(line.recommended_store) or 'any store'}</span>"
-        f"<span class='sp-reason'>{escape(line.reason)}</span>"
-        f"</span>"
-        f"<span class='sp-prices'>{price_html} {community_html}</span>"
+        f"<div class='sp-line' style='border-left:3px solid {color};'><span class='sp-icon'>{icon}</span>"
+        f"<span class='sp-body'><span class='sp-name'>{escape(line.display_name)}</span>"
+        f"<span class='sp-store'>{escape(line.recommended_store) or 'any store'}</span><span class='sp-reason'>{escape(line.reason)}</span>"
+        f"</span><span class='sp-prices'>{price_html} {community_html}</span>"
         f"</div>"
     )
 
@@ -343,8 +338,7 @@ def render_smart_basket_html(basket: SmartBasket) -> str:
     parts: list[str] = ["<div class='sp-block'>"]
     parts.append(
         "<div class='sp-headline'>"
-        f"🛒 <strong>{basket.n_buy_now}</strong> buy now · "
-        f"⏳ <strong>{basket.n_wait}</strong> wait · "
+        f"🛒 <strong>{basket.n_buy_now}</strong> buy now · ⏳ <strong>{basket.n_wait}</strong> wait · "
         f"₹<strong>{basket.total_buy_now:,.0f}</strong> total"
         + (
             f" · save ₹<strong>{basket.total_savings_if_wait:,.0f}</strong> if you wait"

@@ -69,31 +69,65 @@ def card(title: str, body: str, *, compact: bool = True) -> str:
     safe_title = escape(str(title))
     card_id = _next_card_id()
     return (
-        f"<div class='home-card' style='text-align:left;"
-        f"{'min-height:160px;' if not compact else ''}'"
-        f" role='region' aria-labelledby='{card_id}'>"
-        f"<h3 id='{card_id}'>{safe_title}</h3><div>{body}</div></div>"
+        f"<div class='home-card' style='text-align:left;{'min-height:160px;' if not compact else ''}'"
+        f" role='region' aria-labelledby='{card_id}'><h3 id='{card_id}'>{safe_title}</h3><div>{body}</div></div>"
     )
 
 
 def render_hero_panel(title: str, subtitle: str, eyebrow: str = "Today") -> str:
     return (
         "<div class='home-card hero-panel'>"
-        f"<div class='section-kicker'>{escape(str(eyebrow))}</div>"
-        f"<h2>{escape(str(title))}</h2>"
+        f"<div class='section-kicker'>{escape(str(eyebrow))}</div><h2>{escape(str(title))}</h2>"
         f"<p class='hero-copy'>{escape(str(subtitle))}</p>"
         "</div>"
     )
 
 
-def render_action_tile(label: str, subtitle: str, tab_id: str, tone: str = "default") -> str:
+def render_action_tile(
+    label: str,
+    subtitle: str,
+    tab_id: str = "",
+    tone: str = "default",
+    custom_onclick: str = "",
+) -> str:
+    """Render a single clickable tile (action button) for the action grid.
+
+    Args:
+        label: The button text (e.g., "Set up my household").
+        subtitle: Helper text below the label.
+        tab_id: The Gradio tab ID to jump to when clicked. Used by the
+            default tab-jump onclick. Ignored if ``custom_onclick`` is
+            provided.
+        tone: Visual tone ("default" | "primary" | "secondary" | ...).
+        custom_onclick: Optional raw JavaScript body that runs when the
+            tile is clicked (instead of the default tab-jump). Use this
+            for actions that need to toggle a hidden Gradio component
+            (e.g., the onboarding wizard) or call an API. The string
+            is inserted into ``onclick="(function(){ <body> })();"``.
+
+    Returns:
+        A string of HTML for a single ``<button>`` tile.
+    """
     safe_tone = re.sub(r"[^a-z0-9_-]", "-", str(tone).lower()) or "default"
     safe_label = escape(str(label))
+    if custom_onclick:
+        # Per motto_v3 0.13 (scope expansion control), the custom
+        # onclick body is escaped minimally: backslashes and quotes
+        # are escaped so the resulting HTML attribute is well-formed.
+        # The caller is responsible for using a safe API surface
+        # (e.g., gr.update via the proper JS API, not arbitrary
+        # innerHTML injection).
+        safe_body = (
+            str(custom_onclick)
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+        )
+        onclick_attr = f" onclick=\"(function(){{{safe_body}}})();\""
+    else:
+        onclick_attr = _tab_click_attr(tab_id)
     return (
-        f"<button type='button' class='action-tile action-tile-{safe_tone}'"
-        f" aria-label='{safe_label}: {escape(str(subtitle))}'{_tab_click_attr(tab_id)}>"
-        f"<span class='action-tile-label'>{safe_label}</span>"
-        f"<span class='action-tile-subtitle'>{escape(str(subtitle))}</span>"
+        f"<button type='button' class='action-tile action-tile-{safe_tone}' aria-label='{safe_label}: {escape(str(subtitle))}'{onclick_attr}>"
+        f"<span class='action-tile-label'>{safe_label}</span><span class='action-tile-subtitle'>{escape(str(subtitle))}</span>"
         "</button>"
     )
 
@@ -107,6 +141,7 @@ def render_action_grid(actions: list[dict[str, str]]) -> str:
             action.get("subtitle", ""),
             action.get("tab_id", ""),
             action.get("tone", "default"),
+            action.get("custom_onclick", ""),
         )
         for action in actions
     )
@@ -115,8 +150,7 @@ def render_action_grid(actions: list[dict[str, str]]) -> str:
 
 def empty_state(message: str) -> str:
     return (
-        f"<div class='home-card' style='text-align:left;'>"
-        f"<div class='muted'>{escape(str(message))}</div></div>"
+        f"<div class='home-card' style='text-align:left;'><div class='muted'>{escape(str(message))}</div></div>"
     )
 
 
@@ -165,12 +199,9 @@ def render_decision_card(
     safe_item_name = escape(str(item_name))
     safe_reason = escape(str(reason))
     return (
-        f"<div class='home-card item-card' role='article' aria-label='{safe_item_name}: {decision_upper}'>"
-        f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;'>"
-        f"<strong>{safe_item_name}</strong>{badge}</div>"
-        f"<div class='muted' style='font-size: 0.8125rem;'>{safe_reason}</div>"
-        f"{qty_line_markup}"
-        f"<div class='muted' style='font-size: 0.6875rem;margin-top:6px;'>Confidence: {confidence_pct:.0%}</div>"
+        f"<div class='home-card item-card' role='article' aria-label='{safe_item_name}: {decision_upper}'><div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;'>"
+        f"<strong>{safe_item_name}</strong>{badge}</div><div class='muted' style='font-size: 0.8125rem;'>{safe_reason}</div>"
+        f"{qty_line_markup}<div class='muted' style='font-size: 0.6875rem;margin-top:6px;'>Confidence: {confidence_pct:.0%}</div>"
         f"{action_line}"
         "</div>"
     )
@@ -179,8 +210,7 @@ def render_unified_decision_card(d: DecisionResult) -> str:
     color = _ACTION_COLORS.get(d.action, "var(--text-dim)")
     icon = _ACTION_ICONS.get(d.action, "")
     badge = (
-        f"<span style='background:{color}20;color:{color};"
-        f"padding:2px 8px;border-radius:4px;font-size: 0.6875rem;font-weight:600;'>"
+        f"<span style='background:{color}20;color:{color};padding:2px 8px;border-radius:4px;font-size: 0.6875rem;font-weight:600;'>"
         f"{icon} {d.action.upper()}</span>"
     )
     
@@ -196,10 +226,8 @@ def render_unified_decision_card(d: DecisionResult) -> str:
         # Brand-aligned stale warning (rgba against --red token at 10% alpha,
         # not the bright Tailwind rgba(255,0,0,0.1) that broke dark mode).
         stale_html = (
-            f"<div style='font-size: 0.75rem;color:var(--red);font-weight:bold;margin-top:6px;"
-            f"padding:4px;background-color:rgba(166,63,49,0.10);border-radius:4px;'>"
-            f"&#9888; WARNING: {escape(d.data_freshness_label or 'Stale Market Data (Older than 24h)')}"
-            f"</div>"
+            f"<div style='font-size: 0.75rem;color:var(--red);font-weight:bold;margin-top:6px;padding:4px;background-color:rgba(166,63,49,0.10);border-radius:4px;'>"
+            f"&#9888; WARNING: {escape(d.data_freshness_label or 'Stale Market Data (Older than 24h)')}</div>"
         )
         
     evidence_html = ""
@@ -214,22 +242,16 @@ def render_unified_decision_card(d: DecisionResult) -> str:
         # attribute for accessibility and future JS wiring without alert() stubs.
         action_label = d.action.replace("_", " ").title()
         action_btn = (
-            f"<div style='margin-top:8px;'>"
-            f"<button type='button' class='action-tile action-tile-default'"
-            f" style='padding:4px 8px;font-size: 0.6875rem;cursor:default;'"
-            f" data-action='{escape(d.action)}'"
-            f" data-canonical='{escape(d.canonical_name)}'"
-            f" aria-label='{escape(action_label)} {escape(d.display_name)}'"
+            f"<div style='margin-top:8px;'><button type='button' class='action-tile action-tile-default'"
+            f" style='padding:4px 8px;font-size: 0.6875rem;cursor:default;' data-action='{escape(d.action)}'"
+            f" data-canonical='{escape(d.canonical_name)}' aria-label='{escape(action_label)} {escape(d.display_name)}'"
             f">{escape(action_label)} →</button></div>"
         )
 
     return (
-        f"<div class='home-card' style='margin-bottom:10px;border-left:4px solid {color};'>"
-        f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
-        f"<strong style='font-size: 0.875rem;'>{escape(d.display_name)}</strong>{badge}</div>"
-        f"<div style='font-size: 0.8125rem;margin-top:4px;'>{reason}{price_info}</div>"
-        f"{evidence_html}{warnings_html}{stale_html}{action_btn}"
-        f"</div>"
+        f"<div class='home-card' style='margin-bottom:10px;border-left:4px solid {color};'><div style='display:flex;justify-content:space-between;align-items:center;'>"
+        f"<strong style='font-size: 0.875rem;'>{escape(d.display_name)}</strong>{badge}</div><div style='font-size: 0.8125rem;margin-top:4px;'>{reason}{price_info}</div>"
+        f"{evidence_html}{warnings_html}{stale_html}{action_btn}</div>"
     )
 
 
@@ -263,12 +285,10 @@ def render_metric(name: str, value: str, hint: str = "", tab_id: str = "") -> st
     click_attr = ""
     if tab_id:
         click_attr = (
-            f" style='cursor:pointer;'"
-            f"{_tab_click_attr(tab_id)}"
+            f" style='cursor:pointer;'{_tab_click_attr(tab_id)}"
         )
     return (
-        f"<div class='metric-card'{click_attr}>"
-        f"<div class='metric-label'>{escape(str(name))}</div>"
+        f"<div class='metric-card'{click_attr}><div class='metric-label'>{escape(str(name))}</div>"
         f"<div class='metric-value'>{escape(str(value))}</div>"
         + (f"<div class='metric-hint'>{escape(str(hint))}</div>" if hint else "")
         + "</div>"

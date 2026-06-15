@@ -36,18 +36,12 @@ def swiggy_market_view() -> str:
     parts: list[str] = []
 
     parts.append(
-        f"<div class='home-card' style='text-align:left;margin-bottom:12px;'>"
-        f"<h3>Swiggy Fresh Vegetables \u2014 {snapshot.captured_at}</h3>"
-        f"{_market_freshness_html(snapshot)}"
-        f"<div style='display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;'>"
-        f"<div><strong>{analytics['total']}</strong> items</div>"
-        f"<div style='color:var(--green);'><strong>{analytics['available']}</strong> available</div>"
-        f"<div style='color:var(--red);'><strong>{analytics['sold_out']}</strong> sold out</div>"
-        f"<div><strong>{analytics['combos']}</strong> combos</div>"
-        f"<div>Avg: <strong>&#8377;{analytics['avg_price']}</strong></div>"
-        f"<div>Median: <strong>&#8377;{analytics['median_price']}</strong></div>"
-        f"<div>Avg discount: <strong>{analytics['avg_discount']}%</strong></div>"
-        f"</div></div>"
+        f"<div class='home-card' style='text-align:left;margin-bottom:12px;'><h3>Swiggy Fresh Vegetables \u2014 {snapshot.captured_at}</h3>"
+        f"{_market_freshness_html(snapshot)}<div style='display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;'>"
+        f"<div><strong>{analytics['total']}</strong> items</div><div style='color:var(--green);'><strong>{analytics['available']}</strong> available</div>"
+        f"<div style='color:var(--red);'><strong>{analytics['sold_out']}</strong> sold out</div><div><strong>{analytics['combos']}</strong> combos</div>"
+        f"<div>Avg: <strong>&#8377;{analytics['avg_price']}</strong></div><div>Median: <strong>&#8377;{analytics['median_price']}</strong></div>"
+        f"<div>Avg discount: <strong>{analytics['avg_discount']}%</strong></div></div></div>"
     )
 
     bv = analytics.get("best_value_by_canonical", {})
@@ -69,29 +63,19 @@ def swiggy_market_view() -> str:
             if meta and meta.waste_risk == "high":
                 risk_badge = " <span style='color:var(--amber);font-size: 0.625rem;'>&#9888; high waste risk</span>"
             rows.append(
-                f"<tr>"
-                f"<td>{escape(r.canonical_name.replace('_', ' ').title())}{risk_badge}</td>"
-                f"<td>&#8377;{r.price_per_kg:.0f}</td>"
-                f"<td>{escape(r.raw_size)}</td>"
-                f"<td>&#8377;{r.price_inr:.0f}</td>"
-                f"<td>{avail_badge}</td>"
-                f"<td>{r.computed_discount_percent:.0f}%</td>"
-                f"</tr>"
+                f"<tr><td>{escape(r.canonical_name.replace('_', ' ').title())}{risk_badge}</td>"
+                f"<td>&#8377;{r.price_per_kg:.0f}</td><td>{escape(r.raw_size)}</td>"
+                f"<td>&#8377;{r.price_inr:.0f}</td><td>{avail_badge}</td>"
+                f"<td>{r.computed_discount_percent:.0f}%</td></tr>"
             )
 
         parts.append(
-            f"<div class='home-card' style='text-align:left;margin-bottom:12px;'>"
-            f"<h3>Best Value by Price/kg <span style='font-weight:normal;font-size: 0.75rem;color:var(--text-dim);'>(available first, weight-based only)</span></h3>"
-            f"<table style='width:100%;border-collapse:collapse;font-size: 0.75rem;'>"
-            f"<thead><tr style='border-bottom:2px solid var(--border);'>"
-            f"<th style='text-align:left;padding:4px;'>Item</th>"
-            f"<th style='text-align:right;padding:4px;'>&#8377;/kg</th>"
-            f"<th style='text-align:left;padding:4px;'>Size</th>"
-            f"<th style='text-align:right;padding:4px;'>Price</th>"
-            f"<th style='text-align:center;padding:4px;'>Avail</th>"
-            f"<th style='text-align:right;padding:4px;'>Off</th>"
-            f"</tr></thead>"
-            f"<tbody>{''.join(rows)}</tbody>"
+            f"<div class='home-card' style='text-align:left;margin-bottom:12px;'><h3>Best Value by Price/kg <span style='font-weight:normal;font-size: 0.75rem;color:var(--text-dim);'>(available first, weight-based only)</span></h3>"
+            f"<table style='width:100%;border-collapse:collapse;font-size: 0.75rem;'><thead><tr style='border-bottom:2px solid var(--border);'>"
+            f"<th style='text-align:left;padding:4px;'>Item</th><th style='text-align:right;padding:4px;'>&#8377;/kg</th>"
+            f"<th style='text-align:left;padding:4px;'>Size</th><th style='text-align:right;padding:4px;'>Price</th>"
+            f"<th style='text-align:center;padding:4px;'>Avail</th><th style='text-align:right;padding:4px;'>Off</th>"
+            f"</tr></thead><tbody>{''.join(rows)}</tbody>"
             f"</table></div>"
         )
 
@@ -99,10 +83,8 @@ def swiggy_market_view() -> str:
     if sold_out:
         sold_out_names = sorted(set(r.canonical_name.replace("_", " ").title() for r in sold_out))
         parts.append(
-            f"<div class='home-card' style='text-align:left;margin-bottom:12px;'>"
-            f"<h3>Sold Out ({len(sold_out_names)} items)</h3>"
-            f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>"
-            f"{', '.join(escape(n) for n in sold_out_names[:30])}"
+            f"<div class='home-card' style='text-align:left;margin-bottom:12px;'><h3>Sold Out ({len(sold_out_names)} items)</h3>"
+            f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>{', '.join(escape(n) for n in sold_out_names[:30])}"
             f"</div></div>"
         )
 
@@ -131,10 +113,8 @@ def swiggy_basket_estimate(items_text: str) -> str:
     parts: list[str] = []
 
     parts.append(
-        f"<div style='margin-bottom:12px;'>"
-        f"<strong>{summary['matched']}</strong> of {summary['total_requested']} matched "
-        f"&mdash; estimated total: <strong>&#8377;{summary['total_estimated_price_inr']}</strong>"
-        f"{_market_freshness_html(snapshot)}"
+        f"<div style='margin-bottom:12px;'><strong>{summary['matched']}</strong> of {summary['total_requested']} matched "
+        f"&mdash; estimated total: <strong>&#8377;{summary['total_estimated_price_inr']}</strong>{_market_freshness_html(snapshot)}"
         f"</div>"
     )
 
@@ -148,50 +128,36 @@ def swiggy_basket_estimate(items_text: str) -> str:
             risk_color = {"high": "var(--red)", "medium": "var(--amber)", "low": "var(--green)"}.get(risk, "var(--text-dim)")
             pkgkg = f"&#8377;{r.price_per_kg:.0f}/kg" if r.price_per_kg else f"&#8377;{r.price_per_piece:.0f}/pc" if r.price_per_piece else ""
             rows.append(
-                f"<tr>"
-                f"<td>{escape(item.requested_name)}</td>"
-                f"<td>{escape(r.canonical_name.replace('_',' ').title())}</td>"
-                f"<td>{escape(r.raw_size)}</td>"
-                f"<td>&#8377;{r.price_inr:.0f}</td>"
-                f"<td>{pkgkg}</td>"
-                f"<td style='color:{risk_color};'>{shelf}</td>"
-                f"</tr>"
+                f"<tr><td>{escape(item.requested_name)}</td>"
+                f"<td>{escape(r.canonical_name.replace('_',' ').title())}</td><td>{escape(r.raw_size)}</td>"
+                f"<td>&#8377;{r.price_inr:.0f}</td><td>{pkgkg}</td>"
+                f"<td style='color:{risk_color};'>{shelf}</td></tr>"
             )
         elif item.matched:
             rows.append(
-                f"<tr style='color:var(--text-dim);'>"
-                f"<td>{escape(item.requested_name)}</td>"
-                f"<td>{escape(item.canonical_name.replace('_',' ').title())}</td>"
-                f"<td colspan='4'>{escape(item.reason)}</td>"
+                f"<tr style='color:var(--text-dim);'><td>{escape(item.requested_name)}</td>"
+                f"<td>{escape(item.canonical_name.replace('_',' ').title())}</td><td colspan='4'>{escape(item.reason)}</td>"
                 f"</tr>"
             )
         else:
             rows.append(
-                f"<tr style='color:var(--red);'>"
-                f"<td>{escape(item.requested_name)}</td>"
-                f"<td colspan='5'>Not found in market data</td>"
-                f"</tr>"
+                f"<tr style='color:var(--red);'><td>{escape(item.requested_name)}</td>"
+                f"<td colspan='5'>Not found in market data</td></tr>"
             )
 
     parts.append(
-        f"<table style='width:100%;border-collapse:collapse;font-size: 0.75rem;'>"
-        f"<thead><tr style='border-bottom:2px solid var(--border);'>"
-        f"<th style='text-align:left;padding:4px;'>Requested</th>"
-        f"<th style='text-align:left;padding:4px;'>Matched</th>"
-        f"<th style='text-align:left;padding:4px;'>Size</th>"
-        f"<th style='text-align:right;padding:4px;'>Price</th>"
-        f"<th style='text-align:right;padding:4px;'>Unit</th>"
-        f"<th style='text-align:right;padding:4px;'>Shelf</th>"
-        f"</tr></thead>"
-        f"<tbody>{''.join(rows)}</tbody>"
+        f"<table style='width:100%;border-collapse:collapse;font-size: 0.75rem;'><thead><tr style='border-bottom:2px solid var(--border);'>"
+        f"<th style='text-align:left;padding:4px;'>Requested</th><th style='text-align:left;padding:4px;'>Matched</th>"
+        f"<th style='text-align:left;padding:4px;'>Size</th><th style='text-align:right;padding:4px;'>Price</th>"
+        f"<th style='text-align:right;padding:4px;'>Unit</th><th style='text-align:right;padding:4px;'>Shelf</th>"
+        f"</tr></thead><tbody>{''.join(rows)}</tbody>"
         f"</table>"
     )
 
     unmatched = summary.get("unmatched_items", [])
     if unmatched:
         parts.append(
-            f"<div style='margin-top:8px;color:var(--red);font-size: 0.6875rem;'>"
-            f"Not found: {', '.join(escape(u) for u in unmatched)}"
+            f"<div style='margin-top:8px;color:var(--red);font-size: 0.6875rem;'>Not found: {', '.join(escape(u) for u in unmatched)}"
             f"</div>"
         )
 

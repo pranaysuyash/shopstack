@@ -49,8 +49,7 @@ def community_pool_stats_screen() -> str:
             )
         return (
             "<div class='home-card' style='font-size: 0.6875rem;color:var(--text-muted, #5F5144);padding:8px;'>"
-            f"👥 Local pool: <strong>{stats['size']}</strong> observations, "
-            f"<strong>{stats['distinct_items']}</strong> items, "
+            f"👥 Local pool: <strong>{stats['size']}</strong> observations, <strong>{stats['distinct_items']}</strong> items, "
             f"<strong>{stats['distinct_anon']}</strong> anonymized contributors"
             + (f" · newest: {stats['newest']}" if stats.get("newest") else "")
             + "</div>"

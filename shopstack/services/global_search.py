@@ -352,8 +352,7 @@ def _search_prices(query: str, database: Any, user_id: str) -> list[GlobalSearch
                 kind="price",
                 title=cname,
                 meta=(
-                    f"Latest: {latest.price:.2f} {getattr(latest, 'currency', 'INR')} "
-                    f"at {getattr(latest, 'store', '?')}"
+                    f"Latest: {latest.price:.2f} {getattr(latest, 'currency', 'INR')} at {getattr(latest, 'store', '?')}"
                 ),
                 score=0.5,
                 action_kind="tab",

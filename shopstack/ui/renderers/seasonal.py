@@ -37,15 +37,12 @@ def render_seasonal(rec: dict[str, Any] | None) -> str:
     action_html = ""
     if action:
         action_html = (
-            f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:6px;'>"
-            f"<strong>Suggested:</strong> {escape(action)}</div>"
+            f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:6px;'><strong>Suggested:</strong> {escape(action)}</div>"
         )
 
     return (
-        f"<div class='home-card' style='margin-bottom:12px;'>"
-        f"<h3 style='margin:0 0 4px 0;color:{color};'>{icon} {title}</h3>"
-        f"<div style='font-size: 0.8125rem;color:var(--text);'>{body}</div>"
-        f"{action_html}"
+        f"<div class='home-card' style='margin-bottom:12px;'><h3 style='margin:0 0 4px 0;color:{color};'>{icon} {title}</h3>"
+        f"<div style='font-size: 0.8125rem;color:var(--text);'>{body}</div>{action_html}"
         f"</div>"
     )
 

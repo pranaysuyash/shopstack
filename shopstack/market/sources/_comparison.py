@@ -97,24 +97,17 @@ def format_cross_source_html(comparisons: list[CrossSourcePrice]) -> str:
 
         savings_label = f"save {c.savings_pct}%" if c.savings_pct > 0 else ""
         rows.append(
-            f"<tr>"
-            f"<td style='padding:4px;'><strong>{name_label}</strong></td>"
-            f"{price_cells}"
-            f"<td style='padding:4px;color:var(--green);'>{savings_label}</td>"
+            f"<tr><td style='padding:4px;'><strong>{name_label}</strong></td>"
+            f"{price_cells}<td style='padding:4px;color:var(--green);'>{savings_label}</td>"
             f"</tr>"
         )
 
     return (
-        f"<div class='home-card' style='text-align:left;margin-bottom:12px;'>"
-        f"<h3>Multi-Source Price Comparison</h3>"
-        f"<table style='width:100%;border-collapse:collapse;font-size: 0.75rem;'>"
-        f"<thead><tr style='border-bottom:2px solid var(--border);'>"
-        f"<th style='text-align:left;padding:4px;'>Item</th>"
-        f"{header_cells}"
-        f"<th style='text-align:left;padding:4px;'>Savings</th>"
-        f"</tr></thead>"
-        f"<tbody>{''.join(rows)}</tbody>"
-        f"</table></div>"
+        f"<div class='home-card' style='text-align:left;margin-bottom:12px;'><h3>Multi-Source Price Comparison</h3>"
+        f"<table style='width:100%;border-collapse:collapse;font-size: 0.75rem;'><thead><tr style='border-bottom:2px solid var(--border);'>"
+        f"<th style='text-align:left;padding:4px;'>Item</th>{header_cells}"
+        f"<th style='text-align:left;padding:4px;'>Savings</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table></div>"
     )
 
 

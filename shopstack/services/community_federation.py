@@ -137,8 +137,7 @@ class CommunityBundle:
         version = int(header.get("version", 0))
         if version != BUNDLE_VERSION:
             raise ValueError(
-                f"Unsupported bundle version: {version} "
-                f"(expected {BUNDLE_VERSION})"
+                f"Unsupported bundle version: {version} (expected {BUNDLE_VERSION})"
             )
         return cls(
             version=version,
@@ -308,8 +307,7 @@ def import_bundle(
         "source_label": bundle.source_label,
         "version": bundle.version,
         "reason": (
-            f"Imported {accepted} from {bundle.source_label or 'unknown'} "
-            f"(skipped {skipped} dupes, rejected {rejected} invalid)."
+            f"Imported {accepted} from {bundle.source_label or 'unknown'} (skipped {skipped} dupes, rejected {rejected} invalid)."
         ),
     }
 
@@ -389,10 +387,8 @@ def sync_status(actor_user_id: str = "") -> str:
         )
     return (
         "<div class='sync-block'>"
-        f"<div class='sync-stats'>"
-        f"📡 <strong>{stats['size']}</strong> observations, "
-        f"<strong>{stats['distinct_items']}</strong> items, "
-        f"<strong>{stats['distinct_anon']}</strong> anonymized contributors"
+        f"<div class='sync-stats'>📡 <strong>{stats['size']}</strong> observations, "
+        f"<strong>{stats['distinct_items']}</strong> items, <strong>{stats['distinct_anon']}</strong> anonymized contributors"
         + (f" · newest: {stats['newest']}" if stats.get("newest") else "")
         + "</div>"
         "<div class='sync-chips'>"

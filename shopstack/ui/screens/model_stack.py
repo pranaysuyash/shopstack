@@ -160,16 +160,11 @@ def runtime_proof_view() -> str:
 
     cards_html = (
         "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:12px;'>"
-        f"{render_metric('Planner', planner_backend or 'mock')}"
-        f"{render_metric('Vision', vision_backend or 'mock')}"
-        f"{render_metric('OCR', ocr_backend or 'mock')}"
-        f"{render_metric('Embeddings', embeddings_backend or 'mock')}"
-        f"{render_metric('Mode', _runtime_mode(runtime_rows))}"
-        f"{render_metric('Cloud APIs', 'yes' if cloud_apis else 'no')}"
-        f"{render_metric('Active Params', f'{diag.active_total_params_b:.2f} B')}"
-        f"{render_metric('Budget', 'within' if diag.within_budget else 'over')}"
-        f"{render_metric('Last Latency', _pick_runtime_sample(runtime_rows, 'latency_ms') or 'n/a')}"
-        f"{render_metric('Last Tokens', _pick_runtime_sample(runtime_rows, 'tokens') or 'n/a')}"
+        f"{render_metric('Planner', planner_backend or 'mock')}{render_metric('Vision', vision_backend or 'mock')}"
+        f"{render_metric('OCR', ocr_backend or 'mock')}{render_metric('Embeddings', embeddings_backend or 'mock')}"
+        f"{render_metric('Mode', _runtime_mode(runtime_rows))}{render_metric('Cloud APIs', 'yes' if cloud_apis else 'no')}"
+        f"{render_metric('Active Params', f'{diag.active_total_params_b:.2f} B')}{render_metric('Budget', 'within' if diag.within_budget else 'over')}"
+        f"{render_metric('Last Latency', _pick_runtime_sample(runtime_rows, 'latency_ms') or 'n/a')}{render_metric('Last Tokens', _pick_runtime_sample(runtime_rows, 'tokens') or 'n/a')}"
         f"{render_metric('Last Trace', latest_trace[:12] or 'n/a')}"
         "</div>"
     )
@@ -198,10 +193,8 @@ def runtime_proof_view() -> str:
 
     return ui_card(
         "Runtime Proof",
-        f"<div style='display:flex;gap:8px;flex-wrap:wrap;align-items:center;'>{badges_html}</div>"
-        f"{status_line}"
-        f"{cards_html}"
-        f"<div style='margin-top:12px;'>{table_html}</div>",
+        f"<div style='display:flex;gap:8px;flex-wrap:wrap;align-items:center;'>{badges_html}</div>{status_line}"
+        f"{cards_html}<div style='margin-top:12px;'>{table_html}</div>",
     )
 
 
@@ -234,10 +227,8 @@ def model_budget_view() -> str:
     budget_pct = min(100.0, max(0.0, (diag.active_total_params_b / diag.budget_limit_b) * 100)) if diag.budget_limit_b > 0 else 0
     budget_color = "var(--green)" if diag.within_budget else "var(--red)"
     progress_bar = (
-        f"<div style='width:100%;height:8px;background:var(--border);border-radius:4px;margin-top:8px;overflow:hidden;'>"
-        f"<div style='width:{budget_pct:.1f}%;height:100%;background:{budget_color};'></div>"
-        f"</div>"
-        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:4px;text-align:right;'>{budget_pct:.1f}% of {diag.budget_limit_b:.1f} B budget used</div>"
+        f"<div style='width:100%;height:8px;background:var(--border);border-radius:4px;margin-top:8px;overflow:hidden;'><div style='width:{budget_pct:.1f}%;height:100%;background:{budget_color};'></div>"
+        f"</div><div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:4px;text-align:right;'>{budget_pct:.1f}% of {diag.budget_limit_b:.1f} B budget used</div>"
     )
 
     return (
@@ -245,14 +236,12 @@ def model_budget_view() -> str:
         "System status, runtime budget, and candidate model overview."
         "</div>"
         + "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:12px 0;'>"
-        f"{render_metric('Active / Loaded', f'{diag.active_total_params_b:.2f} B')}"
-        f"{render_metric('Candidate Pool', f'{total_candidate_params():.2f} B')}"
+        f"{render_metric('Active / Loaded', f'{diag.active_total_params_b:.2f} B')}{render_metric('Candidate Pool', f'{total_candidate_params():.2f} B')}"
         f"{render_metric('Max Budget', f'{diag.budget_limit_b:.2f} B')}"
         "</div>"
         + ui_card(
             "Runtime Diagnostics",
-            f"<div style='margin-bottom:8px;display:flex;gap:8px;align-items:center;'>{status_badge}"
-            f"<span style='font-size: 0.75rem;color:var(--text-dim);'>Live memory stack tracker</span></div>"
+            f"<div style='margin-bottom:8px;display:flex;gap:8px;align-items:center;'>{status_badge}<span style='font-size: 0.75rem;color:var(--text-dim);'>Live memory stack tracker</span></div>"
             + progress_bar
             + diag_html,
         )

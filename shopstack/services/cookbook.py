@@ -191,20 +191,13 @@ def render_cookbook_card_html(
 
     return (
         "<div class='cb-card'>"
-        f"<div class='cb-card-head'>"
-        f"<div class='cb-name'>{escape(r.name)}</div>"
-        f"<div class='cb-meta'>{escape(cuisine)} · {mins} {t('cookbook.total', locale).lower()} · "
-        f"{t('cookbook.serves', locale, n=r.serves)}</div>"
-        f"{_dietary_tags_html(r, locale)}"
-        f"</div>"
-        f"<div class='cb-progress' style='color:{completion_color};'>"
-        f"● {match.completion_pct:.0f}% ready · {match.have_count}/{match.total_ingredients} "
-        f"{t('cookbook.ingredients', locale).lower()}"
-        f"</div>"
-        f"<div class='cb-detail-row'>"
-        f"<div class='cb-have'>✓ {t('cookbook.have', locale)}: {have_str}</div>"
-        f"<div class='cb-missing'>+ {t('cookbook.missing', locale)}: {missing_str}</div>"
-        f"</div>"
+        f"<div class='cb-card-head'><div class='cb-name'>{escape(r.name)}</div>"
+        f"<div class='cb-meta'>{escape(cuisine)} · {mins} {t('cookbook.total', locale).lower()} · {t('cookbook.serves', locale, n=r.serves)}</div>"
+        f"{_dietary_tags_html(r, locale)}</div>"
+        f"<div class='cb-progress' style='color:{completion_color};'>● {match.completion_pct:.0f}% ready · {match.have_count}/{match.total_ingredients} "
+        f"{t('cookbook.ingredients', locale).lower()}</div>"
+        f"<div class='cb-detail-row'><div class='cb-have'>✓ {t('cookbook.have', locale)}: {have_str}</div>"
+        f"<div class='cb-missing'>+ {t('cookbook.missing', locale)}: {missing_str}</div></div>"
         f"</div>"
     )
 
@@ -222,10 +215,8 @@ def render_cookbook_grid_html(
         )
     cards = "".join(render_cookbook_card_html(m, locale) for m in matches)
     return (
-        f"<div class='cb-grid'>"
-        f"<h3 style='margin:0 0 8px 0;'>{escape(t('section.cookbook_browse', locale))}</h3>"
-        f"<div class='cb-grid-inner'>{cards}</div>"
-        f"</div>"
+        f"<div class='cb-grid'><h3 style='margin:0 0 8px 0;'>{escape(t('section.cookbook_browse', locale))}</h3>"
+        f"<div class='cb-grid-inner'>{cards}</div></div>"
     )
 
 
@@ -251,10 +242,8 @@ def render_cookbook_detail_html(
         cls = "cb-ing-have" if cname in have_set else "cb-ing-miss"
         mark = "✓" if cname in have_set else "+"
         ing_rows.append(
-            f"<li class='{cls}'>"
-            f"<span class='cb-mark'>{mark}</span> "
-            f"{ing.quantity:g} {escape(ing.unit)} "
-            f"{escape(ing.canonical_name.replace('_', ' ').title())}"
+            f"<li class='{cls}'><span class='cb-mark'>{mark}</span> "
+            f"{ing.quantity:g} {escape(ing.unit)} {escape(ing.canonical_name.replace('_', ' ').title())}"
             f"</li>"
         )
 
@@ -267,18 +256,12 @@ def render_cookbook_detail_html(
 
     return (
         "<div class='cb-detail'>"
-        f"<h3 class='cb-detail-name'>{escape(recipe.name)}</h3>"
-        f"<div class='cb-detail-meta'>"
-        f"{escape(cuisine)} · {recipe.prep_minutes} {t('cookbook.prep', locale).lower()} · "
-        f"{recipe.cook_minutes} {t('cookbook.cook', locale).lower()} · "
-        f"{mins} {t('cookbook.total', locale).lower()} · "
-        f"{t('cookbook.serves', locale, n=recipe.serves)}"
-        f"</div>"
-        f"{_dietary_tags_html(recipe, locale)}"
-        f"<h4 class='cb-section-h'>{escape(t('cookbook.ingredients', locale))}</h4>"
-        f"<ul class='cb-ings'>{''.join(ing_rows)}</ul>"
-        f"<h4 class='cb-section-h'>{escape(t('cookbook.instructions', locale))}</h4>"
-        f"<ol class='cb-steps'>{steps_html}</ol>"
+        f"<h3 class='cb-detail-name'>{escape(recipe.name)}</h3><div class='cb-detail-meta'>"
+        f"{escape(cuisine)} · {recipe.prep_minutes} {t('cookbook.prep', locale).lower()} · {recipe.cook_minutes} {t('cookbook.cook', locale).lower()} · "
+        f"{mins} {t('cookbook.total', locale).lower()} · {t('cookbook.serves', locale, n=recipe.serves)}"
+        f"</div>{_dietary_tags_html(recipe, locale)}"
+        f"<h4 class='cb-section-h'>{escape(t('cookbook.ingredients', locale))}</h4><ul class='cb-ings'>{''.join(ing_rows)}</ul>"
+        f"<h4 class='cb-section-h'>{escape(t('cookbook.instructions', locale))}</h4><ol class='cb-steps'>{steps_html}</ol>"
         f"</div>"
     )
 

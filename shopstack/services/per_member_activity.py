@@ -263,8 +263,7 @@ def render_per_member_html(activity: PerMemberActivity) -> str:
         )
     parts: list[str] = [
         "<div class='pm-block'>",
-        f"<div class='pm-headline'>"
-        f"<strong>{activity.total_traces}</strong> traces in the last "
+        f"<div class='pm-headline'><strong>{activity.total_traces}</strong> traces in the last "
         f"{activity.window_days} days"
         + (f" · <strong>{activity.unknown_actor_traces}</strong> pre-attribution" if activity.unknown_actor_traces else "")
         + "</div>",
@@ -278,12 +277,9 @@ def render_per_member_html(activity: PerMemberActivity) -> str:
             last = (m.last_active or "")[:10]  # YYYY-MM-DD
             parts.append(
                 "<div class='pm-member-row'>"
-                f"<span class='pm-actor'>{escape(m.actor_id)}</span>"
-                f"<span class='pm-count'>{m.total_traces}</span>"
-                f"<span class='pm-top-action'>"
-                f"top: {escape(top_action_str)} ({top_count})"
-                f"</span>"
-                f"<span class='pm-last'>last: {escape(last) or '—'}</span>"
+                f"<span class='pm-actor'>{escape(m.actor_id)}</span><span class='pm-count'>{m.total_traces}</span>"
+                f"<span class='pm-top-action'>top: {escape(top_action_str)} ({top_count})"
+                f"</span><span class='pm-last'>last: {escape(last) or '—'}</span>"
                 "</div>"
             )
         parts.append("</div>")

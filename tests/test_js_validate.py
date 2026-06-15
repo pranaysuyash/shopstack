@@ -149,6 +149,44 @@ class TestScan:
         assert report.scanned_files > 0
         assert len(report.snippets) > 0
 
+    def test_scan_catches_real_syntax_error_in_temp_file(self, tmp_path: Path, monkeypatch):
+        """Regression: if a real file ships a JS snippet with a
+        SyntaxError, ``scan()`` must surface it.
+
+        We point SCAN_DIRS at a temp directory containing a file
+        that uses a valid call site pattern (``app.load``) with a
+        ``js=...`` argument that's a known-broken function. The
+        validator must return at least one snippet with
+        ``valid=False``.
+
+        Why this matters: without this test, the validator could
+        silently regress to "always returns ok=True" and the
+        CI signal would rot. motto_v3 §0.5: tests must validate
+        real behaviour, not just structural shape.
+        """
+        from shopstack.tools import js_validate
+
+        bad_file = tmp_path / "broken_screen.py"
+        bad_file.write_text(
+            "import gradio as gr\n"
+            "app.load(None, js='function f() { return ;')\n"
+        )
+        monkeypatch.setattr(js_validate, "SCAN_DIRS", (tmp_path,))
+        report = js_validate.scan()
+        assert report.scanned_files == 1
+        # The bad snippet must be flagged.
+        assert report.error_count >= 1, (
+            f"Expected the scan to flag the broken JS snippet, got "
+            f"{len(report.snippets)} snippets all valid: "
+            f"{[(s.file, s.line, s.error) for s in report.snippets]}"
+        )
+        bad = [s for s in report.snippets if not s.valid]
+        assert bad, "At least one snippet must be marked invalid"
+        # Any non-empty error string means Node (or the Python
+        # fallback) actually parsed the JS and rejected it. We
+        # don't assert the exact message format because Node's
+        # error text varies across versions.
+
     def test_report_to_dict(self):
         report = JsValidationReport()
         report.scanned_files = 5

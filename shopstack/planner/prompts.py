@@ -233,8 +233,7 @@ def build_system_prompt(db: Any, tool_registry: ToolRegistry | None = None, comp
         "{{inventory_context}}", inventory_context
     )
     return (
-        f"{prompt}\n\n"
-        f"Tool contract version: {contract_signature}\n"
+        f"{prompt}\n\nTool contract version: {contract_signature}\n"
         "Tool contract (canonical):\n"
         f"{contract_block}"
     )
@@ -252,8 +251,7 @@ def build_planner_prompt(question: str, db: Any, tool_registry: ToolRegistry | N
     """
     system = build_system_prompt(db, tool_registry=tool_registry, compact_tools=compact_tools)
     prompt = (
-        f"{system}\n\n"
-        f"USER REQUEST: {question}\n\n"
+        f"{system}\n\nUSER REQUEST: {question}\n\n"
         f"JSON tool calls:"
     )
     return prompt

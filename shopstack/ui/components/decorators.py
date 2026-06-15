@@ -30,8 +30,7 @@ def _aria_live_html(content: str, level: str = "polite") -> str:
     if safe_level not in ("polite", "assertive"):
         safe_level = "polite"
     return (
-        f"<div role='status' aria-live='{safe_level}' aria-atomic='true'>"
-        f"{content}"
+        f"<div role='status' aria-live='{safe_level}' aria-atomic='true'>{content}"
         f"</div>"
     )
 

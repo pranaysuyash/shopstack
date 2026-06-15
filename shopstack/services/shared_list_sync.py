@@ -268,8 +268,7 @@ def pull_from_file(
             operation="pull",
             file_path=file_path,
             error=(
-                f"Unsupported sync-file version: {version} "
-                f"(expected {SHARED_FILE_VERSION})"
+                f"Unsupported sync-file version: {version} (expected {SHARED_FILE_VERSION})"
             ),
         )
 

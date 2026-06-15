@@ -200,15 +200,13 @@ def check_1_1_1_alt_text(files: dict[str, str]) -> WCAGResult:
     if img_no_alt > 0:
         res.status = "fail"
         res.remediation = (
-            f"Add alt= to {img_no_alt} <img> tag(s). "
-            f"Decorative images can use alt=''. "
+            f"Add alt= to {img_no_alt} <img> tag(s). Decorative images can use alt=''. "
             f"Informative images need a short description."
         )
     elif svg_without_role > 0:
         res.status = "warn"
         res.remediation = (
-            f"Add role='img' and aria-label to {svg_without_role} <svg> tag(s) "
-            f"so screen readers announce them as images."
+            f"Add role='img' and aria-label to {svg_without_role} <svg> tag(s) so screen readers announce them as images."
         )
     else:
         res.status = "pass"
@@ -550,10 +548,8 @@ def render_report_html(report: WCAGReport) -> str:
     """Render the audit report as XSS-safe HTML."""
     parts = [
         "<div class='wcag-block'>",
-        f"<div class='wcag-headline'>"
-        f"<strong>WCAG 2.1 AA score:</strong> {report.score} / 100"
-        f" · {report.pass_count} pass / {report.warn_count} warn / {report.fail_count} fail"
-        f"</div>",
+        f"<div class='wcag-headline'><strong>WCAG 2.1 AA score:</strong> {report.score} / 100"
+        f" · {report.pass_count} pass / {report.warn_count} warn / {report.fail_count} fail</div>",
     ]
     if report.remediations:
         parts.append(
@@ -573,10 +569,8 @@ def render_report_html(report: WCAGReport) -> str:
         ev_html = "<br>".join(escape(e) for e in r.evidence[:3])
         parts.append(
             "<tr>"
-            f"<td><code>{escape(r.criterion)}</code></td>"
-            f"<td>{escape(r.title)}</td>"
-            f"<td>{escape(r.level)}</td>"
-            f"<td style='color:{status_color};font-weight:600;'>{escape(r.status).upper()}</td>"
+            f"<td><code>{escape(r.criterion)}</code></td><td>{escape(r.title)}</td>"
+            f"<td>{escape(r.level)}</td><td style='color:{status_color};font-weight:600;'>{escape(r.status).upper()}</td>"
             f"<td style='font-size: 0.6875rem;color:var(--text-muted, #5F5144);'>{ev_html}</td>"
             "</tr>"
         )
@@ -589,10 +583,8 @@ def render_report_markdown(report: WCAGReport) -> str:
     lines: list[str] = [
         f"# WCAG 2.1 AA Audit",
         "",
-        f"**Score:** {report.score} / 100 · "
-        f"**Pass:** {report.pass_count} · "
-        f"**Warn:** {report.warn_count} · "
-        f"**Fail:** {report.fail_count}",
+        f"**Score:** {report.score} / 100 · **Pass:** {report.pass_count} · "
+        f"**Warn:** {report.warn_count} · **Fail:** {report.fail_count}",
         "",
         "| Criterion | Title | Level | Status | Remediation |",
         "|-----------|-------|-------|--------|-------------|",

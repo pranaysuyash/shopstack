@@ -61,39 +61,33 @@ def coach_waste_signal(signal: dict[str, Any]) -> WasteRecommendation:
 
     if risk == "high" and overstocked and frequent:
         action = (
-            f"You buy {display} every {avg_interval:.0f} day(s) AND you have "
-            f"{current_qty:.0f} {unit} on hand. "
+            f"You buy {display} every {avg_interval:.0f} day(s) AND you have {current_qty:.0f} {unit} on hand. "
             f"Try tinned or frozen next time — same nutrition, no waste."
         )
         kind = "tinned_swap"
     elif risk == "high" and overstocked:
         action = (
-            f"You have {current_qty:.0f} {unit} on hand. "
-            f"Next time, buy half that — smaller pack, less waste."
+            f"You have {current_qty:.0f} {unit} on hand. Next time, buy half that — smaller pack, less waste."
         )
         kind = "smaller_pack"
     elif risk == "high" and frequent:
         action = (
-            f"You buy {display} every {avg_interval:.0f} day(s). "
-            f"Consider frozen or tinned to avoid the daily-fresh waste."
+            f"You buy {display} every {avg_interval:.0f} day(s). Consider frozen or tinned to avoid the daily-fresh waste."
         )
         kind = "tinned_swap"
     elif risk == "high":
         action = (
-            f"Use your existing {current_qty:.0f} {unit} before buying more. "
-            f"Freeze leftovers if you can't use them in time."
+            f"Use your existing {current_qty:.0f} {unit} before buying more. Freeze leftovers if you can't use them in time."
         )
         kind = "freeze"
     elif risk == "medium" and overstocked:
         action = (
-            f"You have {current_qty:.0f} {unit} on hand. "
-            f"Smaller pack next time — medium waste risk on this produce."
+            f"You have {current_qty:.0f} {unit} on hand. Smaller pack next time — medium waste risk on this produce."
         )
         kind = "smaller_pack"
     elif risk == "medium":
         action = (
-            f"Plan to use the {current_qty:.0f} {unit} you have on hand "
-            f"in the next 2-3 days before it spoils."
+            f"Plan to use the {current_qty:.0f} {unit} you have on hand in the next 2-3 days before it spoils."
         )
         kind = "plan_around_use"
     else:
@@ -155,24 +149,17 @@ def render_waste_coach_html(signals: list[dict[str, Any]]) -> str:
         color = severity_colors.get(r.severity, "var(--text-dim)")
         icon = severity_icons.get(r.severity, "•")
         rows.append(
-            f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
-            f"<div style='font-size: 0.75rem;'>"
-            f"<span style='color:{color};font-weight:600;'>{icon} "
-            f"{escape(r.display_name)}</span>"
-            f" <span style='color:var(--text-dim);font-size: 0.625rem;'>"
-            f"· {escape(r.observation)}</span></div>"
-            f"<div style='font-size: 0.6875rem;color:var(--text);margin-top:2px;'>"
-            f"<strong style='color:var(--green);'>→</strong> {escape(r.action)}"
+            f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'><div style='font-size: 0.75rem;'>"
+            f"<span style='color:{color};font-weight:600;'>{icon} {escape(r.display_name)}</span>"
+            f" <span style='color:var(--text-dim);font-size: 0.625rem;'>· {escape(r.observation)}</span></div>"
+            f"<div style='font-size: 0.6875rem;color:var(--text);margin-top:2px;'><strong style='color:var(--green);'>→</strong> {escape(r.action)}"
             f"</div></div>"
         )
 
     return (
-        f"<div class='home-card' style='margin-bottom:12px;'>"
-        f"<h3 style='margin:0 0 4px 0;'>🌱 Waste Coach</h3>"
-        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>"
-        f"Actionable fixes for the items you waste most."
-        f"</div>"
-        f"{''.join(rows)}"
+        f"<div class='home-card' style='margin-bottom:12px;'><h3 style='margin:0 0 4px 0;'>🌱 Waste Coach</h3>"
+        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>Actionable fixes for the items you waste most."
+        f"</div>{''.join(rows)}"
         f"</div>"
     )
 

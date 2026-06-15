@@ -139,8 +139,7 @@ def advise_trip(
             return TripAdvice(
                 recommendation="go_in_store",
                 reason=(
-                    f"Weather isn't ideal, but {use_soon_count} items are about to "
-                    f"expire — go in-store and prioritize the kirana."
+                    f"Weather isn't ideal, but {use_soon_count} items are about to expire — go in-store and prioritize the kirana."
                 ),
                 trip_friendly=False,
                 weather=weather,
@@ -168,8 +167,7 @@ def advise_trip(
         return TripAdvice(
             recommendation="go_in_store",
             reason=(
-                f"Great weather and {price_drop_count} items are below their "
-                f"historical median — worth a trip to the kirana today."
+                f"Great weather and {price_drop_count} items are below their historical median — worth a trip to the kirana today."
             ),
             trip_friendly=True,
             weather=weather,
@@ -183,8 +181,7 @@ def advise_trip(
         return TripAdvice(
             recommendation="go_in_store",
             reason=(
-                f"Use-soon: {use_soon_count} items expiring in 2-3 days. "
-                f"Cook from pantry first, but pick up fresh produce on the way."
+                f"Use-soon: {use_soon_count} items expiring in 2-3 days. Cook from pantry first, but pick up fresh produce on the way."
             ),
             trip_friendly=True,
             weather=weather,
@@ -236,8 +233,7 @@ def render_trip_advice_html(advice: TripAdvice, locale: str = DEFAULT_LOCALE) ->
     pills: list[str] = []
     if advice.weather is not None:
         pills.append(
-            f"<span class='ta-pill'>{escape(advice.weather.condition_icon)} "
-            f"{escape(advice.weather.condition)} · {advice.weather.temperature_c:.0f}°C</span>"
+            f"<span class='ta-pill'>{escape(advice.weather.condition_icon)} {escape(advice.weather.condition)} · {advice.weather.temperature_c:.0f}°C</span>"
         )
     if advice.use_soon_count > 0:
         pills.append(
@@ -252,21 +248,16 @@ def render_trip_advice_html(advice: TripAdvice, locale: str = DEFAULT_LOCALE) ->
     store_html = ""
     if advice.store_suggestion:
         store_html = (
-            f"<div class='ta-store'>Suggested store: "
-            f"<strong>{escape(advice.store_suggestion)}</strong></div>"
+            f"<div class='ta-store'>Suggested store: <strong>{escape(advice.store_suggestion)}</strong></div>"
         )
 
     return (
         "<div class='ta-banner' "
-        f"style='background:{severity_bg};border-left:3px solid {severity_border};'>"
-        f"<div class='ta-icon'>{advice.icon}</div>"
-        f"<div class='ta-body'>"
-        f"<div class='ta-label'>{escape(advice.label)}</div>"
-        f"<div class='ta-reason'>{escape(advice.reason)}</div>"
-        f"{store_html}"
+        f"style='background:{severity_bg};border-left:3px solid {severity_border};'><div class='ta-icon'>{advice.icon}</div>"
+        f"<div class='ta-body'><div class='ta-label'>{escape(advice.label)}</div>"
+        f"<div class='ta-reason'>{escape(advice.reason)}</div>{store_html}"
         f"{('<div class=\"ta-pills\">' + pills_html + '</div>') if pills_html else ''}"
-        f"</div>"
-        f"</div>"
+        f"</div></div>"
     )
 
 

@@ -166,14 +166,15 @@ def render_ask_response(answer: dict[str, Any] | Any) -> str:
     if intent == "empty":
         msg = escape(answer.get("message", ""))
         return (
-            f"home_card(body='"\n            f"<div style=\'color:var(--text-muted);\'>{msg}', style='text-align:left;')</div>"
+            f"<div class='home-card' style='text-align:left;color:var(--text-muted);'>{msg}</div>"
         )
 
     # ── Intent: unknown ──
     if intent == "unknown":
         suggestion = escape(answer.get("suggestion", ""))
-        return (
-            f"home_card(body='"\n            f"<div style=\'color:var(--text-muted);\'>{suggestion}', style='text-align:left;')</div>"
+        return home_card(
+            body=f"<div style='color:var(--text-muted);'>{suggestion}</div>",
+            style="text-align:left;",
         )
 
     # ── Intent: find_item ──
@@ -181,7 +182,7 @@ def render_ask_response(answer: dict[str, Any] | Any) -> str:
         results = answer.get("results", [])
         if not results:
             return (
-                f"home_card(body='"\n                f"<div style=\'color:var(--text-dim);\'>No matching items found.', style='text-align:left;')</div>"
+                f"home_card(body='<div style=\"color:var(--text-dim);\">No matching items found.</div>', style='text-align:left;')"
             )
         rows = []
         for r in results[:6]:
@@ -193,13 +194,19 @@ def render_ask_response(answer: dict[str, Any] | Any) -> str:
             match_type = r.get("match_type", "")
             badge = f" <span class='badge badge-green' style='font-size: 0.5625rem;'>{escape(match_type)}</span>" if match_type else ""
             rows.append(
-                f"<div class='item-row'>"
-                f"<div><div style='font-weight:600;'>{name}{badge}</div>"
-                f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>{location}</div></div>"
-                f"<span style='font-weight:500;'>{qty_str}</span></div>"
+                f"<div class='item-row'><div><div style='font-weight:600;'>{name}{badge}</div>"
+                f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>{location}</div></div><span style='font-weight:500;'>{qty_str}</span></div>"
             )
+        # Compute the item-count text once to avoid nested single-quote
+        # escaping issues inside the f-string. (The original used
+        # ``item{\'s\'}`` which is invalid inside an f-string expression
+        # — ``\'`` is not allowed inside the ``{}``.)
+        item_count_text = (
+            f"{len(results)} item{'s' if len(results) != 1 else ''}"
+        )
         return (
-            f"home_card(body='"\n            f"<div style=\'font-weight:600;margin-bottom:8px;\'>Found {len(results)} item{\'s\' if len(results) != 1 else \'\'}', style='text-align:left;')"
+            f"<div class='home-card' style='text-align:left;'>"
+            f"<div style='font-weight:600;margin-bottom:8px;'>Found {item_count_text}</div>"
             f"{''.join(rows)}</div>"
         )
 
@@ -214,13 +221,11 @@ def render_ask_response(answer: dict[str, Any] | Any) -> str:
             reasons = d.get("reasons", [])
             reason_text = escape(str(reasons[0])) if reasons else ""
             rows.append(
-                f"<div class='item-row'>"
-                f"<div><div style='font-weight:600;'>{name}</div>"
-                f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>{reason_text}</div></div>"
-                f"<span class='badge {badge_cls}'>{escape(badge_label)}</span></div>"
+                f"<div class='item-row'><div><div style='font-weight:600;'>{name}</div>"
+                f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>{reason_text}</div></div><span class='badge {badge_cls}'>{escape(badge_label)}</span></div>"
             )
         return (
-            f"home_card(body='"\n            f"<div style=\'font-weight:600;margin-bottom:8px;\'>{len(decisions)} suggestion{\'s\' if len(decisions) != 1 else \'\'}', style='text-align:left;')"
+            f"home_card(body='<div style='font-weight:600;margin-bottom:8px;'>{len(decisions)} suggestion{'s' if len(decisions) != 1 else ''}', style='text-align:left;')"
             f"{''.join(rows)}</div>"
         )
 
@@ -240,13 +245,12 @@ def render_ask_response(answer: dict[str, Any] | Any) -> str:
                     status = "✓" if o.get("success", True) else "✗"
                     color = "var(--green)" if o.get("success", True) else "var(--red)"
                     parts.append(
-                        f"<div class='item-row'>"
-                        f"<span style='color:{color};font-weight:700;'>{status}</span>"
+                        f"<div class='item-row'><span style='color:{color};font-weight:700;'>{status}</span>"
                         f"<span style='font-size: 0.75rem;'>{action}</span></div>"
                     )
         if parts:
             return (
-                f"home_card(body='"\n                f"{\'\'.join(parts)}', style='text-align:left;')"
+                f"home_card(body='{''.join(parts)}', style='text-align:left;')"
             )
 
     # ── Fallback: render key-value pairs ──
@@ -261,14 +265,15 @@ def render_ask_response(answer: dict[str, Any] | Any) -> str:
         else:
             val_str = str(val)
         parts.append(
-            f"<div style='padding:3px 0;border-bottom:1px solid var(--border);'>"
-            f"<span style='font-weight:600;font-size: 0.75rem;'>{escape(key.replace('_', ' ').title())}</span> "
+            f"<div style='padding:3px 0;border-bottom:1px solid var(--border);'><span style='font-weight:600;font-size: 0.75rem;'>{escape(key.replace('_', ' ').title())}</span> "
             f"<span style='font-size: 0.75rem;color:var(--text-dim);'>{escape(val_str[:200])}</span></div>"
         )
     if parts:
-        return f"home_card(body="{''.join(parts)}", style='text-align:left;')"
+        return f"<div class='home-card' style='text-align:left;'>{''.join(parts)}</div>"
     return (
-        f"home_card(body='"\n        f"<div style=\'color:var(--text-dim);\'>No answer available.', style='text-align:left;')</div>"
+        f"<div class='home-card' style='text-align:left;'>"
+        f"<div style='color:var(--text-dim);'>No answer available.</div>"
+        f"</div>"
     )
 
 
@@ -366,8 +371,7 @@ def _render_structured_ask_summary(response: dict[str, Any]) -> str:
     if not isinstance(outcomes, list):
         outcomes = []
     return (
-        f"Tool calls: {len(tool_calls)}; Outcomes: {len(outcomes)}; "
-        f"Parser status: {debug.get('parser', {}).get('status', 'unknown')}"
+        f"Tool calls: {len(tool_calls)}; Outcomes: {len(outcomes)}; Parser status: {debug.get('parser', {}).get('status', 'unknown')}"
     )
 
 
@@ -395,15 +399,17 @@ def _render_ask_answer_html(response: Any) -> str:
         # Bare string answer — wrap as a card.
         safe = escape(response)
         return (
-            "home_card(body='"\n            f"<div style=\'font-size: 0.875rem;line-height:1.5;\'>{safe}', style='text-align:left;')"
-            "</div>"
+            f"<div class='home-card' style='text-align:left;'>"
+            f"<div style='font-size: 0.875rem;line-height:1.5;'>{safe}</div>"
+            f"</div>"
         )
 
     if not isinstance(response, dict):
         safe = escape(str(response))
         return (
-            "home_card(body='"\n            f"<div>{safe}', style='text-align:left;')"
-            "</div>"
+            f"<div class='home-card' style='text-align:left;'>"
+            f"<div>{safe}</div>"
+            f"</div>"
         )
 
     # Direct message wins (intent=empty, planner message, etc.).
@@ -412,7 +418,8 @@ def _render_ask_answer_html(response: Any) -> str:
 
     if msg and not response.get("decisions"):
         return (
-            "home_card(body='"\n            f"<div style=\'font-size: 0.875rem;line-height:1.5;\'>{escape(str(msg))}', style='text-align:left;')"
+            f"<div class='home-card' style='text-align:left;'>"
+            f"<div style='font-size: 0.875rem;line-height:1.5;'>{escape(str(msg))}</div>"
             + (f"<div class='muted' style='margin-top:6px;font-size: 0.6875rem;'>Intent: {escape(str(intent))}</div>" if intent else "")
             + "</div>"
         )
@@ -431,7 +438,8 @@ def _render_ask_answer_html(response: Any) -> str:
         if cards:
             body = "".join(cards)
             return (
-                "home_card(body='"\n                f"<h3>What I found</h3>{body}', style='text-align:left;')"
+                f"<div class='home-card' style='text-align:left;'>"
+                f"<h3>What I found</h3>{body}</div>"
             )
 
     # Find-item results: show top hits as a small list.
@@ -439,22 +447,22 @@ def _render_ask_answer_html(response: Any) -> str:
     if isinstance(results, list) and results:
         rows = "".join(
             "<div class='item-row'>"
-            f"<div>{escape(str(r.get('display_name', r.get('canonical_name', ''))))}</div>"
-            f"<div style='color:var(--text-muted);font-size: 0.75rem;'>"
-            f"{r.get('quantity', '')} {escape(str(r.get('unit', '')))}"
-            f"{' &middot; ' + escape(str(r.get('storage_location_id', ''))) if r.get('storage_location_id') else ''}"
+            f"<div>{escape(str(r.get('display_name', r.get('canonical_name', ''))))}</div><div style='color:var(--text-muted);font-size: 0.75rem;'>"
+            f"{r.get('quantity', '')} {escape(str(r.get('unit', '')))}{' &middot; ' + escape(str(r.get('storage_location_id', ''))) if r.get('storage_location_id') else ''}"
             "</div></div>"
             for r in results[:6]
         )
         if rows:
             return (
-                "home_card(body='"\n                f"<h3>What I found</h3>{rows}', style='text-align:left;')"
+                f"<div class='home-card' style='text-align:left;'>"
+                f"<h3>What I found</h3>{rows}</div>"
             )
 
     # Fall back to a friendly message rather than dumping raw JSON.
     if msg:
         return (
-            "home_card(body='"\n            f"<div style=\'font-size: 0.875rem;line-height:1.5;\'>{escape(str(msg))}', style='text-align:left;')</div>"
+            f"<div class='home-card' style='text-align:left;'>"
+            f"<div style='font-size: 0.875rem;line-height:1.5;'>{escape(str(msg))}</div>"
         )
     return empty_state_enhanced(
         "I didn't get a clear answer. Try rephrasing the question.",

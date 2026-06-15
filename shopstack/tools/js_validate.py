@@ -397,12 +397,29 @@ def scan() -> JsValidationReport:
                     continue
                 files.append(p)
     for path in files:
+        # Self-exclusion: the validator must not validate its own
+        # source. The docstring + example text inside this file
+        # contain fake ``js=...`` call patterns that the regex
+        # would match, producing spurious "syntax error" reports
+        # on the validator's own example strings. motto_v3 §7
+        # supersession: a tool cannot be the source of truth for
+        # its own correctness.
+        try:
+            rel = str(path.relative_to(PROJECT_ROOT))
+        except ValueError:
+            # File is outside the project tree (e.g. in a temp
+            # dir used by a regression test). Fall back to the
+            # absolute path so the report still locates the
+            # snippet; the relative form is only used for human
+            # display, not for any code path.
+            rel = str(path)
+        if rel.endswith("shopstack/tools/js_validate.py"):
+            continue
         report.scanned_files += 1
         try:
             text = path.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
-        rel = str(path.relative_to(PROJECT_ROOT))
         for line, arg_text in _extract_js_args(text, path):
             js = _resolve_js_string(arg_text)
             if not js:
@@ -437,8 +454,7 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError:
         label = str(OUTPUT_JSON)
     print(
-        f"→ {label} "
-        f"({len(report.snippets)} snippets, {report.error_count} errors)"
+        f"→ {label} ({len(report.snippets)} snippets, {report.error_count} errors)"
     )
     for s in report.snippets:
         if not s.valid:

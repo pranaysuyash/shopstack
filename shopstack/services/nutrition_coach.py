@@ -307,8 +307,7 @@ def _suggestion_reason(nutrient: str, status: NutrientStatus, info: NutritionInf
     label = NUTRIENT_LABELS.get(nutrient, nutrient)
     name = info.canonical_name.replace("_", " ").title()
     return (
-        f"{label} is at {status.pct:.0f}% of weekly target. "
-        f"{name} is a good source."
+        f"{label} is at {status.pct:.0f}% of weekly target. {name} is a good source."
     )
 
 
@@ -339,12 +338,9 @@ def render_coaching_html(
         label = NUTRIENT_LABELS.get(s.nutrient, s.nutrient)
         parts.append(
             "<div class='nc-bar-row'>"
-            f"<div class='nc-bar-label'>{escape(label)}</div>"
-            f"<div class='nc-bar-track'>"
-            f"<div class='nc-bar-fill' style='width:{pct:.0f}%;background:{s.color};'></div>"
-            f"</div>"
-            f"<div class='nc-bar-pct' style='color:{s.color};'>{s.pct:.0f}%</div>"
-            f"</div>"
+            f"<div class='nc-bar-label'>{escape(label)}</div><div class='nc-bar-track'>"
+            f"<div class='nc-bar-fill' style='width:{pct:.0f}%;background:{s.color};'></div></div>"
+            f"<div class='nc-bar-pct' style='color:{s.color};'>{s.pct:.0f}%</div></div>"
         )
     parts.append("</div>")
 
@@ -357,8 +353,7 @@ def render_coaching_html(
         for sg in coaching.suggestions:
             parts.append(
                 "<li class='nc-suggestion'>"
-                f"<span class='nc-sg-name'>{escape(sg.display_name)}</span>"
-                f"<span class='nc-sg-reason'>{escape(sg.reason)}</span>"
+                f"<span class='nc-sg-name'>{escape(sg.display_name)}</span><span class='nc-sg-reason'>{escape(sg.reason)}</span>"
                 f"</li>"
             )
         parts.append("</ul>")

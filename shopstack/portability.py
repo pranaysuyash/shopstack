@@ -333,8 +333,7 @@ def validate_import_json(database: Database, data: dict[str, Any]) -> ImportResu
         result.messages.append("Field notes would be restored.")
 
     result.messages.append(
-        f"Dry-run summary: {result.items_added} new, "
-        f"{result.items_updated} updated, "
+        f"Dry-run summary: {result.items_added} new, {result.items_updated} updated, "
         f"{result.price_observations_added} price obs"
     )
     result.messages.append("No data was written. Call import_json() to apply.")

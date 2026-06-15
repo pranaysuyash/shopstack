@@ -46,12 +46,9 @@ def get_basket_ui_html() -> str:
             if getattr(i, "notes", None):
                 row_note = f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>{i.notes}</div>"
             items_html += (
-                f"<div style='display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--border);'>"
-                f"<div>"
-                f"<span>{i.display_name}{stale_warning}{ad_warning}{status_note}</span>"
-                f"{row_note}"
-                f"</div>"
-                f"<span style='font-weight:600;'>{price_str}</span>"
+                f"<div style='display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--border);'><div>"
+                f"<span>{i.display_name}{stale_warning}{ad_warning}{status_note}</span>{row_note}"
+                f"</div><span style='font-weight:600;'>{price_str}</span>"
                 f"</div>"
             )
             
@@ -60,18 +57,12 @@ def get_basket_ui_html() -> str:
             missing_html = f"<div style='margin-top:8px;font-size: 0.6875rem;color:var(--red);'>Missing: {', '.join(c.missing_items)}</div>"
 
         card = (
-            f"<div class='home-card' style='margin-bottom:16px;{border}'>"
-            f"  <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;'>"
-            f"    <h3 style='margin:0;display:flex;align-items:center;'>{c.source_name.replace('_', ' ').title()} Basket {badge}</h3>"
-            f"    <div style='font-size: 1.25rem;font-weight:bold;'>{'--' if c.source_name == 'decision_only' else f'&#8377;{c.total_cost:.0f}'}</div>"
-            f"  </div>"
-            f"  <div style='margin-bottom:12px;'>{items_html}</div>"
-            f"  {missing_html}"
-            f"  <div style='display:flex;gap:12px;font-size: 0.75rem;color:var(--text-dim);border-top:1px solid var(--border);padding-top:8px;margin-top:8px;'>"
-            f"    <span>Score: {c.overall_score:.1f}</span>"
-            f"    <span>Freshness: {c.freshness_score:.0f}</span>"
-            f"    <span>Waste Risk: {c.waste_risk_score:.0f}</span>"
-            f"  </div>"
+            f"<div class='home-card' style='margin-bottom:16px;{border}'>  <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;'>"
+            f"    <h3 style='margin:0;display:flex;align-items:center;'>{c.source_name.replace('_', ' ').title()} Basket {badge}</h3>    <div style='font-size: 1.25rem;font-weight:bold;'>{'--' if c.source_name == 'decision_only' else f'&#8377;{c.total_cost:.0f}'}</div>"
+            f"  </div>  <div style='margin-bottom:12px;'>{items_html}</div>"
+            f"  {missing_html}  <div style='display:flex;gap:12px;font-size: 0.75rem;color:var(--text-dim);border-top:1px solid var(--border);padding-top:8px;margin-top:8px;'>"
+            f"    <span>Score: {c.overall_score:.1f}</span>    <span>Freshness: {c.freshness_score:.0f}</span>"
+            f"    <span>Waste Risk: {c.waste_risk_score:.0f}</span>  </div>"
             f"</div>"
         )
         html_parts.append(card)

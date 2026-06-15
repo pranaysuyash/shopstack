@@ -24,8 +24,7 @@ def render_shopping_completion(result: ShoppingCompletionResult) -> str:
         f"{escape(i.canonical_name)} (lot {i.lot_id[:8]})" for i in result.items_added
     )
     return (
-        f"<div style='color:var(--green);'>List completed! "
-        f"Added {result.count} items to inventory: {summary}</div>"
+        f"<div style='color:var(--green);'>List completed! Added {result.count} items to inventory: {summary}</div>"
     )
 
 
@@ -37,6 +36,5 @@ def render_mark_purchased(result: MarkPurchasedResult) -> str:
         f"{escape(i.canonical_name)} (lot {i.lot_id[:8]})" for i in result.items_added
     )
     return (
-        f"<div style='color:var(--green);'>Marked {result.count} item(s) as purchased "
-        f"and added to inventory: {summary}</div>"
+        f"<div style='color:var(--green);'>Marked {result.count} item(s) as purchased and added to inventory: {summary}</div>"
     )

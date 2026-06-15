@@ -256,8 +256,7 @@ def reconcile_shopping_trip(
     error_count = len(result.errors)
     error_suffix = f" ({error_count} error{'s' if error_count != 1 else ''})" if error_count else ""
     result.message = (
-        f"Reconciled {result.count} items: "
-        f"{result.bought_count} bought, {result.skipped_count} skipped, "
+        f"Reconciled {result.count} items: {result.bought_count} bought, {result.skipped_count} skipped, "
         f"{result.substituted_count} substituted.{error_suffix}"
     )
     result.success = error_count == 0

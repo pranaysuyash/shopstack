@@ -112,8 +112,7 @@ def _canonical_aria_live_html(content: str, level: str = "polite") -> str:
     if safe_level not in ("polite", "assertive"):
         safe_level = "polite"
     return (
-        f"<div role='status' aria-live='{safe_level}' aria-atomic='true'>"
-        f"{content}"
+        f"<div role='status' aria-live='{safe_level}' aria-atomic='true'>{content}"
         f"</div>"
     )
 
@@ -301,8 +300,7 @@ def stat_card(
             "stable": "var(--text-dim)",
         }.get(trend, "var(--text-dim)")
         trend_html = (
-            f"<span style='color:{trend_color};font-size: 0.75rem;font-weight:600;'>"
-            f"{arrow} {safe_trend}</span>"
+            f"<span style='color:{trend_color};font-size: 0.75rem;font-weight:600;'>{arrow} {safe_trend}</span>"
         )
 
     icon_html = f"<div style='font-size: 1.5rem;margin-bottom:4px;'>{safe_icon}</div>" if safe_icon else ""
@@ -312,17 +310,14 @@ def stat_card(
         import re
         safe_tab = re.sub(r"[^a-z0-9_-]", "-", str(on_click_tab).lower())
         click_attr = (
-            f" style='cursor:pointer;'"
-            f" onclick=\"var el=document.querySelector('[data-testid=tab-{safe_tab}]');"
+            f" style='cursor:pointer;' onclick=\"var el=document.querySelector('[data-testid=tab-{safe_tab}]');"
             f"if(el)el.click();\""
         )
 
     return (
-        f"<div class='stat-card' role='region' aria-label='{safe_label}: {safe_value}'{click_attr} style='{variant_style}'>"
-        f"{icon_html}"
+        f"<div class='stat-card' role='region' aria-label='{safe_label}: {safe_value}'{click_attr} style='{variant_style}'>{icon_html}"
         + (body_html if body_html else (
-            f"<div class='stat-value'>{safe_value}</div>"
-            f"<div class='stat-label'>{safe_label}</div>"
+            f"<div class='stat-value'>{safe_value}</div><div class='stat-label'>{safe_label}</div>"
             + (f"<div style='margin-top:6px;'>{trend_html}</div>" if trend_html else "")
         ))
         + "</div>"
@@ -390,8 +385,7 @@ def data_table(
     return (
         "<div class='home-card' style='text-align:left;padding:0;overflow:hidden;' role='region' aria-label='Table: " + table_desc + "'>"
         "<table style='border-collapse:collapse;width:100%;font-size: 0.8125rem;'>"
-        f"<caption class='sr-only'>{table_desc}</caption>"
-        f"<thead><tr>{head_html}</tr></thead>"
+        f"<caption class='sr-only'>{table_desc}</caption><thead><tr>{head_html}</tr></thead>"
         f"<tbody>{body_html}</tbody>"
         "</table>"
         f"{more_html}"
@@ -577,14 +571,10 @@ def toast(
 
     safekind = escape(kind)
     return (
-        f"<div class='toast toast-{safekind}' role='status' aria-live='polite'"
-        f" aria-label='{safekind}: {safe_message}'"
-        f" style='display:flex;align-items:center;gap:8px;padding:10px 14px;"
-        f"margin:6px 0;border-radius:var(--radius-sm);"
-        f"background:var(--bg-card-strong);border:1px solid {color};"
-        f"font-size: 0.8125rem;color:var(--text);'>"
-        f"<span style='color:{color};font-weight:700;' aria-hidden='true'>{icon}</span>"
-        f"<span>{safe_message}</span>"
+        f"<div class='toast toast-{safekind}' role='status' aria-live='polite' aria-label='{safekind}: {safe_message}'"
+        f" style='display:flex;align-items:center;gap:8px;padding:10px 14px;margin:6px 0;border-radius:var(--radius-sm);"
+        f"background:var(--bg-card-strong);border:1px solid {color};ont-size: 0.8125rem;color:var(--text);'>"
+        f"<span style='color:{color};font-weight:700;' aria-hidden='true'>{icon}</span><span>{safe_message}</span>"
         "</div>"
     )
 
@@ -632,19 +622,16 @@ def toast_floating(
     attrs = f"data-toast-msg='{safe_msg}' data-toast-kind='{safe_kind}'"
     if action_label and action_target_elem_id:
         attrs += (
-            f" data-toast-action-label='{escape(action_label)}'"
-            f" data-toast-action-target='{escape(action_target_elem_id)}'"
+            f" data-toast-action-label='{escape(action_label)}' data-toast-action-target='{escape(action_target_elem_id)}'"
         )
         if action_value is not None and action_value_target_elem_id:
             attrs += (
-                f" data-toast-action-value='{escape(str(action_value))}'"
-                f" data-toast-action-value-target='{escape(action_value_target_elem_id)}'"
+                f" data-toast-action-value='{escape(str(action_value))}' data-toast-action-value-target='{escape(action_value_target_elem_id)}'"
             )
     # Screen-reader-only fallback (sr-only) so AT announces the result
     # even if the floating toast is not visible.
     return (
-        f"<div class='ss-toast-trigger' style='display:none;' {attrs}></div>"
-        f"<span class='sr-only' role='status' aria-live='polite'>"
+        f"<div class='ss-toast-trigger' style='display:none;' {attrs}></div><span class='sr-only' role='status' aria-live='polite'>"
         f"{escape(kind.title())}: {safe_msg}"
         "</span>"
     )
@@ -672,22 +659,19 @@ def loading_skeleton(
 
     if variant == "card":
         skeleton_lines = "".join(
-            f"<div class='{pulse}' style='height:14px;margin:8px 0;border-radius:4px;"
-            f"width:{90 - (i * 15)}%;'></div>"
+            f"<div class='{pulse}' style='height:14px;margin:8px 0;border-radius:4px;width:{90 - (i * 15)}%;'></div>"
             for i in range(min(lines, 5))
         )
         return (
             "<div class='home-card' style='text-align:left;'>"
-            f"<div class='{pulse}' style='height:20px;width:40%;margin-bottom:12px;border-radius:4px;'></div>"
-            f"{skeleton_lines}"
+            f"<div class='{pulse}' style='height:20px;width:40%;margin-bottom:12px;border-radius:4px;'></div>{skeleton_lines}"
             "</div>"
         )
 
     if variant == "metric":
         return (
             "<div class='metric-card'>"
-            f"<div class='{pulse}' style='height:36px;width:60%;margin:8px 0;border-radius:6px;'></div>"
-            f"<div class='{pulse}' style='height:12px;width:40%;border-radius:4px;'></div>"
+            f"<div class='{pulse}' style='height:36px;width:60%;margin:8px 0;border-radius:6px;'></div><div class='{pulse}' style='height:12px;width:40%;border-radius:4px;'></div>"
             "</div>"
         )
 
@@ -708,8 +692,7 @@ def loading_skeleton(
     return (
         "<div style='padding:8px 0;'>"
         + "".join(
-            f"<div class='{pulse}' style='height:14px;margin:6px 0;border-radius:4px;"
-            f"width:{95 - (i * 20)}%;'></div>"
+            f"<div class='{pulse}' style='height:14px;margin:6px 0;border-radius:4px;width:{95 - (i * 20)}%;'></div>"
             for i in range(min(lines, 4))
         )
         + "</div>"
@@ -789,8 +772,7 @@ def empty_state_enhanced(
         import re
         safe_tab = re.sub(r"[^a-z0-9_-]", "-", str(on_click_tab).lower())
         action_html = (
-            f"<button type='button' class='gr-button' style='margin-top:12px;'"
-            f" onclick=\"var el=document.querySelector('[data-testid=tab-{safe_tab}]');"
+            f"<button type='button' class='gr-button' style='margin-top:12px;' onclick=\"var el=document.querySelector('[data-testid=tab-{safe_tab}]');"
             f"if(el)el.click();\">"
             f"{safe_action}</button>"
         )
@@ -801,10 +783,8 @@ def empty_state_enhanced(
 
     return (
         "<div class='home-card' style='text-align:center;padding:40px 20px;' role='status' aria-label='" + safe_message + "'>"
-        f"<div style='font-size: 2.5rem;margin-bottom:12px;' aria-hidden='true'>{safe_icon}</div>"
-        f"<div class='muted' style='font-size: 0.9375rem;'>{safe_message}</div>"
-        f"{secondary_html}"
-        f"{action_html}"
+        f"<div style='font-size: 2.5rem;margin-bottom:12px;' aria-hidden='true'>{safe_icon}</div><div class='muted' style='font-size: 0.9375rem;'>{safe_message}</div>"
+        f"{secondary_html}{action_html}"
         "</div>"
     )
 
@@ -833,8 +813,7 @@ def aria_live_html(content: str, level: str = "polite") -> str:
     if safe_level not in ("polite", "assertive"):
         safe_level = "polite"
     return (
-        f"<div role='status' aria-live='{safe_level}' aria-atomic='true'>"
-        f"{content}"
+        f"<div role='status' aria-live='{safe_level}' aria-atomic='true'>{content}"
         f"</div>"
     )
 
@@ -859,8 +838,7 @@ def help_text(text: str, label_for: str = "") -> str:
     if label_for:
         safe_id = escape(str(label_for))
         return (
-            f"<div id='help-{safe_id}' class='muted' "
-            f"style='font-size: 0.6875rem;margin-top:4px;'>{safe_text}</div>"
+            f"<div id='help-{safe_id}' class='muted' style='font-size: 0.6875rem;margin-top:4px;'>{safe_text}</div>"
         )
     return (
         f"<div class='muted' style='font-size: 0.6875rem;margin-top:4px;'>{safe_text}</div>"
@@ -893,12 +871,9 @@ def form_error(message: str, field_id: str = "", level: str = "error") -> str:
     icon = "⚠" if level == "error" else "!"
     id_attr = f" id='error-{escape(str(field_id))}'" if field_id else ""
     return (
-        f"<div{id_attr} class='form-error' role='alert' "
-        f"style='display:flex;align-items:center;gap:6px;font-size: 0.75rem;"
-        f"color:{color};margin-top:4px;'>"
-        f"<span aria-hidden='true' style='font-weight:700;'>{icon}</span>"
-        f"<span>{safe_msg}</span>"
-        f"</div>"
+        f"<div{id_attr} class='form-error' role='alert' style='display:flex;align-items:center;gap:6px;font-size: 0.75rem;"
+        f"color:{color};margin-top:4px;'><span aria-hidden='true' style='font-weight:700;'>{icon}</span>"
+        f"<span>{safe_msg}</span></div>"
     )
 
 
@@ -910,12 +885,9 @@ def form_success(message: str) -> str:
     """
     safe_msg = escape(str(message))
     return (
-        f"<div role='status' aria-live='polite' "
-        f"style='display:flex;align-items:center;gap:6px;font-size: 0.75rem;"
-        f"color:var(--green);margin-top:4px;'>"
-        f"<span aria-hidden='true' style='font-weight:700;'>✓</span>"
-        f"<span>{safe_msg}</span>"
-        f"</div>"
+        f"<div role='status' aria-live='polite' style='display:flex;align-items:center;gap:6px;font-size: 0.75rem;"
+        f"color:var(--green);margin-top:4px;'><span aria-hidden='true' style='font-weight:700;'>✓</span>"
+        f"<span>{safe_msg}</span></div>"
     )
 
 

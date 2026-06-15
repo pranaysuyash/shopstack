@@ -70,14 +70,10 @@ def _render_receipt_review(result: ReceiptResult | None) -> str:
     # Replace the outer card wrapper's id so the data_table's inner card
     # is the only card, avoiding nested card borders.
     return (
-        f"<div role='region' aria-label='Receipt from {escape(result.merchant)}' style='text-align:left;'>"
-        f"<h3 id='receipt-heading'>Receipt from {escape(result.merchant)}</h3>"
-        f"<div style='font-size: 0.75rem;color:var(--text-dim);' aria-label='Purchase date'>{result.purchase_date}</div>"
-        f"<div style='margin-top:8px;' aria-labelledby='receipt-heading'>{table_html}</div>"
-        f"<div style='margin-top:8px;padding-top:8px;border-top:2px solid var(--border);font-weight:600;text-align:right;font-size: 0.875rem;'>"
-        f"Total: \u20b9{result.total:.2f}"
-        f"</div>"
-        f"</div>"
+        f"<div role='region' aria-label='Receipt from {escape(result.merchant)}' style='text-align:left;'><h3 id='receipt-heading'>Receipt from {escape(result.merchant)}</h3>"
+        f"<div style='font-size: 0.75rem;color:var(--text-dim);' aria-label='Purchase date'>{result.purchase_date}</div><div style='margin-top:8px;' aria-labelledby='receipt-heading'>{table_html}</div>"
+        f"<div style='margin-top:8px;padding-top:8px;border-top:2px solid var(--border);font-weight:600;text-align:right;font-size: 0.875rem;'>Total: \u20b9{result.total:.2f}"
+        f"</div></div>"
     )
 
 
@@ -210,24 +206,16 @@ def receipt_confirm(df_data: Any, merchant: str, date_str: str, raw_text: str) -
     summary = ir.summary_html or ""
     items_added = ir.items_added or len(lines)
     guidance = (
-        f"home_card(body='"\n        f"<h3>What\'s next?</h3>"\n        f"<div class=\'muted\' style=\'margin-bottom:8px;\'>"\n        f"{items_added} item{\'s\' if items_added != 1 else \'\'} added to your pantry.', style='margin-top:12px;text-align:left;border:2px solid var(--green, #176B49);')"
-        f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:8px;'>"
-        f"<div style='padding:10px;border:1px solid var(--border);border-radius:8px;text-align:center;cursor:pointer;'>"
-        f"<div style='font-size:1.25rem;margin-bottom:4px;'>🏠</div>"
-        f"<div style='font-weight:600;font-size:0.8125rem;'>Put groceries away</div>"
-        f"<div style='font-size:0.75rem;color:var(--text-dim);'>Move items to the right shelf</div>"
-        f"</div>"
-        f"<div style='padding:10px;border:1px solid var(--border);border-radius:8px;text-align:center;cursor:pointer;'>"
-        f"<div style='font-size:1.25rem;margin-bottom:4px;'>📋</div>"
-        f"<div style='font-weight:600;font-size:0.8125rem;'>Check your list</div>"
-        f"<div style='font-size:0.75rem;color:var(--text-dim);'>Mark off what you bought</div>"
-        f"</div>"
-        f"<div style='padding:10px;border:1px solid var(--border);border-radius:8px;text-align:center;cursor:pointer;'>"
-        f"<div style='font-size:1.25rem;margin-bottom:4px;'>🍳</div>"
-        f"<div style='font-weight:600;font-size:0.8125rem;'>See what to cook</div>"
-        f"<div style='font-size:0.75rem;color:var(--text-dim);'>Recipes from what you just bought</div>"
-        f"</div>"
-        f"</div>"
-        f"</div>"
+        f"home_card(body='<h3>What's next?</h3>"
+            f"<div class='muted' style='margin-bottom:8px;'>{items_added} item{'s' if items_added != 1 else ''} added to your pantry.', style='margin-top:12px;text-align:left;border:2px solid var(--green, #176B49);')"
+        f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:8px;'><div style='padding:10px;border:1px solid var(--border);border-radius:8px;text-align:center;cursor:pointer;'>"
+        f"<div style='font-size:1.25rem;margin-bottom:4px;'>🏠</div><div style='font-weight:600;font-size:0.8125rem;'>Put groceries away</div>"
+        f"<div style='font-size:0.75rem;color:var(--text-dim);'>Move items to the right shelf</div></div>"
+        f"<div style='padding:10px;border:1px solid var(--border);border-radius:8px;text-align:center;cursor:pointer;'><div style='font-size:1.25rem;margin-bottom:4px;'>📋</div>"
+        f"<div style='font-weight:600;font-size:0.8125rem;'>Check your list</div><div style='font-size:0.75rem;color:var(--text-dim);'>Mark off what you bought</div>"
+        f"</div><div style='padding:10px;border:1px solid var(--border);border-radius:8px;text-align:center;cursor:pointer;'>"
+        f"<div style='font-size:1.25rem;margin-bottom:4px;'>🍳</div><div style='font-weight:600;font-size:0.8125rem;'>See what to cook</div>"
+        f"<div style='font-size:0.75rem;color:var(--text-dim);'>Recipes from what you just bought</div></div>"
+        f"</div></div>"
     )
     return summary + guidance

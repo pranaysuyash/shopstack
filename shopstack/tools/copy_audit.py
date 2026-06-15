@@ -381,8 +381,7 @@ def render_markdown(report: CopyReport) -> str:
         ]
         for v in report.violations:
             lines.append(
-                f"| `{v.file}` | {v.line} | `{v.rule}` | "
-                f"`{v.matched_text[:60]}` | {v.suggestion} |"
+                f"| `{v.file}` | {v.line} | `{v.rule}` | `{v.matched_text[:60]}` | {v.suggestion} |"
             )
     lines += [
         "",
@@ -430,8 +429,7 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError:
         json_label = str(OUTPUT_JSON)
     print(
-        f"→ {md_label} "
-        f"({len(report.violations)} violations across {report.scanned_files} files)"
+        f"→ {md_label} ({len(report.violations)} violations across {report.scanned_files} files)"
     )
     print(f"→ {json_label}")
     return 0 if not report.violations else 1

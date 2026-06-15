@@ -182,11 +182,9 @@ def household_indicator_html() -> str:
             f"aria-label=\"Active household: {escape(display_name)}\" "
             f"title=\"Active household: {escape(display_name)}\" "
             f"style=\"display:inline-flex;align-items:center;gap:6px;"
-            f"padding:6px 10px;border-radius:var(--radius-sm);"
-            f"background:var(--bg-card);border:1px solid var(--border);"
+            f"padding:6px 10px;border-radius:var(--radius-sm);background:var(--bg-card);border:1px solid var(--border);"
             f"font-size: 0.75rem;color:var(--text-muted);min-height:32px;\">"
-            f"🏠&nbsp;{escape(display_name)}"
-            f"</span>"
+            f"🏠&nbsp;{escape(display_name)}</span>"
         )
     except Exception:
         # Never let a household-resolution failure break the page.

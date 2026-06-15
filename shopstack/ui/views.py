@@ -210,8 +210,7 @@ def build_price_memory_view(database: Database, item_name: str | None, user_id: 
         up_first = unit_prices[0]
         up_change = up_latest - up_first
         unit_price_info = (
-            f"<div>Unit price{unit_label}: latest <strong>{history_sorted[0].currency} {up_latest:.2f}</strong> "
-            f"({'higher' if up_change > 0 else 'lower' if up_change < 0 else 'unchanged'} vs first).</div>"
+            f"<div>Unit price{unit_label}: latest <strong>{history_sorted[0].currency} {up_latest:.2f}</strong> ({'higher' if up_change > 0 else 'lower' if up_change < 0 else 'unchanged'} vs first).</div>"
         )
         best_idx = unit_prices.index(min(unit_prices))
         best_info = f"<div>Best observed unit price <strong>{history_sorted[0].currency} {min(unit_prices):.2f}</strong>"
@@ -228,22 +227,16 @@ def build_price_memory_view(database: Database, item_name: str | None, user_id: 
         rec_colors = {"Buy now": "var(--green)", "Wait": "var(--red)", "Monitor": "var(--amber)", "Good time to buy": "var(--green)"}
         rec_color = rec_colors.get(recommendation, "var(--text)")
         rec_html = (
-            f"<div class='stat-card' style='margin-top:8px;border-left:4px solid {rec_color};'>"
-            f"<div style='font-weight:600;color:{rec_color};'>{escape(recommendation)}</div>"
-            f"<div style='font-size: 0.75rem;color:var(--text-dim);'>{escape(recommendation_detail)}</div>"
-            f"</div>"
+            f"<div class='stat-card' style='margin-top:8px;border-left:4px solid {rec_color};'><div style='font-weight:600;color:{rec_color};'>{escape(recommendation)}</div>"
+            f"<div style='font-size: 0.75rem;color:var(--text-dim);'>{escape(recommendation_detail)}</div></div>"
         )
 
     summary = (
         "<div class='stat-card' style='text-align:left;margin-bottom:12px;'>"
-        f"<h3>Price Memory for {safe_name}</h3>"
-        f"<div><strong>{len(rows)}</strong> observations across <strong>{df['store'].nunique()}</strong> stores.</div>"
-        f"<div>Latest: <strong>{history_sorted[0].currency} {latest_price:.2f}</strong> "
-        f"({direction} than first recorded by {history_sorted[0].currency} {abs(change):.2f}).</div>"
-        f"{unit_price_info}"
-        f"{best_info}"
-        f"<div>Range: {history_sorted[0].currency} {min_price:.2f} to {history_sorted[0].currency} {max_price:.2f}</div>"
-        f"<div>Last observed: {last_observed}</div>"
+        f"<h3>Price Memory for {safe_name}</h3><div><strong>{len(rows)}</strong> observations across <strong>{df['store'].nunique()}</strong> stores.</div>"
+        f"<div>Latest: <strong>{history_sorted[0].currency} {latest_price:.2f}</strong> ({direction} than first recorded by {history_sorted[0].currency} {abs(change):.2f}).</div>"
+        f"{unit_price_info}{best_info}"
+        f"<div>Range: {history_sorted[0].currency} {min_price:.2f} to {history_sorted[0].currency} {max_price:.2f}</div><div>Last observed: {last_observed}</div>"
         f"{rec_html}"
         "</div>"
     )

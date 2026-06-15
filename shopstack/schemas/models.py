@@ -373,8 +373,7 @@ class DecisionResult(BaseModel):
         color = _ACTION_COLORS.get(self.action, "var(--text-dim)")
         icon = _ACTION_ICONS.get(self.action, "")
         return (
-            f"<span style='background:{color}20;color:{color};"
-            f"padding:2px 8px;border-radius:4px;font-size: 0.6875rem;font-weight:600;'>"
+            f"<span style='background:{color}20;color:{color};padding:2px 8px;border-radius:4px;font-size: 0.6875rem;font-weight:600;'>"
             f"{icon} {self.action.upper()}</span>"
         )
 

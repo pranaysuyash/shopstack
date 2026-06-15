@@ -679,10 +679,8 @@ def render_timeline_html(result: TimelineResult, *, max_buckets: int = 14) -> st
         parts.append("<ul class='al-timeline'>")
         for bucket in result.buckets[:max_buckets]:
             parts.append(
-                f"<li class='al-tl-day'>"
-                f"<span class='al-tl-date'>{escape(bucket.date)}</span>"
-                f"<span class='al-tl-count'>{len(bucket.events)} event(s)</span>"
-                f"</li>"
+                f"<li class='al-tl-day'><span class='al-tl-date'>{escape(bucket.date)}</span>"
+                f"<span class='al-tl-count'>{len(bucket.events)} event(s)</span></li>"
             )
             for ev in bucket.events:
                 label, emoji = event_label(ev.event_type)
@@ -695,10 +693,8 @@ def render_timeline_html(result: TimelineResult, *, max_buckets: int = 14) -> st
                     title_bits.append(f"— {escape(ev.notes)}")
                 ts_str = ev.timestamp.strftime("%H:%M") if ev.timestamp else ""
                 parts.append(
-                    f"<li class='al-tl-event'>"
-                    f"<span class='al-tl-time'>{escape(ts_str)}</span>"
-                    f"<span class='al-tl-body'>{' '.join(title_bits)}</span>"
-                    f"</li>"
+                    f"<li class='al-tl-event'><span class='al-tl-time'>{escape(ts_str)}</span>"
+                    f"<span class='al-tl-body'>{' '.join(title_bits)}</span></li>"
                 )
         parts.append("</ul>")
 

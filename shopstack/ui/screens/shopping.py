@@ -27,7 +27,7 @@ from shopstack.ui.components.primitives import (
     empty_state_enhanced,
     item_row,
     toast,
-    toast_floating,,
+    toast_floating,
     home_card,
 )
 from shopstack.ui.renderers import render_mark_purchased, render_shopping_completion

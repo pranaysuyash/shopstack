@@ -46,7 +46,9 @@ def store_mode_view() -> str:
     ]
     if not items:
         return (
-            "home_card(body='"\n            "<h3>✅ All done!</h3>"\n            "<div class=\'muted\'>Every item on your list has been checked off.', style='text-align:center;padding:24px;')"
+            "home_card(body='"
+            "<h3>✅ All done!</h3>"
+            "<div class='muted'>Every item on your list has been checked off.', style='text-align:center;padding:24px;')"
             "</div>"
         )
 
@@ -62,19 +64,13 @@ def store_mode_view() -> str:
         qty_display = f"{qty:.0f}" if qty == int(qty) else f"{qty:.1f}"
 
         return (
-            f"<div class='store-mode-item' "
-            f"style='display:flex;align-items:center;gap:12px;"
-            f"padding:14px 16px;border-bottom:1px solid var(--border);"
-            f"min-height:56px;cursor:pointer;' "
+            f"<div class='store-mode-item' style='display:flex;align-items:center;gap:12px;"
+            f"padding:14px 16px;border-bottom:1px solid var(--border);min-height:56px;cursor:pointer;' "
             f"onclick='this.style.opacity=\"0.4\";this.style.textDecoration=\"line-through\"'>"
-            f"<div style='min-width:48px;min-height:48px;display:flex;align-items:center;"
-            f"justify-content:center;border:2px solid var(--border);border-radius:12px;"
-            f"font-size:1.25rem;color:var(--text-dim);'>☐</div>"
-            f"<div style='flex:1;'>"
-            f"<div style='font-size:1.125rem;font-weight:600;'>{escape(name)}</div>"
-            f"<div style='font-size:0.875rem;color:var(--text-dim);'>{escape(qty_display)} {escape(unit)}</div>"
-            f"</div>"
-            f"</div>"
+            f"<div style='min-width:48px;min-height:48px;display:flex;align-items:center;justify-content:center;border:2px solid var(--border);border-radius:12px;"
+            f"font-size:1.25rem;color:var(--text-dim);'>☐</div><div style='flex:1;'>"
+            f"<div style='font-size:1.125rem;font-weight:600;'>{escape(name)}</div><div style='font-size:0.875rem;color:var(--text-dim);'>{escape(qty_display)} {escape(unit)}</div>"
+            f"</div></div>"
         )
 
     def _render_group(title: str, group_items: list, color: str) -> str:
@@ -82,14 +78,10 @@ def store_mode_view() -> str:
             return ""
         cards = "".join(_render_item_card(item, i) for i, item in enumerate(group_items))
         return (
-            f"<div style='margin-bottom:16px;'>"
-            f"<div style='font-size:0.75rem;font-weight:600;color:{color};"
-            f"letter-spacing:0.05em;text-transform:uppercase;padding:4px 16px;'>"
-            f"{escape(title)} ({len(group_items)})</div>"
-            f"<div style='border:1px solid var(--border);border-radius:12px;overflow:hidden;'>"
-            f"{cards}"
-            f"</div>"
-            f"</div>"
+            f"<div style='margin-bottom:16px;'><div style='font-size:0.75rem;font-weight:600;color:{color};"
+            f"letter-spacing:0.05em;text-transform:uppercase;padding:4px 16px;'>{escape(title)} ({len(group_items)})</div>"
+            f"<div style='border:1px solid var(--border);border-radius:12px;overflow:hidden;'>{cards}"
+            f"</div></div>"
         )
 
     remaining = len(items)
@@ -101,25 +93,15 @@ def store_mode_view() -> str:
             progress_pct = int(done / (total + done) * 100)
 
     return (
-        f"<div style='text-align:left;'>"
-        f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;'>"
-        f"<div>"
-        f"<h3 style='margin:0;'>🛒 In-store mode</h3>"
-        f"<div class='muted' style='font-size:0.8125rem;'>{remaining} item{'s' if remaining != 1 else ''} left</div>"
-        f"</div>"
-        f"<div style='text-align:right;'>"
-        f"<div style='font-size:0.75rem;color:var(--text-dim);'>Progress</div>"
-        f"<div style='font-size:1.5rem;font-weight:700;'>{progress_pct}%</div>"
-        f"</div>"
-        f"</div>"
-        f"<div style='height:4px;background:var(--border);border-radius:2px;margin-bottom:16px;'>"
-        f"<div style='height:100%;width:{progress_pct}%;background:var(--green);border-radius:2px;transition:width 0.3s;'></div>"
-        f"</div>"
-        f"{_render_group('Must buy', must_buy, 'var(--green)')}"
-        f"{_render_group('Optional', optional, 'var(--blue)')}"
-        f"{_render_group('Other', other, 'var(--text-dim)')}"
-        f"<div style='text-align:center;margin-top:16px;padding:12px;font-size:0.75rem;color:var(--text-dim);'>"
-        f"Tap an item to mark it as checked"
-        f"</div>"
+        f"<div style='text-align:left;'><div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;'>"
+        f"<div><h3 style='margin:0;'>🛒 In-store mode</h3>"
+        f"<div class='muted' style='font-size:0.8125rem;'>{remaining} item{'s' if remaining != 1 else ''} left</div></div>"
+        f"<div style='text-align:right;'><div style='font-size:0.75rem;color:var(--text-dim);'>Progress</div>"
+        f"<div style='font-size:1.5rem;font-weight:700;'>{progress_pct}%</div></div>"
+        f"</div><div style='height:4px;background:var(--border);border-radius:2px;margin-bottom:16px;'>"
+        f"<div style='height:100%;width:{progress_pct}%;background:var(--green);border-radius:2px;transition:width 0.3s;'></div></div>"
+        f"{_render_group('Must buy', must_buy, 'var(--green)')}{_render_group('Optional', optional, 'var(--blue)')}"
+        f"{_render_group('Other', other, 'var(--text-dim)')}<div style='text-align:center;margin-top:16px;padding:12px;font-size:0.75rem;color:var(--text-dim);'>"
+        f"Tap an item to mark it as checked</div>"
         f"</div>"
     )

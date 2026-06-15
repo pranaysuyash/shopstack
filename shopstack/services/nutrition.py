@@ -188,10 +188,8 @@ def format_nutrition_html(summary: NutritionSummary) -> str:
 
     macro_grid = (
         "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:12px 0;'>"
-        f"{render_metric('Calories', f'{summary.total_calories:.0f} kcal')}"
-        f"{render_metric('Protein', f'{summary.total_protein:.1f} g')}"
-        f"{render_metric('Carbs', f'{summary.total_carbs:.1f} g')}"
-        f"{render_metric('Fat', f'{summary.total_fat:.1f} g')}"
+        f"{render_metric('Calories', f'{summary.total_calories:.0f} kcal')}{render_metric('Protein', f'{summary.total_protein:.1f} g')}"
+        f"{render_metric('Carbs', f'{summary.total_carbs:.1f} g')}{render_metric('Fat', f'{summary.total_fat:.1f} g')}"
         "</div>"
     )
 
@@ -202,12 +200,9 @@ def format_nutrition_html(summary: NutritionSummary) -> str:
         for item in summary.items:
             rows += (
                 "<tr>"
-                f"<td style='border-bottom:1px solid var(--border);padding:6px 8px'>{escape(str(item['name']))}</td>"
-                f"<td style='border-bottom:1px solid var(--border);padding:6px 8px'>{item['quantity']:.1f} {escape(str(item['unit']))}</td>"
-                f"<td style='border-bottom:1px solid var(--border);padding:6px 8px'>{item['calories_kcal']:.0f}</td>"
-                f"<td style='border-bottom:1px solid var(--border);padding:6px 8px'>{item['protein_g']:.1f}</td>"
-                f"<td style='border-bottom:1px solid var(--border);padding:6px 8px'>{item['carbs_g']:.1f}</td>"
-                f"<td style='border-bottom:1px solid var(--border);padding:6px 8px'>{item['fat_g']:.1f}</td>"
+                f"<td style='border-bottom:1px solid var(--border);padding:6px 8px'>{escape(str(item['name']))}</td><td style='border-bottom:1px solid var(--border);padding:6px 8px'>{item['quantity']:.1f} {escape(str(item['unit']))}</td>"
+                f"<td style='border-bottom:1px solid var(--border);padding:6px 8px'>{item['calories_kcal']:.0f}</td><td style='border-bottom:1px solid var(--border);padding:6px 8px'>{item['protein_g']:.1f}</td>"
+                f"<td style='border-bottom:1px solid var(--border);padding:6px 8px'>{item['carbs_g']:.1f}</td><td style='border-bottom:1px solid var(--border);padding:6px 8px'>{item['fat_g']:.1f}</td>"
                 "</tr>"
             )
         items_html = (
@@ -261,12 +256,9 @@ def lookup_nutrition_html(query: str) -> str:
 
     per_100g_grid = (
         "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:12px 0;'>"
-        f"{render_metric('Calories', f'{info.calories_kcal:.0f} kcal')}"
-        f"{render_metric('Protein', f'{info.protein_g:.1f} g')}"
-        f"{render_metric('Carbs', f'{info.carbs_g:.1f} g')}"
-        f"{render_metric('Fat', f'{info.fat_g:.1f} g')}"
-        f"{render_metric('Fiber', f'{info.fiber_g:.1f} g')}"
-        f"{render_metric('Calcium', f'{info.calcium_mg:.0f} mg')}"
+        f"{render_metric('Calories', f'{info.calories_kcal:.0f} kcal')}{render_metric('Protein', f'{info.protein_g:.1f} g')}"
+        f"{render_metric('Carbs', f'{info.carbs_g:.1f} g')}{render_metric('Fat', f'{info.fat_g:.1f} g')}"
+        f"{render_metric('Fiber', f'{info.fiber_g:.1f} g')}{render_metric('Calcium', f'{info.calcium_mg:.0f} mg')}"
         f"{render_metric('Iron', f'{info.iron_mg:.1f} mg')}"
         "</div>"
     )
@@ -275,10 +267,8 @@ def lookup_nutrition_html(query: str) -> str:
         f"Per Common Serving ({info.common_serving_amount:.0f} {escape(info.common_serving_unit)})",
         (
             "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;'>"
-            f"{render_metric('Calories', f'{info.calories_kcal * serving_mult:.0f} kcal')}"
-            f"{render_metric('Protein', f'{info.protein_g * serving_mult:.1f} g')}"
-            f"{render_metric('Carbs', f'{info.carbs_g * serving_mult:.1f} g')}"
-            f"{render_metric('Fat', f'{info.fat_g * serving_mult:.1f} g')}"
+            f"{render_metric('Calories', f'{info.calories_kcal * serving_mult:.0f} kcal')}{render_metric('Protein', f'{info.protein_g * serving_mult:.1f} g')}"
+            f"{render_metric('Carbs', f'{info.carbs_g * serving_mult:.1f} g')}{render_metric('Fat', f'{info.fat_g * serving_mult:.1f} g')}"
             "</div>"
         ),
     )
@@ -293,8 +283,7 @@ def lookup_nutrition_html(query: str) -> str:
     )
 
     return (
-        f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px;'>"
-        f"<h3 style='margin:0;'>{escape(info.canonical_name.title())}</h3>"
+        f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px;'><h3 style='margin:0;'>{escape(info.canonical_name.title())}</h3>"
         f"{category_badge}"
         "</div>"
         + ui_card("Per 100g", per_100g_grid)

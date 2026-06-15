@@ -35,8 +35,7 @@ def get_intelligence_dashboard():
                 rate = w["waste_rate"] * 100
                 if rate > 0:
                     waste_items.append(
-                        f"<li><strong>{escape(w['canonical_name'].title())}</strong>: "
-                        f"{w['wasted_qty']} wasted out of {w['wasted_qty']+w['consumed_qty']} ({rate:.0f}% waste rate)</li>"
+                        f"<li><strong>{escape(w['canonical_name'].title())}</strong>: {w['wasted_qty']} wasted out of {w['wasted_qty']+w['consumed_qty']} ({rate:.0f}% waste rate)</li>"
                     )
 
             if waste_items:
@@ -87,13 +86,10 @@ def _render_preferences(user_id: str) -> str:
             source = escape(p.source or "")
             confidence = f"{p.confidence:.0%}" if p.confidence else ""
             rows.append(
-                f"<div style='display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--border);'>"
-                f"<span><strong>{name}</strong> &rarr; {value}"
-                f" <span style='font-size: 0.625rem;color:var(--text-dim);'>({source}, {confidence})</span></span>"
-                f"<button onclick=\"fetch('/api/preference_delete?signal_id={p.signal_id}')"
+                f"<div style='display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--border);'><span><strong>{name}</strong> &rarr; {value}"
+                f" <span style='font-size: 0.625rem;color:var(--text-dim);'>({source}, {confidence})</span></span><button onclick=\"fetch('/api/preference_delete?signal_id={p.signal_id}')"
                 f".then(r=>r.json()).then(d=>{{if(d.ok){{this.parentElement.remove();}}}})\""
-                f" style='font-size: 0.625rem;padding:2px 6px;border:1px solid var(--red);color:var(--red);"
-                f"background:none;border-radius:3px;cursor:pointer;'>Remove</button></div>"
+                f" style='font-size: 0.625rem;padding:2px 6px;border:1px solid var(--red);color:var(--red);background:none;border-radius:3px;cursor:pointer;'>Remove</button></div>"
             )
         sections.append(
             f"<div style='margin-bottom:12px;'><h5 style='margin:4px 0;color:var(--blue);'>{label} ({len(items)})</h5>"

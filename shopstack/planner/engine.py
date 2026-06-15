@@ -361,8 +361,7 @@ class PlannerEngine:
             match = self._contains_suspicious_text(value)
             if match is not None:
                 return (
-                    f"Rejected tool '{tool}' arg '{key}': "
-                    f"value contains suspicious pattern '{match}'"
+                    f"Rejected tool '{tool}' arg '{key}': value contains suspicious pattern '{match}'"
                 )
         return None
 
@@ -439,8 +438,7 @@ class PlannerEngine:
                 "tool": "respond",
                 "success": True,
                 "message": (
-                    f"Planner requested {len(tool_calls)} actions; "
-                    f"executing first {self.MAX_TOOL_CALLS_PER_RUN} for safety."
+                    f"Planner requested {len(tool_calls)} actions; executing first {self.MAX_TOOL_CALLS_PER_RUN} for safety."
                 ),
             })
 
@@ -578,15 +576,13 @@ class PlannerEngine:
         summary = self.session_cost
         return (
             "Cost budget exceeded. "
-            f"Budget: ${summary['budget_limit']:.2f}, "
-            f"Spent: ${summary['total_cost']:.2f}."
+            f"Budget: ${summary['budget_limit']:.2f}, Spent: ${summary['total_cost']:.2f}."
         )
 
     def _budget_blocked_html(self) -> str:
         return (
             "<div class='stat-card'>"
-            f"<div style='font-weight:600;color:var(--red);'>Cost budget blocked</div>"
-            f"<div>{escape(self._cost_blocked_reason())}</div>"
+            f"<div style='font-weight:600;color:var(--red);'>Cost budget blocked</div><div>{escape(self._cost_blocked_reason())}</div>"
             "</div>"
         )
 
@@ -609,14 +605,12 @@ class PlannerEngine:
             if success:
                 if action:
                     html_parts.append(
-                        f"<div style='padding:6px;margin:2px 0;color:var(--text-main);'>"
-                        f"<span style='color:var(--green);'>&#10003;</span> {action}</div>"
+                        f"<div style='padding:6px;margin:2px 0;color:var(--text-main);'><span style='color:var(--green);'>&#10003;</span> {action}</div>"
                     )
             else:
                 err = outcome.get("error", "Unknown error")
                 html_parts.append(
-                    f"<div style='padding:6px;margin:2px 0;color:var(--red);'>"
-                    f"&#10007; {escape(str(tool))}: {escape(str(err))}</div>"
+                    f"<div style='padding:6px;margin:2px 0;color:var(--red);'>&#10007; {escape(str(tool))}: {escape(str(err))}</div>"
                 )
 
         if not html_parts:
@@ -625,8 +619,6 @@ class PlannerEngine:
         title = f"{settings.app_name} AI"
         body = "".join(html_parts)
         return (
-            f"<div class='stat-card'>"
-            f"<div style='font-weight:600;margin-bottom:8px;'>{title}</div>"
-            f"{body}"
-            f"</div>"
+            f"<div class='stat-card'><div style='font-weight:600;margin-bottom:8px;'>{title}</div>"
+            f"{body}</div>"
         )

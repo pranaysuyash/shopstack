@@ -439,14 +439,10 @@ def render_intent_html(parsed: dict[str, Any]) -> str:
     )
     return (
         "<div class='ic-block'>"
-        f"<div class='ic-raw'>{escape(raw)}</div>"
-        f"<div class='ic-intent'>"
-        f"<span class='ic-label'>Intent:</span> "
-        f"<code>{escape(intent)}</code>"
-        f"<span class='ic-conf' style='color:{color};'>"
-        f" · {confidence * 100:.0f}%</span>"
-        f"</div>"
-        f"<div class='ic-args'>{args_html}</div>"
+        f"<div class='ic-raw'>{escape(raw)}</div><div class='ic-intent'>"
+        f"<span class='ic-label'>Intent:</span> <code>{escape(intent)}</code>"
+        f"<span class='ic-conf' style='color:{color};'> · {confidence * 100:.0f}%</span>"
+        f"</div><div class='ic-args'>{args_html}</div>"
         f"</div>"
     )
 

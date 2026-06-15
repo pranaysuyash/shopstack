@@ -107,8 +107,7 @@ def create_find_object(
         notes=(notes or "").strip() or None,
     ), user_id=uid)
     return (
-        f"<div style='color:var(--green);'>Created findable object "
-        f"{escape(obj.display_name)} ({escape(obj.object_id)}).</div>"
+        f"<div style='color:var(--green);'>Created findable object {escape(obj.display_name)} ({escape(obj.object_id)}).</div>"
     )
 
 
@@ -128,8 +127,7 @@ def record_object_sighting(object_id: str, location_id: str, context: str = "", 
         notes=(notes or "").strip() or None,
     ), user_id=uid)
     return (
-        f"<div style='color:var(--green);'>Recorded sighting for "
-        f"{escape(obj.display_name)} at {escape(sighting.location_id)}.</div>"
+        f"<div style='color:var(--green);'>Recorded sighting for {escape(obj.display_name)} at {escape(sighting.location_id)}.</div>"
     )
 
 
@@ -184,10 +182,8 @@ def _empty_state() -> str:
 
 def _no_results(query: str) -> str:
     return (
-        f"<div class='stat-card' style='text-align:center;padding:20px;'>"
-        f"<div style='font-weight:600;'>No results for '{escape(query)}'</div>"
-        f"<div style='font-size:0.75rem;color:var(--text-dim);margin-top:4px;'>"
-        f"Try a different search term or add this item to inventory."
+        f"<div class='stat-card' style='text-align:center;padding:20px;'><div style='font-weight:600;'>No results for '{escape(query)}'</div>"
+        f"<div style='font-size:0.75rem;color:var(--text-dim);margin-top:4px;'>Try a different search term or add this item to inventory."
         f"</div></div>"
     )
 
@@ -196,12 +192,9 @@ def _render_header(result_set) -> str:
     count = result_set.count
     label = "result" if count == 1 else "results"
     return (
-        f"<div class='stat-card' style='{_CARD_STYLE}'>"
-        f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
-        f"<div><span style='font-weight:600;'>'{escape(result_set.query)}'</span>"
-        f"<span style='font-size:0.75rem;color:var(--text-dim);margin-left:8px;'>"
-        f"{count} {label}</span></div>"
-        f"</div></div>"
+        f"<div class='stat-card' style='{_CARD_STYLE}'><div style='display:flex;justify-content:space-between;align-items:center;'>"
+        f"<div><span style='font-weight:600;'>'{escape(result_set.query)}'</span><span style='font-size:0.75rem;color:var(--text-dim);margin-left:8px;'>"
+        f"{count} {label}</span></div></div></div>"
     )
 
 
@@ -228,14 +221,10 @@ def _render_trail_card(result) -> str:
 
     body = "".join(s for s in sections if s)
     return (
-        f"<div class='stat-card' style='{_CARD_STYLE}'>"
-        f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
-        f"<div><div style='font-weight:600;font-size:1rem;'>{title}</div>"
-        f"<div style='font-size:0.625rem;color:var(--text-dim);'>{escape(str(result.entity_type))} · {escape(str(entity_id))}</div></div>"
-        f"<span style='{_BADGE_STYLE}background:{badge_color};color:#fff;'>{confidence_label}</span>"
-        f"</div>"
-        f"{body}"
-        f"</div>"
+        f"<div class='stat-card' style='{_CARD_STYLE}'><div style='display:flex;justify-content:space-between;align-items:center;'>"
+        f"<div><div style='font-weight:600;font-size:1rem;'>{title}</div><div style='font-size:0.625rem;color:var(--text-dim);'>{escape(str(result.entity_type))} · {escape(str(entity_id))}</div></div>"
+        f"<span style='{_BADGE_STYLE}background:{badge_color};color:#fff;'>{confidence_label}</span></div>"
+        f"{body}</div>"
     )
 
 
@@ -250,22 +239,17 @@ def _render_location_section(result) -> str:
     rows = ""
     if normal_home:
         rows += (
-            f"<div style='display:flex;align-items:center;gap:8px;margin-top:6px;'>"
-            f"<span style='font-size:0.625rem;color:var(--text-dim);min-width:100px;'>Normal Home</span>"
-            f"<span style='font-weight:500;'>{escape(normal_home)}</span>"
-            f"</div>"
+            f"<div style='display:flex;align-items:center;gap:8px;margin-top:6px;'><span style='font-size:0.625rem;color:var(--text-dim);min-width:100px;'>Normal Home</span>"
+            f"<span style='font-weight:500;'>{escape(normal_home)}</span></div>"
         )
     if current and current != normal_home:
         rows += (
-            f"<div style='display:flex;align-items:center;gap:8px;margin-top:4px;'>"
-            f"<span style='font-size:0.625rem;color:var(--text-dim);min-width:100px;'>Believed Now</span>"
-            f"<span style='font-weight:500;color:var(--green);'>{escape(current)}</span>"
-            f"</div>"
+            f"<div style='display:flex;align-items:center;gap:8px;margin-top:4px;'><span style='font-size:0.625rem;color:var(--text-dim);min-width:100px;'>Believed Now</span>"
+            f"<span style='font-weight:500;color:var(--green);'>{escape(current)}</span></div>"
         )
 
     return (
-        f"<div style='margin-top:10px;padding-top:8px;border-top:1px solid {_COLOR_BORDER};'>"
-        f"<div style='font-size:0.6875rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;'>Location</div>"
+        f"<div style='margin-top:10px;padding-top:8px;border-top:1px solid {_COLOR_BORDER};'><div style='font-size:0.6875rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;'>Location</div>"
         f"{rows}</div>"
     )
 
@@ -286,25 +270,18 @@ def _render_likely_locations(result) -> str:
         decay_badge = ""
         if decay < 0.8:
             decay_badge = (
-                f"<span style='font-size:0.625rem;color:var(--amber);margin-left:4px;'>"
-                f"⏰ {decay:.0%}</span>"
+                f"<span style='font-size:0.625rem;color:var(--amber);margin-left:4px;'>⏰ {decay:.0%}</span>"
             )
         rows += (
-            f"<div style='margin-top:6px;'>"
-            f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
-            f"<span style='font-size:0.75rem;font-weight:500;'>{escape(loc.location_name)}</span>"
-            f"<span style='font-size:0.6875rem;color:var(--text-dim);'>{score:.0%}{decay_badge}</span>"
-            f"</div>"
-            f"<div style='height:4px;background:var(--border);border-radius:2px;margin-top:3px;'>"
-            f"<div style='height:100%;width:{bar_width}%;background:{color};border-radius:2px;'></div>"
-            f"</div>"
-            f"<div style='font-size:0.625rem;color:var(--text-dim);margin-top:2px;'>{escape(reasons)}</div>"
-            f"</div>"
+            f"<div style='margin-top:6px;'><div style='display:flex;justify-content:space-between;align-items:center;'>"
+            f"<span style='font-size:0.75rem;font-weight:500;'>{escape(loc.location_name)}</span><span style='font-size:0.6875rem;color:var(--text-dim);'>{score:.0%}{decay_badge}</span>"
+            f"</div><div style='height:4px;background:var(--border);border-radius:2px;margin-top:3px;'>"
+            f"<div style='height:100%;width:{bar_width}%;background:{color};border-radius:2px;'></div></div>"
+            f"<div style='font-size:0.625rem;color:var(--text-dim);margin-top:2px;'>{escape(reasons)}</div></div>"
         )
 
     return (
-        f"<div style='margin-top:10px;padding-top:8px;border-top:1px solid {_COLOR_BORDER};'>"
-        f"<div style='font-size:0.6875rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;'>Likely Locations</div>"
+        f"<div style='margin-top:10px;padding-top:8px;border-top:1px solid {_COLOR_BORDER};'><div style='font-size:0.6875rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;'>Likely Locations</div>"
         f"{rows}</div>"
     )
 
@@ -328,20 +305,15 @@ def _render_movement_trail(result) -> str:
             time_str = ts[:16] if ts else "?"
         connector = "↓" if i < len(trail) - 1 else "●"
         rows += (
-            f"<div style='display:flex;gap:10px;margin-top:4px;'>"
-            f"<div style='min-width:20px;text-align:center;font-size:0.75rem;color:var(--text-dim);'>{connector}</div>"
-            f"<div style='flex:1;'>"
-            f"<div style='font-size:0.75rem;'>"
-            f"<span style='color:var(--text-dim);'>{escape(str(from_name))}</span>"
-            f" → <span style='font-weight:500;'>{escape(str(to_name))}</span>"
-            f"</div>"
-            f"<div style='font-size:0.625rem;color:var(--text-dim);'>{escape(time_str)} · {escape(source)}</div>"
+            f"<div style='display:flex;gap:10px;margin-top:4px;'><div style='min-width:20px;text-align:center;font-size:0.75rem;color:var(--text-dim);'>{connector}</div>"
+            f"<div style='flex:1;'><div style='font-size:0.75rem;'>"
+            f"<span style='color:var(--text-dim);'>{escape(str(from_name))}</span> → <span style='font-weight:500;'>{escape(str(to_name))}</span>"
+            f"</div><div style='font-size:0.625rem;color:var(--text-dim);'>{escape(time_str)} · {escape(source)}</div>"
             f"</div></div>"
         )
 
     return (
-        f"<div style='margin-top:10px;padding-top:8px;border-top:1px solid {_COLOR_BORDER};'>"
-        f"<div style='font-size:0.6875rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;'>Movement Trail</div>"
+        f"<div style='margin-top:10px;padding-top:8px;border-top:1px solid {_COLOR_BORDER};'><div style='font-size:0.6875rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;'>Movement Trail</div>"
         f"{rows}</div>"
     )
 
@@ -355,16 +327,13 @@ def _render_negative_memory(result) -> str:
     rows = ""
     for mem in mems[:3]:
         rows += (
-            f"<div style='display:flex;align-items:center;gap:6px;margin-top:4px;'>"
-            f"<span style='color:var(--red);font-size:0.75rem;'>✗</span>"
-            f"<span style='font-size:0.75rem;'>{escape(mem.location_name)}</span>"
-            f"<span style='font-size:0.625rem;color:var(--text-dim);'>— {escape(mem.source)}</span>"
+            f"<div style='display:flex;align-items:center;gap:6px;margin-top:4px;'><span style='color:var(--red);font-size:0.75rem;'>✗</span>"
+            f"<span style='font-size:0.75rem;'>{escape(mem.location_name)}</span><span style='font-size:0.625rem;color:var(--text-dim);'>— {escape(mem.source)}</span>"
             f"</div>"
         )
 
     return (
-        f"<div style='margin-top:10px;padding-top:8px;border-top:1px solid {_COLOR_BORDER};'>"
-        f"<div style='font-size:0.6875rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;'>Confirmed NOT At</div>"
+        f"<div style='margin-top:10px;padding-top:8px;border-top:1px solid {_COLOR_BORDER};'><div style='font-size:0.6875rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;'>Confirmed NOT At</div>"
         f"{rows}</div>"
     )
 
@@ -379,16 +348,13 @@ def _render_person_associations(result) -> str:
     for pa in persons[:3]:
         emoji = "👤" if pa.relationship == "owner" else "👤"
         rows += (
-            f"<div style='display:flex;align-items:center;gap:6px;margin-top:4px;'>"
-            f"<span style='font-size:0.75rem;'>{emoji}</span>"
-            f"<span style='font-size:0.75rem;font-weight:500;'>{escape(pa.person_name)}</span>"
-            f"<span style='font-size:0.625rem;color:var(--text-dim);'>— {escape(pa.relationship)}</span>"
+            f"<div style='display:flex;align-items:center;gap:6px;margin-top:4px;'><span style='font-size:0.75rem;'>{emoji}</span>"
+            f"<span style='font-size:0.75rem;font-weight:500;'>{escape(pa.person_name)}</span><span style='font-size:0.625rem;color:var(--text-dim);'>— {escape(pa.relationship)}</span>"
             f"</div>"
         )
 
     return (
-        f"<div style='margin-top:10px;padding-top:8px;border-top:1px solid {_COLOR_BORDER};'>"
-        f"<div style='font-size:0.6875rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;'>Associated People</div>"
+        f"<div style='margin-top:10px;padding-top:8px;border-top:1px solid {_COLOR_BORDER};'><div style='font-size:0.6875rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;'>Associated People</div>"
         f"{rows}</div>"
     )
 
@@ -402,17 +368,13 @@ def _render_search_plan(result) -> str:
     rows = ""
     for i, step in enumerate(plan[:5]):
         rows += (
-            f"<div style='display:flex;align-items:center;gap:8px;margin-top:4px;'>"
-            f"<span style='min-width:18px;height:18px;border-radius:50%;background:var(--blue);color:#fff;"
-            f"display:flex;align-items:center;justify-content:center;font-size:0.625rem;font-weight:700;'>"
-            f"{i + 1}</span>"
-            f"<span style='font-size:0.75rem;'>{escape(step)}</span>"
-            f"</div>"
+            f"<div style='display:flex;align-items:center;gap:8px;margin-top:4px;'><span style='min-width:18px;height:18px;border-radius:50%;background:var(--blue);color:#fff;"
+            f"display:flex;align-items:center;justify-content:center;font-size:0.625rem;font-weight:700;'>{i + 1}</span>"
+            f"<span style='font-size:0.75rem;'>{escape(step)}</span></div>"
         )
 
     return (
-        f"<div style='margin-top:10px;padding-top:8px;border-top:1px solid {_COLOR_BORDER};'>"
-        f"<div style='font-size:0.6875rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;'>Search Plan</div>"
+        f"<div style='margin-top:10px;padding-top:8px;border-top:1px solid {_COLOR_BORDER};'><div style='font-size:0.6875rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;'>Search Plan</div>"
         f"{rows}</div>"
     )
 
@@ -437,13 +399,11 @@ def _render_actions(result) -> str:
     for action in actions[:5]:
         label = labels.get(action, action)
         pills += (
-            f"<span style='display:inline-block;padding:3px 10px;border-radius:12px;"
-            f"background:var(--border);font-size:0.6875rem;margin-right:6px;margin-top:4px;cursor:pointer;'>"
+            f"<span style='display:inline-block;padding:3px 10px;border-radius:12px;background:var(--border);font-size:0.6875rem;margin-right:6px;margin-top:4px;cursor:pointer;'>"
             f"{escape(label)}</span>"
         )
 
     return (
-        f"<div style='margin-top:10px;padding-top:8px;border-top:1px solid {_COLOR_BORDER};'>"
-        f"<div style='font-size:0.6875rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;'>Actions</div>"
+        f"<div style='margin-top:10px;padding-top:8px;border-top:1px solid {_COLOR_BORDER};'><div style='font-size:0.6875rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;'>Actions</div>"
         f"<div>{pills}</div></div>"
     )

@@ -351,8 +351,7 @@ def _check_stale_completions(
                 text=line.strip()[:120],
                 severity="warn",
                 detail=(
-                    f"Marked '{m.group(1)}' but referenced file "
-                    f"'{missing_file}' no longer exists on disk."
+                    f"Marked '{m.group(1)}' but referenced file '{missing_file}' no longer exists on disk."
                 ),
             ))
         else:
@@ -397,8 +396,7 @@ def _check_last_updated_dates(
                     text=line.strip()[:120],
                     severity="warn",
                     detail=(
-                        f"Last updated {parsed} ({ (now - parsed).days } days ago). "
-                        f"Review and update if stale (threshold: {STALENESS_DAYS} days)."
+                        f"Last updated {parsed} ({ (now - parsed).days } days ago). Review and update if stale (threshold: {STALENESS_DAYS} days)."
                     ),
                 ))
             break  # only check the first "last updated" line

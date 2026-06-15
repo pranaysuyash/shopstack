@@ -84,10 +84,8 @@ def get_weather(city: str = "mumbai") -> WeatherState:
 
 def _fetch_open_meteo(lat: float, lon: float) -> WeatherState | None:
     url = (
-        f"https://api.open-meteo.com/v1/forecast"
-        f"?latitude={lat}&longitude={lon}"
-        f"&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m"
-        f"&timezone=auto"
+        f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
+        f"&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=auto"
     )
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "ShopStack/1.0"})

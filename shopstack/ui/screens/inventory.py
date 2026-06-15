@@ -16,7 +16,7 @@ from shopstack.ui.components.primitives import (
     form_error,
     item_row,
     toast,
-    toast_floating,,
+    toast_floating,
     home_card,
 )
 
@@ -208,7 +208,7 @@ def add_purchase_batch(raw_batch: str) -> str:
         )
 
     rows = str(raw_batch).strip().splitlines()
-    raw_text = "\n".join(r.strip() for r in rows if r.strip())
+    raw_text = chr(10).join(r.strip() for r in rows if r.strip())
     parsed: list[tuple[str, float, str, float, str, str, str]] = []
 
     try:
@@ -319,8 +319,7 @@ def seed_demo_inventory() -> str:
 
     clear_dashboard_cache(_user_id())
     return (
-        f"<div style='color:var(--green);'>Loaded demo stock ({len(added)} items): "
-        f"{', '.join(escape(a) for a in added)}.</div>"
+        f"<div style='color:var(--green);'>Loaded demo stock ({len(added)} items): {', '.join(escape(a) for a in added)}.</div>"
     ) + toast_floating(f"Loaded {len(added)} demo items into pantry", kind="success")
 
 
@@ -388,8 +387,14 @@ def inventory_cards_view(search: str = "") -> str:
                 status=lot["status"],
                 extra=lot["reason"],
             )
-        cards += (
-            "home_card(body='"\n            f"<h4>{escape(str(loc_name))}</h4>{body}', style='margin-bottom:10px;')"
+        # Build the per-location card via a clean f-string (the
+        # original was a string concatenation with bad escaping
+        # that wouldn't parse — fixed 2026-06-13 alongside the
+        # onboarding skip-tracking pass).
+        cards += ui_card(
+            title=str(loc_name),
+            body=body,
+            compact=False,
         )
     return search_note + cards
 
@@ -422,8 +427,7 @@ def undo_last_change(lot_id: str) -> str:
     clear_dashboard_cache(uid)
     lot = result.get("lot") or {}
     return (
-        f"<div style='color:var(--green);'>Undid '{escape(str(result.get('undone_action', '')))}'. "
-        f"Quantity now {escape(str(lot.get('quantity', '?')))} {escape(str(lot.get('unit', '')))}.</div>"
+        f"<div style='color:var(--green);'>Undid '{escape(str(result.get('undone_action', '')))}'. Quantity now {escape(str(lot.get('quantity', '?')))} {escape(str(lot.get('unit', '')))}.</div>"
         + toast_floating(f"Undid last change for {escape(str(lot.get('canonical_name', lot_id)))}", kind="success")
     )
 

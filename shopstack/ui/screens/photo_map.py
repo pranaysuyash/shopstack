@@ -42,10 +42,8 @@ def photo_map_view() -> str:
     parts: list[str] = []
     parts.append("<h3>Photo-Anchored Map</h3>")
     parts.append(
-        f"<div style='font-size:0.75rem;color:var(--text-dim);margin-bottom:8px;'>"
-        f"{len(with_photo)} of {len(locations)} location(s) have photos. "
-        f"Attach photos via the form below."
-        f"</div>"
+        f"<div style='font-size:0.75rem;color:var(--text-dim);margin-bottom:8px;'>{len(with_photo)} of {len(locations)} location(s) have photos. "
+        f"Attach photos via the form below.</div>"
     )
 
     # Locations with photos
@@ -56,14 +54,10 @@ def photo_map_view() -> str:
             safe_name = escape(str(loc.name))
             safe_path = escape(str(loc.photo_path))
             parts.append(
-                f"<div class='stat-card' style='text-align:left;margin-bottom:6px;'>"
-                f"<div style='font-weight:600;font-size:0.85rem;'>{safe_name}</div>"
-                f"<img src='file={safe_path}' alt='{safe_name}' "
-                f"style='max-width:100%;max-height:120px;border-radius:6px;"
-                f"border:1px solid var(--border);display:block;margin-top:4px;' />"
-                f"<div style='font-size:0.625rem;color:var(--text-dim);margin-top:4px;'>"
-                f"{escape(str(loc.location_type))}</div>"
-                f"</div>"
+                f"<div class='stat-card' style='text-align:left;margin-bottom:6px;'><div style='font-weight:600;font-size:0.85rem;'>{safe_name}</div>"
+                f"<img src='file={safe_path}' alt='{safe_name}' style='max-width:100%;max-height:120px;border-radius:6px;"
+                f"border:1px solid var(--border);display:block;margin-top:4px;' /><div style='font-size:0.625rem;color:var(--text-dim);margin-top:4px;'>"
+                f"{escape(str(loc.location_type))}</div></div>"
             )
         parts.append("</div>")
 
@@ -100,10 +94,8 @@ def attach_photo_to_location(location_id: str, image_path: str) -> str:
         logger.exception("attach_photo_to_location failed")
         return f"<div style='color:var(--red);'>Failed to store photo: {escape(str(exc))}</div>"
     return (
-        f"<div style='color:var(--green);'>"
-        f"Attached photo ({features.width}\u00d7{features.height}, "
-        f"{features.file_size} bytes) to {escape(loc.name)}."
-        f"</div>"
+        f"<div style='color:var(--green);'>Attached photo ({features.width}\u00d7{features.height}, "
+        f"{features.file_size} bytes) to {escape(loc.name)}.</div>"
     )
 
 
@@ -149,23 +141,17 @@ def find_location_by_photo(image_path: str, top_k: int = 5) -> str:
 
     parts: list[str] = []
     parts.append(
-        f"<div style='font-size:0.75rem;color:var(--text-dim);margin-bottom:6px;'>"
-        f"Top {len(matches)} match(es) for your photo"
+        f"<div style='font-size:0.75rem;color:var(--text-dim);margin-bottom:6px;'>Top {len(matches)} match(es) for your photo"
         f"</div>"
     )
     for m in matches:
         bar_width = int(m.similarity * 100)
         parts.append(
-            f"<div class='stat-card' style='text-align:left;margin-bottom:6px;'>"
-            f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
-            f"<div style='font-weight:600;'>{escape(m.location_name)}</div>"
-            f"<div style='font-size:0.75rem;color:var(--text-dim);'>{m.similarity:.0%}</div>"
-            f"</div>"
-            f"<div style='height:4px;background:var(--border);border-radius:2px;margin-top:4px;'>"
-            f"<div style='height:100%;width:{bar_width}%;background:var(--blue);border-radius:2px;'></div>"
-            f"</div>"
-            f"<div style='font-size:0.625rem;color:var(--text-dim);margin-top:4px;'>"
-            f"{escape(m.location_id)}</div>"
+            f"<div class='stat-card' style='text-align:left;margin-bottom:6px;'><div style='display:flex;justify-content:space-between;align-items:center;'>"
+            f"<div style='font-weight:600;'>{escape(m.location_name)}</div><div style='font-size:0.75rem;color:var(--text-dim);'>{m.similarity:.0%}</div>"
+            f"</div><div style='height:4px;background:var(--border);border-radius:2px;margin-top:4px;'>"
+            f"<div style='height:100%;width:{bar_width}%;background:var(--blue);border-radius:2px;'></div></div>"
+            f"<div style='font-size:0.625rem;color:var(--text-dim);margin-top:4px;'>{escape(m.location_id)}</div>"
             f"</div>"
         )
     return "".join(parts)

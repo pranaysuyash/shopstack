@@ -172,3 +172,223 @@ class TestOnboardingWiringInApp:
             "app.load" in app_py
             and "_show_onboarding_if_first_run" in app_py
         ), "The _show_onboarding_if_first_run helper must be wired via app.load."
+
+
+# ─── Skip tracking + composite show check (added 2026-06-13) ──────────────
+
+
+class TestOnboardingSkipTracking:
+    """The 'Skip for now' button must set onboarding_skipped=1.
+
+    Without this, the wizard would re-show on every page load for
+    users who explicitly opted out. The composite
+    :func:`should_show_onboarding` check is the right state machine.
+    """
+
+    def test_is_onboarding_skipped_default_false(self):
+        """A fresh household has not skipped yet."""
+        from shopstack.services.onboarding import is_onboarding_skipped
+        from shopstack.app_context import db
+        TEST = "onb_skip_test_1"
+        orig_active = db.active_household_id
+        try:
+            db.add_household(TEST, "Skip Test 1")
+            db.add_household_member(TEST, TEST, role="owner")
+            db.active_household_id = TEST
+            db.set_config_value("onboarding_skipped", "0")
+            assert is_onboarding_skipped(db) is False
+        finally:
+            db.set_config_value("onboarding_skipped", "0")
+            db.conn.execute(
+                "INSERT OR REPLACE INTO app_config (key, value) VALUES (?, ?)",
+                ("active_household_id", orig_active),
+            )
+            db.conn.commit()
+            db.remove_household(TEST)
+
+    def test_mark_onboarding_skipped_sets_flag(self):
+        """mark_onboarding_skipped flips the flag to True."""
+        from shopstack.services.onboarding import (
+            is_onboarding_skipped,
+            mark_onboarding_skipped,
+        )
+        from shopstack.app_context import db
+        TEST = "onb_skip_test_2"
+        orig_active = db.active_household_id
+        try:
+            db.add_household(TEST, "Skip Test 2")
+            db.add_household_member(TEST, TEST, role="owner")
+            db.active_household_id = TEST
+            db.set_config_value("onboarding_skipped", "0")
+            assert is_onboarding_skipped(db) is False
+            mark_onboarding_skipped(db)
+            assert is_onboarding_skipped(db) is True
+        finally:
+            db.set_config_value("onboarding_skipped", "0")
+            db.conn.execute(
+                "INSERT OR REPLACE INTO app_config (key, value) VALUES (?, ?)",
+                ("active_household_id", orig_active),
+            )
+            db.conn.commit()
+            db.remove_household(TEST)
+
+    def test_reset_onboarding_skip_clears_flag(self):
+        """reset_onboarding_skip flips the flag back to False."""
+        from shopstack.services.onboarding import (
+            is_onboarding_skipped,
+            mark_onboarding_skipped,
+            reset_onboarding_skip,
+        )
+        from shopstack.app_context import db
+        TEST = "onb_skip_test_3"
+        orig_active = db.active_household_id
+        try:
+            db.add_household(TEST, "Skip Test 3")
+            db.add_household_member(TEST, TEST, role="owner")
+            db.active_household_id = TEST
+            db.set_config_value("onboarding_skipped", "0")
+            mark_onboarding_skipped(db)
+            assert is_onboarding_skipped(db) is True
+            reset_onboarding_skip(db)
+            assert is_onboarding_skipped(db) is False
+        finally:
+            db.set_config_value("onboarding_skipped", "0")
+            db.conn.execute(
+                "INSERT OR REPLACE INTO app_config (key, value) VALUES (?, ?)",
+                ("active_household_id", orig_active),
+            )
+            db.conn.commit()
+            db.remove_household(TEST)
+
+    def test_should_show_onboarding_composite(self):
+        """should_show_onboarding = (not complete) AND (not skipped)."""
+        from shopstack.services.onboarding import (
+            should_show_onboarding,
+        )
+        from shopstack.app_context import db
+        TEST = "onb_composite_test"
+        orig_active = db.active_household_id
+        try:
+            db.add_household(TEST, "Composite Test")
+            db.add_household_member(TEST, TEST, role="owner")
+            db.active_household_id = TEST
+
+            # Case 1: fresh → True
+            db.set_config_value("onboarding_complete", "0")
+            db.set_config_value("onboarding_skipped", "0")
+            assert should_show_onboarding(db) is True, (
+                "Fresh household should see the wizard"
+            )
+
+            # Case 2: skipped → False (don't re-show)
+            db.set_config_value("onboarding_skipped", "1")
+            assert should_show_onboarding(db) is False, (
+                "Skipped household should NOT see the wizard"
+            )
+
+            # Case 3: completed (even if not skipped) → False
+            db.set_config_value("onboarding_skipped", "0")
+            db.set_config_value("onboarding_complete", "1")
+            assert should_show_onboarding(db) is False, (
+                "Completed household should NOT see the wizard"
+            )
+
+            # Case 4: completed AND skipped → False
+            db.set_config_value("onboarding_skipped", "1")
+            db.set_config_value("onboarding_complete", "1")
+            assert should_show_onboarding(db) is False
+        finally:
+            db.set_config_value("onboarding_complete", "0")
+            db.set_config_value("onboarding_skipped", "0")
+            db.conn.execute(
+                "INSERT OR REPLACE INTO app_config (key, value) VALUES (?, ?)",
+                ("active_household_id", orig_active),
+            )
+            db.conn.commit()
+            db.remove_household(TEST)
+
+
+class TestActionTileCustomOnclick:
+    """The action-tile abstraction must support custom_onclick for
+    non-tab-jump actions (e.g., toggling the onboarding wizard).
+    """
+
+    def test_custom_onclick_takes_precedence_over_tab_jump(self):
+        from shopstack.ui.components.cards import render_action_tile
+        # With custom_onclick, the tab_id is ignored.
+        result = render_action_tile(
+            label="Test",
+            subtitle="subtitle",
+            tab_id="reconcile",  # would normally trigger tab jump
+            tone="primary",
+            custom_onclick="alert('hello');",
+        )
+        assert "alert('hello')" in result, (
+            "custom_onclick body should be embedded in the onclick attr"
+        )
+        # And the tab-jump code should NOT be there
+        assert "var label=" not in result, (
+            "custom_onclick should bypass the tab-jump code path"
+        )
+
+    def test_default_onclick_is_tab_jump(self):
+        from shopstack.ui.components.cards import render_action_tile
+        # Without custom_onclick, the default tab-jump fires.
+        result = render_action_tile(
+            label="Test",
+            subtitle="subtitle",
+            tab_id="market",
+            tone="default",
+        )
+        assert "var label=" in result, (
+            "Default onclick should be the tab-jump code path"
+        )
+
+    def test_custom_onclick_escapes_backslashes_and_quotes(self):
+        """Defensive: the custom_onclick body should be escaped so
+        the resulting HTML attribute is well-formed. Otherwise a
+        bug in a caller could break the page.
+        """
+        from shopstack.ui.components.cards import render_action_tile
+        result = render_action_tile(
+            label="Test",
+            subtitle="subtitle",
+            tab_id="",
+            tone="default",
+            custom_onclick='alert("with backslash \\ here");',
+        )
+        # The backslash should be doubled
+        assert "alert(\\\"with backslash \\\\\\\\")" in result or \
+               'alert(\"with backslash \\\\\" here\")' in result
+        # Verify the result is parseable as HTML
+        from html.parser import HTMLParser
+        # Should not raise
+        HTMLParser().feed(result)
+
+
+class TestOnboardingGateButtonCustomOnclick:
+    """The gate's 'Set up my household' button must use custom_onclick
+    to show the wizard (not a tab-jump to the reconcile tab).
+    """
+
+    def test_gate_button_uses_custom_onclick(self):
+        """Static check: the gate's button doesn't tab-jump to reconcile."""
+        from shopstack.ui.screens.dashboard import _render_onboarding_gate
+        from shopstack.services.cookbook import Recipe  # any dummy obj
+        # The gate is a server-rendered HTML string; we just need any
+        # args that don't raise. Mock the state + ds.
+        class _State:
+            cook_tonight_matches = []
+        class _Ds:
+            pass
+        result = _render_onboarding_gate(_State(), _Ds())
+        # The gate's primary action should NOT tab-jump to reconcile
+        # (that's the bug we're fixing). It should embed custom JS.
+        assert "var label=" not in result or "onboarding-wizard" in result, (
+            "Gate's primary action should not be a tab-jump; it should "
+            "use custom_onclick to show the wizard"
+        )
+        # And the wizard's elem_id should be referenced in the JS
+        assert "onboarding-wizard" in result, (
+            "Gate's custom_onclick should reference the wizard's elem_id"
+        )

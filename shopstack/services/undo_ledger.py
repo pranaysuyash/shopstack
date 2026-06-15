@@ -299,8 +299,7 @@ class UndoLedger:
         """
         if kind not in REVERSIBLE:
             raise ValueError(
-                f"kind={kind!r} is not in REVERSIBLE; "
-                f"add it to shopstack.services.undo_ledger.REVERSIBLE first"
+                f"kind={kind!r} is not in REVERSIBLE; add it to shopstack.services.undo_ledger.REVERSIBLE first"
             )
         entry = UndoEntry(
             entry_id=uuid.uuid4().hex,

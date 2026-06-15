@@ -36,12 +36,9 @@ def render_market_basket(ds: DecisionSet) -> str:
         price_str = f"&#8377;{price:.0f}" if price > 0 else "price unknown"
         ppk = f" (&#8377;{d.market_price_per_kg:.0f}/kg)" if d.market_price_per_kg else ""
         rows.append(
-            f"<div style='display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);'>"
-            f"<div>"
-            f"<div style='font-weight:600;'>{escape(d.display_name)}</div>"
-            f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>{escape(d.reason)}{ppk}</div>"
-            f"</div>"
-            f"<div style='font-weight:600;color:var(--decision-buy);'>{price_str}</div>"
+            f"<div style='display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);'><div>"
+            f"<div style='font-weight:600;'>{escape(d.display_name)}</div><div style='font-size: 0.6875rem;color:var(--text-dim);'>{escape(d.reason)}{ppk}</div>"
+            f"</div><div style='font-weight:600;color:var(--decision-buy);'>{price_str}</div>"
             f"</div>"
         )
 
@@ -55,17 +52,13 @@ def render_market_basket(ds: DecisionSet) -> str:
         if use_soon_count:
             parts.append(f"{use_soon_count} use-soon")
         savings_note = (
-            f"<div style='margin-top:8px;font-size: 0.6875rem;color:var(--text-dim);'>"
-            f"Waste prevention: {' + '.join(parts)}</div>"
+            f"<div style='margin-top:8px;font-size: 0.6875rem;color:var(--text-dim);'>Waste prevention: {' + '.join(parts)}</div>"
         )
 
     return (
-        f"{_CARD_OPEN}<h3>Today's Market Basket</h3>"
-        f"{''.join(rows)}"
-        f"<div style='margin-top:8px;padding-top:8px;border-top:2px solid var(--border);display:flex;justify-content:space-between;'>"
-        f"<span style='font-weight:600;'>Estimated total</span>"
-        f"<span style='font-weight:700;font-size: 1rem;'>&#8377;{total:.0f}</span></div>"
-        f"{savings_note}</div>"
+        f"{_CARD_OPEN}<h3>Today's Market Basket</h3>{''.join(rows)}"
+        f"<div style='margin-top:8px;padding-top:8px;border-top:2px solid var(--border);display:flex;justify-content:space-between;'><span style='font-weight:600;'>Estimated total</span>"
+        f"<span style='font-weight:700;font-size: 1rem;'>&#8377;{total:.0f}</span></div>{savings_note}</div>"
     )
 
 
@@ -94,12 +87,9 @@ def render_inventory_overview(all_inv: list[Any]) -> str:
     no_recent = "<div style='color:var(--text-dim);'>No recent additions recorded.</div>"
 
     return (
-        f"{_CARD_OPEN}<h3>What I Have</h3>"
-        f"<div style='margin-bottom:8px;color:var(--text-dim);'>Total active inventory items: {total}</div>"
-        f"<div style='font-size: 0.75rem;margin-bottom:8px;'>Locations: {escape(location_html or 'None')}</div>"
-        f"<div style='font-size: 0.75rem;margin-bottom:8px;'>Duplicates: {duplicate_count}</div>"
-        f"<div style='font-weight:600;margin-bottom:4px;'>Recently added</div>"
-        f"{recent_html or no_recent}</div>"
+        f"{_CARD_OPEN}<h3>What I Have</h3><div style='margin-bottom:8px;color:var(--text-dim);'>Total active inventory items: {total}</div>"
+        f"<div style='font-size: 0.75rem;margin-bottom:8px;'>Locations: {escape(location_html or 'None')}</div><div style='font-size: 0.75rem;margin-bottom:8px;'>Duplicates: {duplicate_count}</div>"
+        f"<div style='font-weight:600;margin-bottom:4px;'>Recently added</div>{recent_html or no_recent}</div>"
     )
 
 
@@ -117,10 +107,8 @@ def render_my_list_panel(ds: DecisionSet, active_list: Any) -> str:
         reason = decision.reason if decision else "No decision available"
         badge_color = DECISION_COLORS.get(decision.action, "var(--text-dim)") if decision else "var(--text-dim)"
         rows.append(
-            f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'>"
-            f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
-            f"<span>{escape(item.canonical_name.replace('_', ' ').title())}</span>"
-            f"<span style='color:{badge_color};font-weight:600;'>{escape(label)}</span></div>"
+            f"<div style='padding:6px 0;border-bottom:1px solid var(--border);'><div style='display:flex;justify-content:space-between;align-items:center;'>"
+            f"<span>{escape(item.canonical_name.replace('_', ' ').title())}</span><span style='color:{badge_color};font-weight:600;'>{escape(label)}</span></div>"
             f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>{escape(reason)}</div></div>"
         )
 
@@ -169,8 +157,7 @@ def render_compare_panel(ds: DecisionSet) -> str:
         preview_rows = []
         for d in compare_items[:3]:
             preview_rows.append(
-                f"<div style='display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);'>"
-                f"<strong>{escape(d.display_name)}</strong>"
+                f"<div style='display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);'><strong>{escape(d.display_name)}</strong>"
                 f"<span style='color:var(--text-dim);font-size: 0.75rem;'>{escape(d.reason or 'Compare signal')}</span>"
                 "</div>"
             )
@@ -241,8 +228,7 @@ def render_what_changed(purchases: list[Any], traces: list[Any]) -> str:
     for date_str, desc, kind in events[:6]:
         icon = {"purchase": "&#x1F6D2;", "trace": "&#x1F50E;"}.get(kind, "&#x25CF;")
         rows.append(
-            f"<div style='display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);'>"
-            f"<span style='font-size: 0.6875rem;color:var(--text-dim);min-width:50px;'>{escape(date_str)}</span>"
+            f"<div style='display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);'><span style='font-size: 0.6875rem;color:var(--text-dim);min-width:50px;'>{escape(date_str)}</span>"
             f"<span>{icon} {escape(desc)}</span></div>"
         )
 
@@ -275,8 +261,7 @@ def render_cadence_insights(cadence: dict[str, dict[str, Any]], today: date | No
     for _, display, label, avg_days in upcoming[:5]:
         cadence_note = f"every {float(avg_days):.0f}d" if float(avg_days) > 0 else ""
         rows.append(
-            f"<div style='display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);'>"
-            f"<span style='font-weight:600;'>{escape(display)}</span>"
+            f"<div style='display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);'><span style='font-weight:600;'>{escape(display)}</span>"
             f"<span style='font-size: 0.6875rem;color:var(--text-dim);'>{escape(label)} {escape(cadence_note)}</span></div>"
         )
 
@@ -290,8 +275,7 @@ def render_waste_warnings(signals: list[dict[str, Any]]) -> str:
     rows = []
     for s in signals[:3]:
         rows.append(
-            f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'>"
-            f"<strong style='color:var(--red);'>&#x26A0; {escape(s['display_name'])}</strong> "
+            f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'><strong style='color:var(--red);'>&#x26A0; {escape(s['display_name'])}</strong> "
             f"<span style='font-size: 0.6875rem;color:var(--text-dim);'>{escape(s['reason'])}</span></div>"
         )
 
@@ -307,8 +291,7 @@ def render_swiggy_soldout_warning(availability: dict[str, dict[str, Any]]) -> st
     for cname, info in sold_out.items():
         display = cname.replace("_", " ").title()
         rows.append(
-            f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'>"
-            f"<strong style='color:var(--red);'>&#x26A0; {escape(display)}</strong> "
+            f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'><strong style='color:var(--red);'>&#x26A0; {escape(display)}</strong> "
             f"<span style='font-size: 0.6875rem;color:var(--text-dim);'>Sold out on Swiggy Instamart</span></div>"
         )
 
@@ -327,8 +310,7 @@ def render_needs_confirmation(uncertain: list[Any]) -> str:
         else:
             reason = f"Last verified {days} days ago"
         rows.append(
-            f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'>"
-            f"<strong>{escape(lot.display_name)}</strong> "
+            f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'><strong>{escape(lot.display_name)}</strong> "
             f"<span style='font-size: 0.6875rem;color:var(--text-dim);'>{escape(reason)}</span></div>"
         )
 
@@ -351,8 +333,7 @@ def render_restock_predictions(predictions: list[dict[str, Any]]) -> str:
         on_hand = p.get("quantity_at_home", 0)
         on_hand_str = f" ({on_hand:.1f} at home)" if on_hand > 0 else ""
         rows.append(
-            f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'>"
-            f"<span style='font-weight:600;color:{color};'>&#9679; {name}</span> "
+            f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'><span style='font-weight:600;color:{color};'>&#9679; {name}</span> "
             f"<span style='font-size: 0.6875rem;color:var(--text-dim);'>{reason}{on_hand_str} &middot; {qty}</span></div>"
         )
 
@@ -373,8 +354,7 @@ def render_price_deals(deals: list[dict[str, Any]]) -> str:
         reason = escape(d.get("reason", ""))
         badge = f"<span style='font-size: 0.625rem;font-weight:600;color:{color};'>[{score.upper()}]</span>"
         rows.append(
-            f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'>"
-            f"<strong>{name}</strong> {badge} "
+            f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'><strong>{name}</strong> {badge} "
             f"<span style='font-size: 0.6875rem;color:var(--text-dim);'>{reason}</span></div>"
         )
 
@@ -396,26 +376,18 @@ def render_price_drops(alerts: list[dict[str, Any]]) -> str:
         drop_pct = float(a.get("drop_pct", 0))
         drop_amount = float(a.get("drop_amount", 0))
         rows.append(
-            f"<div style='padding:5px 0;border-bottom:1px solid var(--border);'>"
-            f"<strong>{name}</strong> "
-            f"<span style='color:var(--text-dim);font-size: 0.625rem;'>"
-            f"at {escape(source.title())}</span>"
-            f"<br>"
-            f"<span style='color:var(--green);font-weight:600;'>"
-            f"&#8377;{current:.0f}</span>"
-            f" <span style='color:var(--text-dim);font-size: 0.625rem;'>"
-            f"(was &#8377;{median:.0f})</span>"
-            f" &middot; "
-            f"<span style='color:var(--green);font-size: 0.625rem;'>"
-            f"↓ {drop_pct:.0f}% (save &#8377;{drop_amount:.0f})</span>"
+            f"<div style='padding:5px 0;border-bottom:1px solid var(--border);'><strong>{name}</strong> "
+            f"<span style='color:var(--text-dim);font-size: 0.625rem;'>at {escape(source.title())}</span>"
+            f"<br><span style='color:var(--green);font-weight:600;'>"
+            f"&#8377;{current:.0f}</span> <span style='color:var(--text-dim);font-size: 0.625rem;'>"
+            f"(was &#8377;{median:.0f})</span> &middot; "
+            f"<span style='color:var(--green);font-size: 0.625rem;'>↓ {drop_pct:.0f}% (save &#8377;{drop_amount:.0f})</span>"
             f"</div>"
         )
 
     return (
-        f"{_CARD_OPEN}<h3>📉 Price Drops</h3>"
-        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:4px;'>"
-        f"Items currently below your historical median."
-        f"</div>"
+        f"{_CARD_OPEN}<h3>📉 Price Drops</h3><div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:4px;'>"
+        f"Items currently below your historical median.</div>"
         f"{''.join(rows)}</div>"
     )
 
@@ -434,12 +406,9 @@ def render_best_store(store_data: dict[str, Any]) -> str:
     savings = store_data.get("estimated_savings_vs_worst", 0)
 
     return (
-        f"{_CARD_OPEN}<h3>Best Store</h3>"
-        f"<div style='font-size: 0.875rem;padding:4px 0;'>"
-        f"<strong>{store}</strong> has the best price for "
-        f"{best_count}/{total} items ({coverage:.0f}% coverage)."
-        f"</div>"
-        f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>"
+        f"{_CARD_OPEN}<h3>Best Store</h3><div style='font-size: 0.875rem;padding:4px 0;'>"
+        f"<strong>{store}</strong> has the best price for {best_count}/{total} items ({coverage:.0f}% coverage)."
+        f"</div><div style='font-size: 0.6875rem;color:var(--text-dim);'>"
         f"Estimated savings vs worst store: &#8377;{savings:.0f}</div></div>"
     )
 
@@ -462,15 +431,13 @@ def render_optimized_basket_summary(basket: Any) -> str:
         price = f"&#8377;{item.estimated_price_inr:.0f}" if item.estimated_price_inr else ""
         reason = escape(item.reason.split(".")[0]) if item.reason else ""
         rows.append(
-            f"<div style='display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);'>"
-            f"<span>{name}</span>"
+            f"<div style='display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);'><span>{name}</span>"
             f"<span style='font-weight:600;font-size: 0.75rem;'>{price}</span></div>"
         )
 
     skip_note = f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:4px;'>+ {len(skip_items)} skipped</div>" if skip_items else ""
 
     return (
-        f"{_CARD_OPEN}<h3>Optimized Basket</h3>"
-        f"{''.join(rows)}{skip_note}"
+        f"{_CARD_OPEN}<h3>Optimized Basket</h3>{''.join(rows)}{skip_note}"
         f"<div style='margin-top:6px;font-weight:700;font-size: 1rem;'>Total: &#8377;{total:.0f}</div></div>"
     )

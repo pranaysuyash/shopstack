@@ -102,8 +102,7 @@ def busy_js(elem_id: str, original_label: str = "Working…") -> str:
     # Python handler sees the same values.
     return (
         "(args) => {"
-        f"  const btn = document.getElementById({safe_id});"
-        f"  if (btn) {{ btn.disabled = true; btn.dataset.originalLabel = btn.textContent; btn.textContent = {safe_label}; }}"
+        f"  const btn = document.getElementById({safe_id});  if (btn) {{ btn.disabled = true; btn.dataset.originalLabel = btn.textContent; btn.textContent = {safe_label}; }}"
         "  return args;"
         "}"
     )

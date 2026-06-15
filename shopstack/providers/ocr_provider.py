@@ -338,14 +338,10 @@ class NuExtract3OCRProvider:
         extraction_template = GLM_OCR_STRUCTURED_EXTRACTION_PROMPT
 
         prompt = (
-            f"<|input|>\n"
-            f"### Extraction Task\n"
-            f"Extract product information from the following OCR text extracted "
-            f"from a receipt or product label. Return a JSON object with the "
-            f"fields specified below.\n\n"
-            f"### OCR Text\n{raw_text}\n\n"
-            f"### Output Template\n{extraction_template}\n"
-            f"<|output|>\n"
+            f"<|input|>\n### Extraction Task\n"
+            f"Extract product information from the following OCR text extracted rom a receipt or product label. Return a JSON object with the "
+            f"fields specified below.\n\n### OCR Text\n{raw_text}\n\n"
+            f"### Output Template\n{extraction_template}\n<|output|>\n"
         )
 
         inputs = self._tokenizer(prompt, return_tensors="pt")

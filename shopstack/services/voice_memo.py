@@ -297,8 +297,7 @@ def render_session_summary_html(summary: dict[str, Any]) -> str:
     parts: list[str] = [
         "<div class='vm-block'>",
         "<div class='vm-headline'>",
-        f"<strong>{summary['command_count']}</strong> commands in "
-        f"{summary['utterance_count']} utterances · "
+        f"<strong>{summary['command_count']}</strong> commands in {summary['utterance_count']} utterances · "
         f"{summary['duration_s']:.1f}s",
         "</div>",
     ]
@@ -312,12 +311,9 @@ def render_session_summary_html(summary: dict[str, Any]) -> str:
             }.get(c["status"], "var(--text-dim, #6F6254)")
             parts.append(
                 "<li class='vm-cmd'>"
-                f"<span class='vm-cmd-text'>{escape(c['text'])}</span>"
-                f"<span class='vm-cmd-intent'>{escape(c['intent'])}</span>"
-                f"<span class='vm-cmd-conf'>{c['confidence'] * 100:.0f}%</span>"
-                f"<span class='vm-cmd-status' style='color:{status_color};'>"
-                f"{escape(c['status'])}</span>"
-                f"</li>"
+                f"<span class='vm-cmd-text'>{escape(c['text'])}</span><span class='vm-cmd-intent'>{escape(c['intent'])}</span>"
+                f"<span class='vm-cmd-conf'>{c['confidence'] * 100:.0f}%</span><span class='vm-cmd-status' style='color:{status_color};'>"
+                f"{escape(c['status'])}</span></li>"
             )
         parts.append("</ul>")
     parts.append("</div>")
