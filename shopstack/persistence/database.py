@@ -894,6 +894,14 @@ class Database:
         category: str | None = None, user_id: str = "",
         canonical_name: str | None = None,
     ) -> list[InventoryLot]:
+        # DATA-1 fix (2026-06-15): an empty user_id previously returned
+        # ALL inventory across every household — a cross-household data
+        # leak when a caller forgot to pass user_id. Now an empty user_id
+        # falls back to the active household, so the default behavior is
+        # always scoped. Callers that truly want unscoped access (admin
+        # tools) must pass user_id=None explicitly.
+        if user_id == "":
+            user_id = self.active_household_id
         parts = ["SELECT * FROM inventory_lots WHERE 1=1"]
         params: list[Any] = []
         if user_id:
@@ -963,6 +971,11 @@ class Database:
         callers (e.g. backup restore) can pass ``list_id`` to preserve an
         existing id from the source DB.
         """
+        # DATA-1 fix (2026-06-15): an empty user_id defaults to the active
+        # household so writes and reads with the same empty user_id stay
+        # consistent and scoped (never cross-household).
+        if user_id == "":
+            user_id = self.active_household_id
         if list_id is not None:
             sl = ShoppingList(name=name, goal=goal)
             sl.list_id = list_id
@@ -976,6 +989,10 @@ class Database:
         return sl
 
     def get_active_shopping_list(self, user_id: str = "") -> ShoppingList | None:
+        # DATA-1 fix (2026-06-15): empty user_id falls back to active
+        # household so the default read is always scoped (see get_inventory).
+        if user_id == "":
+            user_id = self.active_household_id
         query = "SELECT * FROM shopping_lists WHERE is_active = 1"
         params: list[str] = []
         if user_id:

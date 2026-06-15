@@ -9,7 +9,7 @@ from shopstack.market.sources import compare_across_sources
 from shopstack.market.sources.swiggy import snapshot_freshness
 from shopstack.persistence.database import Database
 from shopstack.schemas.models import DecisionResult, DecisionSet
-from shopstack.services.freshness import classify_snapshot_freshness
+from shopstack.domain.market_freshness import classify_snapshot_freshness
 from shopstack.services.price_memory import PriceMemoryService
 from shopstack.services.substitution import find_substitutions
 from shopstack.services.market_sources import load_market_registry
@@ -989,7 +989,7 @@ def _best_record(records: list[Any]) -> Any | None:
 
 def _freshness_for_snapshot(snapshot: Any | None):
     if snapshot is None:
-        from shopstack.services.freshness import FreshnessReport
+        from shopstack.domain import FreshnessReport
 
         return FreshnessReport(
             status="unknown",
@@ -1003,7 +1003,7 @@ def _freshness_for_snapshot(snapshot: Any | None):
         return classify_snapshot_freshness(snapshot)
     except Exception:
         freshness = snapshot_freshness(snapshot)
-        from shopstack.services.freshness import FreshnessReport
+        from shopstack.domain import FreshnessReport
 
         return FreshnessReport(
             status="stale" if freshness.get("is_stale") else "live",

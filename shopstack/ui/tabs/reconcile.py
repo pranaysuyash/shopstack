@@ -49,7 +49,7 @@ from shopstack.ui.screens import (
     inventory_cards_view,
     inventory_view,
     quick_consume,
-    use_soon_view,
+    use_first_view,
 )
 from shopstack.ui.screens.other import move_inventory_to_location
 from shopstack.ui.tabs.context import TabContext
@@ -246,7 +246,7 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                 app.load(inventory_view, outputs=inv_table)
                 app.load(inventory_cards_view, outputs=inv_cards)
 
-            # ── Use First (consumer label; internal: "use_soon") ──
+            # ── Use First (consumer label; internal: "use_first") ──
             with gr.Tab("Use First"):
                 with gr.Row():
                     use_days = gr.Slider(
@@ -256,13 +256,13 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                     use_refresh = gr.Button("Refresh", elem_classes="secondary")
                 use_table = gr.DataFrame(label="Items to Use First")
                 use_refresh.click(
-                    use_soon_view,
+                    use_first_view,
                     use_days,
                     use_table,
-                    api_name="use_soon_refresh",
-                    api_description="Refresh use-soon inventory recommendations",
+                    api_name="use_first_refresh",
+                    api_description="Refresh use-first inventory recommendations",
                 )
-                app.load(use_soon_view, inputs=use_days, outputs=use_table)
+                app.load(use_first_view, inputs=use_days, outputs=use_table)
 
             # ── What Got Used (consumer label; internal: consumption) ──
             with gr.Tab("What Got Used"):

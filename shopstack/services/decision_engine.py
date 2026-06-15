@@ -32,7 +32,7 @@ from shopstack.schemas.models import (
     FreshnessStatus,
     new_id,
 )
-from shopstack.services.freshness import (
+from shopstack.domain import (
     classify_freshness,
     classify_snapshot_freshness,
     FreshnessReport,

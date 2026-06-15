@@ -269,9 +269,27 @@ def _redact_trace(trace: dict) -> dict:
 
 
 def _redact_text(value: str) -> str:
-    value = re.sub(r"\b\d{10,}\b", "[REDACTED_NUMBER]", value)
+    # Email (most specific — match first so the @ doesn't get caught by phone rules).
     value = re.sub(r"\b[\w\.-]+@[\w\.-]+\.\w+\b", "[REDACTED_EMAIL]", value)
-    value = re.sub(r"\b[A-Z]{5}\d{4}[A-Z]\b", "[REDACTED]", value)
+    # Aadhaar (Indian national ID): 12 digits, typically written as
+    # "1234 5678 9012" (spaced groups). Must run BEFORE the phone regex,
+    # which would otherwise consume the digit groups as a phone number.
+    value = re.sub(r"\b\d{4}\s?\d{4}\s?\d{4}\b", "[REDACTED_AADHAAR]", value)
+    # PAN (Indian tax ID): 5 uppercase letters, 4 digits, 1 letter.
+    value = re.sub(r"\b[A-Z]{5}\d{4}[A-Z]\b", "[REDACTED_PAN]", value)
+    # Phone numbers — broad coverage for the formats that defeat a bare digit rule:
+    #   +44 7700 900123   (international, spaced)
+    #   +91 98765 43210   (Indian mobile with country code, spaced)
+    #   (555) 123-4567    (US parens + dash)
+    #   9876543210        (bare 10 digits — original case, still covered)
+    # We require at least 10 digits total (after stripping non-digits) to avoid
+    # matching short numeric fragments like quantities or prices.
+    def _redact_phone(m: re.Match) -> str:
+        candidate = m.group(0)
+        digit_count = sum(c.isdigit() for c in candidate)
+        return "[REDACTED_NUMBER]" if digit_count >= 10 else candidate
+
+    value = re.sub(r"\+?\d[\d\s\-()]{7,}\d", _redact_phone, value)
     return value
 
 

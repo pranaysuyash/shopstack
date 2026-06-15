@@ -102,7 +102,7 @@ class Qwen3VLProvider:
     license_note = "Apache-2.0"
     runtime_type = "transformers"
     supports_off_grid = True
-    capabilities: set[str] = {"vision", "object_detection"}
+    capabilities: set[str] = {"vision", "object_detection", "grounding"}
 
     SAMPLE_SIZE = 1024  # match bench (Modal A100 int4 used 1024×1024)
     MAX_NEW_TOKENS = 512
@@ -307,6 +307,104 @@ class Qwen3VLProvider:
             if p.get("name")
         ]
 
+    def ground(self, image_path: str, text_prompt: str) -> dict[str, Any]:
+        """Ground a text prompt in the image and return a bbox-style result.
+
+        Qwen3-VL is not the primary grounding backbone in ShopStack, but it
+        can act as a helpful grounding helper for ambiguous shelf objects.
+        The benchmark lane treats it as a VLM grounding candidate, not as a
+        segmentation model.
+        """
+        if not self._available:
+            return {
+                "found": False,
+                "bbox": [],
+                "confidence": 0.0,
+                "label": "",
+                "all_detections": [],
+                "error": self._error or "Qwen3-VL not available",
+                "model": self.name,
+            }
+        if not os.path.isfile(image_path):
+            return {
+                "found": False,
+                "bbox": [],
+                "confidence": 0.0,
+                "label": "",
+                "all_detections": [],
+                "error": f"Image file not found: {image_path}",
+                "model": self.name,
+            }
+        if self._model is None and not self._load_model():
+            return {
+                "found": False,
+                "bbox": [],
+                "confidence": 0.0,
+                "label": "",
+                "all_detections": [],
+                "error": self._error or "Failed to load model",
+                "model": self.name,
+            }
+
+        try:
+            import torch
+            from PIL import Image
+
+            t0 = time.monotonic()
+            image = Image.open(image_path).convert("RGB")
+            user_prompt = (
+                "You are doing open-vocabulary object grounding for a household shelf image. "
+                "Return STRICT JSON only with this schema:\n"
+                "{"
+                "\"found\": true|false, "
+                "\"bbox\": [xmin, ymin, xmax, ymax], "
+                "\"label\": \"" + text_prompt + "\", "
+                "\"confidence\": 0.0, "
+                "\"all_detections\": [{\"label\": \"...\", \"bbox\": [xmin, ymin, xmax, ymax], \"confidence\": 0.0}]"
+                "}\n"
+                "If the target is not visible, return {\"found\": false, \"bbox\": [], \"label\": \"\", \"confidence\": 0.0, \"all_detections\": []}.\n"
+                "Use pixel coordinates if possible. No markdown. No prose."
+            )
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image", "image": image},
+                        {"type": "text", "text": user_prompt},
+                    ],
+                }
+            ]
+            inputs = self._processor.apply_chat_template(
+                messages,
+                add_generation_prompt=True,
+                tokenize=True,
+                return_dict=True,
+                return_tensors="pt",
+            ).to(self._model.device)
+            with torch.no_grad():
+                generated_ids = self._model.generate(
+                    **inputs,
+                    max_new_tokens=256,
+                    do_sample=False,
+                    temperature=1.0,
+                    top_p=1.0,
+                    pad_token_id=getattr(self._processor.tokenizer, "eos_token_id", None),
+                )
+            input_len = inputs["input_ids"].shape[1]
+            generated_ids_trimmed = generated_ids[:, input_len:]
+            output_text = self._processor.batch_decode(
+                generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+            )[0]
+            elapsed = time.monotonic() - t0
+            self._last_latency_ms = round(elapsed * 1000, 1)
+            parsed = self._parse_grounding(output_text)
+            parsed["model"] = self._model_name
+            parsed["latency_ms"] = self._last_latency_ms
+            return parsed
+        except Exception as e:
+            logger.warning("Qwen3-VL grounding failed", exc_info=True)
+            return {"found": False, "bbox": [], "confidence": 0.0, "label": "", "all_detections": [], "error": str(e), "model": self.name}
+
     # ── Internals ──────────────────────────────────────────────────────────
     @staticmethod
     def _parse_products(text: str) -> list[dict[str, Any]]:
@@ -337,6 +435,49 @@ class Qwen3VLProvider:
                 pass
         # 3. No parseable products
         return []
+
+    @staticmethod
+    def _parse_grounding(text: str) -> dict[str, Any]:
+        if not text:
+            return {"found": False, "bbox": [], "confidence": 0.0, "label": "", "all_detections": []}
+        try:
+            obj = json.loads(text)
+            if isinstance(obj, dict):
+                return Qwen3VLProvider._normalize_grounding_payload(obj)
+        except (json.JSONDecodeError, TypeError):
+            pass
+        balanced = _find_balanced_json_block(text)
+        if balanced is not None:
+            try:
+                obj = json.loads(balanced)
+                if isinstance(obj, dict):
+                    return Qwen3VLProvider._normalize_grounding_payload(obj)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return {"found": False, "bbox": [], "confidence": 0.0, "label": "", "all_detections": []}
+
+    @staticmethod
+    def _normalize_grounding_payload(obj: dict[str, Any]) -> dict[str, Any]:
+        if "objects" in obj and isinstance(obj.get("objects"), list):
+            objects = [item for item in obj["objects"] if isinstance(item, dict)]
+            first = objects[0] if objects else {}
+            obj = {
+                "found": bool(objects),
+                "bbox": first.get("bbox") or first.get("bbox_2d") or [],
+                "confidence": first.get("confidence", first.get("score", 0.0)),
+                "label": first.get("label") or first.get("name") or "",
+                "all_detections": objects,
+            }
+        bbox = obj.get("bbox") or obj.get("bbox_2d") or []
+        if not isinstance(bbox, list):
+            bbox = []
+        return {
+            "found": bool(obj.get("found", bool(bbox))),
+            "bbox": bbox,
+            "confidence": float(obj.get("confidence", obj.get("score", 0.0)) or 0.0),
+            "label": str(obj.get("label", obj.get("name", "")) or ""),
+            "all_detections": obj.get("all_detections") or [],
+        }
 
     def healthcheck(self) -> bool:
         return self._available

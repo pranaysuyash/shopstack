@@ -1,3 +1,15 @@
+"""OpenTelemetry tracing for ShopStack provider calls.
+
+Opt-in OpenTelemetry instrumentation. The exporter is only installed
+when ``OTEL_EXPORTER_OTLP_ENDPOINT`` is set, so tests and offline
+runs are not affected by the SDK's reconnect retry behavior.
+
+Used by ``shopstack.providers.openai_provider``,
+``shopstack.providers.huggingface_provider``,
+``shopstack.providers.local_provider`` to wrap each LLM call
+in a span. Cost and latency attributes are populated from the
+provider's response.
+"""
 from __future__ import annotations
 
 import logging
@@ -11,6 +23,11 @@ _IS_INSTRUMENTED: bool = False
 
 
 def is_otel_available() -> bool:
+    """Return True if the ``opentelemetry`` package is importable.
+
+    Used to gate initialization so we don't try to import the SDK
+    when the optional ``[otel]`` extra isn't installed.
+    """
     try:
         import opentelemetry  # noqa: F401
         return True
@@ -23,13 +40,33 @@ def setup_tracing(
     endpoint: str = "",
     project_name: str = "",
 ) -> Any:
+    """Initialize the global OpenTelemetry tracer.
+
+    Idempotent: subsequent calls return the cached tracer. The OTLP
+    exporter is installed only when an endpoint is explicitly set
+    (via the ``endpoint`` arg or the ``OTEL_EXPORTER_OTLP_ENDPOINT``
+    env var); otherwise spans are recorded but not exported, which
+    keeps the test process from hanging on unreachable collector
+    retries.
+
+    Args:
+        service_name: Value of the ``service.name`` resource attribute.
+        endpoint: OTLP gRPC endpoint. Empty string falls back to
+            ``OTEL_EXPORTER_OTLP_ENDPOINT`` env var, then to no-op.
+        project_name: Phoenix project name for trace grouping. Empty
+            string falls back to ``PHOENIX_PROJECT_NAME`` env var.
+
+    Returns:
+        The configured ``Tracer`` instance, or ``None`` if the OTel
+        packages are not installed.
+    """
     global _TRACER, _IS_INSTRUMENTED
 
     if _IS_INSTRUMENTED:
         return _TRACER
 
     if not is_otel_available():
-        logger.info("OpenTelemetry not installed. Tracing disabled. Install: uv pip install opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp")
+        logger.info("OpenTelemetry not installed. Tracing disabled. Install: uv pip install opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp-proto-grpc")
         return None
 
     from opentelemetry import trace
@@ -65,6 +102,7 @@ def setup_tracing(
 
 
 def get_tracer() -> Any:
+    """Return the global tracer, initializing it lazily if needed."""
     global _TRACER
     if _TRACER is None:
         _TRACER = setup_tracing()
@@ -72,6 +110,13 @@ def get_tracer() -> Any:
 
 
 def trace_call(name: str, attributes: dict[str, Any] | None = None):
+    """Open a span around a provider call.
+
+    Returns a context manager. When the OTel SDK is not installed
+    or no exporter is configured, returns a ``_NopSpan`` that
+    accepts the same context-manager protocol with no observable
+    effect.
+    """
     tracer = get_tracer()
     if tracer is None:
         return _NopSpan()
@@ -79,6 +124,12 @@ def trace_call(name: str, attributes: dict[str, Any] | None = None):
 
 
 class _NopSpan:
+    """No-op span returned by ``trace_call`` when OTel is disabled.
+
+    Implements the subset of the ``Span`` protocol that
+    ``shopstack.providers.*`` actually uses (``__enter__``,
+    ``__exit__``, ``set_attribute``, ``set_status``, ``record_exception``).
+    """
     def __enter__(self):
         return self
 

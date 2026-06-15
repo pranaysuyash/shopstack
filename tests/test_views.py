@@ -31,7 +31,7 @@ from shopstack.ui.screens import (
     model_budget_view,
     provider_status_badge,
     today_dashboard,
-    use_soon_view,
+    use_first_view,
 )
 from shopstack.ui.screens.shopping import (
     _shopping_list_view_with_cards,
@@ -406,12 +406,12 @@ class TestFieldNotesView:
 
 class TestUseSoonView:
     def test_empty(self, app):
-        tbl = use_soon_view()
+        tbl = use_first_view()
         assert isinstance(tbl, list)
 
     def test_with_old_item(self, app):
         app_db.add_inventory_lot(InventoryLot(canonical_name="old-spice", display_name="Old Spice", quantity=1.0, unit="unit"))
-        tbl = use_soon_view()
+        tbl = use_first_view()
         assert isinstance(tbl, list)
 
 

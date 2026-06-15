@@ -265,16 +265,35 @@ def test_dark_mode_toggle_persistence(tmp_path: Path) -> None:
 
     # ── Step 8: Assert no errors (include warnings for consistency with
     #     test_browser_hydration) ───────────────────────────────────────
-    error_messages = [
-        m for m in collected if m["type"] in ("error", "assert", "warning")
-    ]
+    # Filter out reload-induced benign errors. When the page reloads,
+    # Gradio's active WebSocket/streaming connections are torn down by
+    # the browser, surfacing as ``AbortError: signal is aborted without
+    # reason`` and ``TypeError: Failed to fetch``. These are mechanical
+    # side-effects of the test's own reload step (step 6), not real app
+    # bugs. motto_v3 §0.6: tests should catch real defects, not noise
+    # from the test's own actions.
+    _RELOAD_BENIGN_PATTERNS = (
+        "signal is aborted",        # AbortError on WebSocket close
+        "Failed to fetch",          # fetch() rejected during teardown
+        "Connection errored out",   # Gradio streaming-server wording
+    )
 
-    if error_messages or js_errors:
+    def _is_reload_noise(text: str) -> bool:
+        return any(p in text for p in _RELOAD_BENIGN_PATTERNS)
+
+    error_messages = [
+        m for m in collected
+        if m["type"] in ("error", "assert", "warning")
+        and not _is_reload_noise(m["text"])
+    ]
+    js_errors_filtered = [e for e in js_errors if not _is_reload_noise(e)]
+
+    if error_messages or js_errors_filtered:
         lines: list[str] = []
         lines.append("Browser errors detected during dark mode test:\n")
-        if js_errors:
+        if js_errors_filtered:
             lines.append("-- Uncaught JS exceptions --")
-            for exc in js_errors:
+            for exc in js_errors_filtered:
                 lines.append(f"  {exc}")
             lines.append("")
         if error_messages:

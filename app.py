@@ -15,6 +15,7 @@ from shopstack.ui.tabs.registry import build_all_tabs
 from shopstack.ui.household_settings import build_household_settings
 from shopstack.ui.locale_save import build_locale_save
 from shopstack.ui.pwa_mount import mount_pwa_static
+from shopstack.ui.runtime_status import build_runtime_status
 from shopstack.services.sms_webhook import mount_sms_webhook
 from shopstack.services.health_mount import mount_health_endpoint
 
@@ -73,6 +74,10 @@ def build_app() -> gr.Blocks:
         )
 
         build_locale_save()
+
+        # Hidden runtime_status API endpoint (external consumers can
+        # query whether the app is in mock or real mode)
+        build_runtime_status()
 
         # ── Tab bar — driven by module_registry.TAB_ORDER via the builder registry ──
         with gr.Tabs(elem_classes="tabs", elem_id="main-content"):

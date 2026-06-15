@@ -131,3 +131,45 @@ def test_build_dashboard_state_low_items_filter(db, tool_registry):
     low_names = {item.canonical_name for item in state.low_items}
     assert "onion" in low_names
     assert "potato" not in low_names
+
+
+class TestClearDashboardCache:
+    """The dashboard cache is a per-user memoization of DashboardState.
+
+    The cache is exposed for invalidation from mutation handlers
+    (consume, add, etc.) so users see fresh data immediately after
+    a mutation rather than on the next periodic refresh.
+    """
+
+    def test_clear_with_no_user_id_clears_entire_cache(self):
+        """Clearing with user_id=None drops the entire cache (test pattern)."""
+        from shopstack.services.dashboard import (
+            _DASHBOARD_CACHE,
+            clear_dashboard_cache,
+        )
+        _DASHBOARD_CACHE["user1"] = "fake_state"
+        _DASHBOARD_CACHE["user2"] = "fake_state"
+        clear_dashboard_cache(None)
+        assert _DASHBOARD_CACHE == {}
+
+    def test_clear_with_user_id_drops_only_that_user(self):
+        """Clearing with a specific user_id drops only that user's state."""
+        from shopstack.services.dashboard import (
+            _DASHBOARD_CACHE,
+            clear_dashboard_cache,
+        )
+        _DASHBOARD_CACHE["user1"] = "user1_state"
+        _DASHBOARD_CACHE["user2"] = "user2_state"
+        clear_dashboard_cache("user1")
+        assert "user1" not in _DASHBOARD_CACHE
+        assert "user2" in _DASHBOARD_CACHE
+
+    def test_clear_unknown_user_is_safe(self):
+        """Clearing a user that was never cached is a no-op (no exception)."""
+        from shopstack.services.dashboard import (
+            _DASHBOARD_CACHE,
+            clear_dashboard_cache,
+        )
+        _DASHBOARD_CACHE["user1"] = "user1_state"
+        clear_dashboard_cache("nonexistent_user")
+        assert "user1" in _DASHBOARD_CACHE  # untouched

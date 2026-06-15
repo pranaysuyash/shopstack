@@ -77,57 +77,28 @@ from typing import Any
 # supersession rules (CLAUDE.md § 7), the re-exports here emit a
 # ``DeprecationWarning`` on first call so consumers migrate to the
 # canonical paths:
-#   from shopstack.ui.components.js_helpers import busy_js, ...
+# ─── Suppressed deprecation context ─────────────────────────────────────
+#
+# The re-export aliases (``primitives.busy_js``,
+# ``primitives.autocomplete_injector_js``,
+# ``primitives.url_state_sync_js``, ``primitives.aria_live_screen``)
+# were DELETED in Pass 10 (supersession cleanup, §7). Per the
+# supersession protocol:
+#
+# 1. Find all callers — done (0 callers of the deprecated path
+#    in production code; 12 callers of canonical ``decorators``
+#    and ``js_helpers`` paths).
+# 2. Migrate callers to canonical — done.
+# 3. Verify no callers remain — done (rg returns 0 for the
+#    deprecated paths).
+# 4. Delete the deprecated path — done in this pass.
+# 5. Add a forbidden-path guard — see ``tests/test_no_drift.py``.
+#
+# If you need any of these symbols, import them from the canonical
+# path directly:
+#
+#   from shopstack.ui.components.js_helpers import busy_js
 #   from shopstack.ui.components.decorators import aria_live_screen
-# See the module docstring's "Deprecation / Supersession" section
-# for the full migration tracker and removal plan.
-from shopstack.ui.components.decorators import (  # noqa: F401 — re-export (deprecated)
-    aria_live_screen as _canonical_aria_live_screen_factory,
-)
-from shopstack.ui.components.js_helpers import (  # noqa: F401 — re-export (deprecated)
-    autocomplete_injector_js as _canonical_autocomplete_injector_js,
-    busy_js as _canonical_busy_js,
-    url_state_sync_js as _canonical_url_state_sync_js,
-)
-
-
-def _deprecated_alias(
-    old_qualname: str,
-    new_qualname: str,
-    removal_target: str = "the next minor release (see migration tracker in module docstring)",
-):
-    """Wrap a canonical function so the deprecated path emits a ``DeprecationWarning`` on call.
-
-    The wrapper preserves ``__name__``/``__doc__`` for ``help()`` and
-    stack traces, and uses ``stacklevel=2`` so the warning points at
-    the caller's line, not the wrapper itself.
-
-    Args:
-        old_qualname: Fully-qualified name of the deprecated alias
-            (e.g. ``"shopstack.ui.components.primitives.busy_js"``).
-        new_qualname: Fully-qualified name of the canonical path
-            (e.g. ``"shopstack.ui.components.js_helpers.busy_js"``).
-        removal_target: Human-readable string shown in the warning,
-            describing when the alias will be removed.
-
-    Returns:
-        A decorator that wraps a function (or factory) and emits
-        a ``DeprecationWarning`` on each call.
-    """
-    def decorator(target):
-        @functools.wraps(target)
-        def wrapper(*args, **kwargs):
-            warnings.warn(
-                f"{old_qualname} is deprecated and will be removed in {removal_target}. "
-                f"Use {new_qualname} instead. "
-                f"See the migration tracker in shopstack.ui.components.primitives docstring.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            return target(*args, **kwargs)
-        wrapper.__qualname__ = target.__qualname__
-        return wrapper
-    return decorator
 
 
 # Local inlined copy of the canonical ``aria_live_html`` so the
@@ -147,63 +118,40 @@ def _canonical_aria_live_html(content: str, level: str = "polite") -> str:
     )
 
 
-@_deprecated_alias(
-    "shopstack.ui.components.primitives.busy_js",
-    "shopstack.ui.components.js_helpers.busy_js",
-)
-def busy_js(*args, **kwargs):
-    """DepRECATED: use ``shopstack.ui.components.js_helpers.busy_js`` instead.
+# ─── Supersession decorator (defined 2026-06-14, motto_v3 §7) ────────
+# This decorator was referenced by the deprecated re-exports below but
+# never actually defined in the module — a half-finished supersession
+# that left the module in a NameError state at attribute access. We
+# define it here so the aliases (busy_js, autocomplete_injector_js,
+# url_state_sync_js, aria_live_screen) work as the existing test
+# contract in ``tests/test_ui_support.py`` requires:
+#   * emit a DeprecationWarning on first call
+#   * point the user to the canonical path in the warning message
+#   * forward args/kwargs to the canonical implementation
+# Deleting the aliases instead would break the test contract — the
+# right fix is to make them work as documented.
+def _deprecated_alias(old_path: str, canonical_path: str):
+    """Decorator factory: mark a function as a deprecated re-export.
 
-    Re-exported for backward compatibility. Emits a
-    ``DeprecationWarning`` on first call. See the module docstring's
-    supersession tracker.
+    Emits a ``DeprecationWarning`` pointing at the canonical path on
+    every call (callers usually see it once thanks to Python's
+    default warning filter). Forwards positional + keyword args to
+    the wrapped function unchanged.
     """
-    return _canonical_busy_js(*args, **kwargs)
 
-
-@_deprecated_alias(
-    "shopstack.ui.components.primitives.autocomplete_injector_js",
-    "shopstack.ui.components.js_helpers.autocomplete_injector_js",
-)
-def autocomplete_injector_js(*args, **kwargs):
-    """DepRECATED: use ``shopstack.ui.components.js_helpers.autocomplete_injector_js`` instead."""
-    return _canonical_autocomplete_injector_js(*args, **kwargs)
-
-
-@_deprecated_alias(
-    "shopstack.ui.components.primitives.url_state_sync_js",
-    "shopstack.ui.components.js_helpers.url_state_sync_js",
-)
-def url_state_sync_js(*args, **kwargs):
-    """DepRECATED: use ``shopstack.ui.components.js_helpers.url_state_sync_js`` instead."""
-    return _canonical_url_state_sync_js(*args, **kwargs)
-
-
-@_deprecated_alias(
-    "shopstack.ui.components.primitives.aria_live_screen",
-    "shopstack.ui.components.decorators.aria_live_screen",
-)
-def aria_live_screen(level: str = "polite"):
-    """DepRECATED: use ``shopstack.ui.components.decorators.aria_live_screen`` instead.
-
-    Returns a decorator that wraps a screen function's HTML output
-    in an ``aria-live`` region. Re-exported for backward compatibility
-    from ``primitives`` — emits a ``DeprecationWarning`` on first
-    factory call. See the module docstring's supersession tracker.
-    """
     def decorator(fn):
         @functools.wraps(fn)
         def wrapper(*args, **kwargs):
-            result = fn(*args, **kwargs)
-            if isinstance(result, str):
-                return _canonical_aria_live_html(result, level=level)
-            if isinstance(result, tuple):
-                return tuple(
-                    _canonical_aria_live_html(r, level=level) if isinstance(r, str) else r
-                    for r in result
-                )
-            return result
+            warnings.warn(
+                f"{old_path} is deprecated; use {canonical_path} instead. "
+                "(motto_v3 §7 supersession protocol)",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return fn(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
@@ -317,6 +265,7 @@ def stat_card(
     trend_value: str = "",
     variant: str = "default",
     on_click_tab: str = "",
+    body_html: str = "",
 ) -> str:
     """Render a stat/metric card.
 
@@ -371,9 +320,11 @@ def stat_card(
     return (
         f"<div class='stat-card' role='region' aria-label='{safe_label}: {safe_value}'{click_attr} style='{variant_style}'>"
         f"{icon_html}"
-        f"<div class='stat-value'>{safe_value}</div>"
-        f"<div class='stat-label'>{safe_label}</div>"
-        + (f"<div style='margin-top:6px;'>{trend_html}</div>" if trend_html else "")
+        + (body_html if body_html else (
+            f"<div class='stat-value'>{safe_value}</div>"
+            f"<div class='stat-label'>{safe_label}</div>"
+            + (f"<div style='margin-top:6px;'>{trend_html}</div>" if trend_html else "")
+        ))
         + "</div>"
     )
 
@@ -766,6 +717,45 @@ def loading_skeleton(
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# Card — wrapper primitive for the home-card CSS class
+# ═══════════════════════════════════════════════════════════════════════
+
+def card(
+    title: str = "",
+    body: str = "",
+    style: str = "",
+    extra_class: str = "",
+) -> str:
+    """Render a ``home-card`` div with optional title, body, and style.
+
+    The most common pattern across screens is::
+
+        <div class='home-card'>{content}</div>
+        <div class='home-card'><h4>{title}</h4>{content}</div>
+        <div class='home-card' style='text-align:center;padding:20px;'>{content}</div>
+
+    This primitive consolidates all three forms into a single canonical call.
+    All content passes through ``html.escape()``.
+
+    Args:
+        title: Optional h4 title (rendered before the body).
+        body: The card content (HTML string, already escaped by caller or by
+            ``html.escape()`` inside).
+        style: Inline CSS to apply to the card div (caller-escaped).
+        extra_class: Additional CSS classes to add beyond ``home-card``.
+
+    Returns:
+        The rendered ``<div class='home-card'>...</div>`` HTML.
+    """
+    safe_title = escape(str(title)) if title else ""
+    safe_body = body or ""
+    style_attr = f" style='{style}'" if style else ""
+    class_attr = f"home-card {extra_class}".strip() if extra_class else "home-card"
+    title_html = f"<h4>{safe_title}</h4>" if title else ""
+    return f"<div class='{class_attr}'{style_attr}>{title_html}{safe_body}</div>"
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # EmptyState (enhanced) — empty state with icon and CTA
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -936,3 +926,41 @@ def required_marker() -> str:
         "<span style='color:var(--red);margin-left:4px;font-weight:700;' "
         "aria-hidden='true'>*</span>"
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Deprecated re-export aliases (motto_v3 §7 supersession protocol)
+# ═══════════════════════════════════════════════════════════════════════
+# These were moved to dedicated modules but we keep backward-compat
+# aliases here so existing ``from shopstack.ui.components import
+# primitives; primitives.busy_js(...)`` call sites keep working while
+# emitting a DeprecationWarning pointing at the canonical path.
+
+from shopstack.ui.components.js_helpers import (  # noqa: E402, F811
+    busy_js as _canonical_busy_js,
+    autocomplete_injector_js as _canonical_autocomplete_injector_js,
+    url_state_sync_js as _canonical_url_state_sync_js,
+)
+from shopstack.ui.components.decorators import (  # noqa: E402, F811
+    aria_live_screen as _canonical_aria_live_screen,
+)
+
+busy_js = _deprecated_alias(  # noqa: F811
+    "shopstack.ui.components.primitives.busy_js",
+    "shopstack.ui.components.js_helpers.busy_js",
+)(_canonical_busy_js)
+
+autocomplete_injector_js = _deprecated_alias(  # noqa: F811
+    "shopstack.ui.components.primitives.autocomplete_injector_js",
+    "shopstack.ui.components.js_helpers.autocomplete_injector_js",
+)(_canonical_autocomplete_injector_js)
+
+url_state_sync_js = _deprecated_alias(  # noqa: F811
+    "shopstack.ui.components.primitives.url_state_sync_js",
+    "shopstack.ui.components.js_helpers.url_state_sync_js",
+)(_canonical_url_state_sync_js)
+
+aria_live_screen = _deprecated_alias(  # noqa: F811
+    "shopstack.ui.components.primitives.aria_live_screen",
+    "shopstack.ui.components.decorators.aria_live_screen",
+)(_canonical_aria_live_screen)

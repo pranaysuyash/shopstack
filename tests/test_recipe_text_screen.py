@@ -568,3 +568,157 @@ class TestRecipeImageToText:
         diff_html = recipe_text_to_shopping_list(ocr_text)
         assert "<table" in diff_html  # renders the table
         assert "Rice" in diff_html or "rice" in diff_html.lower()
+
+
+# ─── Idempotency tests (added 2026-06-13) ─────────────────────────────────
+
+
+class TestRecipeAddMissingIdempotency:
+    """The "Add missing to my list" action must be idempotent.
+
+    Calling the action twice for the same recipe should NOT
+    duplicate items. This is a real data-integrity gap (was
+    introduced in 2026-06-13's supersession audit; before the fix,
+    a user could click "Add missing" twice and get 10 items instead
+    of 5).
+    """
+
+    def test_double_call_does_not_duplicate(self, tmp_path):
+        """Two calls in a row → items count == 1, not 2."""
+        from shopstack.ui.screens import recipe_text
+
+        # Set up a real DB on a throwaway household
+        from shopstack.app_context import db
+        from shopstack.schemas.models import InventoryLot
+
+        TEST = "recipe_idempotency_e2e"
+        orig_active = db.active_household_id
+        try:
+            db.add_household(TEST, "Recipe Idempotency")
+            # Permissions: the creator must be a member of the household
+            # for write operations (Phase 10). Add as owner.
+            db.add_household_member(TEST, TEST, role="owner")
+            db.active_household_id = TEST
+            for lot in db.get_inventory(user_id=TEST):
+                db.conn.execute(
+                    "DELETE FROM inventory_lots WHERE lot_id = ?", (lot.lot_id,)
+                )
+            active = db.get_active_shopping_list(user_id=TEST)
+            if active:
+                db.conn.execute(
+                    "DELETE FROM shopping_list_items WHERE list_id = ?",
+                    (active.list_id,),
+                )
+                db.conn.execute(
+                    "DELETE FROM shopping_lists WHERE list_id = ?",
+                    (active.list_id,),
+                )
+            db.conn.commit()
+
+            recipe = (
+                "- 2 cups rice\n"
+                "- 1 cup chickpea\n"
+                "- 1 tsp turmeric\n"
+                "- 1 onion, chopped\n"
+            )
+
+            # First call: adds 4 items
+            status1 = recipe_text.recipe_text_add_missing_to_list(recipe)
+            assert "Added 4" in status1 or "Added 4" in status1 or "Added" in status1
+            active = db.get_active_shopping_list(user_id=TEST)
+            count1 = db.conn.execute(
+                "SELECT COUNT(*) FROM shopping_list_items WHERE list_id = ?",
+                (active.list_id,),
+            ).fetchone()[0]
+            assert count1 == 4, f"First call should add 4, got {count1}"
+
+            # Second call: should add 0 (all already on list)
+            status2 = recipe_text.recipe_text_add_missing_to_list(recipe)
+            count2 = db.conn.execute(
+                "SELECT COUNT(*) FROM shopping_list_items WHERE list_id = ?",
+                (active.list_id,),
+            ).fetchone()[0]
+            assert count2 == 4, (
+                f"Second call should be idempotent (still 4), got {count2}. "
+                "Idempotency is broken — items are being duplicated."
+            )
+            # Status should reflect that 0 new items were added
+            assert "already" in status2.lower() or "nothing new" in status2.lower(), (
+                f"Status should mention idempotency: {status2!r}"
+            )
+        finally:
+            for lot in db.get_inventory(user_id=TEST):
+                db.conn.execute(
+                    "DELETE FROM inventory_lots WHERE lot_id = ?", (lot.lot_id,)
+                )
+            active = db.get_active_shopping_list(user_id=TEST)
+            if active:
+                db.conn.execute(
+                    "DELETE FROM shopping_list_items WHERE list_id = ?",
+                    (active.list_id,),
+                )
+                db.conn.execute(
+                    "DELETE FROM shopping_lists WHERE list_id = ?",
+                    (active.list_id,),
+                )
+            db.conn.execute(
+                "INSERT OR REPLACE INTO app_config (key, value) VALUES (?, ?)",
+                ("active_household_id", orig_active),
+            )
+            db.conn.commit()
+            db.remove_household(TEST)
+
+    def test_helper_existing_canonical_names(self, tmp_path):
+        """The internal helper _existing_list_canonical_names works correctly."""
+        from shopstack.ui.screens.recipe_text import (
+            _existing_list_canonical_names,
+        )
+        from shopstack.app_context import db
+
+        TEST = "recipe_helper_helper"
+        orig_active = db.active_household_id
+        try:
+            db.add_household(TEST, "Helper Test")
+            db.add_household_member(TEST, TEST, role="owner")
+            db.active_household_id = TEST
+            # Create a list
+            new_list = db.create_shopping_list(
+                name="Test List", goal="test", user_id=TEST
+            )
+            # Add some items
+            from shopstack.schemas.models import ShoppingListItem
+            db.add_list_item(
+                list_id=new_list.list_id,
+                item=ShoppingListItem(
+                    canonical_name="rice", requested_quantity=1, unit="kg"
+                ),
+            )
+            db.add_list_item(
+                list_id=new_list.list_id,
+                item=ShoppingListItem(
+                    canonical_name="Onion", requested_quantity=2, unit="unit"
+                ),
+            )
+            # Verify the helper returns them (lowercased)
+            names = _existing_list_canonical_names(db, new_list.list_id)
+            assert "rice" in names
+            assert "onion" in names
+            # Helper is case-insensitive
+            assert "RICE" not in names
+        finally:
+            active = db.get_active_shopping_list(user_id=TEST)
+            if active:
+                db.conn.execute(
+                    "DELETE FROM shopping_list_items WHERE list_id = ?",
+                    (active.list_id,),
+                )
+                db.conn.execute(
+                    "DELETE FROM shopping_lists WHERE list_id = ?",
+                    (active.list_id,),
+                )
+            db.conn.execute(
+                "INSERT OR REPLACE INTO app_config (key, value) VALUES (?, ?)",
+                ("active_household_id", orig_active),
+            )
+            db.conn.commit()
+            db.remove_household(TEST)

@@ -52,10 +52,15 @@ a true composition root.
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import logging
 from typing import Any, Callable
+from urllib.parse import urlencode
 
 import gradio as gr
+
+from shopstack.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -126,28 +131,123 @@ def _default_intent_dispatcher(db: Any) -> Callable[[str, dict], dict]:
 
 # ─── Endpoint mounting ─────────────────────────────────────────────
 
+
+def verify_twilio_signature(
+    url: str,
+    params: dict[str, Any],
+    signature_header: str,
+    auth_token: str,
+) -> bool:
+    """Verify a Twilio webhook request signature (fail-closed).
+
+    Twilio signs each webhook request with HMAC-SHA1 over the full URL
+    (including scheme, host, path, and query string) concatenated with the
+    sorted form parameters, keyed by the Twilio auth token. The result is
+    Base64-encoded and sent in the ``X-Twilio-Signature`` header.
+
+    Args:
+        url: The full URL Twilio called (scheme + host + path + query).
+        params: The parsed POST body parameters (Twilio sends form-encoded
+            data; the caller should pass the decoded dict).
+        signature_header: The raw ``X-Twilio-Signature`` header value.
+        auth_token: The Twilio account auth token (the signing secret).
+
+    Returns:
+        True only if the signature is valid. Returns False for any missing
+        input, empty token, or mismatch — this is deliberately fail-closed
+        (motto §0.6: auth boundaries never silently allow on failure).
+
+    This is a pure function so it can be unit-tested without a server.
+    """
+    if not auth_token or not signature_header:
+        return False
+    # Twilio concatenates the URL with the sorted, urlencoded form params.
+    sorted_params = sorted(params.items())
+    param_str = urlencode(sorted_params)
+    signer = hmac.new(
+        auth_token.encode("utf-8"),
+        (url + param_str).encode("utf-8"),
+        hashlib.sha1,
+    )
+    expected = signer.hexdigest()
+    # Compare in constant time to avoid timing oracle.
+    return hmac.compare_digest(expected, signature_header.strip())
+
+
+def _household_scoped_dispatcher(
+    db: Any,
+    fallback_user_id: str,
+) -> Callable[[str, dict], dict]:
+    """Build a dispatcher that uses the phone-resolved household.
+
+    The SMS flow resolves the sender's household from the phone registry
+    (``sms_quick_add.handle_webhook`` → ``lookup_phone``). That resolved
+    ``user_id`` is what the dispatcher must scope DB writes to — NOT the
+    process-global ``current_user_id()`` (which reflects whichever
+    household is active in the UI at request time, and would corrupt
+    cross-household data).
+
+    ``handle_webhook`` calls ``dispatcher(user_id, parsed)`` where
+    ``user_id`` is the phone-resolved id (falling back to "default" when
+    unregistered). We honor that id and only fall back to
+    ``fallback_user_id`` (the process default) when the resolved id is
+    empty — preserving the previous behavior for the local-dev Stub path
+    where no phone registry exists.
+    """
+    base = _default_intent_dispatcher(db)
+
+    def _dispatch(user_id: str, parsed: dict) -> dict:
+        uid = user_id or fallback_user_id or ""
+        return base(uid, parsed)
+
+    return _dispatch
+
+
 def mount_sms_webhook(app: gr.Blocks) -> None:
     """Mount the SMS / WhatsApp inbound webhook at ``/api/sms/incoming``.
 
-    Best-effort: if the route can't be registered (e.g. the app
-    was already started), logs a warning and continues. The
-    webhook is an enhancement, not a core feature.
+    **Fail-closed by design (motto §0.6 auth boundary).** The webhook only
+    mounts when BOTH of these are true:
+
+    1. ``settings.sms_webhook_enabled`` is True.
+    2. ``settings.twilio_auth_token`` is non-empty.
+
+    If either is missing, this function is a no-op and logs an info note.
+    This guarantees a public deployment without explicitly configured
+    credentials exposes no unauthenticated write surface.
+
+    When mounted, every request is authenticated via Twilio HMAC signature
+    verification (``verify_twilio_signature``). A request with a missing or
+    invalid ``X-Twilio-Signature`` header is rejected with HTTP 403 before
+    the dispatcher runs.
 
     Args:
-        app: The root ``gr.Blocks`` instance. The underlying
-            FastAPI app is ``app.app``.
+        app: The root ``gr.Blocks`` instance. The underlying FastAPI app
+            is ``app.app``.
 
-    Why best-effort:
-        The webhook depends on the ``sms_quick_add`` service
-        being importable. If that import fails for any reason
-        (e.g. a missing optional dependency), the rest of the
-        app should still start.
+    Why best-effort route registration:
+        If the route can't be registered (e.g. the app was already
+        started), logs a warning and continues. The webhook is an
+        enhancement, not a core feature.
 
     Why POST-only:
-        SMS / WhatsApp providers only POST to webhooks. Allowing
-        GET would expose the endpoint to accidental browser
-        visits and surface a meaningless response.
+        SMS / WhatsApp providers only POST to webhooks. Allowing GET
+        would expose the endpoint to accidental browser visits.
     """
+    # Fail-closed gate: never mount an unauthenticated write surface.
+    if not settings.sms_webhook_enabled:
+        logger.info(
+            "SMS webhook not mounted: sms_webhook_enabled is False. "
+            "Set SHOPSTACK_SMS_WEBHOOK_ENABLED=true to enable."
+        )
+        return
+    if not settings.twilio_auth_token:
+        logger.warning(
+            "SMS webhook not mounted: twilio_auth_token is empty. "
+            "Set SHOPSTACK_TWILIO_AUTH_TOKEN to enable signature verification."
+        )
+        return
+
     from starlette.requests import Request as _SMSRequest
     from starlette.responses import JSONResponse as _SMSResponse
     from shopstack.app_context import current_user_id, db
@@ -157,23 +257,45 @@ def mount_sms_webhook(app: gr.Blocks) -> None:
         handle_webhook as _sms_handle_webhook,
     )
 
-    dispatcher = _default_intent_dispatcher(db)
+    auth_token = settings.twilio_auth_token
+    dispatcher = _household_scoped_dispatcher(db, current_user_id() or "")
 
     async def _sms_webhook_endpoint(request: _SMSRequest):
+        # ── Authentication: verify Twilio HMAC signature (fail-closed) ──
+        signature_header = request.headers.get("X-Twilio-Signature", "")
+        # Reconstruct the full URL Twilio called (scheme + host + path + query).
+        # Starlette's request.url gives the full URL; for proxy/forwarded setups
+        # the X-Forwarded-* headers are respected by Gradio/FastAPI's config.
+        full_url = str(request.url)
+        # Parse the POST body. Twilio sends form-encoded data; accept JSON too
+        # for flexibility, but signature verification always uses the raw params.
+        content_type = (request.headers.get("content-type") or "").lower()
         try:
-            payload = await request.json()
+            if "application/x-www-form-urlencoded" in content_type:
+                form = await request.form()
+                payload = dict(form)
+            else:
+                payload = await request.json()
         except Exception:
             payload = {}
-        # Pick adapter by shape: Twilio sends ``From`` + ``Body``,
-        # other providers should pre-normalize to ``{from, body}``.
+
+        if not verify_twilio_signature(full_url, payload, signature_header, auth_token):
+            logger.warning(
+                "SMS webhook rejected: invalid or missing X-Twilio-Signature"
+            )
+            return _SMSResponse(
+                status_code=403,
+                content={"status": "unauthorized", "message": "Invalid signature."},
+            )
+
+        # ── Authenticated: pick adapter by payload shape ──
         if "From" in payload and "Body" in payload:
             adapter = _SMSTwilio()
         else:
             adapter = _SMSStub()
 
-        uid = current_user_id() or ""
         result = _sms_handle_webhook(
-            payload, adapter=adapter, dispatcher=lambda u, p: dispatcher(u, p),
+            payload, adapter=adapter, dispatcher=dispatcher,
         )
         return _SMSResponse(
             status_code=result.http_status,
@@ -191,5 +313,6 @@ def mount_sms_webhook(app: gr.Blocks) -> None:
             _sms_webhook_endpoint,
             methods=["POST"],
         )
+        logger.info("SMS webhook mounted at /api/sms/incoming (signature-verified)")
     except Exception as exc:  # noqa: BLE001 — best-effort webhook bootstrap
         logger.warning("SMS webhook mount failed: %s", exc)

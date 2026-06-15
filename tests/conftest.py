@@ -14,10 +14,34 @@ from typing import Generator
 #
 # Per motto_v3 §6, all backends are pinned to "mock" via env vars so the
 # module-level Settings singleton (used by session-scoped _app_session
-# fixture) also gets mock backends. The function-scoped ``settings``
-# fixture below reinforces this. LOCAL_AUTO_DOWNLOAD=False prevents
+# fixture) also gets mock backends. LOCAL_AUTO_DOWNLOAD=False prevents
 # test-time model downloads as defense-in-depth.
-os.environ.setdefault("SHOPSTACK_DB_PATH", ":memory:")
+#
+# DB PATH CHOICE (2026-06-14 fix, motto_v3 §0.6 reliability):
+# Previously defaulted to ``:memory:``, which is per-connection in SQLite.
+# That works for in-process tests (all connections share the main-thread
+# connection via threading.local), but it breaks for any test that
+# spawns Gradio worker threads — each worker gets a fresh empty
+# in-memory DB and fails with "no such table: app_config". The fix is a
+# session-scoped temp FILE so all threads see the same schema. The file
+# is removed at session exit via the atexit hook below.
+import atexit
+
+_SESSION_DB_FD, _SESSION_DB_PATH = tempfile.mkstemp(
+    suffix=".db", prefix="shopstack_test_session_"
+)
+os.close(_SESSION_DB_FD)
+
+
+@atexit.register
+def _cleanup_session_db() -> None:
+    """Remove the session DB + WAL/SHM sidecars at process exit."""
+    base = Path(_SESSION_DB_PATH)
+    for suffix in ("", "-wal", "-shm"):
+        base.with_suffix(base.suffix + suffix).unlink(missing_ok=True)
+
+
+os.environ.setdefault("SHOPSTACK_DB_PATH", _SESSION_DB_PATH)
 os.environ.setdefault("SHOPSTACK_LOCAL_AUTO_DOWNLOAD", "false")
 os.environ.setdefault("SHOPSTACK_OFF_THE_GRID", "true")
 os.environ.setdefault("SHOPSTACK_PLANNER_BACKEND", "mock")

@@ -167,18 +167,11 @@ MODEL_REGISTRY: list[ModelEntry] = [
         badge_relevance="off_the_grid",
         notes="Fun-CosyVoice3-0.5B-2512 (Dec 2025, 81k downloads). Apache-2.0. REPLACES CosyVoice 2. Multilingual (zh, en, ja, ko, de, fr, ru, it, es). MLX mirror available (mlx-community/Fun-CosyVoice3-0.5B-2512-fp16). Unblocks local Hindi TTS.",
     ),
-    # TTS — Qwen3-TTS-12Hz-1.7B-CustomVoice (Jan 2026, 1.9M downloads)
-    ModelEntry(
-        provider_group="tts",
-        model_id="qwen3-tts-1.7b-customvoice",
-        hf_model="Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
-        params_b=1.7,
-        license_note="Apache-2.0",
-        runtime="transformers",
-        status="candidate",
-        badge_relevance="llama_champion",
-        notes="Qwen3-TTS-1.7B-CustomVoice (Jan 2026, 1.9M downloads). Apache-2.0. Most popular Qwen TTS. TTS bench pending.",
-    ),
+    # TTS — Qwen3-TTS-12Hz-1.7B-CustomVoice (Jan 2026 variant) — removed
+    # 2026-06-15 (MOD-2): duplicate model_id of the active winner at line
+    # ~126 (Modal bench: 20/20 synth, 5.99s). This candidate entry had
+    # only "TTS bench pending"; keeping both broke lookups and budget
+    # accounting. A registry uniqueness guard now prevents recurrence.
     # TTS — Qwen3-TTS-12Hz-1.7B-VoiceDesign
     ModelEntry(
         provider_group="tts",
@@ -356,18 +349,11 @@ MODEL_REGISTRY: list[ModelEntry] = [
         badge_relevance="llama_champion",
         notes="Mistral's Oct 2025 release. 169k downloads. mistral3 arch. Modal A100 int4 (13-Jun-2026): 70% tool-calling, 2.59s mean. **Loses to Ministral-3-8B-Reasoning-2512 (90%) by 20 points** — the reasoning variant is materially better. Demoted.",
     ),
-    # Planner — Ministral-3-3B-Instruct-2512 (NEW MID-2026 SOTA, Run 3 candidate)
-    ModelEntry(
-        provider_group="planner",
-        model_id="ministral-3-3b-instruct-2512",
-        hf_model="mistralai/Ministral-3-3B-Instruct-2512",
-        params_b=3.0,
-        license_note="Apache-2.0",
-        runtime="transformers",
-        status="candidate",
-        badge_relevance="llama_champion",
-        notes="Mistral's Oct 2025 3B variant. 669k downloads. Smallest serious Mistral. Run 3 bench in flight.",
-    ),
+    # Planner — Ministral-3-3B-Instruct-2512 — see the canonical entry below
+    # (line ~419) which carries the Modal bench data (85% tool-calling,
+    # 2.31s). This duplicate was removed on 2026-06-15 audit (MOD-2):
+    # duplicate model_ids break lookups and budget accounting. A registry
+    # uniqueness guard now prevents recurrence.
     # Planner — Ministral-3-14B-Instruct-2512 (NEW MID-2026 SOTA, Run 3 candidate)
     ModelEntry(
         provider_group="planner",
@@ -744,3 +730,18 @@ def get_status_summary() -> dict[str, int]:
     for model in MODEL_REGISTRY:
         counts[model.status] += 1
     return counts
+
+
+def find_duplicate_model_ids() -> list[str]:
+    """Return model_ids that appear more than once in MODEL_REGISTRY.
+
+    A model_id must be unique — duplicates break lookups (the first match
+    wins silently) and inflate the budget accounting. This helper lets
+    tests and CI enforce uniqueness without scanning the list by hand.
+
+    Returns an empty list when all model_ids are unique (the healthy state).
+    """
+    seen: dict[str, int] = {}
+    for m in MODEL_REGISTRY:
+        seen[m.model_id] = seen.get(m.model_id, 0) + 1
+    return [mid for mid, count in seen.items() if count > 1]

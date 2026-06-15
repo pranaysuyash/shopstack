@@ -10,6 +10,7 @@ from datetime import datetime
 from html import escape
 
 from shopstack.app_context import db, tools, current_user_id
+from shopstack.schemas.models import FindFeedback, HouseholdObject, ObjectNote, ObjectSighting
 from shopstack.ui.components.decorators import aria_live_screen
 from shopstack.ui.screens._utils import safe_render
 
@@ -82,6 +83,91 @@ def add_person_association(lot_id: str, person_name: str, relationship: str = "o
     return f"<div style='color:var(--green);'>Associated {escape(person_name)} with item.</div>"
 
 
+@aria_live_screen()
+def create_find_object(
+    name: str,
+    object_type: str,
+    home_location_id: str,
+    owner_name: str = "",
+    notes: str = "",
+) -> str:
+    """Create a durable ShopFind object with separate home/current state."""
+    clean_name = (name or "").strip()
+    if not clean_name:
+        return "<div style='color:var(--red);'>Object name is required.</div>"
+    uid = current_user_id()
+    obj = db.add_household_object(HouseholdObject(
+        canonical_name=clean_name.lower(),
+        display_name=clean_name,
+        object_type=(object_type or "other"),
+        category=(object_type or "other"),
+        owner_name=(owner_name or "").strip() or None,
+        home_location_id=(home_location_id or "").strip() or None,
+        current_location_id=(home_location_id or "").strip() or None,
+        notes=(notes or "").strip() or None,
+    ), user_id=uid)
+    return (
+        f"<div style='color:var(--green);'>Created findable object "
+        f"{escape(obj.display_name)} ({escape(obj.object_id)}).</div>"
+    )
+
+
+@aria_live_screen()
+def record_object_sighting(object_id: str, location_id: str, context: str = "", notes: str = "") -> str:
+    """Record that a durable object was seen at a location."""
+    if not object_id or not location_id:
+        return "<div style='color:var(--red);'>Object ID and location ID are required.</div>"
+    uid = current_user_id()
+    obj = db.get_household_object(object_id, user_id=uid)
+    if obj is None:
+        return f"<div style='color:var(--red);'>Object {escape(object_id)} not found.</div>"
+    sighting = db.record_object_sighting(ObjectSighting(
+        object_id=object_id,
+        location_id=location_id,
+        context=(context or "").strip() or None,
+        notes=(notes or "").strip() or None,
+    ), user_id=uid)
+    return (
+        f"<div style='color:var(--green);'>Recorded sighting for "
+        f"{escape(obj.display_name)} at {escape(sighting.location_id)}.</div>"
+    )
+
+
+@aria_live_screen()
+def add_object_note(object_id: str, note_text: str, tags: str = "") -> str:
+    """Add searchable human memory to a durable object."""
+    if not object_id or not (note_text or "").strip():
+        return "<div style='color:var(--red);'>Object ID and note are required.</div>"
+    uid = current_user_id()
+    obj = db.get_household_object(object_id, user_id=uid)
+    if obj is None:
+        return f"<div style='color:var(--red);'>Object {escape(object_id)} not found.</div>"
+    tag_list = [tag.strip() for tag in (tags or "").split(",") if tag.strip()]
+    db.add_object_note(ObjectNote(object_id=object_id, note_text=note_text.strip(), tags=tag_list), user_id=uid)
+    return f"<div style='color:var(--green);'>Added note to {escape(obj.display_name)}.</div>"
+
+
+@aria_live_screen()
+def record_find_feedback(query: str, object_or_lot_id: str, actual_location_id: str, feedback: str = "found") -> str:
+    """Record ShopFind feedback so the memory system can learn."""
+    if not (query or "").strip() or not (object_or_lot_id or "").strip():
+        return "<div style='color:var(--red);'>Query and object/lot ID are required.</div>"
+    uid = current_user_id()
+    object_id = object_or_lot_id.strip()
+    lot_id = None
+    if db.get_household_object(object_id, user_id=uid) is None:
+        lot_id = object_id
+        object_id = None
+    tools.inventory._shopfind().record_feedback(FindFeedback(
+        query=query.strip(),
+        feedback=feedback or "found",
+        object_id=object_id,
+        lot_id=lot_id,
+        actual_location_id=(actual_location_id or "").strip() or None,
+    ), user_id=uid)
+    return "<div style='color:var(--green);'>Feedback recorded.</div>"
+
+
 # ── Private renderers ──────────────────────────────────────────────────
 
 
@@ -123,6 +209,11 @@ def _render_trail_card(result) -> str:
     """Render a single FindResult as a trail card."""
     title = escape(result.title)
     confidence = result.confidence
+    entity_id = ""
+    if result.household_object:
+        entity_id = result.household_object.get("object_id", "")
+    elif result.lot:
+        entity_id = result.lot.get("lot_id", "")
     badge_color = _COLOR_GREEN if confidence >= 0.8 else (_COLOR_AMBER if confidence >= 0.5 else _COLOR_RED)
     confidence_label = f"{confidence:.0%}"
 
@@ -139,7 +230,8 @@ def _render_trail_card(result) -> str:
     return (
         f"<div class='stat-card' style='{_CARD_STYLE}'>"
         f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
-        f"<div style='font-weight:600;font-size:1rem;'>{title}</div>"
+        f"<div><div style='font-weight:600;font-size:1rem;'>{title}</div>"
+        f"<div style='font-size:0.625rem;color:var(--text-dim);'>{escape(str(result.entity_type))} · {escape(str(entity_id))}</div></div>"
         f"<span style='{_BADGE_STYLE}background:{badge_color};color:#fff;'>{confidence_label}</span>"
         f"</div>"
         f"{body}"
@@ -337,6 +429,8 @@ def _render_actions(result) -> str:
         "add_note": "+ Note",
         "add_negative_memory": "✗ Not Here",
         "add_person_association": "👤 Assign Person",
+        "add_sighting": "👁 Seen Here",
+        "set_home_location": "🏠 Set Home",
     }
 
     pills = ""

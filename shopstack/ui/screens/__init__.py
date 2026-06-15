@@ -37,7 +37,8 @@ from shopstack.ui.screens.inventory import (
     consume_items_batch,
     seed_demo_inventory,
     suggest_location_for_item,
-    use_soon_view,
+    use_first_view,
+    use_soon_view,  # noqa: F401 — deprecated alias (kept for one release cycle; see HANDOFF_USESOONVIEW_SUPERSESSION_2026-06-13.md)
 )
 # Backward-compat re-export for households.py — module was archived to
 # _legacy/ on 2026-06-13 per motto_v3 §7 (supersession). The functions
@@ -172,7 +173,8 @@ __all__ = [
     "consume_item",
     "consume_items_batch",
     "seed_demo_inventory",
-    "use_soon_view",
+    "use_first_view",
+    "use_soon_view",  # deprecated alias; see HANDOFF_USESOONVIEW_SUPERSESSION_2026-06-13.md
     "agent_trace_choices",
     "agent_trace_bootstrap",
     "agent_trace_view",

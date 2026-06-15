@@ -24,7 +24,7 @@ class TestFreshnessClassification:
     """Tests for shopstack.services.freshness."""
 
     def test_live_freshness(self):
-        from shopstack.services.freshness import classify_freshness
+        from shopstack.domain import classify_freshness
         today = date(2026, 6, 9)
         report = classify_freshness("2026-06-09", today)
         assert report.status == "live"
@@ -33,7 +33,7 @@ class TestFreshnessClassification:
         assert report.warning == ""
 
     def test_recent_freshness(self):
-        from shopstack.services.freshness import classify_freshness
+        from shopstack.domain import classify_freshness
         today = date(2026, 6, 9)
         report = classify_freshness("2026-06-08", today)
         assert report.status == "recent"
@@ -41,7 +41,7 @@ class TestFreshnessClassification:
         assert not report.is_stale
 
     def test_stale_freshness(self):
-        from shopstack.services.freshness import classify_freshness
+        from shopstack.domain import classify_freshness
         today = date(2026, 6, 9)
         report = classify_freshness("2026-06-06", today)
         assert report.status == "stale"
@@ -50,13 +50,13 @@ class TestFreshnessClassification:
         assert "days old" in report.warning.lower() or "3 days" in report.warning
 
     def test_unknown_freshness_bad_date(self):
-        from shopstack.services.freshness import classify_freshness
+        from shopstack.domain import classify_freshness
         report = classify_freshness("not-a-date")
         assert report.status == "unknown"
         assert report.is_stale
 
     def test_inventory_freshness_within_shelf_life(self):
-        from shopstack.services.freshness import inventory_freshness_label
+        from shopstack.domain import inventory_freshness_label
         today = date(2026, 6, 9)
         report = inventory_freshness_label(
             purchase_date=date(2026, 6, 7),
@@ -68,7 +68,7 @@ class TestFreshnessClassification:
         assert "5 days remaining" in report.label
 
     def test_inventory_freshness_past_shelf_life(self):
-        from shopstack.services.freshness import inventory_freshness_label
+        from shopstack.domain import inventory_freshness_label
         today = date(2026, 6, 20)
         report = inventory_freshness_label(
             purchase_date=date(2026, 6, 7),
@@ -87,7 +87,7 @@ class TestShouldBuy:
 
     def test_out_of_stock_with_market(self):
         from shopstack.services.decision_engine import should_buy
-        from shopstack.services.freshness import FreshnessReport
+        from shopstack.domain import FreshnessReport
 
         class MockRecord:
             is_available = True
@@ -111,7 +111,7 @@ class TestShouldBuy:
 
     def test_low_stock_with_market(self):
         from shopstack.services.decision_engine import should_buy
-        from shopstack.services.freshness import FreshnessReport
+        from shopstack.domain import FreshnessReport
 
         class MockRecord:
             is_available = True
@@ -166,7 +166,7 @@ class TestShouldBuy:
     def test_ad_listing_reduces_confidence(self):
         """Ad-tagged market records should reduce buy confidence."""
         from shopstack.services.decision_engine import should_buy
-        from shopstack.services.freshness import FreshnessReport
+        from shopstack.domain import FreshnessReport
 
         class MockAdRecord:
             is_available = True
@@ -194,7 +194,7 @@ class TestShouldBuy:
     def test_ad_listing_confidence_reduction(self):
         """Non-ad record with same params should have higher confidence than ad."""
         from shopstack.services.decision_engine import should_buy
-        from shopstack.services.freshness import FreshnessReport
+        from shopstack.domain import FreshnessReport
 
         class MockNormalRecord:
             is_available = True
@@ -219,7 +219,7 @@ class TestShouldBuy:
     def test_stale_data_lowers_market_confidence(self):
         """Stale freshness should reduce evidence confidence for market data."""
         from shopstack.services.decision_engine import should_buy
-        from shopstack.services.freshness import FreshnessReport
+        from shopstack.domain import FreshnessReport
 
         class MockRecord:
             is_available = True
@@ -469,7 +469,7 @@ class TestSwiggyGoldenTests:
     def test_decision_engine_with_snapshot(self, snapshot):
         """Decision engine should produce decisions from real Swiggy data."""
         from shopstack.services.decision_engine import should_buy, compare_candidates
-        from shopstack.services.freshness import classify_snapshot_freshness
+        from shopstack.domain import classify_snapshot_freshness
 
         freshness = classify_snapshot_freshness(snapshot)
         available = [r for r in snapshot.normalized_records if r.is_available]
@@ -570,7 +570,7 @@ class TestCompareCandidates:
 
     def test_compare_with_stale_freshness(self):
         from shopstack.services.decision_engine import compare_candidates
-        from shopstack.services.freshness import FreshnessReport
+        from shopstack.domain import FreshnessReport
         records = [
             self.MockRecord(50.0),
             self.MockRecord(120.0),
@@ -593,7 +593,7 @@ class TestDetectStaleWarnings:
 
     def test_stale_attaches_warnings(self):
         from shopstack.services.decision_engine import detect_stale_snapshot_warnings
-        from shopstack.services.freshness import FreshnessReport
+        from shopstack.domain import FreshnessReport
         from shopstack.schemas.models import DecisionResult
 
         stale = FreshnessReport("stale", 5, "5 days old", "2026-06-04", True, "Data is old")
@@ -609,7 +609,7 @@ class TestDetectStaleWarnings:
 
     def test_fresh_no_warnings(self):
         from shopstack.services.decision_engine import detect_stale_snapshot_warnings
-        from shopstack.services.freshness import FreshnessReport
+        from shopstack.domain import FreshnessReport
         from shopstack.schemas.models import DecisionResult
 
         fresh = FreshnessReport("live", 0, "Today", "2026-06-09", False, "")
@@ -622,7 +622,7 @@ class TestDetectStaleWarnings:
 
     def test_no_double_add_stale_warnings(self):
         from shopstack.services.decision_engine import detect_stale_snapshot_warnings
-        from shopstack.services.freshness import FreshnessReport
+        from shopstack.domain import FreshnessReport
         from shopstack.schemas.models import DecisionResult, DecisionWarning
 
         stale = FreshnessReport("stale", 5, "5 days old", "2026-06-04", True, "Data is old")

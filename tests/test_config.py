@@ -20,6 +20,28 @@ class TestSettings:
         assert s.app_port == 8080
         assert s.off_the_grid is False
 
+    def test_cost_budget_default(self, monkeypatch):
+        """Default budget is $1.00 USD per session."""
+        monkeypatch.delenv("SHOPSTACK_COST_BUDGET_LIMIT", raising=False)
+        s = Settings(_env_file=None)
+        assert s.cost_budget_limit == 1.00
+
+    def test_cost_budget_env_override(self, monkeypatch):
+        """SHELLCK_COST_BUDGET_LIMIT env var overrides the default."""
+        monkeypatch.setenv("SHOPSTACK_COST_BUDGET_LIMIT", "5.50")
+        s = Settings(_env_file=None)
+        assert s.cost_budget_limit == 5.50
+
+    def test_cost_budget_field_exists(self, monkeypatch):
+        """The cost_budget_limit field is required for planner/engine to read it.
+
+        This regression-pins the fix: the field was added because
+        planner/engine.py reads settings.cost_budget_limit, and removing
+        the field would crash at import time.
+        """
+        s = Settings(_env_file=None)
+        assert hasattr(s, "cost_budget_limit")
+
     def test_provider_backends_default(self, monkeypatch):
         monkeypatch.delenv("SHOPSTACK_OFF_THE_GRID", raising=False)
         # conftest.py sets these to "mock" via os.environ.setdefault so the

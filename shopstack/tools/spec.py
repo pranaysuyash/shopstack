@@ -100,10 +100,13 @@ class ToolSpec:
 
 
 def build_tool_specs() -> list[ToolSpec]:
-    """Canonical ToolSpec definitions for all 11 tools.
+    """Canonical ToolSpec definitions for all registered tools.
 
     This is the single source of truth. prompts.py generates planner
-    descriptions from these specs. Any new tool must be added here.
+    descriptions from these specs. Any new tool must be added here,
+    AND registered in ToolRegistry._register_all (tools/registry.py).
+    The two must stay in sync — every executable tool must have a spec
+    so the planner can describe it and the engine can validate its args.
     """
     return [
         ToolSpec(
@@ -172,6 +175,14 @@ def build_tool_specs() -> list[ToolSpec]:
             ],
             mutability="write",
             needs_confirmation=False,
+            category="inventory",
+        ),
+        ToolSpec(
+            name="undo_last_inventory_change",
+            description="Undo the most recent change made to an inventory item (add, consume, or move).",
+            args=[ArgSpec("lot_id", "The lot ID or prefix to undo the last change for. Required.", type_name="string")],
+            mutability="write",
+            needs_confirmation=True,
             category="inventory",
         ),
         ToolSpec(

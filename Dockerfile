@@ -16,7 +16,7 @@ COPY shopstack/ shopstack/
 RUN uv pip install --system --no-cache -e ".[cloud]"
 
 # ── Runtime stage ─────────────────────────────────────────────────────
-FROM python:3.12-slim
+FROM python:3.12-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

@@ -248,11 +248,16 @@ def recipe_text_add_missing_to_list(raw_text: str) -> str:
             kind="error",
         )
 
-    # Step 4: insert each missing item
+    # Step 4: insert each missing item (idempotent — skip if already on list)
+    existing_names = _existing_list_canonical_names(db, list_id)
     added = 0
+    skipped = 0
     for it in missing_items:
         cname = (it.get("canonical_name") or "").strip()
         if not cname:
+            continue
+        if cname.lower() in existing_names:
+            skipped += 1
             continue
         try:
             db.add_list_item(
@@ -264,24 +269,65 @@ def recipe_text_add_missing_to_list(raw_text: str) -> str:
                 ),
             )
             added += 1
+            existing_names.add(cname.lower())
         except Exception as exc:
             logger.debug("add_list_item failed for %s: %s", cname, exc)
 
-    if added == 0:
+    if added == 0 and skipped == 0:
         return toast(
             "⚠ Nothing new to add (some ingredients may already be on the list).",
             kind="warning",
+        )
+    if added == 0:
+        return toast(
+            f"✓ All {skipped} ingredient{'s' if skipped != 1 else ''} "
+            f"already on your list — nothing new to add.",
+            kind="success",
         )
     sample = ", ".join(
         (it.get("canonical_name") or "").replace("_", " ").title()
         for it in missing_items[:3]
     )
     more = "" if len(missing_items) <= 3 else f" (+{len(missing_items) - 3} more)"
+    skip_note = f" ({skipped} already on list)" if skipped else ""
     return toast(
         f"✓ Added {added} missing item{'s' if added != 1 else ''} to your shopping list: "
-        f"{sample}{more}.",
+        f"{sample}{more}{skip_note}.",
         kind="success",
     )
+
+
+def _existing_list_canonical_names(db: Any, list_id: str) -> set[str]:
+    """Return the set of lowercase canonical_names already on the shopping list.
+
+    Used by :func:`recipe_text_add_missing_to_list` (and any future
+    "add to list" action) for idempotency. Calling the action twice
+    with the same recipe no longer duplicates items.
+
+    Defensive:
+      * Returns an empty set on any DB error (caller proceeds, may
+        duplicate — better than failing the user-visible action).
+      * Strips + lowercases the canonical names so "Chickpea" and
+        "chickpea" are treated as the same item.
+
+    Args:
+        db: The Database (or a fake with the same interface).
+        list_id: The shopping list to scan.
+
+    Returns:
+        A set of lowercase canonical_names already in the list.
+    """
+    try:
+        conn = getattr(db, "conn", None)
+        if conn is None:
+            return set()
+        rows = conn.execute(
+            "SELECT canonical_name FROM shopping_list_items WHERE list_id = ?",
+            (list_id,),
+        ).fetchall()
+        return {(row[0] or "").strip().lower() for row in rows if row and row[0]}
+    except Exception:
+        return set()
 
 
 # ── v2: image upload + OCR (added 2026-06-13) ──────────────────────────

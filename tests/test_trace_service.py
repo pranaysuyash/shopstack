@@ -712,6 +712,51 @@ class TestTraceServiceRedactPayload:
         assert redacted["perception"]["phone"] == "[REDACTED_NUMBER]"
         assert redacted["perception"]["name"] == "John"
 
+    def test_redacts_international_phone_spaced(self, db):
+        r"""SEC-3: +country-code spaced phones must redact (was missed by \d{10+})."""
+        from shopstack.services.trace import TraceService
+        svc = TraceService(db)
+        payload = {"user_goal": "call +44 7700 900123 when ready"}
+        redacted = svc.redact_payload(payload)
+        assert "7700 900123" not in redacted["user_goal"]
+        assert "[REDACTED_NUMBER]" in redacted["user_goal"]
+
+    def test_redacts_indian_mobile_with_country_code(self, db):
+        """SEC-3: +91 spaced Indian mobile must redact."""
+        from shopstack.services.trace import TraceService
+        svc = TraceService(db)
+        payload = {"user_goal": "contact +91 98765 43210"}
+        redacted = svc.redact_payload(payload)
+        assert "98765 43210" not in redacted["user_goal"]
+        assert "[REDACTED_NUMBER]" in redacted["user_goal"]
+
+    def test_redacts_aadhaar_spaced(self, db):
+        """SEC-3: Aadhaar in 1234 5678 9012 format must redact."""
+        from shopstack.services.trace import TraceService
+        svc = TraceService(db)
+        payload = {"user_goal": "aadhaar 1234 5678 9012 on file"}
+        redacted = svc.redact_payload(payload)
+        assert "1234 5678 9012" not in redacted["user_goal"]
+        assert "[REDACTED_AADHAAR]" in redacted["user_goal"]
+
+    def test_redacts_pan_card(self, db):
+        """SEC-3: PAN (ABCDE1234F) must redact as PAN, not generic."""
+        from shopstack.services.trace import TraceService
+        svc = TraceService(db)
+        payload = {"user_goal": "pan ABCDE1234F registered"}
+        redacted = svc.redact_payload(payload)
+        assert "ABCDE1234F" not in redacted["user_goal"]
+        assert "[REDACTED_PAN]" in redacted["user_goal"]
+
+    def test_does_not_redact_prices_or_quantities(self, db):
+        """SEC-3: redaction must not over-match short numerics like ₹250 or 2 kg."""
+        from shopstack.services.trace import TraceService
+        svc = TraceService(db)
+        payload = {"user_goal": "buy 2 kg rice for 250 rupees"}
+        redacted = svc.redact_payload(payload)
+        assert "2 kg" in redacted["user_goal"]
+        assert "250" in redacted["user_goal"]
+
 
 # ══════════════════════════════════════════════════════════════════════════
 # TraceService — update_confirmation

@@ -386,6 +386,18 @@ span.or {
   border: 0;
 }
 
+/* Gradio's native pending overlay (data-testid="status-tracker") is
+   absolutely positioned with no inset, so while its own .block has
+   collapsed/zero height (during app.load()), the overlay's default
+   min-height makes it visually bleed over the rendered content of the
+   NEXT block below it -- the result an end user sees is fully-loaded
+   content greyed out under a stale "X.Xs" spinner. Clipping the parent
+   .block confines the overlay to its own (empty) box so it can no
+   longer cover sibling content. */
+.block:has(> div[data-testid="status-tracker"]) {
+  overflow: clip;
+}
+
 /* Ensure tab panels are keyboard-accessible (WCAG 2.1.1 Keyboard) */
 [role="tabpanel"]:focus {
   outline: none;

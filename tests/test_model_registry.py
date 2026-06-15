@@ -45,3 +45,14 @@ def test_validate_active_model_budget_rejects_over_cap():
         for entry, status, params_b in original_states:
             entry.status = status
             entry.params_b = params_b
+
+
+def test_no_duplicate_model_ids():
+    """MOD-2: every model_id must be unique.
+
+    Duplicate model_ids silently break lookups (first match wins) and
+    inflate budget accounting. This guard prevents the class of bug,
+    not just the instances removed on 2026-06-15.
+    """
+    duplicates = model_registry.find_duplicate_model_ids()
+    assert duplicates == [], f"Duplicate model_ids found: {duplicates}"

@@ -420,3 +420,115 @@ class TestCookbookScreenModuleSurface:
         ):
             assert hasattr(cookbook, name), f"missing {name}"
             assert callable(getattr(cookbook, name)), f"{name} not callable"
+
+
+# ─── Idempotency tests (added 2026-06-13) ─────────────────────────────────
+
+
+
+class TestCookbookShopMissingIdempotency:
+    """The shop_missing action must be idempotent (added 2026-06-13).
+
+    Before the fix, calling shop_missing twice for the same recipe
+    doubled the items in the shopping list. The fix: skip canonical
+    names that are already on the list.
+    """
+
+    def test_double_call_does_not_duplicate(self, tmp_path):
+        """Two calls in a row → items count == N, not 2N."""
+        from shopstack.services import cookbook
+        from shopstack.services.recipes import Recipe, RecipeIngredient
+        from shopstack.app_context import db
+
+        TEST = "cookbook_idempotency_e2e"
+        orig_active = db.active_household_id
+        try:
+            db.add_household(TEST, "Cookbook Idempotency")
+            db.add_household_member(TEST, TEST, role="owner")
+            db.active_household_id = TEST
+            # Clean any pre-existing
+            active = db.get_active_shopping_list(user_id=TEST)
+            if active:
+                db.conn.execute(
+                    "DELETE FROM shopping_list_items WHERE list_id = ?",
+                    (active.list_id,),
+                )
+                db.conn.execute(
+                    "DELETE FROM shopping_lists WHERE list_id = ?",
+                    (active.list_id,),
+                )
+            db.conn.commit()
+
+            recipe = Recipe(
+                id="r-idem",
+                name="Test",
+                cuisine="",
+                dietary=[],
+                prep_minutes=5,
+                cook_minutes=10,
+                serves=2,
+                tags=[],
+                ingredients=[
+                    RecipeIngredient(canonical_name="rice", quantity=1, unit="kg"),
+                    RecipeIngredient(canonical_name="onion", quantity=2, unit="unit"),
+                    RecipeIngredient(canonical_name="garlic", quantity=3, unit="cloves"),
+                ],
+                instructions=[],
+            )
+            inventory = []  # All 3 items are missing
+
+            # First call: adds 3
+            result1 = cookbook.shop_missing(db, recipe, inventory, user_id=TEST)
+            assert result1["added"] is True
+            assert result1["count"] == 3, f"First call should add 3, got {result1['count']}"
+
+            active = db.get_active_shopping_list(user_id=TEST)
+            count1 = db.conn.execute(
+                "SELECT COUNT(*) FROM shopping_list_items WHERE list_id = ?",
+                (active.list_id,),
+            ).fetchone()[0]
+            assert count1 == 3, f"DB should have 3 items, got {count1}"
+
+            # Second call: should add 0 (all already on list)
+            result2 = cookbook.shop_missing(db, recipe, inventory, user_id=TEST)
+            count2 = db.conn.execute(
+                "SELECT COUNT(*) FROM shopping_list_items WHERE list_id = ?",
+                (active.list_id,),
+            ).fetchone()[0]
+            assert count2 == 3, (
+                f"Second call should be idempotent (still 3), got {count2}. "
+                "Idempotency is broken — items are being duplicated."
+            )
+            assert result2["count"] == 0
+            assert "Skipped 3" in result2["reason"] or "skipped 3" in result2["reason"].lower()
+
+            # Third call after removing one item: should add 1
+            db.conn.execute(
+                "DELETE FROM shopping_list_items WHERE canonical_name = 'rice' AND list_id = ?",
+                (active.list_id,),
+            )
+            db.conn.commit()
+            result3 = cookbook.shop_missing(db, recipe, inventory, user_id=TEST)
+            count3 = db.conn.execute(
+                "SELECT COUNT(*) FROM shopping_list_items WHERE list_id = ?",
+                (active.list_id,),
+            ).fetchone()[0]
+            assert count3 == 3, f"After removing rice, should have 3 (re-added); got {count3}"
+            assert result3["count"] == 1, f"Third call should add 1 (rice only), got {result3['count']}"
+        finally:
+            active = db.get_active_shopping_list(user_id=TEST)
+            if active:
+                db.conn.execute(
+                    "DELETE FROM shopping_list_items WHERE list_id = ?",
+                    (active.list_id,),
+                )
+                db.conn.execute(
+                    "DELETE FROM shopping_lists WHERE list_id = ?",
+                    (active.list_id,),
+                )
+            db.conn.execute(
+                "INSERT OR REPLACE INTO app_config (key, value) VALUES (?, ?)",
+                ("active_household_id", orig_active),
+            )
+            db.conn.commit()
+            db.remove_household(TEST)

@@ -10,6 +10,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
 
@@ -38,6 +39,37 @@ jobs:
 
       - name: Verify app builds
         run: uv run python -c "from app import build_app; app = build_app(); print(f'Builds OK: {app.title}')"
+
+  # ── Python 3.14 compatibility gate ──────────────────────────────────
+  # 3.14 is the documented development runtime (AGENTS.md) and the version
+  # where the mlx C-extension segfault was diagnosed (addendum 2026-06-09).
+  # We run it as an experimental, non-blocking job so 3.14 regressions
+  # (e.g. a new C-extension imported at module top-level) surface in CI
+  # without breaking the main gate until the stack is confirmed stable.
+  # The test_import_audit suite is the key defense — it verifies no
+  # C-extensions load at provider import time.
+  test-py314:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Run import audit (C-extension segfault guard)
+        run: uv run pytest tests/test_import_audit.py -v
+
+      - name: Run full test suite
+        run: uv run pytest tests/ -v --tb=short
 
   lint:
     runs-on: ubuntu-latest

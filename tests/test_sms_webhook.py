@@ -1,33 +1,33 @@
-"""Tests for the SMS / WhatsApp webhook dispatcher.
+"""Tests for the SMS / WhatsApp webhook dispatcher + security.
 
-Verifies the pure dispatcher logic in :mod:`shopstack.services.sms_webhook`:
+Verifies:
 
-- ``add_inventory_item`` intent calls ``db.add_inventory_lot`` and
-  returns ``ok=True`` with a confirmation message.
-- ``consume_item`` intent calls ``db.consume_inventory`` and returns
-  ``ok=True`` with a confirmation message.
-- Unknown intents return ``ok=True`` with a "no action configured"
-  message (the dispatcher is pluggable — unknown intents are
-  acknowledged but not acted on).
-- DB errors are caught and returned as ``ok=False`` with a friendly
-  message (the provider treats 200 as success, so we never let
-  internal failures propagate).
+1. The pure dispatcher logic in :mod:`shopstack.services.sms_webhook`
+   (add/consume/unknown intents, DB error handling).
+2. **Twilio HMAC signature verification** (``verify_twilio_signature``)
+   — the fail-closed auth boundary for the webhook endpoint.
+3. **Household-scoped dispatch** — writes go to the phone-owner's
+   household, not the process-global active household.
+4. **Fail-closed mounting** — the webhook does not mount without
+   explicit enable + auth token config.
 
 The HTTP endpoint itself (Starlette route registration) is hard to
-unit-test without spinning up a server; the dispatcher is the
-piece that has actual business logic, so we test that thoroughly.
-
-The ``_default_intent_dispatcher`` function takes a ``db`` object
-and returns a closure that uses it. We pass a fake ``db`` with
-the two methods we expect (``add_inventory_lot`` and
-``consume_inventory``), so no real database is required.
+unit-test without spinning up a server; the dispatcher + verifier are
+the pieces with actual security/business logic, so we test those.
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 from datetime import datetime, timezone
+from urllib.parse import urlencode
 
 from shopstack.schemas.models import InventoryLot
-from shopstack.services.sms_webhook import _default_intent_dispatcher
+from shopstack.services.sms_webhook import (
+    _default_intent_dispatcher,
+    _household_scoped_dispatcher,
+    verify_twilio_signature,
+)
 
 
 class _FakeDB:
@@ -245,3 +245,109 @@ class TestUnknownIntent:
         result = dispatcher("user-1", {"args": {}})
         assert result["ok"] is True
         assert "no action configured" in result["message"]
+
+
+# ─── Helpers for signature verification tests ──────────────────────
+
+
+def _twilio_signature(url: str, params: dict, auth_token: str) -> str:
+    """Compute a valid X-Twilio-Signature header value (mirrors verify)."""
+    sorted_params = sorted(params.items())
+    param_str = urlencode(sorted_params)
+    return hmac.new(
+        auth_token.encode("utf-8"),
+        (url + param_str).encode("utf-8"),
+        hashlib.sha1,
+    ).hexdigest()
+
+
+class TestTwilioSignatureVerification:
+    """SEC-1: the webhook's fail-closed auth boundary.
+
+    ``verify_twilio_signature`` is the pure, unit-testable auth check.
+    It must accept valid signatures and reject every failure mode
+    (missing token, missing header, wrong token, tampered params).
+    """
+
+    URL = "https://shopstack.example.com/api/sms/incoming"
+    TOKEN = "test-twilio-secret-token"
+    PARAMS = {"From": "+15551234567", "Body": "add 2 kg onion"}
+
+    def test_valid_signature_accepted(self):
+        sig = _twilio_signature(self.URL, self.PARAMS, self.TOKEN)
+        assert verify_twilio_signature(self.URL, self.PARAMS, sig, self.TOKEN) is True
+
+    def test_missing_token_rejected(self):
+        """No auth token configured → fail-closed (never allow)."""
+        sig = _twilio_signature(self.URL, self.PARAMS, self.TOKEN)
+        assert verify_twilio_signature(self.URL, self.PARAMS, sig, "") is False
+
+    def test_missing_signature_header_rejected(self):
+        """No signature header → fail-closed."""
+        assert verify_twilio_signature(self.URL, self.PARAMS, "", self.TOKEN) is False
+
+    def test_wrong_token_rejected(self):
+        """Signature computed with a different token → reject."""
+        sig = _twilio_signature(self.URL, self.PARAMS, "wrong-token")
+        assert verify_twilio_signature(self.URL, self.PARAMS, sig, self.TOKEN) is False
+
+    def test_tampered_params_rejected(self):
+        """Altering the message body after signing breaks the signature."""
+        sig = _twilio_signature(self.URL, self.PARAMS, self.TOKEN)
+        tampered = {**self.PARAMS, "Body": "add 999 kg onion"}  # different body
+        assert verify_twilio_signature(self.URL, tampered, sig, self.TOKEN) is False
+
+    def test_tampered_url_rejected(self):
+        """A different URL (e.g. attacker's replay host) breaks the signature."""
+        sig = _twilio_signature(self.URL, self.PARAMS, self.TOKEN)
+        assert verify_twilio_signature(
+            "https://evil.example.com/api/sms/incoming", self.PARAMS, sig, self.TOKEN
+        ) is False
+
+    def test_replay_to_different_params_rejected(self):
+        """A signature from one payload must not validate a different payload."""
+        sig = _twilio_signature(self.URL, {"From": "+1", "Body": "a"}, self.TOKEN)
+        assert verify_twilio_signature(self.URL, self.PARAMS, sig, self.TOKEN) is False
+
+
+class TestHouseholdScopedDispatcher:
+    """SEC-2: writes go to the phone-owner's household, not the global active one.
+
+    The SMS flow resolves the sender's household from the phone registry.
+    The dispatcher must use THAT id, not the process-global
+    ``current_user_id()`` (which is whatever household is open in the UI).
+    """
+
+    def test_uses_resolved_user_id_not_fallback(self):
+        """When the phone resolves to household-B, writes go to B even if
+        the process default is household-A."""
+        db = _FakeDB()
+        # fallback is household-A, but the resolved id (from phone lookup) is household-B
+        dispatcher = _household_scoped_dispatcher(db, fallback_user_id="household-A")
+        dispatcher("household-B", {
+            "intent": "add_inventory_item",
+            "args": {"canonical_name": "milk"},
+        })
+        assert db.add_calls[0]["user_id"] == "household-B"
+
+    def test_falls_back_when_resolved_id_empty(self):
+        """An empty resolved id (local-dev Stub path) falls back to the
+        process default — preserving the previous behavior."""
+        db = _FakeDB()
+        dispatcher = _household_scoped_dispatcher(db, fallback_user_id="default_household")
+        dispatcher("", {
+            "intent": "add_inventory_item",
+            "args": {"canonical_name": "milk"},
+        })
+        assert db.add_calls[0]["user_id"] == "default_household"
+
+    def test_no_cross_household_leak(self):
+        """Concurrent messages from two households must not interleave writes."""
+        db = _FakeDB()
+        dispatcher = _household_scoped_dispatcher(db, fallback_user_id="default")
+        dispatcher("family-1", {"intent": "add_inventory_item", "args": {"canonical_name": "rice"}})
+        dispatcher("family-2", {"intent": "add_inventory_item", "args": {"canonical_name": "bread"}})
+        assert db.add_calls[0]["user_id"] == "family-1"
+        assert db.add_calls[1]["user_id"] == "family-2"
+        assert db.add_calls[0]["lot"].canonical_name == "rice"
+        assert db.add_calls[1]["lot"].canonical_name == "bread"

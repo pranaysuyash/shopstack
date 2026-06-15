@@ -454,7 +454,7 @@ def _render_compare_preview(graph) -> str:
 
     rows = []
     for cluster in compare_items:
-        signal = cluster.reason or (cluster.reasons[0] if cluster.reasons else "Compare signal available")
+        signal = cluster.reasons[0] if cluster.reasons else "Compare signal available"
         rows.append(
             "<div style='display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);'>"
             f"<strong>{cluster.display_name}</strong>"

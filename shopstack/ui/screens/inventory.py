@@ -460,7 +460,7 @@ def consume_items_batch(lines_text: str) -> str:
     return "<div style='margin-top:8px;line-height:1.5;font-size: 0.75rem;'>" + "<br>".join(summary) + "</div>" + toast_floating(f"Consumed {len(summary)} item(s)", kind="success")
 
 
-def use_soon_view(days: int = 3) -> list[list[str]]:
+def use_first_view(days: int = 3) -> list[list[str]]:
     data = tools.get_use_soon_items(days=days, user_id=_user_id())
     items = data.get("items", [])
     tbl = list_to_table(
@@ -478,3 +478,26 @@ def use_soon_view(days: int = 3) -> list[list[str]]:
         ["name", "qty", "unit", "expires", "days", "reason"],
     )
     return tbl
+
+
+def use_soon_view(days: int = 3) -> list[list[str]]:
+    """DEPRECATED alias for :func:`use_first_view`.
+
+    Kept for one release cycle (added 2026-06-13 supersession audit) to
+    preserve the ``from shopstack.ui.screens import use_soon_view``
+    contract that older test files and external scripts rely on. New
+    code should call :func:`use_first_view` directly. See
+    ``Docs/HANDOFF_SUPERSESSION_AUDIT_2026-06-13.md`` and
+    ``Docs/HANDOFF_USESOONVIEW_SUPERSESSION_2026-06-13.md`` for the
+    migration plan. The alias emits a :class:`DeprecationWarning` on
+    each call so the next audit can confirm migration is complete.
+    """
+    import warnings as _warnings
+    _warnings.warn(
+        "use_soon_view is deprecated and will be removed in the next "
+        "minor release. Use use_first_view instead. See "
+        "Docs/HANDOFF_USESOONVIEW_SUPERSESSION_2026-06-13.md.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return use_first_view(days)

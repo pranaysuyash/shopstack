@@ -28,7 +28,7 @@ import pytest
 class TestInventoryConfidence:
     def test_just_purchased(self):
         """Item purchased today should have near-max confidence."""
-        from shopstack.services.freshness import inventory_confidence
+        from shopstack.domain import inventory_confidence
         today = date(2026, 6, 9)
         assert inventory_confidence(
             purchase_date=today, shelf_life_days=7, today=today,
@@ -36,7 +36,7 @@ class TestInventoryConfidence:
 
     def test_within_shelf_life(self):
         """Item at 20% of shelf life should have high confidence."""
-        from shopstack.services.freshness import inventory_confidence
+        from shopstack.domain import inventory_confidence
         today = date(2026, 6, 9)
         # 1 day out of 7-day shelf life = ~14%
         assert inventory_confidence(
@@ -45,7 +45,7 @@ class TestInventoryConfidence:
 
     def test_near_half_shelf_life(self):
         """Item at ~43% of shelf life should have 0.85 confidence."""
-        from shopstack.services.freshness import inventory_confidence
+        from shopstack.domain import inventory_confidence
         today = date(2026, 6, 9)
         # 3 days out of 7-day shelf life = 43%, within 0.5 fraction
         conf = inventory_confidence(
@@ -55,7 +55,7 @@ class TestInventoryConfidence:
 
     def test_past_half_shelf_life(self):
         """Item at 57% of shelf life should have 0.65 confidence."""
-        from shopstack.services.freshness import inventory_confidence
+        from shopstack.domain import inventory_confidence
         today = date(2026, 6, 9)
         # 4 days out of 7-day shelf life = 57%, within 0.8 fraction
         conf = inventory_confidence(
@@ -65,7 +65,7 @@ class TestInventoryConfidence:
 
     def test_near_expiry(self):
         """Item at 80% of shelf life should have reduced confidence."""
-        from shopstack.services.freshness import inventory_confidence
+        from shopstack.domain import inventory_confidence
         today = date(2026, 6, 9)
         # 6 days out of 7-day shelf life = 86%
         conf = inventory_confidence(
@@ -75,7 +75,7 @@ class TestInventoryConfidence:
 
     def test_past_shelf_life_recent(self):
         """Item just past shelf life should have low confidence."""
-        from shopstack.services.freshness import inventory_confidence
+        from shopstack.domain import inventory_confidence
         today = date(2026, 6, 20)
         conf = inventory_confidence(
             purchase_date=date(2026, 6, 7), shelf_life_days=7, today=today,
@@ -85,7 +85,7 @@ class TestInventoryConfidence:
 
     def test_very_old_no_shelf_life(self):
         """Item purchased 60 days ago with no shelf life info should have very low confidence."""
-        from shopstack.services.freshness import inventory_confidence
+        from shopstack.domain import inventory_confidence
         today = date(2026, 6, 9)
         conf = inventory_confidence(
             purchase_date=date(2026, 4, 1), today=today,
@@ -94,12 +94,12 @@ class TestInventoryConfidence:
 
     def test_no_dates(self):
         """No purchase or confirmation date should return low confidence."""
-        from shopstack.services.freshness import inventory_confidence
+        from shopstack.domain import inventory_confidence
         assert inventory_confidence(purchase_date=None, last_confirmed=None) < 0.4
 
     def test_last_confirmed_updates_confidence(self):
         """Last confirmed date should be used if more recent than purchase."""
-        from shopstack.services.freshness import inventory_confidence
+        from shopstack.domain import inventory_confidence
         today = date(2026, 6, 9)
         # Purchased long ago but confirmed yesterday
         conf = inventory_confidence(
@@ -113,7 +113,7 @@ class TestInventoryConfidence:
 
     def test_future_date_returns_max(self):
         """Future purchase dates should return 1.0 confidence (trust)."""
-        from shopstack.services.freshness import inventory_confidence
+        from shopstack.domain import inventory_confidence
         today = date(2026, 6, 9)
         conf = inventory_confidence(
             purchase_date=date(2026, 6, 20), today=today,
@@ -122,7 +122,7 @@ class TestInventoryConfidence:
 
     def test_recent_no_shelf_life(self):
         """Item purchased yesterday without shelf life should have high confidence."""
-        from shopstack.services.freshness import inventory_confidence
+        from shopstack.domain import inventory_confidence
         today = date(2026, 6, 9)
         conf = inventory_confidence(
             purchase_date=date(2026, 6, 8), today=today,
@@ -131,7 +131,7 @@ class TestInventoryConfidence:
 
     def test_week_old_no_shelf_life(self):
         """Item purchased 7 days ago without shelf life should have medium confidence."""
-        from shopstack.services.freshness import inventory_confidence
+        from shopstack.domain import inventory_confidence
         today = date(2026, 6, 9)
         conf = inventory_confidence(
             purchase_date=date(2026, 6, 2), today=today,
@@ -144,20 +144,20 @@ class TestInventoryConfidence:
 
 class TestNeedsConfirmation:
     def test_below_threshold(self):
-        from shopstack.services.freshness import needs_confirmation
+        from shopstack.domain import needs_confirmation
         assert needs_confirmation(0.3, threshold=0.4) is True
 
     def test_above_threshold(self):
-        from shopstack.services.freshness import needs_confirmation
+        from shopstack.domain import needs_confirmation
         assert needs_confirmation(0.85, threshold=0.4) is False
 
     def test_default_threshold(self):
-        from shopstack.services.freshness import needs_confirmation
+        from shopstack.domain import needs_confirmation
         assert needs_confirmation(0.3) is True
         assert needs_confirmation(0.5) is False
 
     def test_edge_case_at_threshold(self):
-        from shopstack.services.freshness import needs_confirmation
+        from shopstack.domain import needs_confirmation
         assert needs_confirmation(0.4, threshold=0.4) is False  # not strictly below
 
 
@@ -166,7 +166,7 @@ class TestNeedsConfirmation:
 
 class TestConfirmationPrompt:
     def test_high_confidence_returns_empty(self):
-        from shopstack.services.freshness import confirmation_prompt
+        from shopstack.domain import confirmation_prompt
         prompt = confirmation_prompt(
             canonical_name="onion",
             display_name="Onion",
@@ -178,7 +178,7 @@ class TestConfirmationPrompt:
         assert prompt == ""
 
     def test_no_purchase_date(self):
-        from shopstack.services.freshness import confirmation_prompt
+        from shopstack.domain import confirmation_prompt
         prompt = confirmation_prompt(
             canonical_name="coriander",
             display_name="Coriander",
@@ -191,7 +191,7 @@ class TestConfirmationPrompt:
         assert "purchase date" in prompt.lower()
 
     def test_very_low_confidence(self):
-        from shopstack.services.freshness import confirmation_prompt
+        from shopstack.domain import confirmation_prompt
         prompt = confirmation_prompt(
             canonical_name="broccoli",
             display_name="Broccoli",
@@ -205,7 +205,7 @@ class TestConfirmationPrompt:
 
     def test_purchased_today_no_prompt(self):
         """Item purchased today should not need confirmation."""
-        from shopstack.services.freshness import confirmation_prompt
+        from shopstack.domain import confirmation_prompt
         prompt = confirmation_prompt(
             canonical_name="onion",
             display_name="Onion",
@@ -218,7 +218,7 @@ class TestConfirmationPrompt:
 
     def test_confidence_just_below_threshold(self):
         """Items at 0.35 confidence with moderate age should get a confirmation prompt."""
-        from shopstack.services.freshness import confirmation_prompt
+        from shopstack.domain import confirmation_prompt
         purchase_date = date.today() - timedelta(days=10)
         prompt = confirmation_prompt(
             canonical_name="potato",

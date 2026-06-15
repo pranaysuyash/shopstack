@@ -375,7 +375,33 @@ def shop_missing(
                 "items": [],
                 "reason": "Could not resolve an active shopping list.",
             }
-        for it in items:
+        # Idempotency: skip canonical_names already on the list. We
+        # query the existing items via the same ``conn.execute`` path
+        # used by tests so this works for both the real DB and fakes.
+        # Defensive: a DB error here means we degrade to "add all" so
+        # the user-visible action never fails on idempotency lookup.
+        existing_names: set[str] = set()
+        try:
+            conn = getattr(db, "conn", None)
+            if conn is not None:
+                rows = conn.execute(
+                    "SELECT canonical_name FROM shopping_list_items WHERE list_id = ?",
+                    (list_id,),
+                ).fetchall()
+                existing_names = {
+                    (row[0] or "").strip().lower() for row in rows if row and row[0]
+                }
+        except Exception as exc:  # pragma: no cover — defensive
+            logger.debug("idempotency lookup failed: %s", exc)
+            existing_names = set()
+        # Filter the items to skip already-present canonical_names.
+        items_to_add = [
+            it for it in items
+            if (it.get("canonical_name") or "").strip().lower()
+            not in existing_names
+        ]
+        skipped = len(items) - len(items_to_add)
+        for it in items_to_add:
             try:
                 # The real ``Database`` method is ``add_list_item`` (singular
                 # "list" not "shopping"); the test fake exposes
@@ -412,9 +438,12 @@ def shop_missing(
                              it.get("canonical_name"), exc)
         return {
             "added": True,
-            "count": len(items),
-            "items": items,
-            "reason": f"Added {len(items)} item(s) to your shopping list.",
+            "count": len(items_to_add),
+            "items": items_to_add,
+            "reason": (
+                f"Added {len(items_to_add)} item(s) to your shopping list."
+                + (f" Skipped {skipped} already on list." if skipped else "")
+            ),
         }
     except Exception as exc:
         logger.debug("shop_missing failed: %s", exc)

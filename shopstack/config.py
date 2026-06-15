@@ -22,6 +22,14 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     hf_api_key: str = ""
 
+    # SMS / WhatsApp inbound webhook security (see services/sms_webhook.py).
+    # The webhook is DISABLED by default — it only mounts when explicitly
+    # enabled AND a Twilio auth token is present. This is fail-closed:
+    # a public deployment without these set simply has no webhook surface,
+    # so the unauthenticated-injection attack surface is zero by default.
+    sms_webhook_enabled: bool = False
+    twilio_auth_token: str = ""
+
     local_model_dir: str = ""
     local_model_repo: str = "unsloth/Llama-3.2-3B-Instruct-GGUF"
     local_model_file: str = "Llama-3.2-3B-Instruct-Q4_K_M.gguf"

@@ -88,7 +88,7 @@ def classify_all(
     decisions: list[DecisionResult] = []
 
     # Import decision engine services locally to avoid circular imports
-    from shopstack.services.freshness import FreshnessReport
+    from shopstack.domain import FreshnessReport
     from shopstack.services.decision_engine import should_buy, should_skip, use_soon
 
     for lot in active_inv:

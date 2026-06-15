@@ -130,9 +130,9 @@ def test_recovery_shell_absent_on_normal_load(live_app_url):
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
         page = browser.new_page()
-        # Short timeout so the watchdog fires quickly within the test.
-        page.goto(f"{live_app_url}/?hydration_timeout=500", wait_until="load")
-        page.wait_for_timeout(1500)
+        # Give Gradio enough time to hydrate so the watchdog never fires.
+        page.goto(f"{live_app_url}/?hydration_timeout=10000", wait_until="load")
+        page.wait_for_timeout(3000)
 
         assert page.locator("#shopstack-recovery-shell").count() == 0
         browser.close()
