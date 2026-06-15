@@ -12,6 +12,8 @@ tags: [shopstack, gradio, inventory, shopping, offline-first, household]
 
 # ShopStack
 
+> **Doc links:** Several links in this README point to `Docs/` paths that are intentionally local-only (see `Docs/README.md`). They work in a local workspace but 404 from a clean clone. For canonical architecture, see `shopstack/module_registry.py` and the code under `shopstack/`. Git-tracked docs (`MODEL_CATALOG.md`, this README) are reachable from any clone.
+
 Local-first, off-the-grid **shopping intelligence platform**. Know what you have, what to use soon, what to buy, what to skip, and where to buy from — without sending your data to the cloud.
 
 ShopStack is a stack of shopping intelligence layers: home inventory (ShopStock), shopping lists and market baskets (ShopBasket), retailer price comparison (ShopCompare), scanning and import (ShopLens), price history and preferences (ShopMemory), and a reasoning agent (ShopAgent) that decides buy/skip/use-soon across all modules.
@@ -226,7 +228,7 @@ Operational resource guards are documented in **[`Docs/RESOURCE_OPTIMIZATION_POL
 
 ## Model Catalog
 
-See **[`Docs/MODEL_CATALOG.md`](Docs/MODEL_CATALOG.md)** for the full living model catalog — including downloaded & tested models, parameter budget tracking, runtime backends (MLX, llama.cpp/GGUF, transformers), HF Pro and Modal Labs credit resources, and experiment logs.
+See **[`MODEL_CATALOG.md`](MODEL_CATALOG.md)** for the full living model catalog — including downloaded & tested models, parameter budget tracking, runtime backends (MLX, llama.cpp/GGUF, transformers), HF Pro and Modal Labs credit resources, and experiment logs.
 
 The programmatic registry lives in `shopstack/model_registry.py` (16+ entries across STT, TTS, Vision, OCR, Embeddings, and Planner categories).
 

@@ -1,0 +1,32 @@
+{
+  "planner_tool_calling": {
+    "accuracy": 0.90,
+    "sample_size": 10,
+    "evidence": "benchmarks/bench_planner_tool_calling.py",
+    "notes": "Qwen3.5-4B-4bit compact-tools, documented in AGENTS.md. Current default ministral-8b claims 95%."
+  },
+  "ocr_devanagari": {
+    "accuracy": 0.0,
+    "sample_size": 15,
+    "evidence": "AGENTS.md addendum 2026-06-09",
+    "notes": "Tesseract+hin: 0/15 Devanagari terms extracted. Known failure, not a regression target."
+  },
+  "vision_product_recognition": {
+    "accuracy": 0.99,
+    "sample_size": 100,
+    "evidence": "Docs/models/qwen3-vl-8b/claims.yaml",
+    "notes": "Qwen3-VL-8B on synthetic product images (Modal bench)."
+  },
+  "stt_sense_voice": {
+    "wer": 0.248,
+    "sample_size": 52,
+    "evidence": "Docs/models/sense-voice-small/claims.yaml",
+    "notes": "SenseVoice on 52 Hindi+English samples. Lower is better."
+  },
+  "segmentation_birefnet": {
+    "iou": 0.8555,
+    "sample_size": 5,
+    "evidence": "Docs/models/birefnet/claims.yaml",
+    "notes": "BiRefNet foreground segmentation."
+  }
+}

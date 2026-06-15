@@ -43,8 +43,25 @@ class DashboardState:
 
 
 def build_dashboard_state(db: Database, inventory, city: str = "mumbai", user_id: str = "") -> DashboardState:
-    """Assemble the Today dashboard state from inventory, decisions, market data, and weather."""
-    return _build_dashboard_state_uncached(db, inventory, city=city, user_id=user_id)
+    """Assemble the Today dashboard state from inventory, decisions, market data, and weather.
+
+    Uses a per-user cache (``_DASHBOARD_CACHE``) to avoid redundant
+    DB queries when the same user's dashboard is requested multiple
+    times in a session. The cache is invalidated by
+    :func:`clear_dashboard_cache` whenever the underlying data
+    changes (inventory added/removed, prices updated, etc.).
+
+    The cache is keyed by ``user_id`` and by the ``id(db)`` of the
+    Database object so different DB instances (e.g. in test isolation)
+    don't accidentally share cached state.
+    """
+    cache_key = (user_id, id(db))
+    if cache_key in _DASHBOARD_CACHE:
+        logger.debug("Dashboard cache hit for user_id=%s db_id=%s", user_id, id(db))
+        return _DASHBOARD_CACHE[cache_key]
+    result = _build_dashboard_state_uncached(db, inventory, city=city, user_id=user_id)
+    _DASHBOARD_CACHE[cache_key] = result
+    return result
 
 
 def _build_dashboard_state_uncached(
@@ -316,6 +333,11 @@ def clear_dashboard_cache(user_id: str | None = None) -> None:
     if user_id is None:
         _DASHBOARD_CACHE.clear()
         return
+    # Clear any entries for this user_id (across all DB instances)
+    keys_to_remove = [k for k in _DASHBOARD_CACHE if k[0] == user_id]
+    for k in keys_to_remove:
+        _DASHBOARD_CACHE.pop(k, None)
+    # Backward-compat: also clear legacy string keys
     _DASHBOARD_CACHE.pop(user_id, None)
     _DASHBOARD_CACHE.pop("", None)
 

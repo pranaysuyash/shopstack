@@ -196,12 +196,47 @@ def db_path() -> Generator[str, None, None]:
             path = f.name
         yield path
     finally:
-        if path:
-            base = Path(path)
-            # SQLite WAL mode creates sidecar files (.db-wal, .db-shm);
-            # remove them all to prevent disk pressure from orphan files.
-            for suffix in ("", "-wal", "-shm"):
-                base.with_suffix(base.suffix + suffix).unlink(missing_ok=True)
+        _remove_db_with_sidecars(path)
+
+
+@pytest.fixture(scope="module")
+def live_app_db_path() -> Generator[str, None, None]:
+    """Canonical module-scoped temp DB path for live-app browser tests.
+
+    The canonical pattern for any test that needs a real Gradio app
+    running against a unique DB file. Replaces ad-hoc
+    ``tempfile.mkstemp(suffix=".db", ...)`` calls in test files
+    (test_browser_hydration, test_pwa_runtime, test_hydration_recovery).
+
+    Cleans up the DB + WAL/SHM sidecars at module teardown via the
+    ``_remove_db_with_sidecars`` helper. Per motto_v3 §7, this is
+    the SUPERSESSION: all module-scoped temp DBs in tests must go
+    through this fixture.
+    """
+    db_fd, db_path = tempfile.mkstemp(suffix=".db", prefix="shopstack_live_app_test_")
+    os.close(db_fd)
+    try:
+        yield db_path
+    finally:
+        _remove_db_with_sidecars(db_path)
+
+
+def _remove_db_with_sidecars(db_path: str) -> None:
+    """Remove a DB file plus its WAL/SHM sidecars.
+
+    Canonical helper for test DB cleanup. Used by both
+    ``db_path`` (function-scoped) and ``live_app_db_path``
+    (module-scoped) fixtures, and by ``teardown_module`` functions
+    that previously did ad-hoc ``Path(...).unlink(missing_ok=True)``.
+
+    Per motto_v3 §7, do not inline ``os.unlink(db_path)`` in
+    test teardown — always use this helper so WAL/SHM are removed.
+    """
+    if not db_path:
+        return
+    base = Path(db_path)
+    for suffix in ("", "-wal", "-shm"):
+        base.with_suffix(base.suffix + suffix).unlink(missing_ok=True)
 
 
 @pytest.fixture()

@@ -19,6 +19,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+from tests.conftest import _remove_db_with_sidecars
 
 
 # ── Unified Shopping Service Tests ──────────────────────────────────────────
@@ -321,7 +322,7 @@ class TestConsumptionLogging:
         os.close(fd)
         database = Database(path)
         yield database
-        os.unlink(path)
+        _remove_db_with_sidecars(path)
 
     def test_quick_consume_no_lot(self):
         from shopstack.ui.screens.consumption import quick_consume

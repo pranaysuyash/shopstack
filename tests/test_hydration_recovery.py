@@ -135,12 +135,12 @@ def live_app_url():
         pass
 
     # Restore app_context db singleton to the session DB
-    from tests.conftest import _SESSION_DB_PATH
+    from tests.conftest import _SESSION_DB_PATH, _remove_db_with_sidecars
     db.db_path = _SESSION_DB_PATH
     if hasattr(db, "_local"):
         db._local.conn = None
 
-    Path(db_path).unlink(missing_ok=True)
+    _remove_db_with_sidecars(db_path)
 
 
 def test_recovery_shell_absent_on_normal_load(live_app_url):

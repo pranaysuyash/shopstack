@@ -72,19 +72,21 @@ def setup_module() -> None:
 
 
 def teardown_module() -> None:
-    """Remove the shared temp database after all tests finish."""
+    """Remove the shared temp database after all tests finish.
+
+    Uses the canonical ``_remove_db_with_sidecars`` helper from
+    conftest so WAL/SHM sidecars are also removed. Per motto_v3 §7,
+    this is the canonical cleanup path; do not inline
+    ``Path(...).unlink(missing_ok=True)`` for temp DBs.
+    """
     # Restore app_context db singleton to the session DB
     from shopstack.app_context import db
-    from tests.conftest import _SESSION_DB_PATH
+    from tests.conftest import _SESSION_DB_PATH, _remove_db_with_sidecars
     db.db_path = _SESSION_DB_PATH
     if hasattr(db, "_local"):
         db._local.conn = None
 
-    if _shared_db_path:
-        try:
-            Path(_shared_db_path).unlink(missing_ok=True)
-        except Exception:
-            pass
+    _remove_db_with_sidecars(_shared_db_path)
 
 
 # ── Helpers ──────────────────────────────────────────────────────────

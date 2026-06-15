@@ -558,7 +558,7 @@ def render_language_script() -> str:
         f"  try {{\n"
         f"    var form = new FormData();\n"
         f"    form.append('locale', loc);\n"
-        f"    fetch('/api/save_locale', {{ method: 'POST', body: form }});\n"
+        f"    fetch('/save_locale', {{ method: 'POST', body: form }});\n"
         f"  }} catch (e) {{}}\n"
         f"  setTimeout(function() {{ window.location.reload(); }}, 80);\n"
         f"}};\n"
@@ -591,7 +591,6 @@ __all__ = [
     "is_supported_locale",
     "load_locale_preference",
     "normalize_locale",
-    "render_i18n_script",
     "render_language_script",
     "render_language_selector_html",
     "save_locale_preference",

@@ -448,13 +448,14 @@ def _extract_combo_components(cleaned_name: str) -> list[str]:
     component list. For ad-hoc combos with '&' or ',' separators,
     resolves each part to its canonical name.
 
-    TODO (long-term): parse the product ``description`` field for
-    component lists instead of hardcoding. The Swiggy snapshot at
-    ``data/swiggy_fresh_vegetables_cards_6jun26.json`` stores the
-    actual component list in the description (e.g. "Sambar Veg Combo"
-    description = "Drumstick, Brinjal, Raw Banana and Pumpkin"). Once
-    the source loader passes the description to this function, the
-    hardcoded fallback below can be removed.
+    As of 2026-06-14, the description-based parser
+    (:func:`_extract_combo_components_from_description`) is the
+    primary path — called from :func:`canonicalize_name` when a
+    description is provided. This name-based function is the
+    fallback for the no-description case. The hardcoded known
+    combos below are kept for backward compatibility but should
+    eventually be removed once all source loaders pass the
+    description field.
     """
     lowered = cleaned_name.lower()
     if "herbs mix" in lowered:
@@ -639,14 +640,33 @@ def compute_unit_prices(
     #   (the canonical normalisation is that `parse_size()` stores
     #   litre inputs as "mL" — see `shopstack/domain/parse_size.py`).
     #   price_per_kg = price / quantity_mL * 1000.
+    # - `unit == "kg"` → kilograms, 1 unit = 1 kg. price_per_kg = price / qty.
+    #   price_per_100g = price / qty / 10.
+    # - `unit == "L"`  → litres, 1 unit = 1 kg (liquid density ~ water).
+    #   price_per_kg = price / qty. price_per_100g = price / qty / 10.
     # Prior to this fix, `mL` was silently dropped and the function
     # returned `None`, leaving milk/oil/etc. without a per-kg price
     # in price-compare cards. See the sibling fix in
     # `shopstack/services/price_memory.py::_price_per_kg` for the
     # equivalent volume handling.
+    #
+    # 2026-06-15: extended to also handle `kg` and `L` after the
+    # comprehensive review surfaced a divergence with
+    # `PriceMemoryService._price_per_kg` (which handled all four
+    # units). A user looking at a price-compare card backed by
+    # `compute_unit_prices` for 5kg atta was silently getting
+    # `None` for `price_per_kg` (only `g`/`mL` worked); this
+    # branch now treats kg and L with their natural conversion
+    # (1 kg = 10 × 100 g; 1 L ≈ 1 kg for liquids). See
+    # `tests/test_price_per_kg_equivalence.py` for the regression
+    # guard and `Docs/decision_records/2026-06-15_price_normalization.md`
+    # for the long-term consolidation follow-up.
     if is_weight_based and unit in ("g", "mL"):
         result["price_per_kg"] = round(price / quantity * 1000, 2)
         result["price_per_100g"] = round(price / quantity * 100, 2)
+    elif is_weight_based and unit in ("kg", "L"):
+        result["price_per_kg"] = round(price / quantity, 2)
+        result["price_per_100g"] = round(price / quantity / 10, 2)
     elif is_piece_based and unit == "pieces":
         result["price_per_piece"] = round(price / quantity, 2)
 

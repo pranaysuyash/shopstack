@@ -9,6 +9,7 @@ build/
 .claude/
 *.bak
 benchmarks/.bench_results.json
+.bench_results.jsonl
 benchmarks/RESULTS.md
 benchmarks/trends/*
 !benchmarks/trends/.gitkeep
@@ -33,6 +34,7 @@ mcp-shell.log
 benchmarks/.pytest_cache/
 *.swp
 .DS_Store
+.tmp-*
 .agent*
 .agents*
 .agent-start*

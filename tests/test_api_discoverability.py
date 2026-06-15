@@ -291,9 +291,21 @@ def test_endpoints_per_sub_builder():
     for ep in ALL_ENDPOINTS:
         by_file.setdefault(ep["file"], []).append(ep["api_name"])
 
-    # Sub-builders known to have endpoints
+    # Sub-builders known to have endpoints.
+    #
+    # 2026-06-15: per the household-wiring supersession, the 5
+    # household endpoints (``switch_household``, ``after_switch_household``,
+    # ``show_add_household``, ``cancel_add_household``,
+    # ``create_household``) moved from inline ``app.py`` into
+    # ``shopstack/ui/state/household_wiring.py::wire_household_handlers``.
+    # The canonical entry point is now the dedicated sub-builder, so
+    # the test asserts it has endpoints (not ``app.py``, which is now
+    # a pure composition layer — see the module docstring of
+    # ``shopstack/ui/state/household_wiring.py`` for the supersession
+    # rationale).
     sub_builders_with_endpoints = {
         "app.py",
+        "shopstack/ui/state/household_wiring.py",
         "shopstack/ui/tabs/ask_panel.py",
         "shopstack/ui/tabs/basket.py",
         "shopstack/ui/tabs/cookbook.py",
@@ -309,9 +321,20 @@ def test_endpoints_per_sub_builder():
         "shopstack/ui/household_settings.py",
     }
 
+    # Root composition layer is allowed to have 0 endpoints when the
+    # wiring is fully delegated to a sub-builder (see supersession
+    # above). For ``app.py`` specifically: it is the root composition
+    # layer per the household-wiring supersession, so 0 endpoints
+    # is the expected state. Any other file with 0 endpoints is a
+    # regression that needs investigation.
+    root_composition_files = {"app.py"}
     zero_endpoint_files = [
         f for f in sub_builders_with_endpoints
         if f not in by_file or len(by_file[f]) == 0
+    ]
+    zero_endpoint_files = [
+        f for f in zero_endpoint_files
+        if f not in root_composition_files
     ]
 
     assert not zero_endpoint_files, (

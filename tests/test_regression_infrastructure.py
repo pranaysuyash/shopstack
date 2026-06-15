@@ -402,7 +402,84 @@ class TestDbPathWALCleanup:
         # Allow up to 5 orphans (some legitimate ones, e.g. from other tools)
         assert len(orphans) < 50, (
             f"Found {len(orphans)} stale .db-wal files in {tmp} older than 1 day. "
-            f"db_path fixture cleanup regressed. See DR-019."
+            f"db_path fixture cleanup regressed. See DR-019 + DR-031."
+        )
+
+    def test_no_ad_hoc_db_unlink_outside_conftest(self):
+        """Regression (DR-031): no test file should do ad-hoc
+        ``Path(...).unlink(missing_ok=True)`` or ``os.unlink(...)``
+        on a ``.db`` file outside conftest. The canonical cleanup
+        is ``_remove_db_with_sidecars(path)`` from conftest, which
+        also removes WAL/SHM sidecars.
+
+        This was the root cause of the 22251 orphan files (6.1 GB)
+        that accumulated in /var/folders/.../T/ because 7 test
+        files used ad-hoc ``Path(path).unlink(missing_ok=True)``
+        which only removed the .db file, leaving .db-wal and .db-shm
+        sidecars forever.
+        """
+        bad_files = []
+        test_dir = REPO / "tests"
+        # Skip conftest (canonical helper) and this regression file
+        # itself (its docstring mentions the drift pattern).
+        skip_files = {"conftest.py", "test_regression_infrastructure.py"}
+        for path in test_dir.glob("*.py"):
+            if path.name in skip_files:
+                continue
+            text = path.read_text()
+            for i, line in enumerate(text.split("\n"), 1):
+                stripped = line.strip()
+                if stripped.startswith("#") or stripped.startswith('"""') or stripped.startswith("'"):
+                    continue
+                if "unlink" not in stripped:
+                    continue
+                if ".db" not in stripped and "database" not in stripped.lower():
+                    continue
+                if "_remove_db_with_sidecars" in stripped:
+                    continue
+                if "base.with_suffix" in stripped:
+                    continue
+                if any(ext in stripped for ext in (".png", ".jpg", ".jpeg", ".jsonl", ".json", ".csv", ".txt")):
+                    if ".db" not in stripped:
+                        continue
+                bad_files.append(f"{path.name}:{i}: {stripped}")
+        if bad_files:
+            pytest.fail(
+                f"Found {len(bad_files)} ad-hoc .db cleanup call(s) outside "
+                f"conftest. The canonical helper is _remove_db_with_sidecars() "
+                f"from tests.conftest — it also removes WAL/SHM sidecars. "
+                f"Drift to ad-hoc Path(path).unlink() leaves .db-wal and "
+                f".db-shm files forever (this caused 6.1 GB of orphans in "
+                f"2026-06-15). See DR-031.\n"
+                + "\n".join(bad_files[:10])
+            )
+
+    def test_canonical_helper_exists_in_conftest(self):
+        """The canonical ``_remove_db_with_sidecars`` helper must exist
+        in conftest.py. This is the supersession path (motto_v3 §7)."""
+        conftest = (REPO / "tests/conftest.py").read_text()
+        assert "def _remove_db_with_sidecars" in conftest, (
+            "conftest.py must define _remove_db_with_sidecars() — "
+            "the canonical temp DB cleanup helper per DR-031 + §7."
+        )
+        # Find the function body by looking for the next top-level
+        # def at column 0 after the helper.
+        start = conftest.index("def _remove_db_with_sidecars")
+        # Scan character by character for the next "\ndef " (top-level def)
+        body_start = conftest.index("\n", start) + 1  # first char of next line
+        next_def = conftest.find("\ndef ", body_start)
+        if next_def == -1:
+            helper_section = conftest[start:]
+        else:
+            helper_section = conftest[start:next_def]
+        # The helper must reference all 3 suffixes in some form
+        assert '"-wal"' in helper_section, (
+            "Canonical helper missing \"-wal\" suffix. WAL sidecars "
+            "won't be removed. See DR-031."
+        )
+        assert '"-shm"' in helper_section, (
+            "Canonical helper missing \"-shm\" suffix. SHM sidecars "
+            "won't be removed. See DR-031."
         )
 
 

@@ -16,6 +16,15 @@ The panel returns an `AskPanelHandles` dataclass exposing the
 app references them, but the handles are exposed for symmetry with the
 tab-builder pattern and to enable future cross-tab interactions (e.g.
 clearing the input on tab switch).
+
+.. note::
+    2026-06-15 supersession (motto_v3 §7): voice memo is no longer
+    rendered inside this panel. The canonical voice-memo implementation
+    lives in :mod:`shopstack.ui.tabs.voice_memo` and is mounted from
+    the Today tab below the command surface. The
+    ``build_voice_memo_section`` symbol at the bottom of this file is a
+    backward-compat alias kept for any external importer; new code
+    should import directly from :mod:`shopstack.ui.tabs.voice_memo`.
 """
 from __future__ import annotations
 
@@ -124,105 +133,31 @@ def build_ask_panel(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> AskPa
         ask_parser_preview,
     )
 
-    # ── Phase 8 #23 Voice memo (continuous-listening) ─────────────
-    # 2026-06-15: voice memo is now a secondary input method, not a
-    # major first-page section. Copy is user-facing (no developer
-    # jargon), the end-session button is renamed to "Stop recording"
-    # and is hidden until a session is active, and the microphone
-    # status is a clean fallback (no truncated "No microphone f..."
-    # string).
-    gr.Markdown("---")
-    gr.Markdown("### 🎙️ Add by voice (optional)")
-    gr.Markdown(
-        "Say things like: **“Add milk”**, **“I bought rice”**, "
-        "or **“We finished bread”**."
-    )
-    from shopstack.services.voice_memo import end_session as _end_vm
-    from shopstack.services.voice_memo import start_session as _start_vm
-    from shopstack.services.voice_memo import capture_chunk as _capture_vm
-    from shopstack.services.voice_memo import render_session_summary_html as _render_vm
-
-    voice_memo_state = gr.State(_start_vm())
-    with gr.Row():
-        voice_record = gr.Audio(
-            sources=["microphone"],
-            type="filepath",
-            label="Hold to record",
-            elem_id="voice-record",
-        )
-        voice_process_btn = gr.Button("Process audio", variant="primary", elem_id="voice-process")
-    # Microphone status: clean fallback instead of a truncated string.
-    voice_status = gr.HTML(
-        "<div class='vm-status'>Tip: if your browser blocks the "
-        "microphone, type the same command in the box above instead.</div>"
-    )
-    voice_session_html = gr.HTML("<div class='vm-empty'>No voice memo captured yet.</div>")
-    # Stop button is hidden until a session actually starts recording.
-    voice_reset_btn = gr.Button("Stop recording", elem_classes="secondary", visible=False, elem_id="voice-stop")
-
-    def _process_voice(audio_path, session):
-        from shopstack.app_context import db as _db
-        from shopstack.app_context import providers as _providers
-        if not audio_path:
-            return (
-                session,
-                "<div class='vm-empty'>No audio captured. Press the mic and try again.</div>",
-                gr.update(visible=False),
-            )
-        # Find an STT provider (whisper, local_whisper, sensevoice, mock_stt)
-        stt = None
-        try:
-            for name in ("whisper", "local_whisper", "sensevoice", "qwen3_asr", "mock_stt"):
-                stt = _providers.get(name)
-                if stt is not None:
-                    break
-        except Exception:
-            stt = None
-        if stt is None:
-            return (
-                session,
-                "<div class='vm-empty'>No STT provider loaded — voice memo needs an STT backend. "
-                "Type your command in the box above instead.</div>",
-                gr.update(visible=False),
-            )
-        # Best-effort dispatcher: append to a local list, no real DB write
-        # (the user reviews in the voice session summary).
-        log: list[dict] = []
-        from shopstack.services.voice_memo import make_recording_dispatcher
-        _capture_vm(session, audio_path, stt,
-                    dispatcher=make_recording_dispatcher(log))
-        return (
-            session,
-            _render_vm(_end_vm(session)),
-            gr.update(visible=True),  # show "Stop recording" once a session is active
-        )
-
-    def _reset_voice():
-        return _start_vm(), "<div class='vm-empty'>New session started.</div>", gr.update(visible=False)
-
-    voice_process_btn.click(
-        _process_voice,
-        [voice_record, voice_memo_state],
-        [voice_memo_state, voice_session_html, voice_reset_btn],
-        api_name="voice_memo_process",
-        api_description="Transcribe the latest audio chunk and dispatch commands",
-    )
-    voice_reset_btn.click(
-        _reset_voice,
-        outputs=[voice_memo_state, voice_session_html, voice_reset_btn],
-        api_name="voice_memo_reset",
-        api_description="End the current voice memo session and start a new one",
-    )
-
+    # ── Voice memo is intentionally NOT rendered here. ───────────
+    # 2026-06-15: voice memo is now a primary nav tab component
+    # (rendered in `shopstack/ui/tabs/voice_memo.py::build_voice_memo_section`,
+    # mounted from the Today tab below the command surface). Ask
+    # ShopStack is a text-first panel; voice input is reachable
+    # from the same Today tab. Per `motto_v3` §7 supersession, the
+    # inline voice_memo copy that previously lived here has been
+    # removed; the canonical implementation is the dedicated
+    # module. A `build_voice_memo_section` backward-compat alias
+    # remains at the bottom of this file for any external code
+    # that imported it from here.
     return AskPanelHandles(ask_input=ask_input, ask_output=ask_output)
 
 
 def build_voice_memo_section(app: gr.Blocks) -> None:
-    """Build the voice memo section — now rendered below the command surface.
+    """Backward-compat alias for the canonical voice memo builder.
 
-    This is a thin wrapper that delegates to
-    :mod:`shopstack.ui.tabs.voice_memo`. Kept here for backward
-    compatibility with any code that imports from ask_panel.
+    .. deprecated:: 2026-06-15
+        Import :func:`shopstack.ui.tabs.voice_memo.build_voice_memo_section`
+        directly. The canonical implementation lives in
+        :mod:`shopstack.ui.tabs.voice_memo` (extracted from this file
+        per the voice-memo repositioning work). This alias is preserved
+        per :ref:`motto_v3 §7 Supersession <motto_v3>` so external
+        importers do not break, and will be removed in a future pass
+        once no in-tree code references it.
     """
     from shopstack.ui.tabs.voice_memo import build_voice_memo_section as _build
     _build(app)

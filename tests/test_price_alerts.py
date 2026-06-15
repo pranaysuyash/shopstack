@@ -22,6 +22,7 @@ from shopstack.services.price_alerts import (
     render_price_drops_html,
 )
 from shopstack.services.price_memory import PriceMemoryService
+from tests.conftest import _remove_db_with_sidecars
 
 
 @pytest.fixture()
@@ -42,7 +43,7 @@ def fresh_db():
     db.add_household("default", "Default Test Household")
     db.add_household_member("default", "default", role="owner")
     yield db, path
-    Path(path).unlink(missing_ok=True)
+    _remove_db_with_sidecars(path)
 
 
 def _record(

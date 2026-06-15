@@ -165,21 +165,26 @@ def test_app_py_refreshes_home_flow_on_household_switch():
     Added 2026-06-15 (Home screen review). The state-aware home flow
     panel (Home flow state machine) must re-render when the user
     switches households — otherwise a new household with different
-    data would still show the old household's hero. The wiring is
-    in app.py's ``household_dropdown.change`` and
-    ``hh_create_btn.click`` handlers.
+    data would still show the old household's hero. The wiring was
+    extracted from app.py into
+    ``shopstack/ui/state/household_wiring.py`` in Pass 15; both
+    files are checked here to keep the contract visible.
     """
     app_source = (Path(__file__).resolve().parents[1] / "app.py").read_text()
-    # The home_flow handle should appear in the outputs list of the
-    # household-dropdown change handler.
-    assert "home_flow" in app_source, (
-        "app.py must reference 'home_flow' so the state-aware hero "
-        "re-renders when the active household changes."
+    # The app composition layer must call the household-wiring
+    # sub-builder, which in turn references the home_flow handle.
+    assert "wire_household_handlers" in app_source, (
+        "app.py must call wire_household_handlers() to register "
+        "the cross-tab event handlers (household switch, "
+        "create-household, per-render refresh, JS shims)."
     )
-    # It should be wired into the switch_household_state outputs.
-    # The wiring is in app.py's switch_household_state call.
-    switch_section = app_source[app_source.find("household_dropdown.change"):]
-    # Look for the home_flow output in the first 800 chars of the section.
-    assert "home_flow" in switch_section[:1200], (
-        "app.py: household_dropdown.change must include home_flow in outputs"
+
+    wiring_source = (
+        Path(__file__).resolve().parents[1]
+        / "shopstack/ui/state/household_wiring.py"
+    ).read_text()
+    assert "home_flow" in wiring_source, (
+        "shopstack/ui/state/household_wiring.py must reference "
+        "'home_flow' so the state-aware hero re-renders when the "
+        "active household changes."
     )

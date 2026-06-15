@@ -106,12 +106,12 @@ def live_app_url() -> str:
         pass
 
     # Restore app_context db singleton to the session DB
-    from tests.conftest import _SESSION_DB_PATH
+    from tests.conftest import _SESSION_DB_PATH, _remove_db_with_sidecars
     db.db_path = _SESSION_DB_PATH
     if hasattr(db, "_local"):
         db._local.conn = None
 
-    Path(db_path).unlink(missing_ok=True)
+    _remove_db_with_sidecars(db_path)
 
 
 # ── HTTP-level: the PWA assets resolve at root paths ──────────────────

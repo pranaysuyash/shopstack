@@ -22,6 +22,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.conftest import _remove_db_with_sidecars
+
 from shopstack.config import Settings
 from shopstack.persistence.database import Database
 from shopstack.services.onboarding import (
@@ -48,7 +50,7 @@ def fresh_db():
     db.add_household("hh1", "Test hh1")
     db.add_household_member("hh1", "hh1", role="owner")
     yield db, path
-    Path(path).unlink(missing_ok=True)
+    _remove_db_with_sidecars(path)
 
 
 def _all_staples() -> list[str]:
@@ -204,7 +206,7 @@ class TestSubmitOnboarding:
         assert rice_6.quantity > rice_1.quantity
         assert rice_6.quantity == pytest.approx(5.0 * 2.5)
         assert rice_1.quantity == pytest.approx(5.0 * 1.0)
-        Path(path).unlink(missing_ok=True)
+        _remove_db_with_sidecars(path)
 
     def test_empty_city_uses_default(self, fresh_db):
         db, _ = fresh_db

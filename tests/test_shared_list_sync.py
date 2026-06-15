@@ -28,6 +28,7 @@ from shopstack.services.shared_list_sync import (
     pull_from_file,
     push_to_file,
 )
+from tests.conftest import _remove_db_with_sidecars
 
 
 @pytest.fixture()
@@ -46,7 +47,7 @@ def fresh_db():
         db.add_household(hid, f"Test {hid}")
         db.add_household_member(hid, hid, role="owner")
     yield db, path
-    Path(path).unlink(missing_ok=True)
+    _remove_db_with_sidecars(path)
 
 
 def _other_device_db() -> Database:
@@ -140,7 +141,7 @@ class TestPullFromFile:
             push_result = push_to_file(other, shared_file, "hh1", device_label="phone-B")
             assert push_result.success
         finally:
-            Path(other.conn.execute("PRAGMA database_list").fetchone()[2]).unlink(missing_ok=True)
+            _remove_db_with_sidecars(other.conn.execute("PRAGMA database_list").fetchone()[2])
 
         # Now pull from this file into a fresh local DB
         result = pull_from_file(db, shared_file, "hh1")
@@ -160,7 +161,7 @@ class TestPullFromFile:
             _seed_list(other, "hh1", [("milk", "Milk", 1.0, "L")])
             push_to_file(other, shared_file, "hh1")
         finally:
-            Path(other.conn.execute("PRAGMA database_list").fetchone()[2]).unlink(missing_ok=True)
+            _remove_db_with_sidecars(other.conn.execute("PRAGMA database_list").fetchone()[2])
 
         r1 = pull_from_file(db, shared_file, "hh1")
         r2 = pull_from_file(db, shared_file, "hh1")
@@ -181,7 +182,7 @@ class TestPullFromFile:
             _seed_list(other, "hh1", [("tomato", "Tomato", 2.0, "kg")])
             push_to_file(other, shared_file, "hh1")
         finally:
-            Path(other.conn.execute("PRAGMA database_list").fetchone()[2]).unlink(missing_ok=True)
+            _remove_db_with_sidecars(other.conn.execute("PRAGMA database_list").fetchone()[2])
 
         # Pull: should add tomato but keep milk and bread
         result = pull_from_file(db, shared_file, "hh1")
@@ -265,4 +266,4 @@ class TestTwoDeviceFlow:
             names = {(it.canonical_name or "").lower() for it in (sl.items or [])}
             assert names == {"milk", "onion", "rice"}
         finally:
-            Path(other.conn.execute("PRAGMA database_list").fetchone()[2]).unlink(missing_ok=True)
+            _remove_db_with_sidecars(other.conn.execute("PRAGMA database_list").fetchone()[2])

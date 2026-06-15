@@ -37,18 +37,6 @@ from shopstack.app_context import (
     planner,
 )
 from shopstack.services.i18n import load_locale_preference
-from shopstack.ui.state.household import (
-    household_choices,
-    switch_household_state,
-    show_add_form,
-    hide_add_form,
-    create_household_state,
-)
-from shopstack.ui.components.js_helpers import (
-    autocomplete_injector_js,
-    script_bootstrap_js,
-    url_state_sync_js,
-)
 
 
 def _install_post_launch_hooks(app: gr.Blocks) -> None:
@@ -69,36 +57,6 @@ def _install_post_launch_hooks(app: gr.Blocks) -> None:
         return result
 
     app.launch = _launch_with_post_hooks
-
-
-def _household_switch_reload_js() -> str:
-    """Return JS that reloads the page after a household switch.
-
-    Per audit 2026-06-14 finding #7: the household dropdown switch
-    only refreshed the Today tab's 6 HTML outputs. The other 20+ tabs
-    (Basket, Memory, Timeline, Find, etc.) continued showing stale
-    data from the previous household until the user manually refreshed
-    each tab — a broken user workflow per motto_v3 §0.14 (Product
-    Reality and Operator Workflow Rule).
-
-    The robust fix is a full page reload. This guarantees every tab
-    re-fetches its data through the active household, the user sees
-    a clean view of the new household, and no tab silently displays
-    the wrong household's data.
-
-    We use ``setTimeout(50)`` to give the Today tab refresh time to
-    commit to the DOM before the reload tears it down, so the user
-    doesn't see a flash of the old household on Today.
-    """
-    return (
-        "() => {"
-        "setTimeout(function(){"
-        # Preserve the URL hash so the user lands on the same tab.
-        "var hash = window.location.hash || '';"
-        "window.location.href = window.location.pathname + hash;"
-        "}, 50);"
-        "}"
-    )
 
 
 def build_app() -> gr.Blocks:
@@ -207,74 +165,23 @@ def build_app() -> gr.Blocks:
                 "ReconcileTabHandles dataclass and that the builder is "
                 "registered in shopstack/ui/tabs/registry.py."
             )
-        today_stats = today_handles.today_stats
-        today_soon = today_handles.today_soon
-        today_list = today_handles.today_list
-        today_low = today_handles.today_low
-        today_recent = today_handles.today_recent
-        today_changed = today_handles.today_changed
-        home_flow = today_handles.home_flow
-        p_location = reconcile_handles.p_location
-        move_dest = reconcile_handles.move_dest
 
-        # Refresh dropdown choices on initial load
-        app.load(
-            lambda: gr.update(choices=household_choices(), value=current_user_id()),
-            outputs=household_dropdown,
-        )
+        # Cross-tab event wiring (household dropdown, add-household
+        # form, per-render location refresh, post-load JS shims) is
+        # delegated to a dedicated sub-builder so app.py stays a pure
+        # composition layer. See shopstack/ui/state/household_wiring.py.
+        from shopstack.ui.state.household_wiring import wire_household_handlers
 
-        # Wire household dropdown change after all output components are defined.
-        # Also refresh the new home_flow panel so the state-aware hero
-        # re-evaluates with the new household's data.
-        household_dropdown.change(
-            switch_household_state,
-            household_dropdown,
-            [household_dropdown, today_stats, today_soon, today_list, today_low, today_recent, today_changed, home_flow],
-            api_name="switch_household",
-            api_description="Switch active household and refresh dashboard",
-        ).then(
-            None,
-            js=_household_switch_reload_js(),
-            api_name="after_switch_household",
-            api_description="Reload the page after household switch so all tabs show fresh data",
-        )
-
-        # Per-render refresh of location-dependent dropdowns.
-        def _refresh_location_choices() -> gr.update:
-            return gr.update(choices=[(l.name, l.location_id) for l in db.get_locations()])
-
-        app.load(_refresh_location_choices, outputs=p_location)
-        app.load(_refresh_location_choices, outputs=move_dest)
-
-        # Post-render JS: inject `autocomplete="off"` into every Gradio
-        # text/number input. Vercel WIG requires this on every form input.
-        app.load(None, js=autocomplete_injector_js())
-        # URL state sync: clicking a tab updates the URL hash, and
-        # opening the app with `#basket` deep-links to the Shopping tab.
-        app.load(None, js=url_state_sync_js())
-        # Bootstrap re-execution: re-run inline <script data-ss-exec> tags
-        # that Gradio's head=/gr.HTML injection left inert (item #99).
-        app.load(None, js=script_bootstrap_js())
-
-        # Wire add-household button and form
-        add_hh_btn.click(
-            show_add_form,
-            outputs=hh_add_row,
-            api_name="show_add_household",
-            api_description="Show the add-household form",
-        )
-        hh_cancel_btn.click(
-            hide_add_form,
-            outputs=hh_add_row,
-            api_name="cancel_add_household",
-            api_description="Hide the add-household form without creating",
-        )
-        hh_create_btn.click(
-            create_household_state,
-            hh_name_input,
-            [household_dropdown, hh_add_row, today_stats, today_soon, today_list, today_low, today_recent, today_changed, home_flow],
-            api_name="create_household",
-            api_description="Create a new household, switch to it, and refresh the dashboard",
+        wire_household_handlers(
+            app,
+            household_dropdown=household_dropdown,
+            add_hh_btn=add_hh_btn,
+            hh_add_row=hh_add_row,
+            hh_name_input=hh_name_input,
+            hh_create_btn=hh_create_btn,
+            hh_cancel_btn=hh_cancel_btn,
+            today_handles=today_handles,
+            reconcile_handles=reconcile_handles,
         )
 
     # PWA shell (manifest/sw.js/icons) and the /health/ui liveness probe

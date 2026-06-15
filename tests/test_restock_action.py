@@ -23,6 +23,7 @@ import pytest
 from shopstack.config import Settings
 from shopstack.persistence.database import Database
 from shopstack.services.restock_action import add_prediction_to_list
+from tests.conftest import _remove_db_with_sidecars
 
 
 @pytest.fixture()
@@ -42,7 +43,7 @@ def fresh_db():
         db.add_household(hid, f"Test {hid}")
         db.add_household_member(hid, hid, role="owner")
     yield db, path
-    Path(path).unlink(missing_ok=True)
+    _remove_db_with_sidecars(path)
 
 
 def _prediction(cname: str = "milk", **overrides) -> dict:

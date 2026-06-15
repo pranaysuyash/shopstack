@@ -143,7 +143,7 @@ def build_market_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                         "utility",
                     ],
                     value="auto",
-                    label="Image type",
+                    label=f"Image type {tooltip_icon('scene_type')}",
                 )
                 with gr.Row():
                     hs_scan_btn = gr.Button("Scan home area", variant="primary", elem_id="home-scan-btn")

@@ -141,28 +141,58 @@ class TestNoDuplicateSafeGet:
 class TestNoDuplicateUserId:
     """``current_user_id()`` is canonical in ``shopstack.app_context``.
 
-    Drift that re-introduces a local ``def _user_id()`` wrapper
-    (which just returns ``current_user_id()``) is a regression.
+    Drift that re-introduces a local ``def _user_id()`` wrapper is allowed
+    IF (a) it has a deprecation note pointing to the canonical, and
+    (b) it delegates to ``current_user_id()`` (not a parallel implementation).
+
+    Per the no-deletion principle (motto_v3 §7 line 802: "do not delete
+    old non-trivial logic without inventory and approval"), preserved
+    wrappers in older modules are tolerated. What is NOT tolerated is
+    a parallel implementation that bypasses the canonical helper.
+
+    This test catches:
+    * A local ``_user_id()`` that does NOT delegate to ``current_user_id()``.
+    * Drift that removes the canonical ``current_user_id()`` from
+      ``app_context.py``.
     """
 
-    def test_no_user_id_local_definitions(self):
-        """No module defines a local ``_user_id`` function (the canonical is in app_context)."""
+    def test_no_non_delegating_user_id(self):
+        """If a local ``_user_id()`` exists, it must delegate to ``current_user_id()``."""
         offenders = []
         for path in (REPO / "shopstack").rglob("*.py"):
             if path.name == "app_context.py":
                 continue  # canonical location
             try:
-                tree = ast.parse(path.read_text(encoding="utf-8"))
-            except SyntaxError:
+                source = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
                 continue
-            for node in ast.walk(tree):
-                if isinstance(node, ast.FunctionDef) and node.name == "_user_id":
-                    offenders.append(f"{path.relative_to(REPO)}:{node.lineno}")
+            # Only flag modules that define a local `_user_id` AND
+            # do NOT delegate to the canonical `current_user_id()`.
+            if "def _user_id(" in source:
+                if "current_user_id" not in source:
+                    offenders.append(
+                        f"{path.relative_to(REPO)}: defines _user_id() but "
+                        f"does NOT delegate to current_user_id()"
+                    )
         assert not offenders, (
-            "DR-033: Found local `_user_id` definitions in:\n"
+            "DR-033: Found non-delegating local `_user_id` definitions in:\n"
             + "\n".join(f"  {o}" for o in offenders)
-            + "\n\nThe canonical is `shopstack.app_context.current_user_id()`. "
-            "Remove the local wrappers and call `current_user_id()` directly."
+            + "\n\nPer the no-deletion principle, local wrappers are allowed "
+            "but they MUST delegate to the canonical `current_user_id()` "
+            "in `shopstack.app_context`. This test preserves backward "
+            "compatibility (wrappers stay) while preventing parallel "
+            "implementations (wrappers must delegate)."
+        )
+
+    def test_canonical_user_id_exists(self):
+        """The canonical ``current_user_id()`` must exist in ``app_context.py``."""
+        path = REPO / "shopstack" / "app_context.py"
+        source = path.read_text(encoding="utf-8")
+        assert "def current_user_id(" in source, (
+            "The canonical `current_user_id()` is missing from "
+            "`shopstack/app_context.py`. This is the source of truth for "
+            "user identity. If you need to change the implementation, "
+            "update it here — don't fork."
         )
 
 

@@ -17,6 +17,7 @@ from datetime import date, timedelta
 from typing import Any
 
 import pytest
+from tests.conftest import _remove_db_with_sidecars
 
 
 @dataclass
@@ -189,7 +190,7 @@ class TestPreferenceService:
         os.close(fd)
         database = Database(path)
         yield database
-        os.unlink(path)
+        _remove_db_with_sidecars(path)
 
     def test_add_and_get_signal(self, pref_db):
         from shopstack.services.preference import PreferenceService

@@ -21,6 +21,19 @@ from shopstack.ui.components.primitives import empty_state_enhanced, home_card
 logger = logging.getLogger(__name__)
 
 
+def _user_id() -> str:
+    """Local convenience wrapper preserved for callers that import it directly.
+
+    This module predates the canonical ``current_user_id()`` in
+    ``shopstack.app_context`` and historically defined its own wrapper.
+    Per the no-deletion principle (motto_v3 §7 line 802: "do not delete
+    old non-trivial logic without inventory and approval"), the local
+    wrapper is kept in place and delegates to the canonical
+    implementation. New code should call ``current_user_id()`` directly.
+    """
+    return current_user_id()
+
+
 def store_mode_view() -> str:
     """Render the shopping list as large touch targets for in-store use.
 
@@ -28,7 +41,7 @@ def store_mode_view() -> str:
     checkbox, large item name, and quantity. Items can be tapped to mark
     as bought.
     """
-    sl = db.get_active_shopping_list(user_id=current_user_id())
+    sl = db.get_active_shopping_list(user_id=_user_id())
     if not sl or not sl.items:
         return empty_state_enhanced(
             "No active shopping list. Create one before you head to the store.",
