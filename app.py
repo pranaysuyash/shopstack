@@ -178,6 +178,7 @@ def build_app() -> gr.Blocks:
         today_low = today_handles.today_low
         today_recent = today_handles.today_recent
         today_changed = today_handles.today_changed
+        home_flow = today_handles.home_flow
         p_location = reconcile_handles.p_location
         move_dest = reconcile_handles.move_dest
 
@@ -187,11 +188,13 @@ def build_app() -> gr.Blocks:
             outputs=household_dropdown,
         )
 
-        # Wire household dropdown change after all output components are defined
+        # Wire household dropdown change after all output components are defined.
+        # Also refresh the new home_flow panel so the state-aware hero
+        # re-evaluates with the new household's data.
         household_dropdown.change(
             switch_household_state,
             household_dropdown,
-            [household_dropdown, today_stats, today_soon, today_list, today_low, today_recent, today_changed],
+            [household_dropdown, today_stats, today_soon, today_list, today_low, today_recent, today_changed, home_flow],
             api_name="switch_household",
             api_description="Switch active household and refresh dashboard",
         ).then(
@@ -234,7 +237,7 @@ def build_app() -> gr.Blocks:
         hh_create_btn.click(
             create_household_state,
             hh_name_input,
-            [household_dropdown, hh_add_row, today_stats, today_soon, today_list, today_low, today_recent, today_changed],
+            [household_dropdown, hh_add_row, today_stats, today_soon, today_list, today_low, today_recent, today_changed, home_flow],
             api_name="create_household",
             api_description="Create a new household, switch to it, and refresh the dashboard",
         )

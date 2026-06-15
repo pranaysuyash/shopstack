@@ -9,7 +9,12 @@ from pathlib import Path
 from typing import Any
 
 from shopstack.app_context import APP_NAME
-from shopstack.portability import ImportResult
+# NOTE: ``from shopstack.portability import ImportResult`` was moved inside
+# ``confirm_receipt()`` to break a circular import chain. The chain was:
+#   portability → persistence.database → services.training_capture →
+#   services.__init__ → services.receipt → portability
+# Importing lazily at function-call time avoids the cycle because by the
+# time confirm_receipt() runs, portability is fully loaded.
 from shopstack.domain import canonicalize_name, normalize_item_name
 from shopstack.schemas.models import (
     InventoryLot,
@@ -306,7 +311,10 @@ def parse_receipt_text(raw_text: str) -> ReceiptResult:
     )
 
 
-def confirm_receipt(database: Any, result: ReceiptResult, user_id: str = "") -> ImportResult:
+def confirm_receipt(database: Any, result: ReceiptResult, user_id: str = "") -> "ImportResult":
+    # Lazy import to break circular dependency: see the note at the
+    # top of this file for the full chain.
+    from shopstack.portability import ImportResult
     ir = ImportResult()
 
     if not result.lines:

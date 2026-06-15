@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import date
 
-import pytest
 
 from shopstack.domain.market_freshness import (
     FreshnessReport,

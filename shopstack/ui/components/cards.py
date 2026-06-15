@@ -4,6 +4,7 @@ from html import escape
 import re
 from typing import Any
 from shopstack.schemas.models import DecisionResult, _ACTION_COLORS, _ACTION_ICONS
+from shopstack.module_registry import tab_label
 from shopstack.ui.components.primitives import home_card
 
 
@@ -24,15 +25,7 @@ def _tab_click_attr(tab_id: str) -> str:
     if not tab_id:
         return ""
     safe_tab = _safe_tab_id(tab_id)
-    tab_labels = {
-        "today": "Home",
-        "cookbook": "Recipes",
-        "basket": "Groceries",
-        "market": "While Shopping",
-        "reconcile": "At Home",
-        "memory": "Memory",
-    }
-    target_label = tab_labels.get(safe_tab, safe_tab)
+    target_label = tab_label(tab_id)
     return (
         " onclick=\"(function(){"
         f"var label={target_label!r};"

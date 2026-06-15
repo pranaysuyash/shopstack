@@ -217,3 +217,45 @@ def test_main_writes_report(tmp_path: Path, monkeypatch, capsys):
     assert "snippets" in data
     assert "scanned_files" in data
     assert "error_count" in data
+
+
+# ── Pre-commit wiring (Item #56 hardening) ───────────────────────
+
+
+class TestPrecommitWiring:
+    """Item #56 (motto_v3 §0.5): the JS validator is wired into
+    pre-commit so SyntaxErrors in ``js=...`` kwargs are caught
+    at commit time, not at runtime in the browser. This test
+    asserts the wiring exists in ``.pre-commit-config.yaml`` and
+    that the wired command exits 0 on the current codebase
+    (no errors to block the commit).
+    """
+
+    def test_precommit_config_declares_js_syntax_hook(self):
+        from pathlib import Path
+        cfg = Path(".pre-commit-config.yaml")
+        assert cfg.is_file(), "Pre-commit config must exist at the project root"
+        text = cfg.read_text(encoding="utf-8")
+        assert "js-syntax-validate" in text, (
+            "Pre-commit must declare a hook with id 'js-syntax-validate' "
+            "so SyntaxErrors in js=... kwargs are caught at commit time "
+            "(motto_v3 §0.5)."
+        )
+        assert "shopstack.tools.js_validate" in text, (
+            "The hook must invoke `python -m shopstack.tools.js_validate`."
+        )
+
+    def test_precommit_command_exits_zero_on_current_codebase(self):
+        """If this fails, the codebase has a JS SyntaxError that
+        the pre-commit hook would block. Fix the JS first, then
+        re-run this test.
+        """
+        from shopstack.tools import js_validate
+
+        rc = js_validate.main([])
+        assert rc == 0, (
+            f"JS validator found SyntaxErrors — the pre-commit "
+            f"hook would block the commit. Run "
+            f"`uv run python -m shopstack.tools.js_validate` to "
+            f"see the report."
+        )

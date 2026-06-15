@@ -86,7 +86,6 @@ def classify_stock(
 ) -> StockLevel:
     if min_threshold <= 0:
         min_threshold = 1.0
-    ratio = current_qty / min_threshold if min_threshold else 1.0
     if current_qty <= min_threshold * _CRITICAL_RATIO:
         severity = AlertSeverity.CRITICAL
     elif current_qty <= min_threshold * _WARNING_RATIO:
@@ -164,7 +163,7 @@ def check_stock_level(level: StockLevel) -> StockAlert | None:
 
 
 def check_all_stock_levels(levels: Sequence[StockLevel]) -> list[StockAlert]:
-    return [a for l in levels if (a := check_stock_level(l)) is not None]
+    return [a for level in levels if (a := check_stock_level(level)) is not None]
 
 
 def check_expiry(

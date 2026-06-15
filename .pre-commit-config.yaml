@@ -30,3 +30,15 @@ repos:
         # Strict by default — blocks the commit if stale test counts are found.
         # The pre-commit hook uses --strict so the developer catches issues
         # locally before CI.
+
+      - id: js-syntax-validate
+        name: JS snippet syntax validation
+        description: Walk every `js=...` kwarg in shopstack/ and validate via `node --check`. Catches SyntaxError at commit time so a broken Gradio JS helper doesn't ship and produce infinite "Loading..." spinners (Item #56, motto_v3 §0.5).
+        entry: uv run python -m shopstack.tools.js_validate
+        language: system
+        pass_filenames: false
+        always_run: true
+        # Non-strict: the validator exits 0 when there are 0 errors,
+        # 1 when there are errors. The hook fails the commit on any
+        # SyntaxError. Disable with `SKIP=js-syntax-validate git commit ...`
+        # when refactoring large UI files in a multi-commit workstream.

@@ -347,6 +347,18 @@ class TestPricePerKg:
         ppk = PriceMemoryService._price_per_kg(Obs(price=30, quantity=200, unit="ml"))
         assert ppk == pytest.approx(150)  # 30/200*1000
 
+    def test_litre_price_conversion(self):
+        from shopstack.services.price_memory import PriceMemoryService
+
+        @dataclass
+        class Obs:
+            price: float = 165
+            quantity: float = 1
+            unit: str = "L"
+
+        ppk = PriceMemoryService._price_per_kg(Obs(price=165, quantity=1, unit="L"))
+        assert ppk == 165  # 1L of cooking oil ~ 1kg, not 165000
+
     def test_no_quantity_returns_none(self):
         from shopstack.services.price_memory import PriceMemoryService
 

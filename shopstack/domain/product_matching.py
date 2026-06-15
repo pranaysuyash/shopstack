@@ -106,8 +106,6 @@ def score_product_match(query: str, candidate: str) -> MatchScore:
     if not q or not c:
         return MatchScore(score=0.0, reasons=[MatchReason(factor="none", detail="empty input")])
 
-    reasons: list[MatchReason] = []
-
     # 1. Exact match
     if q == c:
         return MatchScore(

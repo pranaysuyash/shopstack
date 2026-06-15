@@ -435,21 +435,25 @@ class TestOnboardingWiringRegression:
             "app.py must use the composite should_show_onboarding check"
         )
 
-    def test_onboarding_step_renderers_callable(self):
-        """The 5 step renderers must be importable (via the screens
-        module even if they're private in the file)."""
-        import importlib
-        mod = importlib.import_module("shopstack.ui.screens.onboarding")
-        # The step renderers are private but importable
-        for name in (
-            "_step1_household_size",
-            "_step2_diet",
-            "_step3_staples",
-            "_step4_retailers",
-            "_step5_city",
-        ):
-            assert hasattr(mod, name), f"Missing step renderer: {name}"
-            assert callable(getattr(mod, name))
+    def test_onboarding_step_renderers_in_canonical_home(self):
+        """The step renderers live in the canonical home
+        (shopstack.ui.tabs.onboarding) and are called as inner
+        Markdown blocks (not as separate functions). The
+        supersession history means they're reachable via
+        the shim in shopstack.ui.screens.onboarding.
+        """
+        # Canonical home
+        from shopstack.ui.tabs import onboarding as tab_onboarding
+        assert hasattr(tab_onboarding, "build_onboarding_wizard")
+        assert callable(tab_onboarding.build_onboarding_wizard)
+        # The screens re-export shim still works
+        from shopstack.ui.screens import onboarding as screens_onboarding
+        assert hasattr(screens_onboarding, "build_onboarding_wizard")
+        # Both should resolve to the same function
+        assert (
+            tab_onboarding.build_onboarding_wizard
+            is screens_onboarding.build_onboarding_wizard
+        )
 
 
 # ─── Cross-cutting: app.py builds cleanly ──────────────────────────

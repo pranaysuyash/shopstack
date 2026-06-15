@@ -575,7 +575,7 @@ class PriceMemoryService:
             if unit in ("kg", "kilo", "kilos"):
                 return price / qty
             if unit in ("l", "litre", "liter", "litres", "liters"):
-                return price / qty * 1000
+                return price / qty
             if unit in ("ml", "milliliter", "millilitre"):
                 return price / qty * 1000
             return None

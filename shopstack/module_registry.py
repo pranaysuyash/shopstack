@@ -104,6 +104,16 @@ def _register(m: ModuleMetadata) -> ModuleMetadata:
 #
 # Each group maps to a list of screen tab_ids that appear inside it.
 # Order within each group follows TAB_ORDER.
+#
+# **2026-06-15 update (Home screen review):** the user-facing primary
+# nav has been simplified to 6 top-level items (Home / Pantry /
+# Shopping / Recipes / Trips / Memory) — see :data:`PRIMARY_NAV`
+# below. The old 5-group nested structure (:data:`TAB_GROUPS`) is
+# preserved for back-compat with tests, dispatchers, and any
+# internal code that reads it. The new tab builder in
+# :mod:`shopstack.ui.tabs.registry` reads from ``PRIMARY_NAV`` when
+# the ``use_primary_nav=True`` flag is set; without the flag, it
+# falls back to the legacy ``TAB_GROUPS`` for back-compat.
 
 TAB_GROUPS: dict[str, list[str]] = {
     "home":       ["today", "cookbook", "trip_advisor"],
@@ -112,6 +122,77 @@ TAB_GROUPS: dict[str, list[str]] = {
     "at_home":   ["reconcile", "timeline", "find_trail", "photo_map",
                     "repair_inbox", "consumption", "nutrition"],
     "memory":    ["memory", "community", "parser", "analytics"],
+}
+
+# ── Primary nav (2026-06-15) ─────────────────────────────────────
+#
+# Six user-facing top-level items, each pointing at the canonical
+# "destination tab" the user lands on when they click the item.
+# Advanced / power-user tabs (Market Intel, Smart Basket, Store
+# Mode, Photo Map, Find, Timeline, Repair, Consumption, Nutrition,
+# Community, Parser, Analytics, Scanner, Recipe Scan) remain
+# reachable from inside each primary tab as nested sub-tabs (see
+# :data:`PRIMARY_NAV_ADVANCED`).
+#
+# The display labels are designed to answer the user's job, not to
+# list features:
+#   Home      → "what should I do right now?"  (today tab)
+#   Pantry    → "what is at home?"              (reconcile tab)
+#   Shopping  → "what should I buy?"            (basket tab)
+#   Recipes   → "what can I cook?"              (cookbook tab)
+#   Trips     → "should I go shopping now?"     (trip_advisor tab)
+#   Memory    → "what has ShopStack learned?"   (memory tab)
+PRIMARY_NAV: list[dict[str, str]] = [
+    {
+        "id": "home",
+        "label": "Home",
+        "destination": "today",
+        "subtitle": "What should I do right now?",
+    },
+    {
+        "id": "pantry",
+        "label": "Pantry",
+        "destination": "reconcile",
+        "subtitle": "What is at home, expiring, missing?",
+    },
+    {
+        "id": "shopping",
+        "label": "Shopping",
+        "destination": "basket",
+        "subtitle": "Plan a list, compare stores.",
+    },
+    {
+        "id": "recipes",
+        "label": "Recipes",
+        "destination": "cookbook",
+        "subtitle": "Cook with what you have.",
+    },
+    {
+        "id": "trips",
+        "label": "Trips",
+        "destination": "trip_advisor",
+        "subtitle": "Should I go shopping now?",
+    },
+    {
+        "id": "memory",
+        "label": "Memory",
+        "destination": "memory",
+        "subtitle": "What ShopStack has learned.",
+    },
+]
+
+# Advanced tabs surfaced as sub-tabs inside each primary destination.
+# Kept for advanced users; first-time users see only the primary
+# destination and don't have to wade through 21 tabs.
+PRIMARY_NAV_ADVANCED: dict[str, list[str]] = {
+    "home":       ["today", "trip_advisor"],
+    "pantry":     ["reconcile", "timeline", "find_trail", "photo_map",
+                   "repair_inbox", "consumption", "nutrition"],
+    "shopping":   ["basket", "smart_basket", "store_mode", "market",
+                   "scanner", "recipe", "market_intel"],
+    "recipes":    ["cookbook"],
+    "trips":      ["trip_advisor"],
+    "memory":     ["memory", "community", "parser", "analytics"],
 }
 
 # Display labels for each group tab.
@@ -218,7 +299,6 @@ SHOPSTOCK = _register(ModuleMetadata(
     ),
     tab_ids=("reconcile", "timeline", "photo_map", "find_trail", "repair_inbox", "consumption"),
     tab_labels={
-        "reconcile": "At Home",
         "photo_map": "Photo Map",
         "find_trail": "Find",
         "repair_inbox": "Repair Inbox",
@@ -303,7 +383,6 @@ SHOPMEMORY = _register(ModuleMetadata(
     tab_ids=("basket", "memory", "analytics"),
     tab_labels={
         "basket": "Groceries",
-        "memory": "Memory",
         "analytics": "Analytics",
     },
     order=TAB_ORDER.get("memory", 999),
@@ -320,8 +399,6 @@ SHOPAGENT = _register(ModuleMetadata(
     description="Reasoning layer: AI planner with tool-calling, decision classification, intent parsing, and trace audit trail.",
     tab_ids=("today", "memory", "parser"),
     tab_labels={
-        "today": "Home",
-        "memory": "Memory",
         "parser": "Parser Test",
     },
     order=TAB_ORDER.get("today", 999),
@@ -369,7 +446,7 @@ SHOPNUTRITION = _register(ModuleMetadata(
     label="Nutrition",
     description="Nutrition lookup for common Indian household items and kitchen macro breakdown from inventory.",
     tab_ids=("memory", "nutrition"),
-    tab_labels={"memory": "Memory", "nutrition": "Nutrition"},
+    tab_labels={"nutrition": "Nutrition"},
     order=TAB_ORDER.get("nutrition", 999),
     service_modules=(
         "shopstack.services.nutrition",

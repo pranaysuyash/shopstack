@@ -234,6 +234,7 @@ _CANONICAL_MAP: dict[str, str] = {
     "yellow zucchini": "zucchini",
     "coconut": "coconut",
     "red cabbage": "red_cabbage",
+    "pumpkin": "pumpkin",
     "curry leaves": "curry_leaves",
     "coriander leaves": "coriander",
     "mint leaves": "mint",
@@ -278,7 +279,6 @@ _CANONICAL_MAP: dict[str, str] = {
     "murg": "chicken",
     "dahi": "curd",
     "curd": "curd",
-    "yogurt": "curd",
     "makhan": "butter",
     "dal": "lentils",
     "daal": "lentils",
@@ -345,6 +345,7 @@ ITEM_ALIASES: dict[str, list[str]] = {
     "raw_mango": ["kaccha aam", "manga", "mamidi"],
     "yam": ["suran", "elephant foot yam", "senai"],
     "colocasia": ["arbi", "arvi", "seppankizhangu"],
+    "pumpkin": ["kaddu", "kashiphal", "parangikai"],
     "zucchini": ["turai chini", "courgette"],
     "red_cabbage": ["laal gobhi", "red cabbage"],
     "coriander": ["dhania", "cilantro", "kothambari", "kothamalli"],
@@ -476,13 +477,100 @@ def _extract_combo_components(cleaned_name: str) -> list[str]:
     return components
 
 
-def canonicalize_name(raw_name: str) -> tuple[str, str, list[str]]:
+def _extract_combo_components_from_description(description: str) -> list[str]:
+    """Parse a combo product's description for component names.
+
+    The Swiggy (and similar retailer) snapshots store the actual
+    component list in the ``description`` field, e.g.:
+        "Drumstick, Brinjal, Raw Banana and Pumpkin Fresh veggies
+         combo for Vishu festive cooking"
+    The product ``name`` alone (e.g. "Sambar Veg Combo") does not
+    enumerate the components — they live in the description.
+
+    Algorithm:
+      1. Split on common list separators (comma, " and ", " & ").
+      2. Filter out non-component phrases ("Fresh veggies combo for
+         Vishu festive cooking", generic adjectives, etc.).
+      3. Resolve each candidate to its canonical name via the
+         alias maps.
+      4. Return the list of resolved canonicals (deduplicated, in
+         document order).
+
+    If no candidates resolve, returns an empty list (the caller
+    should fall back to the name-based heuristic).
+    """
+    if not description:
+        return []
+    # Generic phrases that are NOT component names. These are
+    # marketing/description flourishes that should be filtered out
+    # before alias resolution.
+    _FILTER_PHRASES = (
+        "fresh", "combo", "festive", "cooking", "special", "premium",
+        "organic", "local", "seasonal", "limited", "new", "best",
+        "value", "pack", "offer", "deal", "discount", "free",
+        "delivery", "today", "fresh veggies", "fresh vegetables",
+        "fresh fruits", "combo for", "combo pack", "combo of",
+        "for cooking", "for curry", "for dal", "for sambar",
+    )
+
+    # Split on the most common list separators
+    candidates = re.split(r",\s*|\s+and\s+|\s+&\s+", description)
+    resolved: list[str] = []
+    seen: set[str] = set()
+    for raw in candidates:
+        candidate = raw.strip().lower()
+        if not candidate:
+            continue
+        # Strip trailing/leading punctuation
+        candidate = candidate.strip(".,;:!?()[]{}'\"")
+        if not candidate or len(candidate) < 3:
+            continue
+        # Filter generic phrases (exact or prefix match)
+        skip = False
+        for phrase in _FILTER_PHRASES:
+            if candidate == phrase or candidate.startswith(phrase + " "):
+                skip = True
+                break
+        if skip:
+            continue
+        # Resolve to canonical via the alias maps
+        clean = _clean_name(candidate)
+        if not clean:
+            continue
+        canonical = _resolve_from_canonical_map(clean)
+        if not canonical:
+            canonical = _resolve_from_aliases(clean)
+        if not canonical:
+            # Unresolved — skip rather than append the raw text
+            # (raw text would create a non-canonical component that
+            # would never match any inventory row)
+            continue
+        if canonical in seen:
+            continue
+        seen.add(canonical)
+        resolved.append(canonical)
+        # Stop at 10 components — combos rarely have more
+        if len(resolved) >= 10:
+            break
+    return resolved
+
+
+def canonicalize_name(raw_name: str, description: str = "") -> tuple[str, str, list[str]]:
     cleaned = _clean_name(raw_name)
     is_combo = _detect_combo(raw_name)
     components: list[str] = []
 
     if is_combo:
-        components = _extract_combo_components(cleaned)
+        # Try to extract components from the description first (more
+        # accurate than hardcoded heuristics). Fall back to the name
+        # parser if the description doesn't yield components.
+        desc_components: list[str] = []
+        if description:
+            desc_components = _extract_combo_components_from_description(description)
+        if desc_components:
+            components = desc_components
+        else:
+            components = _extract_combo_components(cleaned)
         slug_parts = [c for c in components if c]
         if slug_parts:
             slug = "combo_" + "_".join(slug_parts[:5])

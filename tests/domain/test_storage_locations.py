@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 from shopstack.domain.storage_locations import (
     LocationNode,

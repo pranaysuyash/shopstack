@@ -67,7 +67,7 @@ class TestRenderMarketNextSteps:
         graph = _make_graph()
         html = _render_market_next_steps(graph)
         assert "Next steps" in html
-        assert "No market actions to prioritize yet" in html
+        assert "No market signals yet" in html
 
     def test_buy_signal_shows_open_groceries(self):
         graph = _make_graph(buy=2)

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 from shopstack.domain.product_matching import (
     MatchReason,

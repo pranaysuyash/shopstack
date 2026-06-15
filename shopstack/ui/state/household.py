@@ -25,6 +25,11 @@ Why a state module and not a service:
   is a UI concern.
 - A state module under `shopstack/ui/state/` keeps the UI-Gradio
   coupling in one place.
+
+The state functions now also refresh the new
+:class:`shopstack.ui.screens.home_flow_render.render_home_flow`
+panel (the state-aware hero) so the first-run / starting-out / quiet /
+active state is always evaluated against the new household's data.
 """
 from __future__ import annotations
 
@@ -39,6 +44,7 @@ from shopstack.app_context import (
     switch_household,
 )
 from shopstack.ui.screens import today_dashboard
+from shopstack.ui.screens.home_flow_render import render_home_flow
 
 
 def _slugify_household_id(name: str) -> str:
@@ -72,18 +78,19 @@ def switch_household_state(household_id: str) -> tuple:
     """Switch the active household and return Gradio update tuples.
 
     Returns:
-        A tuple of 7 `gr.update()` values:
+        A tuple of 8 `gr.update()` values:
             - household_dropdown: new value (or no-op if empty)
             - today_stats, today_soon, today_list, today_low,
               today_recent, today_changed: refreshed Today tab content
+            - home_flow: refreshed state-aware hero panel
 
     If `household_id` is empty, the function is a no-op for the
     switch but still refreshes the dashboard.
     """
     if not household_id:
-        return gr.update(), *today_dashboard()
+        return gr.update(), *today_dashboard(), render_home_flow()
     switch_household(household_id)
-    return gr.update(value=household_id), *today_dashboard()
+    return gr.update(value=household_id), *today_dashboard(), render_home_flow()
 
 
 def show_add_form() -> dict:
@@ -103,11 +110,12 @@ def create_household_state(name: str) -> tuple:
         name: The human-readable household name from the add form.
 
     Returns:
-        A tuple of 8 `gr.update()` values:
+        A tuple of 9 `gr.update()` values:
             - household_dropdown: refreshed choices + new value
             - hh_add_row: hidden (visible=False)
             - today_stats, today_soon, today_list, today_low,
               today_recent, today_changed: refreshed Today tab
+            - home_flow: refreshed state-aware hero panel
 
     If `name` is empty/whitespace, returns a no-op tuple that keeps
     the form hidden and refreshes the dashboard.
@@ -117,7 +125,12 @@ def create_household_state(name: str) -> tuple:
     """
     name = (name or "").strip()
     if not name:
-        return gr.update(), gr.update(visible=False), *today_dashboard()
+        return (
+            gr.update(),
+            gr.update(visible=False),
+            *today_dashboard(),
+            render_home_flow(),
+        )
 
     household_id = _slugify_household_id(name)
     created = add_household(household_id, name)
@@ -132,4 +145,5 @@ def create_household_state(name: str) -> tuple:
         gr.update(choices=choices, value=household_id),
         gr.update(visible=False),
         *today_dashboard(),
+        render_home_flow(),
     )

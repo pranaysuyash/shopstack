@@ -102,7 +102,66 @@ RETAILERS: list[dict[str, str]] = [
 ]
 
 # Default city for weather-aware suggestions if the user skips the input.
+# (Back-compat fallback; the wizard no longer hard-codes this — the
+# input is left blank with a placeholder so the user can type or skip.)
 DEFAULT_CITY = "mumbai"
+
+# Placeholder shown in the city input. Not a default.
+CITY_PLACEHOLDER = "e.g. Mumbai, Bengaluru, Delhi"
+
+# Grouped staples — the new canonical ordering of COMMON_STAPLES.
+# :data:`COMMON_STAPLES` is still the flat list (preserved for
+# back-compat) but callers that want the categorized view should
+# iterate :data:`COMMON_STAPLES_GROUPED` instead. Grouped list is
+# derived from the flat list to keep the two views in sync.
+COMMON_STAPLES_GROUPED: list[dict[str, Any]] = [
+    {
+        "category": "Grains",
+        "items": [
+            {"canonical_name": "rice", "label": "Rice", "category": "staple"},
+            {"canonical_name": "wheat_flour", "label": "Wheat flour (atta)", "category": "staple"},
+            {"canonical_name": "toor_dal", "label": "Toor dal", "category": "staple"},
+        ],
+    },
+    {
+        "category": "Dairy",
+        "items": [
+            {"canonical_name": "milk", "label": "Milk", "category": "dairy"},
+            {"canonical_name": "curd", "label": "Curd (dahi)", "category": "dairy"},
+            {"canonical_name": "paneer", "label": "Paneer", "category": "dairy"},
+        ],
+    },
+    {
+        "category": "Vegetables",
+        "items": [
+            {"canonical_name": "onion", "label": "Onion", "category": "vegetable"},
+            {"canonical_name": "tomato", "label": "Tomato", "category": "vegetable"},
+            {"canonical_name": "potato", "label": "Potato", "category": "vegetable"},
+            {"canonical_name": "green_chilli", "label": "Green chilli", "category": "vegetable"},
+            {"canonical_name": "ginger", "label": "Ginger", "category": "vegetable"},
+            {"canonical_name": "garlic", "label": "Garlic", "category": "vegetable"},
+            {"canonical_name": "coriander", "label": "Coriander (dhania)", "category": "herb"},
+        ],
+    },
+    {
+        "category": "Proteins",
+        "items": [
+            {"canonical_name": "egg", "label": "Eggs", "category": "dairy_alt"},
+            {"canonical_name": "chicken", "label": "Chicken", "category": "meat"},
+            {"canonical_name": "fish", "label": "Fish", "category": "meat"},
+        ],
+    },
+    {
+        "category": "Pantry",
+        "items": [
+            {"canonical_name": "salt", "label": "Salt", "category": "staple"},
+            {"canonical_name": "turmeric", "label": "Turmeric", "category": "spice"},
+            {"canonical_name": "cooking_oil", "label": "Cooking oil", "category": "staple"},
+            {"canonical_name": "tea", "label": "Tea", "category": "staple"},
+            {"canonical_name": "sugar", "label": "Sugar", "category": "staple"},
+        ],
+    },
+]
 
 
 @dataclass
@@ -285,7 +344,10 @@ def submit_onboarding(
         common_items: List of canonical names from ``COMMON_STAPLES`` (or
             a comma-separated string).
         retailers: List of retailer keys from ``RETAILERS``.
-        city: City name for weather context. Empty → ``DEFAULT_CITY``.
+        city: City name for weather context. Empty → ``DEFAULT_CITY``
+            (which is "mumbai" today). The wizard now lets the user
+            skip this field; if a city was provided it is used as-is,
+            otherwise the legacy default kicks in.
         user_id: Household ID. Defaults to ``db.active_household_id``.
 
     Returns:

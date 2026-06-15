@@ -51,7 +51,11 @@ ERROR_HTML = (
 # user sees a consistent ShopStack face instead of a raw error
 # string. Kept as a module-level callable so call sites can pass
 # the actual exception detail for the operator-facing <details> block.
-from shopstack.ui.components.primitives import branded_error_shell, stat_card  # noqa: E402
+from shopstack.ui.components.primitives import (
+    branded_error_shell,
+    last_updated_stamp,
+    stat_card,
+)  # noqa: E402
 
 
 def _recovery_shell(message: str, exc: Exception | None = None) -> str:
@@ -239,6 +243,16 @@ def build_price_memory_view(database: Database, item_name: str | None, user_id: 
         best_info = ""
 
     last_observed = rows[-1]["date"] if rows else ""
+    # Item #41 (motto_v3 §0.10): render a relative-time stamp so the
+    # user sees "Last observed 3 days ago" instead of just a date
+    # string. Falls back to the date string if the parse fails
+    # (defensive — never let the stamp crash the panel).
+    from datetime import date as _date
+    last_observation_date = history_sorted[-1].observation_date if history_sorted else None
+    last_observed_stamp = last_updated_stamp(
+        last_observation_date,
+        label="Last observed",
+    ) if last_observation_date else ""
 
     rec_html = ""
     if recommendation:
@@ -258,7 +272,8 @@ def build_price_memory_view(database: Database, item_name: str | None, user_id: 
             f"<h3>Price Memory for {safe_name}</h3><div><strong>{len(rows)}</strong> observations across <strong>{df['store'].nunique()}</strong> stores.</div>"
             f"<div>Latest: <strong>{history_sorted[0].currency} {latest_price:.2f}</strong> ({direction} than first recorded by {history_sorted[0].currency} {abs(change):.2f}).</div>"
             f"{unit_price_info}{best_info}"
-            f"<div>Range: {history_sorted[0].currency} {min_price:.2f} to {history_sorted[0].currency} {max_price:.2f}</div><div>Last observed: {last_observed}</div>"
+            f"<div>Range: {history_sorted[0].currency} {min_price:.2f} to {history_sorted[0].currency} {max_price:.2f}</div>"
+            f"{last_observed_stamp}"
             f"{rec_html}"
         ),
     )

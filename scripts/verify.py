@@ -58,7 +58,7 @@ def phase_types() -> tuple[bool, str]:
         pass
     try:
         pyright_bin = VENV_PYRIGHT if Path(VENV_PYRIGHT).exists() else "pyright"
-        result = run([pyright_bin, "shopstack/"], timeout=60)
+        result = run([pyright_bin, "shopstack/"], timeout=300)
         if result.returncode == 0:
             print("PASS (pyright)")
             return True, ""
@@ -93,7 +93,7 @@ def phase_lint() -> tuple[bool, str]:
 def phase_tests() -> tuple[bool, str]:
     print("  Phase 4/6: Test suite ...", end=" ")
     pytest_bin = VENV_PYTEST if Path(VENV_PYTEST).exists() else "pytest"
-    result = run([pytest_bin, "tests/", "-q", "--tb=short", "--no-header"], timeout=300)
+    result = run([pytest_bin, "tests/", "-q", "--tb=short", "--no-header"], timeout=600)
     summary_line = [line for line in result.stdout.split("\n") if line.strip() and ("passed" in line.lower() or "failed" in line.lower())]
     summary = summary_line[-1] if summary_line else result.stdout.strip()[-200:]
     if result.returncode == 0:

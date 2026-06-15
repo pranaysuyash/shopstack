@@ -93,7 +93,7 @@ def normalize_record(
     raw_name = str(raw.get("name", "")).strip()
     raw_size = str(raw.get("size", "")).strip()
 
-    canonical, variety, components = canonicalize_name(raw_name)
+    canonical, variety, components = canonicalize_name(raw_name, description)
     size_result: SizeParseResult = parse_size(raw_size)
 
     is_combo = len(components) > 1 or size_result.is_combo

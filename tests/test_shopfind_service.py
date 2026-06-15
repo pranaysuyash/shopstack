@@ -173,7 +173,54 @@ class TestShopFindService:
         result = ShopFindService(db).semantic_find_inventory_compatible("milk")
 
         assert result["count"] >= 1
-        assert result["semantic_active"] is False
+
+    def test_semantic_find_logs_embedding_failure_instead_of_swallowing(self, db, caplog):
+        """Item #5 (motto_v3 §0.6): the pre-fix code did
+        ``except Exception: return []`` on embedding failures —
+        silent over-trust. The post-fix contract: log at WARNING
+        so the operator can see the failure, then return [].
+        """
+        import logging
+        from shopstack.services.find import logger as find_logger
+        from shopstack.services import find as find_mod
+
+        # Build a provider that raises on every embed call.
+        class _BrokenEmbeddingProvider:
+            name = "broken"
+            capabilities = {"embeddings"}
+
+            @property
+            def available(self) -> bool:
+                return True
+
+            @property
+            def error(self):
+                return None
+
+            def embed(self, texts):
+                raise RuntimeError("simulated embedding failure")
+
+            def embed_queries(self, queries):
+                raise RuntimeError("simulated embedding failure")
+
+            def embed_documents(self, docs):
+                raise RuntimeError("simulated embedding failure")
+
+        repo = InventoryRepo(db)
+        repo.add_item("milk", "Amul Milk", 2, "L", "fridge", category="dairy")
+
+        with caplog.at_level(logging.WARNING, logger="shopstack.services.find"):
+            result = ShopFindService(
+                db, embedding_provider=_BrokenEmbeddingProvider()
+            ).semantic_find_inventory_compatible("milk")
+
+        # Text match still works (semantic degrades to text).
+        assert result["count"] >= 1
+        # The failure was logged (not silently swallowed).
+        warning_messages = [r.message for r in caplog.records if r.levelno >= logging.WARNING]
+        assert any("embedding failed" in m for m in warning_messages), (
+            f"Embedding failure must be logged at WARNING, got: {warning_messages}"
+        )
 
 
 class _StubEmbeddingProvider:

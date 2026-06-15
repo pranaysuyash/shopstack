@@ -8,7 +8,12 @@ from shopstack.services.dashboard import build_dashboard_state
 from shopstack.ui.components.cards import card as ui_card
 from shopstack.ui.components.cards import badge_html
 from shopstack.ui.components.cards import render_action_grid, render_hero_panel
-from shopstack.ui.components.primitives import stat_card, item_row, home_card
+from shopstack.ui.components.primitives import (
+    home_card,
+    item_row,
+    last_updated_stamp,
+    stat_card,
+)
 from shopstack.ui.renderers import (
     render_cadence_insights,
     render_waste_warnings,
@@ -351,6 +356,15 @@ def _render_onboarding_gate(state, ds) -> str:
     False in that case — see ``app.py:_show_onboarding_if_first_run``).
     This gate only appears for fresh households that have not yet
     seen the auto-shown wizard.
+
+    **2026-06-15 supersession (motto_v3 §7):** The previous version
+    leaked a long inline ``style="margin-top:10px;text-align:left;
+    border:2px solid var(--accent, #176B49);"`` string into the
+    rendered HTML — visible in screenshots as unstyled text. The
+    styling now lives in the ``home-flow-card--setup`` CSS class
+    (defined in :mod:`shopstack.ui.theme`), and the card is built
+    via the canonical :func:`home_card` primitive instead of a raw
+    ``<div>`` string.
     """
     # The custom_onclick body: show the wizard by toggling its
     # CSS display. The wizard has elem_id="onboarding-wizard".
@@ -389,7 +403,7 @@ def _render_onboarding_gate(state, ds) -> str:
     return home_card(
         title="Welcome to ShopStack",
         body=body,
-        style="margin-top:10px;text-align:left;border:2px solid var(--accent, #176B49);",
+        extra_class="home-flow-card--setup",
     )
 
 
@@ -597,6 +611,8 @@ def _render_market_map_teaser(state, graph) -> str:
 
     return ui_card(
         "Market Map",
-        f"<div class='muted' style='margin-bottom:8px;'>{freshness}</div><div style='margin-bottom:10px;'>{body}</div>"
+        f"<div class='muted' style='margin-bottom:8px;'>{freshness}</div>"
+        f"<div style='margin-bottom:10px;'>{body}</div>"
+        f"{last_updated_stamp(getattr(state.market_snapshot, 'captured_at', None), label='Market data')}"
         f"{compare_preview}{render_action_grid(actions)}",
     )

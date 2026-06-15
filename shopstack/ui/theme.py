@@ -1941,5 +1941,282 @@ details.home-details > *:not(summary),
   background: transparent !important;
   transform: none !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   COMMAND SURFACE — unified input (2026-06-15)
+   Replaces the legacy "Quick add" + "Ask ShopStack" pair. ═════════════ */
+
+.command-surface {
+  margin: 8px 0 12px 0;
+}
+.command-surface-prompt {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.command-surface-prompt em {
+  color: var(--text);
+  font-style: normal;
+  font-weight: 600;
+}
+.command-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 8px 0;
+}
+.cmd-chip {
+  background: var(--bg-input);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background var(--transition-base) var(--ease-out);
+}
+.cmd-chip:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.command-surface-row {
+  gap: 8px;
+}
+.command-surface-feedback {
+  min-height: 32px;
+  margin-top: 4px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   HOME FLOW — state-aware hero (2026-06-15)
+   Single render path that switches on HomeState (first_run,
+   starting_out, quiet, active). ═════════════════════════════════════ */
+
+.home-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 8px 0 16px 0;
+}
+.home-flow-hero h2.home-flow-headline {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl) !important;
+  font-weight: 800;
+  margin: 0 0 4px 0 !important;
+  color: var(--text);
+}
+.home-flow-hero p.home-flow-subhead {
+  font-size: 0.9375rem;
+  color: var(--text-muted);
+  margin: 0 0 8px 0;
+}
+.home-flow-card--setup {
+  border: 2px solid var(--accent, #176B49);
+  text-align: left;
+  margin-top: 10px;
+}
+.home-flow-setup-cta ul {
+  margin: 6px 0 12px 18px;
+  color: var(--text-muted);
+}
+.home-flow-setup-cta li {
+  margin: 2px 0;
+}
+.home-flow-primary-cta {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  margin-right: 8px;
+  margin-top: 4px;
+}
+.home-flow-primary-cta:hover { background: var(--accent-hover); }
+.home-flow-secondary-cta {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  margin-top: 4px;
+}
+.home-flow-secondary-cta:hover {
+  background: var(--bg-input);
+  color: var(--text);
+}
+.home-flow-staples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0;
+}
+.home-flow-card--quiet {
+  background: var(--bg-card);
+  border: 1px dashed var(--border-strong);
+}
+.home-flow-intel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.home-flow-secondary {
+  margin-top: 6px;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+.home-flow-secondary summary {
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   INTELLIGENCE CARDS — reusable explainable action surface ═══════════ */
+
+.intelligence-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin: 0;
+}
+.intelligence-card--buy_soon { border-left-color: var(--amber, #A76012); }
+.intelligence-card--use_soon { border-left-color: var(--amber, #A76012); }
+.intelligence-card--skip { border-left-color: var(--text-muted, #5F5144); }
+.intelligence-card--price_drop { border-left-color: var(--green, #176B49); }
+.intelligence-card--price_overpriced { border-left-color: var(--text-muted, #5F5144); }
+.intelligence-card--restock { border-left-color: var(--amber, #A76012); }
+.intelligence-card--memory { border-left-color: var(--blue, #315F9B); }
+.intelligence-card--trip { border-left-color: var(--blue, #315F9B); }
+.ic-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.ic-icon { font-size: 1.25rem; }
+.ic-title-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+}
+.ic-title {
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--text);
+}
+.ic-subtitle {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin: 4px 0;
+  line-height: 1.4;
+}
+.ic-secondary {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin: 4px 0;
+}
+.ic-confidence {
+  font-size: 0.6875rem;
+  color: var(--text-dim);
+  margin: 4px 0;
+  font-style: italic;
+}
+.ic-confidence--high { color: var(--green, #176B49); }
+.ic-confidence--medium { color: var(--text-muted); }
+.ic-confidence--low { color: var(--amber, #A76012); }
+.ic-confidence--unscored { color: var(--red, #A63F31); }
+.ic-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.ic-action {
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  min-height: 32px;
+}
+.ic-action--primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.ic-action--primary:hover { background: var(--accent-hover); }
+.ic-action--secondary:hover { background: var(--border); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ONBOARDING — one-step-at-a-time wizard (2026-06-15) ════════════════ */
+
+#onboarding-wizard {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  background: var(--bg-card);
+  margin: 12px 0;
+}
+.staples-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0 12px 0;
+}
+.staples-group-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.staples-group-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.staple-pill {
+  display: inline-block;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  color: var(--text);
+}
+.onboarding-error {
+  border-color: var(--red);
+  background: rgba(166, 63, 49, 0.05);
+}
+.onboarding-success {
+  border-color: var(--green);
+  background: rgba(23, 107, 73, 0.05);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   LAYOUT — wider centred container (2026-06-15) ════════════════════════ */
+/* The .gradio-container is already max-width 1280px from the base
+   style above. The .home-flow + .command-surface can use a slightly
+   wider internal layout to feel less cramped on desktop. */
+@media (min-width: 900px) {
+  .home-flow,
+  .command-surface,
+  .today-home-flow {
+    max-width: 1080px;
+  }
+}
 """
 

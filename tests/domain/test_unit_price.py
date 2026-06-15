@@ -1,9 +1,7 @@
 """Tests for shopstack.domain.unit_price."""
 
-import pytest
 from shopstack.domain.unit_price import (
     parse_size,
-    SizeParseResult,
     compute_unit_prices,
     resolve_canonical,
     normalize_item_name,

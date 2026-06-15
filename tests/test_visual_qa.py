@@ -34,7 +34,7 @@ def _app_server_reachable(url: str, tcp_timeout: float = 0.5, http_timeout: floa
     HTTP content. (In Pass 12 this was the root cause of the
     "transient batch-state test failures" pattern: a leftover Python
     process was listening on 127.0.0.1:7860 but not serving the
-    full Gradio app, so Playwright's `wait_until="networkidle"`
+    full Gradio app, so Playwright's `wait_until="load"`
     timed out and the suite appeared to hang.)
 
     Use a higher level skip — ``pytest.importorskip("playwright")``
@@ -86,7 +86,7 @@ def browser():
 def page(browser):
     ctx = browser.new_context(viewport={"width": 1280, "height": 800})
     pg = ctx.new_page()
-    pg.goto(APP_URL, wait_until="networkidle", timeout=30000)
+    pg.goto(APP_URL, wait_until="load", timeout=30000)
     yield pg
     ctx.close()
 
@@ -104,7 +104,7 @@ class TestResponsiveBreakpoints:
         pg = ctx.new_page()
         errors = []
         pg.on("pageerror", lambda e: errors.append(str(e)))
-        pg.goto(APP_URL, wait_until="networkidle", timeout=30000)
+        pg.goto(APP_URL, wait_until="load", timeout=30000)
         assert not errors, f"{label} ({width}x{height}): JS errors: {errors}"
         body = pg.query_selector("body")
         assert body is not None, f"{label}: body not found"
@@ -113,7 +113,7 @@ class TestResponsiveBreakpoints:
     def test_mobile_no_horizontal_overflow(self, browser):
         ctx = browser.new_context(viewport={"width": 375, "height": 667})
         pg = ctx.new_page()
-        pg.goto(APP_URL, wait_until="networkidle", timeout=30000)
+        pg.goto(APP_URL, wait_until="load", timeout=30000)
         overflow = pg.evaluate("""() => {
             const body = document.body;
             return body.scrollWidth > body.clientWidth;
@@ -160,7 +160,7 @@ class TestReducedMotion:
 
     def test_no_css_transitions_in_reduced_motion(self, page):
         page.emulate_media(reduced_motion="reduce")
-        page.goto(APP_URL, wait_until="networkidle", timeout=30000)
+        page.goto(APP_URL, wait_until="load", timeout=30000)
         has_transition = page.evaluate("""() => {
             const style = document.querySelector('style');
             if (!style) return false;
@@ -171,7 +171,7 @@ class TestReducedMotion:
 
     def test_reduced_motion_disables_animations(self, page):
         page.emulate_media(reduced_motion="reduce")
-        page.goto(APP_URL, wait_until="networkidle", timeout=30000)
+        page.goto(APP_URL, wait_until="load", timeout=30000)
         durations = page.evaluate("""() => {
             const els = document.querySelectorAll('*');
             let maxDuration = 0;
@@ -193,7 +193,7 @@ class TestFocusIndicator:
         page.evaluate("""() => {
             document.documentElement.setAttribute('data-theme', 'light');
         }""")
-        page.goto(APP_URL, wait_until="networkidle", timeout=30000)
+        page.goto(APP_URL, wait_until="load", timeout=30000)
         button = page.query_selector("button")
         if button:
             button.focus()
@@ -212,7 +212,7 @@ class TestHardcodedColorAudit:
     """No hardcoded hex colors should leak through CSS variables."""
 
     def test_no_inline_hex_in_component_html(self, page):
-        page.goto(APP_URL, wait_until="networkidle", timeout=30000)
+        page.goto(APP_URL, wait_until="load", timeout=30000)
         hex_in_style = page.evaluate("""() => {
             const elements = document.querySelectorAll('[style*="color"]');
             const hardcoded = [];

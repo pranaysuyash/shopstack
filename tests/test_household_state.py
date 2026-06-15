@@ -64,8 +64,9 @@ class TestSwitchHouseholdState:
         from shopstack.ui.state.household import switch_household_state
         # Pre-condition: no active household set explicitly
         result = switch_household_state("")
-        # Returns 1 gr.update (dropdown) + 6 dashboard updates = 7 items
-        assert len(result) == 7
+        # Returns 1 gr.update (dropdown) + 6 dashboard updates
+        # + 1 home_flow panel update = 8 items
+        assert len(result) == 8
         # First item is the dropdown update (gr.update returns a dict)
         assert result[0]["__type__"] == "update"
 
@@ -78,7 +79,7 @@ class TestSwitchHouseholdState:
         assert choices, "Need at least one household to test switch"
         target_id = choices[0][1]
         result = switch_household_state(target_id)
-        assert len(result) == 7
+        assert len(result) == 8
         # First item should update the dropdown to the new value
         # (we don't introspect the .value field; just verify shape)
 
@@ -87,7 +88,7 @@ class TestSwitchHouseholdState:
         from shopstack.ui.state.household import switch_household_state
         result = switch_household_state("nonexistent_household_xyz")
         # Should not raise; returns the expected tuple shape
-        assert len(result) == 7
+        assert len(result) == 8
 
 
 class TestShowHideAddForm:
@@ -111,13 +112,14 @@ class TestCreateHouseholdState:
     def test_empty_name_is_noop(self, app):
         from shopstack.ui.state.household import create_household_state
         result = create_household_state("")
-        # 1 dropdown update (no-op) + 1 form-hide update + 6 dashboard updates = 8 items
-        assert len(result) == 8
+        # 1 dropdown update (no-op) + 1 form-hide update
+        # + 6 dashboard updates + 1 home_flow = 9 items
+        assert len(result) == 9
 
     def test_whitespace_name_is_noop(self, app):
         from shopstack.ui.state.household import create_household_state
         result = create_household_state("   ")
-        assert len(result) == 8
+        assert len(result) == 9
 
     def test_valid_name_creates_and_switches(self, app):
         from shopstack.ui.state.household import (
@@ -132,7 +134,7 @@ class TestCreateHouseholdState:
         # The new household is in the choices
         assert any(name == "Test Household XYZ" for name, _ in household_choices())
         # Returns the expected tuple shape
-        assert len(result) == 8
+        assert len(result) == 9
 
     def test_duplicate_name_handles_collision(self, app):
         """Creating a household with the same name twice should not crash."""
@@ -144,7 +146,7 @@ class TestCreateHouseholdState:
         create_household_state("Collision Test")
         # Second creation with same name — should get a random suffix
         result = create_household_state("Collision Test")
-        assert len(result) == 8
+        assert len(result) == 9
         # The choices list should have two entries with the same display name
         # but different household_ids
         matches = [hid for name, hid in household_choices() if name == "Collision Test"]

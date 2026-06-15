@@ -84,10 +84,10 @@ Run `uv run pytest tests/ --collect-only -q` for the current test count.
 ## Current Verified by Code Inspection
 
 As of the current code inspection, the following metrics are verified:
-- **17 Database Tables & 2 Views**: `inventory_lots`, `purchase_events`, `shopping_lists`, `shopping_list_items`, `household_locations`, `movement_events`, `price_observations`, `stores`, `traces`, `app_config`, `market_snapshots`, `market_records`, `market_record_components`, `reconciliation_events`, `preference_signals`, `inventory_events`, `households` (Tables), `price_history`, `agent_traces` (Views).
+- **25 Database Tables, 2 Views, 2 Triggers, 9 Indexes**: `app_config`, `condition_events`, `find_feedback`, `household_locations`, `household_members`, `household_objects`, `households`, `inventory_events`, `inventory_lots`, `market_record_components`, `market_records`, `market_snapshots`, `movement_events`, `negative_memory`, `object_notes`, `object_sightings`, `person_associations`, `preference_signals`, `price_observations`, `purchase_events`, `reconciliation_events`, `shopping_list_items`, `shopping_lists`, `stores`, `traces` (Tables), `price_history`, `agent_traces` (Views).
 - **12 Tools**: Including `semantic_find_item`.
 
-*Note: Tests are continuously added. For the latest test count, run `uv run pytest tests/ --collect-only -q`.*
+*Note: For the canonical current-state metrics, run `python3 scripts/repo_truth.py`. The README is updated when new tables/tabs/tools are added; do not hand-maintain these numbers.*
 
 **Engineering Mandate:** Do not narrow scope to hackathon/MVP. ShopStack is designed as a long-term, bold, and comprehensive intelligence platform. Follow `motto_v3.md` principles exactly.
 
@@ -106,7 +106,7 @@ shopstack/
     mock_providers.py       # Full mock implementations for all 11 (Indian/Hinglish data)
     registry.py             # ProviderRegistry factory wired to Settings
   persistence/
-    database.py             # SQLite Database (WAL, 17 tables, 2 views, 18 seeded locations, full CRUD)
+    database.py             # SQLite Database (WAL, 25 tables, 2 views, 2 triggers, 9 indexes, full CRUD)
   services/                 # Business logic services (decision engine, shopping, dashboard, preferences, freshness)
   tools/
     registry.py             # ToolRegistry — 12 tools executing against Database
@@ -126,7 +126,7 @@ benchmarks/                 # pytest benchmark suite (9 latency markers)
 ```
 Gradio Blocks (app.py)
   → ToolRegistry (12 tools, validates args, calls Database)
-    → Database (SQLite WAL, 17 tables, 2 views, 18 seeded locations)
+    → Database (SQLite WAL, 25 tables, 2 views, 2 triggers, 9 indexes)
   → ProviderRegistry (wired from Settings)
     → MockProviders (default — 11 interfaces, all offline)
     → Market services (market source registry load + snapshot status helpers in `shopstack.services.market_sources`)

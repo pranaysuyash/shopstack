@@ -1,7 +1,18 @@
+"""Find / locate inventory items across the household.
+
+motto_v3 §0.5/§0.10: confidence scoring and silent exceptions
+need explicit handling. See ``_calculate_confidence_decay`` for
+the malformed-input contract and ``_semantic_find_inventory``
+for the embedding-failure log path. Item #5 (PROJECT_INTELLIGENCE)
+flags these as the canonical silent-swallow sites; this module
+keeps the function shape intact but stops returning a silent
+empty result on a real exception.
+"""
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 
 from shopstack.domain.product_matching import score_product_match
@@ -17,8 +28,10 @@ FindIntent = Literal["item", "location", "category", "need", "unknown"]
 CONFIDENCE_HALFLIFE_DAYS = 30.0
 # Maximum movement events to consider for recency scoring
 MAX_MOVEMENT_EVENTS = 10
-# Minimum confidence floor
+# Minimum confiance floor
 MIN_CONFIDENCE = 0.05
+
+logger = logging.getLogger(__name__)
 
 
 ALIASES: dict[str, list[str]] = {
@@ -151,18 +164,48 @@ class FindResultSet:
 
 
 def _calculate_confidence_decay(timestamp_str: str | None, half_life_days: float = CONFIDENCE_HALFLIFE_DAYS) -> float:
-    """Calculate confidence decay factor based on time since last sighting."""
+    """Calculate confidence decay factor based on time since last sighting.
+
+    Returns a value in ``[MIN_CONFIDENCE, 1.0]`` representing how
+    much we still trust a "I last saw it here" claim as time
+    passes since the sighting.
+
+    Decay policy:
+      * ``None`` or empty timestamp → 1.0 (no sighting to decay from —
+        we have no information, so we don't penalize).
+      * Malformed timestamp (cannot parse) → 0.5 (neutral; we
+        can't trust the sighting, so we apply the floor's half
+        confidence). The previous behaviour of "return 1.0 on
+        any error" silently over-trusted bad data — see the
+        regression test in
+        ``tests/test_find_confidence_decay.py``.
+      * Future timestamp (clock skew) → 1.0 (we just saw it).
+      * Otherwise → exponential decay with the configured
+        half-life, floored at ``MIN_CONFIDENCE``.
+
+    tz handling:
+      The diff is computed against ``datetime.now(timezone.utc)``,
+      not ``datetime.now()``, so tz-aware timestamps (with a
+      ``+00:00`` suffix or ``Z``) work alongside naive timestamps
+      in the same codebase. Naive timestamps are interpreted as
+      UTC (the storage format), per the existing system state.
+    """
     if not timestamp_str:
         return 1.0
     try:
         last_seen = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-        days_elapsed = (datetime.now() - last_seen).total_seconds() / 86400
+        if last_seen.tzinfo is None:
+            # Treat naive timestamps as UTC (the storage format).
+            last_seen = last_seen.replace(tzinfo=timezone.utc)
+        now_utc = datetime.now(timezone.utc)
+        days_elapsed = (now_utc - last_seen).total_seconds() / 86400
         if days_elapsed <= 0:
             return 1.0
         decay_factor = 0.5 ** (days_elapsed / half_life_days)
         return max(MIN_CONFIDENCE, decay_factor)
-    except Exception:
-        return 1.0
+    except (ValueError, TypeError):
+        # Malformed timestamp: explicit neutral, not silent 1.0.
+        return 0.5
 
 
 def _generate_search_plan(
@@ -295,7 +338,18 @@ class ShopFindService:
                 if hasattr(provider, "embed_documents")
                 else provider.embed(lot_texts)
             )
-        except Exception:
+        except Exception as exc:  # noqa: BLE001
+            # Item #5 (motto_v3 §0.6 risk-based verification): a
+            # silent return on embedding failure left the user
+            # with no results AND no audit trail. We now log
+            # the failure at WARNING so it shows up in operator
+            # logs and the future /health/ui error surface, then
+            # fall back to no-semantic (the prefix search still
+            # runs via the caller).
+            logger.warning(
+                "find._semantic_find_inventory: embedding failed for query=%r: %s",
+                query, exc,
+            )
             return []
         if not query_emb or not doc_embs or len(doc_embs) != len(lots):
             return []
