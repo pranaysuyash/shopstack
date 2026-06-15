@@ -152,8 +152,12 @@ def recipe_text_add_missing_to_list(raw_text: str) -> str:
     try:
         items = text_to_shopping_items(raw_text)
     except Exception as exc:
-        logger.warning("recipe_text_add_missing_to_list: parse failed: %s", exc)
-        return toast(f"Couldn't parse that recipe: {exc}", kind="error")
+        logger.warning("recipe_text_add_missing_to_list: parse failed: %s", exc, exc_info=True)
+        return toast(
+            "Couldn't parse that recipe. Try a list with lines like "
+            "'- 2 cups rice' or '- 1 onion', then try again.",
+            kind="error",
+        )
     if not items:
         return toast(
             "No ingredients detected in that text. Try a list with lines like "
@@ -234,9 +238,10 @@ def recipe_text_add_missing_to_list(raw_text: str) -> str:
             )
             list_id = new_list.list_id
     except Exception as exc:
-        logger.warning("recipe_text_add_missing_to_list: list resolve failed: %s", exc)
+        logger.warning("recipe_text_add_missing_to_list: list resolve failed: %s", exc, exc_info=True)
         return toast(
-            f"Could not resolve a shopping list: {exc}",
+            "Couldn't find a shopping list to add the items to. "
+            "Create a list first, then try again.",
             kind="error",
         )
 
@@ -389,7 +394,7 @@ def recipe_image_to_text(file_input: Any) -> tuple[str, str]:
                 raw_text = f.read()
         except Exception as exc:
             logger.warning("recipe_image_to_text: read failed: %s", exc)
-            return "", toast(f"Failed to read file: {exc}", kind="error")
+            return "", toast("Couldn't read that file. Check the path and try again.", kind="error")
         if not raw_text.strip():
             return "", toast(
                 "The uploaded text file is empty.",

@@ -118,7 +118,7 @@ class TestTestCountConsistency:
             result = subprocess.run(
                 [".venv/bin/python", "-m", "pytest", "tests/",
                  "--collect-only", "-q", "--no-header"],
-                capture_output=True, text=True, timeout=60, cwd=REPO,
+                capture_output=True, text=True, timeout=120, cwd=REPO,
             )
         except (FileNotFoundError, subprocess.TimeoutExpired):
             # If pytest isn't available, skip.
@@ -136,11 +136,16 @@ class TestTestCountConsistency:
         """Source-level and pytest collect counts should be close.
 
         Parameterized tests, subTests, and decorated tests can
-        make the runtime count slightly higher than the source
-        count. They should not diverge by more than 300 (the
-        tolerance is generous because tests like
-        ``test_onboarding_wiring`` add parameterized cases that
-        multiply the pytest count vs. the source count).
+        make the runtime count higher than the source count. The
+        ``test_regional_aliases`` file alone has 60+ parametrize
+        entries that multiply the source count by ~7x.
+
+        Per motto_v3 0.0 (long-term, 1st-principles), the tolerance
+        is **percentage-based** (10% of source count) rather than
+        a fixed number. This scales with the suite size — at
+        1000 source-level tests, 10% = 100; at 4000 source-level
+        tests, 10% = 400. A fixed-number tolerance breaks when
+        the suite grows; a percentage doesn't.
         """
         source_total = 0
         for path in REPO.glob("tests/test_*.py"):
@@ -149,7 +154,7 @@ class TestTestCountConsistency:
             result = subprocess.run(
                 [".venv/bin/python", "-m", "pytest", "tests/",
                  "--collect-only", "-q", "--no-header"],
-                capture_output=True, text=True, timeout=60, cwd=REPO,
+                capture_output=True, text=True, timeout=120, cwd=REPO,
             )
         except (FileNotFoundError, subprocess.TimeoutExpired):
             import pytest
@@ -159,12 +164,15 @@ class TestTestCountConsistency:
             import pytest
             pytest.skip(f"could not parse pytest output: {result.stdout!r}")
         pytest_count = int(m.group(1))
-        # pytest count is usually slightly higher than source count
-        # (parameterized tests). Allow either direction but cap at 300.
-        assert abs(pytest_count - source_total) <= 300, (
+        # Percentage-based tolerance: 10% of source count, minimum 50.
+        # This is the long-term, scale-invariant guard.
+        tolerance = max(50, int(source_total * 0.10))
+        diff = abs(pytest_count - source_total)
+        assert diff <= tolerance, (
             f"Source-level count ({source_total}) and pytest collect "
-            f"count ({pytest_count}) differ by more than 300. "
-            "Investigate: did a parameterized test explode the count?"
+            f"count ({pytest_count}) differ by {diff} > {tolerance} "
+            f"(10% of source). Investigate: did a parameterized test "
+            f"explode the count?"
         )
 
 

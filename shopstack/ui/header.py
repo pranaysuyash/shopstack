@@ -348,8 +348,105 @@ document.addEventListener('keydown', function(e) {
     e.preventDefault();
     var prev = (idx - 1 + tabs.length) % tabs.length;
     tabs[prev] && tabs[prev].click();
+  } else if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
+    /* Shift+/ is the US keyboard layout for ?. On non-US layouts the user
+       may not have an easy way to type ? directly, so we accept either. */
+    e.preventDefault();
+    toggleShortcutHelp();
+  } else if (e.key === 'Escape') {
+    /* Escape dismisses the shortcut help overlay if it's open. */
+    var overlay = document.getElementById('ss-shortcut-help');
+    if (overlay && overlay.getAttribute('data-open') === 'true') {
+      e.preventDefault();
+      closeShortcutHelp();
+    }
+  } else if (e.key === 'Enter') {
+    /* Enter on the focused element acts as a click. This bridges the gap
+       between tab navigation (j/k) and the underlying interactive widgets
+       (e.g. Enter on a focused action button = click). The handler is a
+       no-op if the focused element is not interactive. */
+    var active = document.activeElement;
+    if (active && active !== document.body &&
+        (active.tagName === 'BUTTON' ||
+         (active.tagName === 'A' && active.hasAttribute('href')))) {
+      /* Let the browser's native click-on-Enter handle it for buttons/links.
+         We only intervene when the focused element is a clickable container
+         that doesn't natively respond to Enter (e.g. a div with role=button). */
+      var role = active.getAttribute('role');
+      if (role === 'button' && active.tagName !== 'BUTTON') {
+        e.preventDefault();
+        active.click();
+      }
+    }
   }
 });
+
+/* ── Shortcut help overlay (toggled by ?) ────────────────────────────
+   Renders a small modal listing the available keyboard shortcuts. The
+   overlay is created lazily on first ? press to avoid cluttering the
+   initial DOM. Uses the existing theme tokens via CSS classes. */
+function toggleShortcutHelp() {
+  var overlay = document.getElementById('ss-shortcut-help');
+  if (overlay && overlay.getAttribute('data-open') === 'true') {
+    closeShortcutHelp();
+  } else {
+    openShortcutHelp();
+  }
+}
+
+function openShortcutHelp() {
+  var existing = document.getElementById('ss-shortcut-help');
+  if (existing) {
+    existing.setAttribute('data-open', 'true');
+    existing.style.display = 'flex';
+    var closeBtn = existing.querySelector('button[data-dismiss]');
+    if (closeBtn) closeBtn.focus();
+    return;
+  }
+  var overlay = document.createElement('div');
+  overlay.id = 'ss-shortcut-help';
+  overlay.setAttribute('data-open', 'true');
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-labelledby', 'ss-shortcut-help-title');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(31,24,18,0.55);display:flex;align-items:center;justify-content:center;z-index:700;';
+  overlay.innerHTML =
+    '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:28px;max-width:480px;width:90%;box-shadow:0 12px 40px rgba(0,0,0,0.3);">' +
+      '<h2 id="ss-shortcut-help-title" style="margin:0 0 16px 0;font-size:1.25rem;color:var(--text);">Keyboard shortcuts</h2>' +
+      '<dl style="margin:0;display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:0.95rem;color:var(--text);">' +
+        '<dt style="font-family:var(--font-mono);color:var(--text-muted);">j &middot; &rarr;</dt><dd>Next tab</dd>' +
+        '<dt style="font-family:var(--font-mono);color:var(--text-muted);">k &middot; &larr;</dt><dd>Previous tab</dd>' +
+        '<dt style="font-family:var(--font-mono);color:var(--text-muted);">Enter</dt><dd>Activate focused button or link</dd>' +
+        '<dt style="font-family:var(--font-mono);color:var(--text-muted);">? &middot; /</dt><dd>Show this help (press Esc or ? to dismiss)</dd>' +
+        '<dt style="font-family:var(--font-mono);color:var(--text-muted);">Esc</dt><dd>Close help overlay</dd>' +
+        '<dt style="font-family:var(--font-mono);color:var(--text-muted);">Tab</dt><dd>Move focus between widgets</dd>' +
+      '</dl>' +
+      '<div style="margin-top:20px;display:flex;justify-content:flex-end;">' +
+        '<button data-dismiss type="button" style="background:var(--bg-card-strong);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 16px;cursor:pointer;font:inherit;">Close</button>' +
+      '</div>' +
+    '</div>';
+  overlay.addEventListener('click', function(ev) {
+    if (ev.target === overlay) closeShortcutHelp();
+  });
+  var closeBtn = overlay.querySelector('button[data-dismiss]');
+  if (closeBtn) closeBtn.addEventListener('click', closeShortcutHelp);
+  document.body.appendChild(overlay);
+  if (closeBtn) closeBtn.focus();
+  /* Announce to screen readers that help is open. */
+  if (typeof announceToScreenReader === 'function') {
+    announceToScreenReader('Keyboard shortcut help opened.');
+  }
+}
+
+function closeShortcutHelp() {
+  var overlay = document.getElementById('ss-shortcut-help');
+  if (!overlay) return;
+  overlay.setAttribute('data-open', 'false');
+  overlay.style.display = 'none';
+  if (typeof announceToScreenReader === 'function') {
+    announceToScreenReader('Keyboard shortcut help closed.');
+  }
+}
 
 /* WCAG color contrast: force explicit colors on elements where Gradio's
    component-scoped CSS variables override our :root declarations.  This

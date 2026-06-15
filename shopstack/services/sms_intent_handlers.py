@@ -80,7 +80,7 @@ def _handle_consume_item(user_id: str, args: dict, db: Any) -> dict:
             status="active", canonical_name=canonical, user_id=user_id
         )
         if not candidates:
-            return {"ok": False, "message": f"No active {canonical} in inventory"}
+            return {"ok": False, "message": f"No active {canonical} in your pantry right now."}
         # FIFO: oldest lot first so users consume older stock.
         candidates.sort(key=lambda l: l.created_at or datetime.min)
         target = candidates[0]

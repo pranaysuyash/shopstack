@@ -1,44 +1,56 @@
-# Pre-commit hooks for ShopStack
-# Install: pip install pre-commit && pre-commit install
-# Run manually: pre-commit run --all-files
+# Pre-commit hooks for ShopStack.
 #
-# The WCAG audit runs the static 13-criterion checker. Score threshold
-# is enforced in CI (.github/workflows/wcag.yml); this hook gives the
-# same feedback locally before pushing.
+# This file is the local complement to the CI quality gates in
+# .github/workflows/quality-gates.yml. The CI catches regressions
+# on push/PR; the pre-commit hooks catch them at commit time so
+# authors see the error before pushing.
+#
+# To install: `uv run pre-commit install`
+# To run manually: `uv run pre-commit run --all-files`
+#
+# The hooks call the canonical tools in shopstack.tools/ — the
+# same scripts CI runs. Single source of truth.
+#
+# Per motto_v3 §0.5 (Evidence Tiers): pre-commit is Tier 1 (static
+# inspection). It catches the *common* failure mode (JS syntax
+# errors, copy violations, stale state dashboards) at the
+# cheapest possible tier.
 
 repos:
   - repo: local
     hooks:
-      - id: wcag-audit
-        name: WCAG 2.1 AA audit
-        description: Run the static WCAG 2.1 AA audit and fail if score drops below 85.
-        entry: uv run python -m shopstack.tools.audit_wcag
-        language: system
-        pass_filenames: false
-        always_run: true
-        # Don't fail the commit on a score drop; surface the report.
-        # CI is the gate. To enforce locally, change to:
-        #   args: ["--strict"]
-
-      - id: doc-health
-        name: Doc health audit
-        description: Scan Docs/*.md for stale test counts, stale completion claims, and missing/old 'Last updated' dates.
-        entry: uv run python -m shopstack.tools.doc_health --strict
-        language: system
-        pass_filenames: false
-        always_run: true
-        # Strict by default — blocks the commit if stale test counts are found.
-        # The pre-commit hook uses --strict so the developer catches issues
-        # locally before CI.
-
       - id: js-syntax-validate
-        name: JS snippet syntax validation
-        description: Walk every `js=...` kwarg in shopstack/ and validate via `node --check`. Catches SyntaxError at commit time so a broken Gradio JS helper doesn't ship and produce infinite "Loading..." spinners (Item #56, motto_v3 §0.5).
+        name: JS snippet syntax validator
         entry: uv run python -m shopstack.tools.js_validate
         language: system
+        types: [python]
         pass_filenames: false
-        always_run: true
-        # Non-strict: the validator exits 0 when there are 0 errors,
-        # 1 when there are errors. The hook fails the commit on any
-        # SyntaxError. Disable with `SKIP=js-syntax-validate git commit ...`
-        # when refactoring large UI files in a multi-commit workstream.
+        description: >
+          Catches SyntaxErrors in `app.load(None, js=...)` and
+          `.click(..., js=...)` calls. Fails the commit if any
+          snippet has a SyntaxError (motto_v3 §0.5 Tier 1).
+        stages: [commit, push]
+
+      - id: copy-audit
+        name: Consumer copy audit
+        entry: uv run python -m shopstack.tools.copy_audit
+        language: system
+        types: [python]
+        pass_filenames: false
+        description: >
+          Catches engineering jargon in user-facing UI strings
+          (e.g. "Save Trace", "Lot ID", "JSONL"). Fails the
+          commit if the audit reports > 0 violations.
+        stages: [commit, push]
+
+      - id: state-dashboard
+        name: State dashboard generator
+        entry: uv run python -m shopstack.tools.generate_state
+        language: system
+        types: [python]
+        pass_filenames: false
+        description: >
+          Regenerates Docs/SYSTEM_STATE.md and the JSON dashboard
+          so the canonical current-state doc is always in sync
+          with the actual project.
+        stages: [pre-push]

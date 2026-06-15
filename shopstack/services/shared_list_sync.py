@@ -193,11 +193,17 @@ def push_to_file(
         with open(file_path, "w", encoding="utf-8") as fh:
             json.dump(payload, fh, indent=2, default=str)
     except OSError as exc:
+        logger.warning(
+            "shared_list_sync push failed for %r: %s", file_path, exc, exc_info=True
+        )
         return SyncResult(
             success=False,
             operation="push",
             file_path=file_path,
-            error=f"Could not write file: {exc}",
+            error=(
+                "Couldn't write to the shared file. Check that the folder exists "
+                "and you have write permission, then try again."
+            ),
         )
 
     sl = payload["list"]
@@ -246,11 +252,17 @@ def pull_from_file(
         with open(file_path, "r", encoding="utf-8") as fh:
             payload = json.load(fh)
     except (OSError, json.JSONDecodeError) as exc:
+        logger.warning(
+            "shared_list_sync pull failed for %r: %s", file_path, exc, exc_info=True
+        )
         return SyncResult(
             success=False,
             operation="pull",
             file_path=file_path,
-            error=f"Could not read or parse file: {exc}",
+            error=(
+                "Couldn't read the shared file. Check the path and that the file "
+                "is a valid ShopStack shopping-list export, then try again."
+            ),
         )
 
     if not isinstance(payload, dict) or payload.get("kind") != "shopstack_shopping_list":

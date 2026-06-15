@@ -343,12 +343,16 @@ def shop_missing(
                             user_id=user_id,
                         )
                     except Exception as exc:
-                        logger.debug("create_shopping_list failed: %s", exc)
+                        logger.warning(
+                            "create_shopping_list failed: %s", exc, exc_info=True
+                        )
                         return {
                             "added": False,
                             "count": 0,
                             "items": [],
-                            "reason": f"Could not create a shopping list: {exc}",
+                            "reason": (
+                                "Couldn't create a shopping list. Please try again."
+                            ),
                         }
                     list_id = new_list.list_id
         if not list_id:
@@ -429,12 +433,14 @@ def shop_missing(
             ),
         }
     except Exception as exc:
-        logger.debug("shop_missing failed: %s", exc)
+        logger.warning("shop_missing failed: %s", exc, exc_info=True)
         return {
             "added": False,
             "count": 0,
             "items": [],
-            "reason": f"Failed: {exc}",
+            "reason": (
+                "Couldn't add items to your list. Please try again."
+            ),
         }
 
 

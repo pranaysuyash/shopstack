@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 
 
 class HomeState(str, Enum):
-    """The four high-level states the Home page can be in.
+    """The high-level states the Home page can be in.
 
     Values are stable strings — they appear in CSS class names and
     in tests.
@@ -68,6 +68,14 @@ class HomeState(str, Enum):
 
     ACTIVE = "active"
     """Household has data and active signals. Show full intelligence."""
+
+    ERROR = "error"
+    """2026-06-15: the state machine could not determine a safe
+    state. Distinct from FIRST_RUN (which is a real "no data yet"
+    state for a brand-new household) — ERROR means "we don't
+    know, the data layer is failing, do not show onboarding copy
+    to a returning user". Renders a "Something went wrong" panel
+    with a retry button instead of misleading setup-first copy."""
 
 
 # ── State thresholds (single source of truth) ─────────────────────
@@ -124,6 +132,20 @@ class HomeFlowState:
     def show_empty_hints(self) -> bool:
         """True if the page should render the 'add your first 5 staples' card."""
         return self.state == HomeState.STARTING_OUT
+
+    @property
+    def show_error_panel(self) -> bool:
+        """True if the page should render the "something went wrong" panel.
+
+        2026-06-15 supersession (motto_v3 §6 pre-existing is not
+        an excuse): the prior implementation silently fell back to
+        ``FIRST_RUN`` on any DB exception, which caused a returning
+        user with 200 items to see "Set up ShopStack in 2 minutes"
+        when the data layer was failing. ERROR is a distinct state
+        so the renderer can show a useful error + retry instead of
+        misleading setup-first copy.
+        """
+        return self.state == HomeState.ERROR
 
 
 # ── State detection ────────────────────────────────────────────────
@@ -213,24 +235,56 @@ def detect_home_state_from_db(
 ) -> HomeFlowState:
     """Convenience wrapper: build a :class:`HomeFlowState` from the DB.
 
-    Best-effort: any exception returns a :class:`HomeState.FIRST_RUN`
-    with zero counts. We never want a missing state to crash the page
-    render.
+    2026-06-15 (motto_v3 §6 + §0.14 product reality): the prior
+    implementation silently returned ``FIRST_RUN`` on any DB
+    exception, which was misleading for returning users (they saw
+    "Set up ShopStack in 2 minutes" when the data layer was
+    failing). We now distinguish three outcomes:
+
+    1. **Success** — return the real state (FIRST_RUN /
+       STARTING_OUT / QUIET / ACTIVE) computed from the DB.
+    2. **No DB** — return FIRST_RUN with zero counts (this is the
+       legitimate "no household yet" case).
+    3. **DB exception** — return ``ERROR`` so the renderer can
+       show a "Something went wrong" panel + retry, and log the
+       exception at ``error`` level so operators can see it
+       (previously ``debug``, which meant no one saw it).
     """
+    if db is None:
+        return detect_home_state(
+            onboarding_complete=False,
+            item_count=0,
+            purchase_count=0,
+            signal_count=0,
+        )
     try:
         from shopstack.services.onboarding import is_onboarding_complete
 
-        items = db.get_inventory(user_id=user_id) if db else []
+        items = db.get_inventory(user_id=user_id)
         active_items = [lot for lot in items if getattr(lot, "status", "active") == "active"]
         return detect_home_state(
-            onboarding_complete=is_onboarding_complete(db) if db else False,
+            onboarding_complete=is_onboarding_complete(db),
             item_count=len(active_items),
             purchase_count=0,  # dashboard service fills this in
             signal_count=0,    # dashboard service fills this in
         )
     except Exception as exc:  # noqa: BLE001
-        logger.debug("detect_home_state_from_db failed: %s", exc)
-        return detect_home_state(
+        # Log at error level so operators can see the failure.
+        # Previously logger.debug, which meant production failures
+        # were invisible.
+        logger.error(
+            "detect_home_state_from_db failed for user_id=%r: %s",
+            user_id, exc,
+            exc_info=True,
+        )
+        return HomeFlowState(
+            state=HomeState.ERROR,
+            headline="Something went wrong on our end",
+            subhead=(
+                "We couldn't read your data just now. Your inventory and "
+                "shopping lists are safe — try the Refresh button on the "
+                "Today tab. If it keeps happening, check back in a few minutes."
+            ),
             onboarding_complete=False,
             item_count=0,
             purchase_count=0,

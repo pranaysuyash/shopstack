@@ -59,6 +59,8 @@ def render_restock_card_html(predictions: list[dict[str, Any]]) -> str:
         return empty_state_enhanced(
             "No restock predictions yet",
             icon="🛒",
+            action_label="Add 3 purchases",
+            on_click_tab="shopping",
             secondary_text=(
                 "ShopStack predicts restock dates after you log a few purchases. "
                 "Add 3-5 common purchases (milk, rice, atta) using the command box above, "

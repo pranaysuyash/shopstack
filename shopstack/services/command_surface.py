@@ -262,12 +262,17 @@ def dispatch(intent: CommandIntent) -> CommandResult:
         # Backwards-compat: handlers with the old (canonical_name) signature
         return handler(intent.canonical_name)  # type: ignore[call-arg]
     except Exception as exc:  # noqa: BLE001
-        logger.warning("command dispatch failed: %s", exc)
+        logger.warning(
+            "command dispatch failed: %s", exc, exc_info=True
+        )
         return CommandResult(
             success=False,
             action=intent.action,
             canonical_name=intent.canonical_name,
-            message=f"Something went wrong: {exc}",
+            message=(
+                "Something went wrong on our end. "
+                "Please try again."
+            ),
         )
 
 

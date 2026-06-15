@@ -100,12 +100,15 @@ def _add_to_list_handler(canonical_name: str) -> CommandResult:
             message=f"Added {canonical_name.replace('_', ' ')} to your shopping list.",
         )
     except Exception as exc:  # noqa: BLE001
-        logger.warning("add_to_list failed: %s", exc)
+        logger.warning("add_to_list failed: %s", exc, exc_info=True)
         return CommandResult(
             success=False,
             action="add_to_list",
             canonical_name=canonical_name,
-            message=f"Could not add: {exc}",
+            message=(
+                f"Could not add {canonical_name.replace('_', ' ')} to your list. "
+                "Please try again."
+            ),
         )
 
 
@@ -142,12 +145,15 @@ def _log_purchase_handler(canonical_name: str) -> CommandResult:
             ),
         )
     except Exception as exc:  # noqa: BLE001
-        logger.warning("log_purchase failed: %s", exc)
+        logger.warning("log_purchase failed: %s", exc, exc_info=True)
         return CommandResult(
             success=False,
             action="log_purchase",
             canonical_name=canonical_name,
-            message=f"Could not log: {exc}",
+            message=(
+                f"Could not log that purchase. "
+                "Please try again."
+            ),
         )
 
 
@@ -218,7 +224,10 @@ def _mark_consumed_handler(canonical_name: str) -> CommandResult:
                 success=False,
                 action="mark_consumed",
                 canonical_name=canonical_name,
-                message="Could not mark as consumed.",
+                message=(
+                    f"Could not mark {canonical_name.replace('_', ' ')} as used. "
+                    "Please try again."
+                ),
             )
         return CommandResult(
             success=True,
@@ -229,12 +238,15 @@ def _mark_consumed_handler(canonical_name: str) -> CommandResult:
             ),
         )
     except Exception as exc:  # noqa: BLE001
-        logger.warning("mark_consumed failed: %s", exc)
+        logger.warning("mark_consumed failed: %s", exc, exc_info=True)
         return CommandResult(
             success=False,
             action="mark_consumed",
             canonical_name=canonical_name,
-            message=f"Could not mark: {exc}",
+            message=(
+                f"Could not mark {canonical_name.replace('_', ' ')} as used. "
+                "Please try again."
+            ),
         )
 
 
@@ -260,12 +272,15 @@ def _ask_handler(canonical_name: str, *, intent: Any = None) -> CommandResult:
             message=summary,
         )
     except Exception as exc:  # noqa: BLE001
-        logger.warning("ask handler failed: %s", exc)
+        logger.warning("ask handler failed: %s", exc, exc_info=True)
         return CommandResult(
             success=False,
             action="ask",
             canonical_name=canonical_name,
-            message=f"Could not answer: {exc}",
+            message=(
+                "Couldn't answer that just now. "
+                "Please try again."
+            ),
         )
 
 

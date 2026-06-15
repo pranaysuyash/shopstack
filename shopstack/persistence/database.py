@@ -528,6 +528,20 @@ class Database:
     def active_household_id(self, household_id: str) -> None:
         self.set_config_value("active_household_id", household_id)
 
+    def _scope_user_id(self, user_id):
+        """Resolve user_id for household scoping (DATA-1 systemic fix).
+
+        Empty string defaults to the active household so a forgotten
+        parameter never leaks cross-household data. None explicitly opts
+        out of scoping (admin/backup). Every DB method should call this.
+        """
+        user_id = self._scope_user_id(user_id)
+        if user_id is None:
+            return ""
+        if user_id == "":
+            return self.active_household_id
+        return user_id
+
     # ── Household CRUD ────────────────────────────────────────────
 
     def list_households(self) -> list[dict[str, str]]:
@@ -818,6 +832,7 @@ class Database:
     def get_trace_by_id(self, trace_id: str, user_id: str = "") -> Trace | None:
         target = (trace_id or "").strip()
         if not target:
+            user_id = self._scope_user_id(user_id)
             return None
         query = "SELECT * FROM traces WHERE trace_id = ?"
         params: list[str] = [target]
@@ -835,6 +850,7 @@ class Database:
         # on permission denial.
         from shopstack.services.permissions import require_write as _rw
         if not user_id:
+            user_id = self._scope_user_id(user_id)
             user_id = self.active_household_id
         # InventoryLot.user_id is the household scope for this lot. If
         # the caller did not set it on the lot, default to the writer's
@@ -866,6 +882,7 @@ class Database:
     def update_inventory_lot(self, lot_id: str, updates: dict, user_id: str = "") -> InventoryLot | None:
         existing = self.get_inventory_lot(lot_id)
         if not existing:
+            user_id = self._scope_user_id(user_id)
             return None
         fields = ["canonical_name", "display_name", "category", "quantity", "unit",
                   "storage_location_id", "purchase_date", "estimated_use_by_date",
@@ -956,6 +973,7 @@ class Database:
         # authorize the writer against that target.
         from shopstack.services.permissions import require_write as _rw
         if quantity < 0:
+            user_id = self._scope_user_id(user_id)
             raise ValueError("quantity must be greater than 0")
         lot = self.get_inventory_lot(lot_id)
         if not lot:
@@ -1058,6 +1076,7 @@ class Database:
         # that don't pass user_id fall back to active_household_id.
         from shopstack.services.permissions import require_write as _rw
         if not user_id:
+            user_id = self._scope_user_id(user_id)
             user_id = self.active_household_id
         list_row = self.conn.execute(
             "SELECT user_id FROM shopping_lists WHERE list_id = ?", (list_id,)
@@ -1149,6 +1168,7 @@ class Database:
         # against that target. Backward compatible.
         from shopstack.services.permissions import require_write as _rw
         if not user_id:
+            user_id = self._scope_user_id(user_id)
             user_id = self.active_household_id
         lot = self.get_inventory_lot(movement.lot_id)
         target_household = (lot.user_id if lot else "") or user_id
@@ -1213,6 +1233,7 @@ class Database:
 
     def add_household_object(self, obj: HouseholdObject, user_id: str = "") -> HouseholdObject:
         if not user_id:
+            user_id = self._scope_user_id(user_id)
             user_id = self.active_household_id
         self.conn.execute(
             """
@@ -1237,6 +1258,7 @@ class Database:
         query = "SELECT * FROM household_objects WHERE object_id = ?"
         params: list[Any] = [object_id]
         if user_id:
+            user_id = self._scope_user_id(user_id)
             query += " AND user_id = ?"
             params.append(user_id)
         row = self.conn.execute(query, params).fetchone()
@@ -1246,6 +1268,7 @@ class Database:
         query = "SELECT * FROM household_objects"
         params: list[Any] = []
         if user_id:
+            user_id = self._scope_user_id(user_id)
             query += " WHERE user_id = ?"
             params.append(user_id)
         query += " ORDER BY updated_at DESC"
@@ -1260,6 +1283,7 @@ class Database:
         }
         clean = {k: v for k, v in updates.items() if k in allowed}
         if not clean:
+            user_id = self._scope_user_id(user_id)
             return self.get_household_object(object_id, user_id=user_id)
         clean["updated_at"] = datetime.now().isoformat()
         parts = ", ".join(f"{key} = ?" for key in clean)
@@ -1274,6 +1298,7 @@ class Database:
 
     def record_object_sighting(self, sighting: ObjectSighting, user_id: str = "") -> ObjectSighting:
         if not user_id:
+            user_id = self._scope_user_id(user_id)
             user_id = self.active_household_id
         self.conn.execute(
             """
@@ -1301,6 +1326,7 @@ class Database:
         query = "SELECT * FROM object_sightings WHERE object_id = ?"
         params: list[Any] = [object_id]
         if user_id:
+            user_id = self._scope_user_id(user_id)
             query += " AND user_id = ?"
             params.append(user_id)
         query += " ORDER BY timestamp DESC"
@@ -1309,6 +1335,7 @@ class Database:
 
     def add_object_note(self, note: ObjectNote, user_id: str = "") -> ObjectNote:
         if not user_id:
+            user_id = self._scope_user_id(user_id)
             user_id = self.active_household_id
         self.conn.execute(
             """
@@ -1329,6 +1356,7 @@ class Database:
         query = "SELECT * FROM object_notes WHERE object_id = ?"
         params: list[Any] = [object_id]
         if user_id:
+            user_id = self._scope_user_id(user_id)
             query += " AND user_id = ?"
             params.append(user_id)
         query += " ORDER BY timestamp DESC"
@@ -1337,6 +1365,7 @@ class Database:
 
     def record_find_feedback(self, feedback: FindFeedback, user_id: str = "") -> FindFeedback:
         if not user_id:
+            user_id = self._scope_user_id(user_id)
             user_id = self.active_household_id
         self.conn.execute(
             """
@@ -1359,6 +1388,7 @@ class Database:
         sql = "SELECT * FROM find_feedback WHERE 1=1"
         params: list[Any] = []
         if query:
+            user_id = self._scope_user_id(user_id)
             sql += " AND query = ?"
             params.append(query)
         if user_id:
@@ -1382,6 +1412,7 @@ class Database:
 
     def get_negative_memory_for_lot(self, lot_id: str) -> list[dict]:
         """Get all negative memory entries for a given lot."""
+        user_id = self._scope_user_id(user_id)
         rows = self.conn.execute(
             "SELECT * FROM negative_memory WHERE lot_id = ? ORDER BY confirmed_at DESC",
             (lot_id,),
@@ -1408,6 +1439,7 @@ class Database:
 
     def get_person_associations_for_lot(self, lot_id: str) -> list[dict]:
         """Get all person associations for a given lot."""
+        user_id = self._scope_user_id(user_id)
         rows = self.conn.execute(
             "SELECT * FROM person_associations WHERE lot_id = ?",
             (lot_id,),
@@ -1523,6 +1555,7 @@ class Database:
         # ── Phase 11: permission gate (additive, supersession-safe) ──
         from shopstack.services.permissions import require_write as _rw
         if not user_id:
+            user_id = self._scope_user_id(user_id)
             user_id = self.active_household_id
         _rw(user_id, user_id, self)
         self.conn.execute(
@@ -1539,6 +1572,7 @@ class Database:
         query = "SELECT * FROM price_observations WHERE canonical_name = ?"
         params: list[str | None] = [canonical_name]
         if user_id:
+            user_id = self._scope_user_id(user_id)
             query += " AND user_id = ?"
             params.append(user_id)
         query += " ORDER BY observation_date DESC, rowid DESC"
@@ -1579,6 +1613,7 @@ class Database:
 
     def save_trace(self, trace: Trace, user_id: str = "") -> Trace:
         if not user_id:
+            user_id = self._scope_user_id(user_id)
             user_id = self.active_household_id
         self.conn.execute(
             "INSERT OR REPLACE INTO traces (trace_id, input_type, user_goal, redacted_user_request, perception, inventory_context, decision, proposed_tool_calls, human_confirmation, final_response, timestamp, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -1603,6 +1638,7 @@ class Database:
         query = "SELECT * FROM traces"
         params: list[str | int] = []
         if user_id:
+            user_id = self._scope_user_id(user_id)
             query += " WHERE user_id = ?"
             params.append(user_id)
         query += " ORDER BY timestamp DESC LIMIT ?"
@@ -1616,6 +1652,7 @@ class Database:
         # ── Phase 11: permission gate (additive, supersession-safe) ──
         from shopstack.services.permissions import require_write as _rw
         if not user_id:
+            user_id = self._scope_user_id(user_id)
             user_id = self.active_household_id
         _rw(user_id, user_id, self)
         self.conn.execute(
@@ -1634,6 +1671,7 @@ class Database:
         query = "SELECT * FROM purchase_events"
         params: list[str | int] = []
         if user_id:
+            user_id = self._scope_user_id(user_id)
             query += " WHERE user_id = ?"
             params.append(user_id)
         query += " ORDER BY timestamp DESC LIMIT ?"
@@ -1666,6 +1704,7 @@ class Database:
         query = "SELECT * FROM reconciliation_events WHERE 1=1"
         params: list[str | int] = []
         if canonical_name:
+            user_id = self._scope_user_id(user_id)
             query += " AND canonical_name = ?"
             params.append(canonical_name)
         if user_id:
@@ -1752,6 +1791,7 @@ class Database:
         query = "SELECT * FROM preference_signals WHERE 1=1"
         params: list[str] = []
         if canonical_name:
+            user_id = self._scope_user_id(user_id)
             query += " AND canonical_name = ?"
             params.append(canonical_name)
         if user_id:

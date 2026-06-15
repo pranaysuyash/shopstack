@@ -291,7 +291,7 @@ def ask_shopstack_from_audio(audio_path: str | None) -> str:
         else:
             text = str(transcript).strip()
     except Exception as exc:
-        return toast(f"Could not transcribe audio: {escape(str(exc))}", kind="error")
+        return toast("Couldn't transcribe that audio. Please try again.", kind="error")
 
     if not text:
         return ask_shopstack("")

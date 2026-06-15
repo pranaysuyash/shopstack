@@ -44,13 +44,29 @@ class FieldNotesView:
     status_html: str
 
 
-ERROR_HTML = (
-    "<div style='color:var(--red);'>Could not load price history due to a database error.</div>"
-)
-# Item #36 (2026-06-14): prefer the branded recovery shell so the
-# user sees a consistent ShopStack face instead of a raw error
-# string. Kept as a module-level callable so call sites can pass
-# the actual exception detail for the operator-facing <details> block.
+# Item #36 (2026-06-14): the canonical error pattern is
+# :func:`shopstack.ui.components.primitives.branded_error_shell`,
+# which renders a consistent ShopStack face (not raw error text) for
+# the user and an operator-only ``<details>`` block with the original
+# exception. The legacy ``ERROR_HTML`` constant that printed "Could
+# not load price history due to a database error." was removed
+# (2026-06-15) because:
+#
+#   1. It was never imported / consumed anywhere in the codebase
+#      (verified by ripgrep on 2026-06-15). Dead code per
+#      ``motto_v3`` §7.
+#   2. Its copy leaked internal jargon ("database error") to the
+#      end user, contradicting ``motto_v3`` §0.14 (Product Reality
+#      and Operator Workflow Rule) and the 2026-06-14 audit's
+#      copy-standards work.
+#   3. It duplicated the work that ``branded_error_shell`` does
+#      properly. Per §7, the canonical path is the existing
+#      ``branded_error_shell``; this constant is removed.
+#
+# Callers that need a price-memory error panel should call
+# ``_recovery_shell(message=..., exc=...)`` (defined below) or
+# ``branded_error_shell(...)`` directly.
+
 from shopstack.ui.components.primitives import (
     branded_error_shell,
     last_updated_stamp,

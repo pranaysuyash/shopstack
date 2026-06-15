@@ -163,10 +163,12 @@ def cookbook_shop_missing(
             db, recipe, inventory, user_id=current_user_id() or "",
         )
     except Exception as exc:
-        logger.warning("cookbook shop_missing failed: %s", exc)
+        logger.warning("cookbook shop_missing failed: %s", exc, exc_info=True)
         return home_card(
             style="border-left:3px solid var(--red);",
-            body=f"⚠ Could not update shopping list: {exc}",
+            body=(
+                "⚠ Couldn't update your shopping list. Please try again."
+            ),
         )
 
     # The cookbook service returns a dict with these keys (see

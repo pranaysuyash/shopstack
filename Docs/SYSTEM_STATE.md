@@ -1,6 +1,6 @@
 # ShopStack System State
 
-**Generated:** 2026-06-15T16:07:11+00:00 · **Source:** `shopstack.tools.generate_state`
+**Generated:** 2026-06-15T16:30:18+00:00 · **Source:** `shopstack.tools.generate_state`
 
 > This dashboard is **machine-generated** from the project. To refresh,
 > run `python -m shopstack.tools.generate_state` (or let the CI hook do it).
@@ -11,8 +11,8 @@
 
 | Metric | Value | Method |
 |--------|-------|--------|
-| Tests | 4006 | `pytest-collect` |
-| Test files | 208 | `walk` |
+| Tests | 4189 | `pytest-collect` |
+| Test files | 220 | `walk` |
 | Services | 77 | `walk` |
 | Screens | 43 | `walk` |
 | Tabs | 39 | `walk` |
@@ -261,65 +261,4 @@ generator re-derives everything from the actual project:
 
 If you find a discrepancy between this dashboard and reality, fix the code
 (or the doc) and re-run the generator — that's the whole loop.
-
-
-## Addendum (2026-06-15, fourth update) — tier-5 live deployment verification
-
-The user confirmed the app is **live at
-`https://huggingface.co/spaces/pranaysuyash/shopstack`**, with the
-public URL `https://pranaysuyash-shopstack.hf.space`. Per
-motto_v3 §0.5 evidence tier 5 (production-like / real-data
-verification), the domain-layer work now includes actual HTTP calls
-against the deployed app.
-
-**New regression test file**: `tests/test_live_deployment.py`
-(8 tests, all pass). The tests are **auto-skipped** if the live URL
-is unreachable (network blocked, app down) so they don't fail
-local CI runs.
-
-Verified live endpoints:
-- `GET /` — root page responds 200 within 10s
-- `GET /config` — returns the full Gradio config (240+ events,
-  all API names)
-- `POST /gradio_api/queue/join` — handler invocation works
-- `GET /gradio_api/queue/data` — SSE stream returns process_completed
-
-**Live end-to-end handler chain** (called via Gradio API):
-- `parser_preview` with `"doodh milk order"` — the deployed parser
-  resolves the Hindi `doodh` alias to `milk` and classifies the
-  intent as `general_query` with 40% confidence
-- `parser_preview` with `""` — empty input doesn't crash; handler
-  returns process_completed (graceful handling, no 500)
-- 3 concurrent calls — at least 2/3 succeed (basic load-shedding
-  check; HF Spaces has 1-worker queue by default)
-
-**Live security regression** (prevents secret leak):
-- `test_live_health_does_not_leak_secrets` — scans `/` and `/config`
-  for distinctive secret patterns: `sk-[A-Za-z0-9]{20,}`,
-  `skproj-[A-Za-z0-9]{20,}`, `hf_eeloOoBM` (the local HF token),
-  `AKIA[A-Z0-9]{16}` (AWS), `ghp_[A-Za-z0-9]{20,}` (GitHub),
-  `xox[ab]-[A-Za-z0-9-]{10,}` (Slack)
-- False-positive-resistant: uses word boundaries so component
-  names like `ask-input` don't match `sk-`
-
-**Tier 5 evidence summary** (per motto_v3 §0.5):
-
-| Evidence | Result | Tier |
-|---|---|---|
-| `import shopstack` works | PASS | Tier 1 |
-| 172 domain tests | 172/172 pass | Tier 2 |
-| 22 regression tests | 22/22 pass | Tier 2 |
-| `import app` succeeds | PASS | Tier 4 |
-| `app.build_app()` succeeds | PASS | Tier 4 |
-| Live app boot (HTTP 200) | PASS | Tier 5 |
-| Live app config endpoint | PASS | Tier 5 |
-| Live `parser_preview` Hindi alias | PASS | Tier 5 |
-| Live concurrent calls | PASS | Tier 5 |
-| Live secret leak check | PASS | Tier 5 |
-| **Total: 202 tests pass** | **0 fail** | Tier 1-5 |
-
-**Important caveat**: the live tests use the public Gradio API and
-do not require authentication. They test the handler chain, not
-authenticated flows. The HF token from `.env` is for model downloads,
-not for the public app, so it is correctly not in the test surface.
 

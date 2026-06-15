@@ -97,53 +97,100 @@ def _parse_return_count(node: ast.FunctionDef | ast.AsyncFunctionDef) -> int | N
     return None
 
 
+# Gradio event method names that wire a handler with `inputs=[...]` and
+# `outputs=[...]`. If a new event method is added that takes inputs/outputs,
+# add it here.
+GRADIO_EVENT_METHODS: frozenset[str] = frozenset({
+    "click", "change", "submit", "input", "blur", "focus", "edit",
+    "clear", "select", "upload", "then", "load", "queue", "stream",
+})
+
+
 def _find_call_kwargs(
     source: str,
     handler_name: str,
 ) -> list[tuple[int, list[str] | None, list[str] | None]]:
-    """Find every call to ``handler_name`` and return its (line, inputs, outputs).
+    """Find every Gradio event call that wires ``handler_name`` and return
+    its (line, inputs, outputs).
 
-    ``inputs`` / ``outputs`` are returned as a list of the literal
-    names/identifiers passed in the kwarg, or ``None`` if the kwarg
-    is not present or not a list literal we can statically parse.
+    Recognises two wiring styles:
 
-    Only matches "naked" calls (``handler_name,``) and attribute
-    method calls (``something.handler_name(``) — we want both, e.g.
-    ``an_refresh.click(analytics_screen, ...)`` is fine to check via
-    the second pattern.
+      * ``btn.click(handler, [input1, input2], [output1], ...)`` — handler
+        passed as the first positional argument
+      * ``btn.click(fn=handler, inputs=[...], outputs=[...], ...)`` —
+        handler passed as the ``fn=`` keyword
+
+    Also recognises ``app.load(handler, ...)`` and ``handler.then(...)``
+    chains.
+
+    Returns a list of ``(line_no, inputs, outputs)`` tuples, where
+    ``inputs`` / ``outputs`` are the literal list of component names
+    (or ``[<expr>]`` for non-Name elements) extracted from the kwarg,
+    or ``None`` if the kwarg is not present.
     """
     tree = ast.parse(source)
     results: list[tuple[int, list[str] | None, list[str] | None]] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
-        match = False
-        if isinstance(node.func, ast.Name) and node.func.id == handler_name:
-            match = True
-        elif isinstance(node.func, ast.Attribute) and node.func.attr == handler_name:
-            match = True
-        if not match:
+        # Case 1: method-style — ``btn.click(handler, ...)``
+        if isinstance(node.func, ast.Attribute) and node.func.attr in GRADIO_EVENT_METHODS:
+            handler_arg = None
+            if node.args and isinstance(node.args[0], ast.Name):
+                handler_arg = node.args[0].id
+            elif node.args and isinstance(node.args[0], ast.Attribute):
+                handler_arg = ast.dump(node.args[0])
+            if handler_arg != handler_name:
+                # Try the fn= kwarg as a fallback.
+                for kw in node.keywords:
+                    if kw.arg == "fn" and isinstance(kw.value, ast.Name) and kw.value.id == handler_name:
+                        handler_arg = handler_name
+                        break
+            if handler_arg == handler_name:
+                inputs = outputs = None
+                for kw in node.keywords:
+                    if kw.arg == "inputs":
+                        inputs = _kwarg_to_names(kw.value)
+                    elif kw.arg == "outputs":
+                        outputs = _kwarg_to_names(kw.value)
+                # If the method call uses positional inputs/outputs, try to
+                # capture them too (Gradio's click(handler, inputs, outputs)
+                # 3-positional style is rare in this codebase, but be safe).
+                if inputs is None and len(node.args) >= 2:
+                    inputs = _expr_to_names(node.args[1])
+                if outputs is None and len(node.args) >= 3:
+                    outputs = _expr_to_names(node.args[2])
+                results.append((node.lineno, inputs, outputs))
+        # Case 2: bare ``handler_name(`` (Python call, not Gradio wiring)
+        elif isinstance(node.func, ast.Name) and node.func.id == handler_name:
+            # Not a Gradio handler call — skip; we only care about wirings.
             continue
-        inputs = outputs = None
-        for kw in node.keywords:
-            if kw.arg == "inputs":
-                if isinstance(kw.value, ast.List):
-                    inputs = [elt.id if isinstance(elt, ast.Name) else "<expr>"
-                              for elt in kw.value.elts]
-                elif isinstance(kw.value, ast.Constant) and kw.value.value is None:
-                    inputs = []
-                else:
-                    inputs = ["<expr>"]
-            elif kw.arg == "outputs":
-                if isinstance(kw.value, ast.List):
-                    outputs = [elt.id if isinstance(elt, ast.Name) else "<expr>"
-                               for elt in kw.value.elts]
-                elif isinstance(kw.value, ast.Constant) and kw.value.value is None:
-                    outputs = []
-                else:
-                    outputs = ["<expr>"]
-        results.append((node.lineno, inputs, outputs))
     return results
+
+
+def _kwarg_to_names(node: ast.AST) -> list[str] | None:
+    """Convert an AST node to a list of names, or ``None`` if not a list."""
+    if isinstance(node, ast.List):
+        return [_expr_to_name(elt) for elt in node.elts]
+    if isinstance(node, ast.Constant) and node.value is None:
+        return []
+    return None
+
+
+def _expr_to_names(node: ast.AST) -> list[str]:
+    """Convert any expression to a list of names (best-effort)."""
+    if isinstance(node, ast.List):
+        return [_expr_to_name(elt) for elt in node.elts]
+    return ["<expr>"]
+
+
+def _expr_to_name(node: ast.AST) -> str:
+    """Convert a single expression to a name (best-effort)."""
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return ast.dump(node)
+    return "<expr>"
 
 
 def _resolve_handler(handler_ref: str) -> Callable[..., Any] | None:
@@ -168,7 +215,6 @@ def _resolve_handler(handler_ref: str) -> Callable[..., Any] | None:
 
 def test_analytics_screen_call_sites_match_signature() -> None:
     """Audit finding #1: ``analytics_screen`` should not get 0 inputs."""
-    from shopstack.ui.screens.analytics import analytics_screen
     sig = inspect.signature(analytics_screen)
     expected_inputs = sum(
         1 for name, p in sig.parameters.items()
@@ -192,7 +238,6 @@ def test_analytics_screen_call_sites_match_signature() -> None:
 
 def test_parser_preview_screen_call_sites_match_signature() -> None:
     """Audit finding #2: ``parser_preview_screen`` should not get 0 inputs."""
-    from shopstack.ui.screens.parser_preview import parser_preview_screen
     sig = inspect.signature(parser_preview_screen)
     expected = sum(
         1 for _, p in sig.parameters.items()
@@ -214,7 +259,6 @@ def test_parser_preview_screen_call_sites_match_signature() -> None:
 
 def test_shelf_scan_process_call_sites_match_signature() -> None:
     """Audit finding #3: ``shelf_scan_process`` should get 4 inputs, not 1."""
-    from shopstack.ui.screens.shelf_scan import shelf_scan_process
     sig = inspect.signature(shelf_scan_process)
     expected = sum(
         1 for _, p in sig.parameters.items()
@@ -247,7 +291,6 @@ def test_shelf_scan_process_call_sites_match_signature() -> None:
 
 def test_agent_trace_search_filter_call_sites_match_signature() -> None:
     """Audit finding #4: ``agent_trace_search_filter`` should get 2 inputs, not 1."""
-    from shopstack.ui.screens.traces import agent_trace_search_filter
     sig = inspect.signature(agent_trace_search_filter)
     expected_inputs = sum(
         1 for _, p in sig.parameters.items()

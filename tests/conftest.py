@@ -338,6 +338,15 @@ def pytest_configure(config):
     except ImportError:
         pass
 
+    # Register custom pytest marks used in this repo. Avoids
+    # "PytestUnknownMarkWarning" for marks used in test files.
+    config.addinivalue_line(
+        "markers",
+        "slow: slow tests that should be skipped in fast-feedback runs "
+        "(e.g. tests that build the full app or download models). "
+        "Run with `pytest -m slow` to execute them explicitly.",
+    )
+
 
 def pytest_unconfigure(config):
     """Diagnostic: log session-level state on shutdown.

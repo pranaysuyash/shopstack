@@ -322,6 +322,190 @@ class TestHomeCardLiteralStringBug:
             "screen review bug class) — these are literal strings, not real "
             "function calls, and leak raw `style='...'` text into the "
             "rendered UI:\n" + "\n".join(f"  {o}" for o in offenders) +
-            "\n\nFix: call the real `home_card()` from "
-            "shopstack.ui.components.primitives with title=/body=/style= kwargs."
+            "\n\nFix: call `home_card(body=..., style=...)` as a real function "
+            "instead of emitting its source as a string. See the 2026-06-15 "
+            "Home screen review for the original bug class."
         )
+
+
+# ── §2.2 keyboard shortcuts: ? help overlay + Enter-to-select ──
+
+
+class TestKeyboardShortcuts:
+    """The §2.2 keyboard shortcut infrastructure must stay in place.
+
+    §2.2 acceptance criteria:
+    * `j`/`k` to navigate between tabs: ✅ (Pass 11)
+    * `Enter` to select/action: ✅ (Pass 13, this class)
+    * `?` to show shortcut help overlay: ✅ (Pass 13, this class)
+    * screen-reader-compatible announcements: ✅ (existing
+      `announceToScreenReader` helper, used by new overlay)
+    """
+
+    def test_header_has_toggle_shortcut_help(self):
+        """``header.py`` must define the ``toggleShortcutHelp`` JS function."""
+        path = REPO / "shopstack" / "ui" / "header.py"
+        source = path.read_text(encoding="utf-8")
+        assert "function toggleShortcutHelp" in source, (
+            "header.py is missing the `function toggleShortcutHelp(...)` "
+            "JS function. This is what the `?` keypress calls to open or "
+            "close the keyboard shortcut help overlay. See §2.2 in "
+            "Docs/NOT_STARTED_FEATURES.md."
+        )
+
+    def test_header_has_open_shortcut_help(self):
+        """``header.py`` must define the ``openShortcutHelp`` function."""
+        path = REPO / "shopstack" / "ui" / "header.py"
+        source = path.read_text(encoding="utf-8")
+        assert "function openShortcutHelp" in source, (
+            "header.py is missing the `function openShortcutHelp(...)` "
+            "function. The toggle helper delegates to this when the "
+            "overlay is closed."
+        )
+
+    def test_header_has_close_shortcut_help(self):
+        """``header.py`` must define the ``closeShortcutHelp`` function."""
+        path = REPO / "shopstack" / "ui" / "header.py"
+        source = path.read_text(encoding="utf-8")
+        assert "function closeShortcutHelp" in source, (
+            "header.py is missing the `function closeShortcutHelp(...)` "
+            "function. This is what the Escape key and the Close button "
+            "call to dismiss the overlay."
+        )
+
+    def test_header_keydown_handles_question_mark(self):
+        """The keydown handler must respond to ``?`` (and Shift+/ for non-US layouts)."""
+        path = REPO / "shopstack" / "ui" / "header.py"
+        source = path.read_text(encoding="utf-8")
+        assert "e.key === '?'" in source, (
+            "header.py keydown handler does not check for `e.key === '?'`. "
+            "The help overlay must be triggered by the ? key."
+        )
+        assert "e.shiftKey" in source, (
+            "header.py keydown handler does not check for `e.shiftKey`. "
+            "Shift+/ is the US keyboard layout for ?; on non-US layouts "
+            "the user may not have a direct ? key, so we accept either."
+        )
+
+    def test_header_keydown_handles_escape(self):
+        """The keydown handler must respond to ``Escape`` to close the overlay."""
+        path = REPO / "shopstack" / "ui" / "header.py"
+        source = path.read_text(encoding="utf-8")
+        assert "e.key === 'Escape'" in source, (
+            "header.py keydown handler does not check for `e.key === 'Escape'`. "
+            "Escape is the standard dismiss key for modal overlays; the "
+            "shortcut help must close on Escape."
+        )
+
+    def test_header_keydown_handles_enter(self):
+        """The keydown handler must respond to ``Enter`` for activation."""
+        path = REPO / "shopstack" / "ui" / "header.py"
+        source = path.read_text(encoding="utf-8")
+        assert "e.key === 'Enter'" in source, (
+            "header.py keydown handler does not check for `e.key === 'Enter'`. "
+            "Enter activates the focused button or link (no-op for "
+            "non-interactive focused elements)."
+        )
+
+    def test_overlay_uses_theme_tokens(self):
+        """The overlay CSS must use the existing theme tokens (--bg-card, --text, --border)."""
+        path = REPO / "shopstack" / "ui" / "header.py"
+        source = path.read_text(encoding="utf-8")
+        # Find the openShortcutHelp function and check it uses theme tokens
+        assert "var(--bg-card)" in source, (
+            "The shortcut help overlay does not use the --bg-card theme token. "
+            "The overlay must respect the existing design system (light/dark "
+            "themes, etc.) by using theme variables rather than hard-coded colors."
+        )
+        assert "var(--text)" in source, (
+            "The shortcut help overlay does not use the --text theme token. "
+            "Text color must respect the theme for accessibility."
+        )
+
+    def test_overlay_id_is_stable(self):
+        """The overlay element id is ``ss-shortcut-help`` (stable contract for tests + JS)."""
+        path = REPO / "shopstack" / "ui" / "header.py"
+        source = path.read_text(encoding="utf-8")
+        assert "id = 'ss-shortcut-help'" in source or "id='ss-shortcut-help'" in source or "id: 'ss-shortcut-help'" in source, (
+            "The shortcut help overlay element id is not 'ss-shortcut-help'. "
+            "This is the stable contract used by both the JS handlers "
+            "(getElementById) and any future tests."
+        )
+
+
+# ── §1.4 Qwen3-VL pre-download pattern (mirrors §1.3 BiRefNet) ──
+
+
+class TestQwen3VLPreDownload:
+    """The §1.4 Qwen3-VL pre-download pattern must stay in place.
+
+    Pattern (mirrors §1.3 BiRefNet, RESOLVED):
+    * ``Qwen3VLProvider.__init__`` calls ``self._start_pre_download()``.
+    * ``_start_pre_download()`` spawns a daemon thread running
+      ``_pre_download_weights()``.
+    * ``_pre_download_weights()`` uses ``huggingface_hub.snapshot_download``
+      to cache the entire model repo to HF cache.
+    * ``load()`` waits for the pre-download event (cooperative wait).
+    * A standalone ``scripts/download_qwen3vl.py`` is provided as a
+      manual fallback for users who want to pre-cache without starting
+      the app.
+
+    Drift in any of these would re-introduce the 30-120s first-call
+    latency that §1.4 was created to eliminate.
+    """
+
+    def test_qwen3vl_provider_calls_start_pre_download_in_init(self):
+        """``Qwen3VLProvider.__init__`` must call ``self._start_pre_download()``."""
+        path = REPO / "shopstack" / "providers" / "vision_provider.py"
+        source = path.read_text(encoding="utf-8")
+        # The init method must invoke _start_pre_download — this is
+        # the §1.4 contract. The structural test catches drift that
+        # removes the background pre-download.
+        assert "self._start_pre_download()" in source, (
+            "Qwen3VLProvider does not call self._start_pre_download() in "
+            "__init__. Pass 14 §1.4 requires the same background "
+            "pre-download pattern as BiRefNetSegmentationProvider "
+            "(RESOLVED §1.3). Without this, the first understand() call "
+            "blocks the event loop for 30-120s while the model downloads."
+        )
+
+    def test_qwen3vl_pre_download_uses_snapshot_download(self):
+        """The pre-download must use ``huggingface_hub.snapshot_download``."""
+        path = REPO / "shopstack" / "providers" / "vision_provider.py"
+        source = path.read_text(encoding="utf-8")
+        # The pre-download method must call snapshot_download
+        assert "snapshot_download" in source, (
+            "Qwen3VLProvider does not call snapshot_download anywhere. "
+            "Pass 14 §1.4 requires the pre-download to use "
+            "huggingface_hub.snapshot_download to cache the entire "
+            "model repo (mirrors BiRefNet §1.3)."
+        )
+
+    def test_qwen3vl_pre_download_event_is_used(self):
+        """``load()`` must use ``self._pre_download_event.wait()`` for cooperative waiting."""
+        path = REPO / "shopstack" / "providers" / "vision_provider.py"
+        source = path.read_text(encoding="utf-8")
+        assert "_pre_download_event" in source, (
+            "Qwen3VLProvider does not use _pre_download_event for "
+            "cooperative waiting. The BiRefNet pattern (§1.3) uses "
+            "threading.Event() so load() can block briefly for the "
+            "background download to finish, then proceed with cached files."
+        )
+        assert "wait(timeout=" in source, (
+            "Qwen3VLProvider does not call _pre_download_event.wait(timeout=...) "
+            "in load(). The cooperative wait is what makes the pre-download "
+            "effective — without it, load() races the background thread."
+        )
+
+    def test_download_qwen3vl_script_exists(self):
+        """``scripts/download_qwen3vl.py`` must exist (manual pre-cache fallback)."""
+        script_path = REPO / "scripts" / "download_qwen3vl.py"
+        assert script_path.exists(), (
+            f"scripts/download_qwen3vl.py not found at {script_path}. "
+            f"Pass 14 §1.4 requires this manual pre-download script as a "
+            f"user-facing fallback (mirrors scripts/download_birefnet.py "
+            f"from §1.3, which is RESOLVED)."
+        )
+        # Verify it parses (no syntax errors)
+        import ast
+        ast.parse(script_path.read_text(encoding="utf-8"))

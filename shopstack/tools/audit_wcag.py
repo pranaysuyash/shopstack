@@ -186,6 +186,11 @@ def check_1_1_1_alt_text(files: dict[str, str]) -> WCAGResult:
         # behavior, not real production HTML.
         if "test_audit_wcag" in fp:
             continue
+        # Skip the tools/ directory: the linters and tooling helpers
+        # (e.g. ``lint_empty_states.py``) contain string literals that
+        # check for SVG-like content. Those are not real SVG tags.
+        if "/tools/" in fp or fp.startswith("tools/"):
+            continue
         # Python f-strings + Gradio components sometimes render raw <img>
         for m in re.finditer(r"<img\b[^>]*>", content):
             tag = m.group(0)

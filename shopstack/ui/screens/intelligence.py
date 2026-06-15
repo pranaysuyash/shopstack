@@ -66,7 +66,22 @@ def get_intelligence_dashboard():
 
 
 def _render_preferences(user_id: str) -> str:
-    """Render preferences list with delete buttons and add form."""
+    """Render preferences list grouped by signal type.
+
+    Each preference is rendered as a row showing the canonical name,
+    value, source, confidence, and the signal_id (so the user can
+    copy it for the "Delete by signal ID" form below — the actual
+    delete button is wired as a Gradio event in
+    ``shopstack.ui.tabs.memory_intelligence`` with the 2-step confirm
+    pattern per §0.10 observability).
+
+    Per the previous implementation, a per-row delete button was
+    rendered with an inline ``onclick`` that called a non-existent
+    ``/api/preference_delete`` endpoint — the button was visible but
+    clicking it did nothing useful. This rewrite keeps the
+    preference cards read-only and routes the delete through the
+    proper Gradio event surface.
+    """
     from shopstack.services.preference import PreferenceService
     service = PreferenceService(db)
     prefs = service.get_preferences(user_id=user_id)
@@ -88,11 +103,13 @@ def _render_preferences(user_id: str) -> str:
             value = escape(str(p.value))
             source = escape(p.source or "")
             confidence = f"{p.confidence:.0%}" if p.confidence else ""
+            signal_id = escape(str(p.signal_id))
             rows.append(
-                f"<div style='display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--border);'><span><strong>{name}</strong> &rarr; {value}"
-                f" <span style='font-size: 0.625rem;color:var(--text-dim);'>({source}, {confidence})</span></span><button onclick=\"fetch('/api/preference_delete?signal_id={p.signal_id}')"
-                f".then(r=>r.json()).then(d=>{{if(d.ok){{this.parentElement.remove();}}}})\""
-                f" style='font-size: 0.625rem;padding:2px 6px;border:1px solid var(--red);color:var(--red);background:none;border-radius:3px;cursor:pointer;'>Remove</button></div>"
+                f"<div style='display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--border);gap:8px;'>"
+                f"<span><strong>{name}</strong> &rarr; {value} "
+                f"<span style='font-size: 0.625rem;color:var(--text-dim);'>({source}, {confidence})</span></span>"
+                f"<code style='font-size: 0.625rem;color:var(--text-dim);font-family:monospace;' title='Signal ID — copy this for the delete form'>{signal_id}</code>"
+                f"</div>"
             )
         sections.append(
             f"<div style='margin-bottom:12px;'><h5 style='margin:4px 0;color:var(--blue);'>{label} ({len(items)})</h5>"

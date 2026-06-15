@@ -37,6 +37,7 @@ class DecisionAction(str, Enum):
     USE_SOON = "use_soon"
     COMPARE = "compare"
     WAIT = "wait"
+    WATCH = "watch"  # 2026-06-15: "track but don't act" — distinct from WAIT's "wait for better conditions"
     SUBSTITUTE = "substitute"
     CONFIRM = "confirm"
     OPTIONAL = "optional"
@@ -315,6 +316,7 @@ _ACTION_COLORS: dict[str, str] = {
     "optional": "#2A6BC4",
     "compare": "#7345D0",
     "wait": "#7F8C8D",
+    "watch": "#9CA3AF",          # 2026-06-15: grey-blue, distinct from wait's slate
     "substitute": "#C53030",
     "confirm": "#009688",
 }
@@ -326,6 +328,7 @@ _ACTION_ICONS: dict[str, str] = {
     "optional": "\u2794",
     "compare": "\u2696",
     "wait": "\U0001f441",
+    "watch": "\U0001f50d",        # 2026-06-15: magnifying glass — "track, no action"
     "substitute": "\u2753",
     "confirm": "\u2705",
 }

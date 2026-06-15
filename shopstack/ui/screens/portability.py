@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import tempfile
 from html import escape
 from pathlib import Path
@@ -36,53 +35,32 @@ def _resolve_uploaded_file_path(file_path: str | Path | object | None) -> str | 
     return None
 
 
-def export_data_json() -> tuple[str, str]:
+def export_data_json() -> str:
     """Export household data to a redacted JSON file.
 
-    Returns:
-        (file_path, status_html) tuple. The file_path is the path
-        to the generated JSON file; status_html is the user-facing
-        message to display.
-
-    The temp directory is cleaned up after the file is read (we
-    don't delete the file immediately because Gradio needs to serve
-    it to the user). We do track the temp dir for later cleanup.
+    Returns the path to the generated file. The caller (Gradio's
+    gr.File component) will offer it as a download.
     """
     data = export_json(db)
     redacted_data = _redact_obj(data)
-    tmp_dir = tempfile.mkdtemp(prefix="shopstack_export_")
-    tmp_path = os.path.join(tmp_dir, "shopstack_export.json")
-    with open(tmp_path, "w") as f:
+    tmp = os.path.join(tempfile.mkdtemp(), "shopstack_export.json")
+    with open(tmp, "w") as f:
         json.dump(redacted_data, f, indent=2, default=str)
-    size_kb = os.path.getsize(tmp_path) / 1024
-    status = (
-        f"<div style='color:var(--green);'>"
-        f"Exported {len(redacted_data.get('inventory_lots', []))} inventory lots, "
-        f"{len(redacted_data.get('shopping_lists', []))} shopping lists "
-        f"({size_kb:.1f} KB) to {escape(tmp_path)}</div>"
-    )
-    return tmp_path, status
+    return tmp
 
 
-def export_data_csv() -> tuple[str, str]:
+def export_data_csv() -> str:
     """Export inventory to a redacted CSV file.
 
-    Returns:
-        (file_path, status_html) tuple.
+    Returns the path to the generated file. The caller (Gradio's
+    gr.File component) will offer it as a download.
     """
-    tmp_dir = tempfile.mkdtemp(prefix="shopstack_csv_")
-    tmp_path = os.path.join(tmp_dir, "shopstack_inventory.csv")
+    tmp = os.path.join(tempfile.mkdtemp(), "shopstack_inventory.csv")
     csv_text = export_csv_inventory(db)
     redacted_csv = _redact_text(csv_text)
-    with open(tmp_path, "w") as f:
+    with open(tmp, "w") as f:
         f.write(redacted_csv)
-    size_kb = os.path.getsize(tmp_path) / 1024
-    line_count = redacted_csv.count("\n") + 1
-    status = (
-        f"<div style='color:var(--green);'>"
-        f"Exported {line_count} rows ({size_kb:.1f} KB) to {escape(tmp_path)}</div>"
-    )
-    return tmp_path, status
+    return tmp
 
 
 def import_data_file(file_path: str | Path | object | None) -> str:

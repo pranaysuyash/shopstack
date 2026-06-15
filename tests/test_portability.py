@@ -154,3 +154,85 @@ class TestImportCSV:
         result = import_csv(db, csv_text)
         assert result.items_added == 0
         assert len(result.errors) == 1
+
+
+class TestImportDataFilePathResolution:
+    """import_data_file must handle Gradio's various file upload
+    return types: string path, Path, tempfile wrapper, dict.
+
+    Per the 2026-06-14 fix: Gradio 5.x returns different types
+    depending on the gr.File configuration. The fix adds
+    _resolve_uploaded_file_path() to normalize all of them.
+    """
+
+    def test_string_path_is_returned_as_is(self):
+        from shopstack.ui.screens.portability import _resolve_uploaded_file_path
+        assert _resolve_uploaded_file_path("/tmp/test.json") == "/tmp/test.json"
+
+    def test_path_object_is_converted_to_string(self):
+        from pathlib import Path
+        from shopstack.ui.screens.portability import _resolve_uploaded_file_path
+        result = _resolve_uploaded_file_path(Path("/tmp/test.json"))
+        assert result == "/tmp/test.json"
+        assert isinstance(result, str)
+
+    def test_none_returns_none(self):
+        from shopstack.ui.screens.portability import _resolve_uploaded_file_path
+        assert _resolve_uploaded_file_path(None) is None
+
+    def test_empty_string_returns_none(self):
+        from shopstack.ui.screens.portability import _resolve_uploaded_file_path
+        assert _resolve_uploaded_file_path("") is None
+
+    def test_dict_with_name_key_returns_path(self):
+        from shopstack.ui.screens.portability import _resolve_uploaded_file_path
+        result = _resolve_uploaded_file_path({"name": "/tmp/upload.json"})
+        assert result == "/tmp/upload.json"
+
+    def test_dict_with_path_key_returns_path(self):
+        from shopstack.ui.screens.portability import _resolve_uploaded_file_path
+        result = _resolve_uploaded_file_path({"path": "/tmp/upload.json"})
+        assert result == "/tmp/upload.json"
+
+    def test_dict_without_path_returns_none(self):
+        from shopstack.ui.screens.portability import _resolve_uploaded_file_path
+        result = _resolve_uploaded_file_path({"other_key": "value"})
+        assert result is None
+
+    def test_object_with_name_attribute_returns_path(self):
+        from shopstack.ui.screens.portability import _resolve_uploaded_file_path
+
+        class FakeFile:
+            name = "/tmp/fakefile.json"
+
+        assert _resolve_uploaded_file_path(FakeFile()) == "/tmp/fakefile.json"
+
+
+class TestImportDataFileErrorHandling:
+    """import_data_file must produce helpful error messages for
+    common failure modes.
+    """
+
+    def test_no_file_path_returns_helpful_message(self):
+        from shopstack.ui.screens.portability import import_data_file
+        result = import_data_file(None)
+        assert "Upload" in result
+        assert "JSON or CSV" in result
+
+    def test_invalid_json_returns_error_html(self):
+        import json
+        import tempfile
+        from shopstack.ui.screens.portability import import_data_file
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False,
+        ) as f:
+            f.write("{invalid json")
+            tmp_path = f.name
+        try:
+            result = import_data_file(tmp_path)
+            assert "Import failed" in result
+            assert "red" in result  # error styling
+        finally:
+            import os
+            os.unlink(tmp_path)

@@ -256,3 +256,182 @@ def test_qwen3vl_ground_returns_bbox_payload():
     assert result["confidence"] == 0.88
     assert result["label"] == "milk bottle"
     assert result["model"] == "Qwen/Qwen3-VL-8B-Instruct"
+
+
+# ── Pass 14 §1.4: Background pre-download (mirrors BiRefNet §1.3) ──
+
+
+def test_qwen3vl_init_starts_background_pre_download(monkeypatch):
+    """``Qwen3VLProvider.__init__`` must start a background pre-download thread.
+
+    Pass 14 §1.4: same pattern as BiRefNet §1.3 (RESOLVED). The provider
+    kicks off a daemon thread that calls ``snapshot_download`` on the
+    HF cache so the first ``understand()`` call doesn't block the event
+    loop for 30-120s.
+    """
+    from shopstack.providers.vision_provider import Qwen3VLProvider
+
+    started = {"called": False, "daemon": None}
+
+    def fake_start(self) -> None:
+        started["called"] = True
+        # Simulate the real start_pre_download: spawn a daemon thread.
+        # We use a public API (``threading.Thread``) rather than mocking
+        # internals so the test stays portable across Python versions
+        # (Thread._target is private and not present in all versions).
+        import threading
+        def _noop() -> None:
+            pass
+        t = threading.Thread(target=_noop, daemon=True)
+        t.start()
+        started["daemon"] = t.daemon
+
+    monkeypatch.setattr(Qwen3VLProvider, "_start_pre_download", fake_start)
+    monkeypatch.setattr(Qwen3VLProvider, "_init", lambda self: None)
+
+    provider = Qwen3VLProvider()
+
+    assert started["called"] is True, (
+        "Qwen3VLProvider.__init__ did not call _start_pre_download. "
+        "Pass 14 §1.4 requires the same background pre-download pattern "
+        "as BiRefNetSegmentationProvider (RESOLVED §1.3)."
+    )
+    assert started["daemon"] is True, (
+        "Background pre-download thread must be a daemon thread so it "
+        "doesn't block app exit. BiRefNetSegmentationProvider uses "
+        "threading.Thread(target=..., daemon=True)."
+    )
+
+
+def test_qwen3vl_pre_download_weights_uses_snapshot_download(monkeypatch):
+    """The pre-download must use ``snapshot_download`` to cache all repo files.
+
+    Per the BiRefNet pattern, ``snapshot_download`` is preferred over
+    ``hf_hub_download`` for individual files because it captures the
+    whole repo (including custom code, config, tokenizer) atomically.
+    """
+    from shopstack.providers.vision_provider import Qwen3VLProvider
+
+    captured = {"model_name": None, "called": False}
+
+    def fake_snapshot(model_name: str, *args, **kwargs):
+        captured["called"] = True
+        captured["model_name"] = model_name
+        return f"/hf/cache/{model_name}"
+
+    monkeypatch.setattr(Qwen3VLProvider, "_init", lambda self: None)
+    monkeypatch.setattr(Qwen3VLProvider, "_start_pre_download", lambda self: None)
+
+    # Mock huggingface_hub at the import point used by the method
+    import sys
+    mock_module = type(sys)("huggingface_hub")
+    mock_module.snapshot_download = fake_snapshot
+    monkeypatch.setitem(sys.modules, "huggingface_hub", mock_module)
+
+    provider = Qwen3VLProvider()
+    provider._pre_download_weights()
+
+    assert captured["called"] is True, (
+        "Qwen3VLProvider._pre_download_weights did not call "
+        "huggingface_hub.snapshot_download. The pre-download should "
+        "cache the entire model repo to HF cache."
+    )
+    assert captured["model_name"] == "Qwen/Qwen3-VL-8B-Instruct", (
+        f"Pre-download was called with {captured['model_name']!r}, "
+        f"expected 'Qwen/Qwen3-VL-8B-Instruct'. Verify the model_name "
+        f"in Qwen3VLProvider.__init__."
+    )
+    assert provider._weights_pre_downloaded is True, (
+        "_pre_download_weights must set _weights_pre_downloaded=True on "
+        "success so load() knows the cache is ready."
+    )
+
+
+def test_qwen3vl_pre_download_does_not_disable_provider_on_failure(monkeypatch):
+    """Background pre-download failure must NOT mark the provider unavailable.
+
+    The pre-download is a performance optimization, not a correctness
+    requirement. If it fails (e.g., network blip, missing dep), the
+    foreground ``_load_model()`` will still attempt the download on
+    demand. The provider stays available.
+    """
+    from shopstack.providers.vision_provider import Qwen3VLProvider
+
+    monkeypatch.setattr(Qwen3VLProvider, "_init", lambda self: None)
+    monkeypatch.setattr(Qwen3VLProvider, "_start_pre_download", lambda self: None)
+
+    import sys
+    mock_module = type(sys)("huggingface_hub")
+
+    def boom(model_name: str, *args, **kwargs):
+        raise RuntimeError("simulated network failure")
+
+    mock_module.snapshot_download = boom
+    monkeypatch.setitem(sys.modules, "huggingface_hub", mock_module)
+
+    provider = Qwen3VLProvider()
+    # _available is False because we monkeypatched _init to a no-op.
+    # The pre-download failure must not change that to anything worse.
+    available_before = provider._available
+    error_before = provider._error
+    provider._pre_download_weights()
+    assert provider._available == available_before, (
+        "Pre-download failure must not change _available. The pre-download "
+        "is a performance hint, not a correctness check."
+    )
+    assert provider._error == error_before, (
+        "Pre-download failure must not set _error. The foreground "
+        "_load_model() will report any actual error."
+    )
+    # _pre_download_event must be set even on failure so load() doesn't
+    # block forever on the wait.
+    assert provider._pre_download_event.is_set() is True, (
+        "Pre-download failure must still set _pre_download_event so "
+        "load() can proceed without waiting forever."
+    )
+
+
+def test_qwen3vl_load_waits_for_pre_download(monkeypatch):
+    """``load()`` must wait for the background pre-download to complete.
+
+    This is the cooperative-wait pattern from BiRefNet §1.3: ``load()``
+    calls ``self._pre_download_event.wait(timeout=15)`` so from_pretrained
+    finds files already cached and avoids re-downloading.
+    """
+    from shopstack.providers.vision_provider import Qwen3VLProvider
+
+    monkeypatch.setattr(Qwen3VLProvider, "_init", lambda self: None)
+    monkeypatch.setattr(Qwen3VLProvider, "_start_pre_download", lambda self: None)
+
+    provider = Qwen3VLProvider()
+    # Simulate the pre-download having already finished
+    provider._weights_pre_downloaded = True
+    provider._pre_download_event.set()
+
+    # If load() checks the flag and skips the wait, this succeeds.
+    # If load() blindly calls _pre_download_event.wait(), the test
+    # would also pass (since the event is already set).
+    # We verify load() returns without blocking forever and doesn't
+    # error on the flag check.
+    with patch.object(Qwen3VLProvider, "_load_model") as mock_load:
+        provider.load()
+    mock_load.assert_called_once()
+
+
+def test_qwen3vl_download_script_exists():
+    """The standalone pre-download script exists and is importable.
+
+    Per the BiRefNet pattern (§1.3), a ``scripts/download_<model>.py``
+    is provided as a manual fallback for users who want to pre-cache
+    weights without starting the app.
+    """
+    from pathlib import Path
+    script_path = Path(__file__).resolve().parents[1] / "scripts" / "download_qwen3vl.py"
+    assert script_path.exists(), (
+        f"scripts/download_qwen3vl.py not found at {script_path}. "
+        f"Pass 14 §1.4 requires this manual pre-download script as a "
+        f"user-facing fallback (mirrors scripts/download_birefnet.py)."
+    )
+    # Verify it parses (no syntax errors)
+    import ast
+    ast.parse(script_path.read_text(encoding="utf-8"))

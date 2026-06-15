@@ -118,88 +118,52 @@ class TestRedactNestedKeyDetection:
 
 
 # ─── Regression: shopstack/ui/components/primitives.py ───────────────
-class TestDeprecatedPrimitivesAliasesWired:
-    """The deprecated re-export aliases (``busy_js``,
-    ``autocomplete_injector_js``, ``url_state_sync_js``,
-    ``aria_live_screen``) must exist on
-    ``shopstack.ui.components.primitives`` and emit a
-    ``DeprecationWarning`` when called. This was the half-finished
-    supersession that left the module in an AttributeError state."""
+class TestDeprecatedPrimitivesAliasesRemoved:
+    """Per Pass 10/11 supersession cleanup (motto_v3 §7), the deprecated
+    re-export aliases (``busy_js``, ``autocomplete_injector_js``,
+    ``url_state_sync_js``, ``aria_live_screen``) were permanently
+    removed from ``shopstack.ui.components.primitives``. The canonical
+    paths in ``js_helpers`` and ``decorators`` are the only way to
+    access these symbols. See
+    ``tests/test_primitives_deprecation.py`` for the runtime
+    verification, and ``tests/test_no_drift.py`` for the forbidden-path
+    guards.
 
-    def test_busy_js_alias_exists_and_warns(self):
-        import warnings
-        from shopstack.ui.components import primitives
-        from shopstack.ui.components.js_helpers import busy_js as canonical
+    This regression test guards against the aliases re-appearing
+    (e.g., from a parallel-agent corruption re-introducing them)."""
 
-        assert hasattr(primitives, "busy_js"), "busy_js alias missing"
-        with warnings.catch_warnings(record=True) as ws:
-            warnings.simplefilter("always")
-            result = primitives.busy_js("test-btn")
-        deprecations = [
-            w for w in ws
-            if issubclass(w.category, DeprecationWarning)
-            and "busy_js" in str(w.message)
-        ]
-        assert deprecations, "busy_js alias did not emit DeprecationWarning"
-        assert result == canonical("test-btn"), "alias diverged from canonical"
+    def test_busy_js_alias_is_removed(self):
+        import pytest
+        with pytest.raises((ImportError, AttributeError)):
+            from shopstack.ui.components.primitives import busy_js  # noqa: F401
 
-    def test_autocomplete_injector_js_alias_exists_and_warns(self):
-        import warnings
-        from shopstack.ui.components import primitives
+    def test_autocomplete_injector_js_alias_is_removed(self):
+        import pytest
+        with pytest.raises((ImportError, AttributeError)):
+            from shopstack.ui.components.primitives import autocomplete_injector_js  # noqa: F401
+
+    def test_url_state_sync_js_alias_is_removed(self):
+        import pytest
+        with pytest.raises((ImportError, AttributeError)):
+            from shopstack.ui.components.primitives import url_state_sync_js  # noqa: F401
+
+    def test_aria_live_screen_alias_is_removed(self):
+        import pytest
+        with pytest.raises((ImportError, AttributeError)):
+            from shopstack.ui.components.primitives import aria_live_screen  # noqa: F401
+
+    def test_canonical_paths_still_work(self):
+        """The canonical paths still resolve (regression guard)."""
         from shopstack.ui.components.js_helpers import (
-            autocomplete_injector_js as canonical,
+            autocomplete_injector_js,
+            busy_js,
+            url_state_sync_js,
         )
-        assert hasattr(primitives, "autocomplete_injector_js"), "alias missing"
-        with warnings.catch_warnings(record=True) as ws:
-            warnings.simplefilter("always")
-            result = primitives.autocomplete_injector_js()
-        deprecations = [
-            w for w in ws
-            if issubclass(w.category, DeprecationWarning)
-            and "autocomplete_injector_js" in str(w.message)
-        ]
-        assert deprecations, "autocomplete_injector_js did not warn"
-        assert result == canonical(), "alias diverged from canonical"
-
-    def test_url_state_sync_js_alias_exists_and_warns(self):
-        import warnings
-        from shopstack.ui.components import primitives
-        from shopstack.ui.components.js_helpers import (
-            url_state_sync_js as canonical,
-        )
-        assert hasattr(primitives, "url_state_sync_js"), "alias missing"
-        with warnings.catch_warnings(record=True) as ws:
-            warnings.simplefilter("always")
-            result = primitives.url_state_sync_js()
-        deprecations = [
-            w for w in ws
-            if issubclass(w.category, DeprecationWarning)
-            and "url_state_sync_js" in str(w.message)
-        ]
-        assert deprecations, "url_state_sync_js did not warn"
-        assert result == canonical(), "alias diverged from canonical"
-
-    def test_aria_live_screen_alias_exists_and_warns(self):
-        import warnings
-        from shopstack.ui.components import primitives
-        from shopstack.ui.components.decorators import (
-            aria_live_screen as canonical,
-        )
-        assert hasattr(primitives, "aria_live_screen"), "alias missing"
-        with warnings.catch_warnings(record=True) as ws:
-            warnings.simplefilter("always")
-            decorator = primitives.aria_live_screen()
-            @decorator
-            def render(x):
-                return f"<div>{x}</div>"
-            out = render("x")
-        deprecations = [
-            w for w in ws
-            if issubclass(w.category, DeprecationWarning)
-            and "aria_live_screen" in str(w.message)
-        ]
-        assert deprecations, "aria_live_screen did not warn"
-        assert "decorators.aria_live_screen" in str(deprecations[0].message)
+        from shopstack.ui.components.decorators import aria_live_screen
+        assert callable(busy_js)
+        assert callable(autocomplete_injector_js)
+        assert callable(url_state_sync_js)
+        assert callable(aria_live_screen)
 
 
 # ─── Regression: shopstack/ui/screens/__init__.py ────────────────────
@@ -241,7 +205,12 @@ class TestNoOrphanFStringContinuations:
         )
 
     def test_no_orphan_docstrings_at_module_scope(self):
-        """An orphaned docstring at module scope is a SyntaxError."""
+        """Module-level docstrings are VALID Python (they're ``Expr``
+        nodes containing a string). This test instead guards against
+        a real regression: an ``ast.Expr`` node that is a docstring
+        but is followed by an empty body or sits where a function
+        definition should be (the symptom of the
+        ``smart_planner._dig`` corruption)."""
         import ast
         from pathlib import Path
         offenders = []
@@ -250,13 +219,29 @@ class TestNoOrphanFStringContinuations:
                 tree = ast.parse(fp.read_text())
             except SyntaxError:
                 continue
-            # Module-level string literals (not assigned) are syntax errors
+            prev = None
             for node in tree.body:
-                if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant):
-                    if isinstance(node.value.value, str):
-                        offenders.append((str(fp), node.lineno))
+                # Pattern: docstring followed by no `def` in the
+                # same indent (i.e. an orphaned docstring with no
+                # function below it) at module scope.
+                if (
+                    prev is not None
+                    and isinstance(prev, ast.Expr)
+                    and isinstance(prev.value, ast.Constant)
+                    and isinstance(prev.value.value, str)
+                    and isinstance(node, ast.Expr)
+                    and isinstance(node.value, ast.Constant)
+                    and isinstance(node.value.value, str)
+                ):
+                    # Two consecutive docstrings at module scope —
+                    # this is a sign the function definition
+                    # between them was lost (the smart_planner bug).
+                    offenders.append(
+                        (str(fp), prev.lineno, node.lineno)
+                    )
+                prev = node
         assert not offenders, (
-            f"Orphan module-level docstrings in: {offenders}"
+            f"Consecutive orphan module-level docstrings: {offenders}"
         )
 
 

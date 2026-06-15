@@ -29,6 +29,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 from typing import Any
 
@@ -121,7 +122,13 @@ class Qwen3VLProvider:
         self._available = False
         self._error: str | None = None
         self._last_latency_ms: float | None = None
+        # Background pre-download (Pass 14 §1.4 — same pattern as BiRefNet §1.3)
+        self._weights_pre_downloaded = False
+        self._pre_download_event = threading.Event()
         self._init()
+        # Kick off background weight download so the first understand() call
+        # is fast — weights are cached in huggingface_hub before use.
+        self._start_pre_download()
 
     def _init(self) -> None:
         try:
@@ -140,9 +147,51 @@ class Qwen3VLProvider:
             )
             self._available = False
 
+    # ── Background pre-download (Pass 14 §1.4) ─────────────────────────
+    # Mirrors ``BiRefNetSegmentationProvider._start_pre_download`` so the
+    # first ``understand()`` call loads from the HF cache instead of
+    # blocking the event loop for the 30-120s model download.
+
+    def _start_pre_download(self) -> None:
+        """Start downloading model weights in a background daemon thread.
+
+        Uses ``snapshot_download`` to cache all repo files to the
+        HuggingFace cache directory. The actual ``_load_model()``
+        will then find files already cached and skip network I/O.
+        """
+        if not self._available:
+            return
+        t = threading.Thread(target=self._pre_download_weights, daemon=True)
+        t.start()
+
+    def _pre_download_weights(self) -> None:
+        """Download all model files to HuggingFace cache (no model load)."""
+        try:
+            logger.info(
+                "Pre-downloading Qwen3-VL model weights (%s) ...",
+                self._model_name,
+            )
+            from huggingface_hub import snapshot_download
+            snapshot_download(self._model_name)
+            self._weights_pre_downloaded = True
+            self._pre_download_event.set()
+            logger.info("Qwen3-VL weights pre-download complete")
+        except Exception as e:  # pragma: no cover - background thread
+            # Do NOT mark the provider unavailable: the foreground
+            # ``_load_model()`` will still try to download on demand.
+            logger.warning(
+                "Qwen3-VL background pre-download failed: %s", e,
+                exc_info=True,
+            )
+            self._pre_download_event.set()  # unblock the wait in load()
+
     def load(self) -> None:
         if self._model is not None:
             return
+        # Give the background pre-download a chance to finish first
+        # so from_pretrained finds files already cached.
+        if not self._weights_pre_downloaded:
+            self._pre_download_event.wait(timeout=15)
         self._load_model()
 
     def _load_model(self) -> bool:

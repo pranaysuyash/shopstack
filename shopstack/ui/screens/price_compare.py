@@ -231,7 +231,7 @@ def refresh_source_registry() -> str:
             kind="success",
         )
     except Exception as exc:
-        return toast(f"Failed to refresh registry: {escape(str(exc))}", kind="error")
+        return toast("Couldn't refresh the registry. Please try again.", kind="error")
 
 
 def basket_compare_view(items_text: str) -> str:

@@ -504,7 +504,20 @@ def _safe_detection(providers: Any, image_path: str) -> list[dict[str, Any]]:
             return []
         detections = detection_provider.detect(image_path)
         return [d for d in detections if isinstance(d, dict) and d.get("label")]
-    except Exception:
+    except Exception as exc:  # noqa: BLE001
+        # Item #5 (motto_v3 §0.6 risk-based verification): a
+        # silent return on provider failure left the user
+        # with no detections AND no audit trail. We now log
+        # the failure at WARNING so the operator can see it
+        # in the logs and the future /health/ui error surface
+        # can pick it up. The empty-list return preserves
+        # the existing contract: the rest of the scan still
+        # completes, the user just doesn't get fake detections.
+        logger.warning(
+            "shelf_intelligence._safe_detection: object_detection "
+            "failed for image=%r: %s",
+            image_path, exc,
+        )
         return []
 
 
@@ -515,7 +528,16 @@ def _safe_segmentation(providers: Any, image_path: str) -> list[dict[str, Any]]:
             return []
         segments = segmentation_provider.segment(image_path)
         return [s for s in segments if isinstance(s, dict)]
-    except Exception:
+    except Exception as exc:  # noqa: BLE001
+        # Item #5 (motto_v3 §0.6): see _safe_detection for the
+        # log-on-failure rationale. Same pattern across all
+        # three helpers so a future operator dashboard can
+        # surface a single shelf-scan failure uniformly.
+        logger.warning(
+            "shelf_intelligence._safe_segmentation: segmentation "
+            "failed for image=%r: %s",
+            image_path, exc,
+        )
         return []
 
 
@@ -588,7 +610,14 @@ def _safe_ocr(providers: Any, image_path: str) -> dict[str, Any]:
                 if isinstance(fallback, dict):
                     payload = fallback
         return payload
-    except Exception:
+    except Exception as exc:  # noqa: BLE001
+        # Item #5 (motto_v3 §0.6): see _safe_detection for the
+        # log-on-failure rationale.
+        logger.warning(
+            "shelf_intelligence._safe_ocr: ocr failed for "
+            "image=%r: %s",
+            image_path, exc,
+        )
         return {}
 
 

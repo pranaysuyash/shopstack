@@ -352,3 +352,66 @@ class TestEnvAndConfigIntegration:
         assert settings.local_model_repo, (
             "settings.local_model_repo should be loaded from .env"
         )
+
+
+# ─── Audit pattern locks ────────────────────────────────────────────
+
+
+class TestAuditPatternLocks:
+    """The audit files this session shipped must remain healthy.
+
+    Per motto_v3 0.0 (1st principles, long-term), the test count
+    audit uses a *percentage-based* tolerance (not a fixed number)
+    so it scales with the suite size. If a future refactor reverts
+    to a fixed-number tolerance, the audit becomes fragile (breaks
+    when the suite grows) — this test catches that regression.
+    """
+
+    def test_test_count_audit_uses_percentage_tolerance(self):
+        """The test count audit must use percentage-based tolerance.
+
+        Per motto_v3 0.0 (long-term), a fixed-number tolerance
+        (e.g., 300) breaks when the suite grows. The current
+        pattern is 10% of source count, minimum 50 — this
+        scales to 100, 1000, 10000 tests without re-tuning.
+        """
+        import re as _re
+        text = (REPO / "tests/test_test_count_audit.py").read_text()
+        # Look for the tolerance formula pattern
+        # Acceptable: max(50, int(... * 0.10))
+        #             max(50, int(... * 0.1))
+        #             max(50, source_total // 10) (close enough)
+        # Rejectable: <= 300, <= 500, <= 1000, etc.
+        has_pct = bool(_re.search(
+            r"max\(\s*\d+\s*,\s*int\([^)]*\*\s*0\.\d+\s*\)", text
+        ))
+        assert has_pct, (
+            "The test count audit (test_test_count_audit.py) must use a "
+            "percentage-based tolerance formula like "
+            "max(50, int(source_total * 0.10)). A fixed-number tolerance "
+            "(e.g., <= 300) is fragile and breaks when the suite grows. "
+            "Per motto_v3 0.0, the long-term correct pattern is "
+            "percentage-based + minimum floor."
+        )
+
+    def test_test_count_audit_timeout_is_adequate(self):
+        """The test count audit subprocess timeout must be >= 120s.
+
+        With 4000+ tests in the suite, `pytest --collect-only`
+        takes ~70-100s on this hardware. A 60s timeout causes
+        silent skipping (the except clause skips the test, which
+        is a false-confidence failure mode). The audit must
+        use a 120s+ timeout to be reliable.
+        """
+        import re as _re
+        text = (REPO / "tests/test_test_count_audit.py").read_text()
+        # Find the timeout value in the subprocess.run calls
+        timeouts = _re.findall(r"timeout\s*=\s*(\d+)", text)
+        assert timeouts, "Expected to find timeout= in test_test_count_audit.py"
+        max_timeout = max(int(t) for t in timeouts)
+        assert max_timeout >= 120, (
+            f"test_test_count_audit.py has max timeout {max_timeout}s, "
+            f"but the test count audit must use >= 120s. With 4000+ tests, "
+            f"`pytest --collect-only` takes ~70-100s; a smaller timeout "
+            f"causes silent skipping (a false-confidence failure mode)."
+        )

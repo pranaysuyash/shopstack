@@ -100,8 +100,10 @@ class TestOnboardingRendersRealHTML:
         # Real home_card output has 'home-card' in the class attribute.
         # The exact value can be ``class='home-card'`` or
         # ``class='home-card onboarding-error'`` (with extra class names).
-        # We match ``'home-card'`` as a substring to allow both.
-        assert "'home-card'" in out, (
+        # We match ``'home-card`` as a substring to allow both — the
+        # attribute starts with `class='home-card` (with trailing space
+        # possible) so checking for ``'home-card`` is robust.
+        assert "'home-card" in out, (
             f"{label} output missing 'home-card' class. "
             f"Output: {out[:200]!r}"
         )
@@ -393,6 +395,79 @@ class TestConfirmDialogPattern:
             "repair_inbox.py missing the 'Yes, Delete' confirm button."
         )
 
+    def test_regression_pass13_photo_map_clear_uses_confirm_pattern(self):
+        """photo_map tab must wire the 2-step confirm for clear_location_photo."""
+        src = (Path(__file__).resolve().parents[1] / "shopstack/ui/tabs/photo_map.py").read_text()
+        assert "confirm_toggle_updates" in src, (
+            "photo_map.py missing confirm_toggle_updates — "
+            "clear_location_photo is not using the 2-step confirm pattern."
+        )
+        assert "confirm_hide_updates" in src, (
+            "photo_map.py missing confirm_hide_updates."
+        )
+        assert "pm_clear_yes_btn" in src, (
+            "photo_map.py missing the 'Yes, Clear' confirm button."
+        )
+
+    def test_regression_pass13_memory_intel_delete_uses_confirm_pattern(self):
+        """memory_intelligence sub-tab must wire the 2-step confirm
+        for delete_preference."""
+        src = (Path(__file__).resolve().parents[1] / "shopstack/ui/tabs/memory_intelligence.py").read_text()
+        assert "confirm_toggle_updates" in src, (
+            "memory_intelligence.py missing confirm_toggle_updates — "
+            "delete_preference is not using the 2-step confirm pattern."
+        )
+        assert "confirm_hide_updates" in src, (
+            "memory_intelligence.py missing confirm_hide_updates."
+        )
+        assert "intel_del_yes_btn" in src, (
+            "memory_intelligence.py missing the 'Yes, Remove' confirm button."
+        )
+
+
+class TestPreferenceCardBrokenOnclickRemoved:
+    """The previous ``_render_preferences`` rendered a per-row
+    delete button with an inline ``onclick`` that called
+    ``/api/preference_delete`` — a non-existent endpoint. The
+    button was visible but the click did nothing useful.
+
+    Pass 14 replaced the broken onclick with a visible ``<code>``
+    block showing the signal_id, so the user can copy it into the
+    "Delete preference" form below. This test guards the fix.
+    """
+
+    def test_regression_pass14_no_broken_api_onclick(self):
+        """The actual inline onclick (not the docstring that explains
+        why it was removed) must not exist."""
+        import re
+        src = (Path(__file__).resolve().parents[1] / "shopstack/ui/screens/intelligence.py").read_text()
+        # Find any inline onclick containing /api/preference_delete.
+        # The docstring may legitimately contain this string (as
+        # historical context), so we look for the actual JS handler.
+        match = re.search(
+            r'onclick\s*=\s*["\'][^"\']*/api/preference_delete[^"\']*["\']',
+            src,
+        )
+        assert not match, (
+            f"intelligence.py line {match.start() if match else '?'} "
+            f"still has the broken /api/preference_delete inline "
+            f"onclick — clicking the rendered 'Remove' button would "
+            f"call a non-existent endpoint."
+        )
+
+    def test_regression_pass14_signal_id_visible_in_card(self):
+        """The signal_id is now rendered as a <code> block so users
+        can copy it for the delete form below."""
+        src = (Path(__file__).resolve().parents[1] / "shopstack/ui/screens/intelligence.py").read_text()
+        assert "<code" in src, (
+            "intelligence.py is no longer rendering the signal_id as "
+            "a <code> block in the card."
+        )
+        assert "Signal ID" in src, (
+            "intelligence.py is missing the 'Signal ID' title "
+            "for the code block."
+        )
+
 
 # ─────────────────────────────────────────────────────────────────
 # loading_skeleton wiring
@@ -622,7 +697,7 @@ class TestWCAGAuditFixes:
             f"WCAG audit score is {report.score}, expected 100. "
             f"Failures: {[(r.criterion, r.status) for r in report.results if r.status == 'fail']}"
         )
-        assert report.fails == 0, f"WCAG audit has {report.fails} failures"
+        assert report.fail_count == 0, f"WCAG audit has {report.fail_count} failures"
 
 
 # ─────────────────────────────────────────────────────────────────

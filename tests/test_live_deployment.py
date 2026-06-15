@@ -302,3 +302,205 @@ class TestLiveEnvironment:
         assert successes >= 2, (
             f"Only {successes}/3 concurrent calls succeeded: {results}"
         )
+
+
+# ── Live handler coverage expansion ──────────────────────────────────────
+
+
+class TestLiveHandlerCoverage:
+    """Expand live coverage beyond ``parser_preview`` to catch drift
+    in the most-used public API surfaces of the live app.
+
+    We hit a representative set of public APIs and verify they
+    complete (process_completed) without a stack-trace error. This
+    is a smoke test for the handler chain — full functional
+    coverage is in the unit-test layer.
+    """
+
+    def test_live_ask_handler_responds(self):
+        """``ask`` is the main user-facing natural-language query
+        handler (fn_index=37 per config). It must not crash on
+        a basic query."""
+        result = _call_gradio_api(fn_index=37, data=["how much milk"])
+        msg = result.get("msg")
+        assert msg in ("process_completed", "error"), result
+        if msg == "process_completed":
+            output_data = result.get("output", {}).get("data", [])
+            assert output_data, f"ask returned empty data: {result}"
+
+    def test_live_parser_preview_handles_multiple_languages(self):
+        """The parser must handle Indian-language aliases in addition
+        to English. This is the canonical Swiggy-style data."""
+        cases = [
+            ("doodh", "milk"),
+            ("pyaaz", "onions"),
+            ("aloo", "potatoes"),
+            ("tamatar", "tomato"),
+            ("atta", "flour"),
+        ]
+        for query, expected_canonical in cases:
+            result = _call_gradio_api(fn_index=226, data=[f"buy {query}"])
+            assert result.get("msg") == "process_completed", (
+                f"parser_preview failed for {query!r}: {result}"
+            )
+
+    def test_live_parser_preview_resolves_combo_names(self):
+        """The Swiggy dataset has many combo products. The parser
+        must return real HTML (not crash) for combos like
+        'Sambar Veg Combo'."""
+        result = _call_gradio_api(
+            fn_index=226,
+            data=["I want Sambar Veg Combo"],
+        )
+        assert result.get("msg") == "process_completed", result
+
+    def test_live_parser_preview_handles_unicode(self):
+        """The parser must not crash on unicode input."""
+        result = _call_gradio_api(
+            fn_index=226,
+            data=["मैं दूध खरीदना चाहता हूं"],  # Hindi: "I want to buy milk"
+        )
+        # Should complete without stack trace, even if intent is low-confidence
+        assert result.get("msg") in ("process_completed", "error"), result
+        if result.get("msg") == "error":
+            assert "Traceback" not in result.get("error", "")
+
+
+# ── Live structural regression guards ─────────────────────────────────────
+
+
+class TestLiveStructuralGuards:
+    """Verify the live app's structure (component count, layout) is
+    consistent with the deployed code. Catches accidental removal
+    of major sections in a deploy."""
+
+    def test_live_config_has_all_3_core_handlers(self):
+        """The three core handlers — parser, ask, switch_household —
+        must all be present. If any is missing, a major refactor
+        removed a user-facing feature."""
+        req = urllib.request.Request(f"{LIVE_BASE}/config")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            config = json.loads(resp.read().decode("utf-8"))
+
+        api_names = {
+            evt.get("api_name")
+            for evt in config.get("dependencies", [])
+            if evt.get("api_name")
+        }
+        for required in (
+            "parser_preview",
+            "ask",
+            "switch_household",
+            "notes_save",
+            "create_household",
+            "show_add_household",
+            "cancel_add_household",
+        ):
+            assert required in api_names, (
+                f"Live deployment missing required handler: {required!r}. "
+                f"Available handlers: {sorted(api_names)[:20]}"
+            )
+
+    def test_live_config_component_count_above_floor(self):
+        """The live app must have a meaningful number of components
+        (a healthy ShopStack has 200+ components per the config).
+        A low count would mean the deploy is missing major UI."""
+        req = urllib.request.Request(f"{LIVE_BASE}/config")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            config = json.loads(resp.read().decode("utf-8"))
+
+        # Count actual components (not just dependencies)
+        components = config.get("components", [])
+        # The live config has 200+ components; floor at 50 to allow
+        # for legitimate major-refactor reductions
+        assert len(components) >= 50, (
+            f"Live deployment has only {len(components)} components "
+            f"(expected ≥50). Major UI sections may be missing."
+        )
+
+    def test_live_config_has_marketplace_integration(self):
+        """The market-source loaders (Swiggy/Blinkit/DMart) must be
+        wired into the deployed config. If not, price intelligence
+        is broken in production."""
+        req = urllib.request.Request(f"{LIVE_BASE}/config")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            config = json.loads(resp.read().decode("utf-8"))
+
+        api_names = {
+            evt.get("api_name")
+            for evt in config.get("dependencies", [])
+            if evt.get("api_name")
+        }
+        # At minimum, market intelligence screen + analytics must exist
+        assert any(n and "market" in n for n in api_names), (
+            "Live deployment missing market-related handlers"
+        )
+        assert any(n and "analytics" in n for n in api_names), (
+            "Live deployment missing analytics handlers"
+        )
+
+
+# ── Live write-endpoint coverage (state persistence) ─────────────────────
+
+
+class TestLiveWriteEndpoints:
+    """Verify the live app's write endpoints (state mutations) work
+    end-to-end. Read-only tests catch boot failures; write tests
+    catch the database, persistence, and per-household state
+    machine failures.
+    """
+
+    def test_live_show_add_household_renders_form(self):
+        """The 'show add household' handler must render a form when
+        called (the home-flow state machine transitions to the
+        'creating' state)."""
+        # Find the show_add_household fn_index from config
+        fn_index = self._find_api_fn_index("show_add_household")
+        if fn_index is None:
+            pytest.skip("show_add_household not in live config")
+        result = _call_gradio_api(fn_index=fn_index, data=[])
+        assert result.get("msg") == "process_completed", result
+        # The output is the visibility state of the add-form group
+        output_data = result.get("output", {}).get("data", [])
+        # gr.update(visible=...) returns a dict, not a list
+        if output_data and isinstance(output_data[0], dict):
+            assert "visible" in output_data[0]
+
+    def test_live_cancel_add_household_returns_to_normal(self):
+        """The 'cancel add household' handler must transition back
+        to the normal state (form hidden)."""
+        fn_index = self._find_api_fn_index("cancel_add_household")
+        if fn_index is None:
+            pytest.skip("cancel_add_household not in live config")
+        result = _call_gradio_api(fn_index=fn_index, data=[])
+        assert result.get("msg") == "process_completed", result
+
+    def test_live_field_notes_save_round_trip(self):
+        """The 'notes_save' handler must accept a markdown string
+        and return a confirmation. This exercises the DB write path."""
+        fn_index = self._find_api_fn_index("notes_save")
+        if fn_index is None:
+            pytest.skip("notes_save not in live config")
+        result = _call_gradio_api(
+            fn_index=fn_index,
+            data=["# Live regression test\nThis is a test note."],
+        )
+        # The handler may succeed or require a household context;
+        # what matters is no stack trace
+        assert result.get("msg") in ("process_completed", "error"), result
+        if result.get("msg") == "error":
+            assert "Traceback" not in result.get("error", ""), result
+
+    @staticmethod
+    def _find_api_fn_index(api_name: str) -> int | None:
+        """Look up the fn_index for a named API on the live config."""
+        try:
+            req = urllib.request.Request(f"{LIVE_BASE}/config")
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                config = json.loads(resp.read().decode("utf-8"))
+        except Exception:
+            return None
+        for evt in config.get("dependencies", []):
+            if evt.get("api_name") == api_name:
+                return evt["id"]
+        return None
