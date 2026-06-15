@@ -231,6 +231,7 @@ def stat_card(
     on_click_tab: str = "",
     body_html: str = "",
     style: str = "",
+    title: str = "",
 ) -> str:
     """Render a stat/metric card, or a generic ``.stat-card``-styled container.
 
@@ -248,11 +249,16 @@ def stat_card(
         body_html: Custom HTML body. Required for generic content cards
             (when ``value`` and ``label`` are both empty).
         style: Extra inline CSS appended after the variant-derived style.
+        title: Tooltip text shown on hover. Used to disambiguate
+            customer-facing claims (motto_v3 §0.11) and to surface
+            unit/denomination context (e.g. "market clusters, not
+            inventory items").
     """
     safe_value = escape(str(value))
     safe_label = escape(str(label))
     safe_icon = escape(str(icon)) if icon else ""
     safe_trend = escape(str(trend_value)) if trend_value else ""
+    safe_title = escape(str(title)) if title else ""
 
     variant_map = {
         "default": "",
@@ -287,10 +293,11 @@ def stat_card(
         )
 
     aria_attr = f" role='region' aria-label='{safe_label}: {safe_value}'" if (value or label) else ""
+    title_attr = f" title='{safe_title}'" if safe_title else ""
     combined_style = f"{variant_style}{'cursor:pointer;' if on_click_tab else ''}{style}"
 
     return (
-        f"<div class='stat-card'{aria_attr}{click_attr} style='{combined_style}'>{icon_html}"
+        f"<div class='stat-card'{aria_attr}{title_attr}{click_attr} style='{combined_style}'>{icon_html}"
         + (body_html if body_html else (
             f"<div class='stat-value'>{safe_value}</div><div class='stat-label'>{safe_label}</div>"
             + (f"<div style='margin-top:6px;'>{trend_html}</div>" if trend_html else "")

@@ -295,7 +295,7 @@ class TestConsume:
 class TestInventoryCardsView:
     def test_empty(self, app):
         html = inventory_cards_view()
-        assert "Your inventory is empty" in html
+        assert "No inventory items yet" in html
 
     def test_with_items(self, app):
         app_db.add_inventory_lot(InventoryLot(canonical_name="rice", display_name="Basmati Rice", quantity=2.0, unit="kg", storage_location_id="pantry"))

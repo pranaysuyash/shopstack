@@ -471,14 +471,43 @@ def _build_market_graph(uid: str):
 
 
 def _render_market_summary_chips(graph) -> str:
+    """Render the market-graph summary chips that appear on the home panel.
+
+    **Why the labels are explicit (motto_v3 §0.11, §0.14):**
+    A bare "stale" count is ambiguous — a user reading the home page
+    reasonably assumes "stale" refers to their own inventory. The
+    number is the count of market clusters whose underlying market
+    snapshot is older than the freshness threshold; the chip must
+    say so. We also include the snapshot age so the cause is
+    visible next to the symptom.
+    """
+    items_n = int(graph.summary.get("items_scored", 0))
+    compare_n = int(graph.summary.get("compare", 0))
+    substitute_n = int(graph.summary.get("substitute", 0))
+    stale_n = int(graph.summary.get("stale", 0))
+    # Pull the snapshot age if available so the chip is self-explanatory
+    age_days = ""
+    if getattr(graph, "snapshot_freshness_label", ""):
+        # The label looks like "Captured 9 days ago (2026-06-06)"
+        age_days = graph.snapshot_freshness_label
+    # "items" alone is also ambiguous — make it clear these are market-tracked
+    # items, not pantry items.
     chips = [
-        badge_html(f"{graph.summary.get('items_scored', 0)} items", "blue"),
-        badge_html(f"{graph.summary.get('compare', 0)} compare", "blue"),
-        badge_html(f"{graph.summary.get('substitute', 0)} substitute", "red"),
-        badge_html(f"{graph.summary.get('stale', 0)} stale", "red" if graph.summary.get("stale", 0) else "gray"),
+        badge_html(f"{items_n} market items", "blue"),
+        badge_html(f"{compare_n} compare", "blue"),
+        badge_html(f"{substitute_n} substitute", "red"),
+        badge_html(
+            f"market data stale · {stale_n}" if stale_n else "market data fresh",
+            "red" if stale_n else "gray",
+        ),
     ]
+    if age_days:
+        chips.append(
+            f"<span class='muted' style='font-size:0.6875rem;' "
+            f"title='{escape(age_days)}'>{escape(age_days)}</span>"
+        )
     return (
-        "<div style='margin-top:-2px;margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap;'>"
+        "<div style='margin-top:-2px;margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;'>"
         + "".join(chips)
         + "</div>"
     )

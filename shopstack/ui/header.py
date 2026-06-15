@@ -553,7 +553,13 @@ def pwa_head_html() -> str:
 <!-- PWA: manifest + theme color (Phase 4 #5) -->
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#0f172a">
-<meta name="apple-mobile-web-app-capable" content="yes">
+<!-- mobile-web-app-capable is the modern standard replacement for
+     apple-mobile-web-app-capable (which Chrome 86+ and Safari 15.4+
+     deprecate). The apple-* meta is intentionally NOT emitted to
+     avoid the deprecation console warning. Older iOS Safari (pre-15.4)
+     loses full PWA install, but the home-screen icon / status-bar
+     behaviour on those legacy devices is a minor trade-off. -->
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script data-ss-exec="true">
 // Register service worker for PWA shell caching (Phase 4 #5)

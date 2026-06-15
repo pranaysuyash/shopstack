@@ -58,13 +58,15 @@ def market_intelligence_view(search: str = "", lane_filter: str = "") -> str:
     )
 
     summary_cards = (
-        stat_card(str(graph.summary.get("items_scored", 0)), "Items Scored", icon="🧠")
+        stat_card(str(graph.summary.get("items_scored", 0)), "Market items", icon="🧠",
+                  title="Count of market clusters being scored (each is one canonical product in the snapshot).")
         + stat_card(str(graph.summary.get("buy", 0)), "Buy", variant="success", icon="🛒")
         + stat_card(str(graph.summary.get("skip", 0)), "Skip", variant="default", icon="⏭")
         + stat_card(str(graph.summary.get("use_soon", 0)), "Use Soon", variant="warning", icon="🥬")
         + stat_card(str(graph.summary.get("compare", 0)), "Compare", variant="default", icon="⚖️")
         + stat_card(str(graph.summary.get("substitute", 0)), "Substitute", variant="danger", icon="🔁")
-        + stat_card(str(graph.summary.get("stale", 0)), "Stale", variant="danger", icon="⏳")
+        + stat_card(str(graph.summary.get("stale", 0)), "Market stale", variant="danger", icon="⏳",
+                  title="Count of market clusters whose underlying snapshot is older than the freshness threshold. NOT inventory staleness.")
         + stat_card(str(graph.summary.get("sponsored", 0)), "Sponsored", variant="warning", icon="📣")
     )
     truth_cards = (

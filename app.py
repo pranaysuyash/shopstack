@@ -51,6 +51,26 @@ from shopstack.ui.components.js_helpers import (
 )
 
 
+def _install_post_launch_hooks(app: gr.Blocks) -> None:
+    """Ensure root routes are restored after Gradio recreates the FastAPI app.
+
+    Gradio's ``launch()`` rebuilds ``app.app``. That means any routes
+    mounted during ``build_app()`` are lost unless we mount them again
+    after launch. HF Spaces follows the same launch path, so this wrapper
+    keeps ``/sw.js``, ``/manifest.json``, and ``/health/ui`` reachable
+    both locally and on Spaces.
+    """
+    original_launch = app.launch
+
+    def _launch_with_post_hooks(*args, **kwargs):
+        result = original_launch(*args, **kwargs)
+        mount_pwa_static(app)
+        mount_health_endpoint(app, db)
+        return result
+
+    app.launch = _launch_with_post_hooks
+
+
 def _household_switch_reload_js() -> str:
     """Return JS that reloads the page after a household switch.
 
@@ -264,6 +284,7 @@ def build_app() -> gr.Blocks:
     # while inside the context.
     mount_pwa_static(app)
     mount_health_endpoint(app, db)
+    _install_post_launch_hooks(app)
 
     return app
 
@@ -279,11 +300,4 @@ if __name__ == "__main__":
 
     app = build_app()
     app.launch(server_port=args.port, share=args.share, theme=gr.themes.Base(), head=pwa_head_html(), css=CSS, prevent_thread_lock=True)
-    # Post-launch re-mounts: launch() discards the FastAPI app constructed
-    # during build_app() and creates a new one, so any custom routes we
-    # registered in build_app() are lost. Re-mount PWA + health here so
-    # they're attached to the live FastAPI app. (See motto_v3 §0.10:
-    # observability endpoints must actually be reachable after launch.)
-    mount_pwa_static(app)
-    mount_health_endpoint(app, db)
     app.block_thread()

@@ -633,7 +633,18 @@ def compute_unit_prices(
     if not price or price <= 0 or quantity is None or quantity <= 0:
         return result
 
-    if is_weight_based and unit == "g":
+    # Weight-based branch.
+    # - `unit == "g"`  → grams, 1 unit = 1 g. price_per_kg = price/qty*1000.
+    # - `unit == "mL"` → millilitres, treated as 1 mL ≈ 1 g for liquids
+    #   (the canonical normalisation is that `parse_size()` stores
+    #   litre inputs as "mL" — see `shopstack/domain/parse_size.py`).
+    #   price_per_kg = price / quantity_mL * 1000.
+    # Prior to this fix, `mL` was silently dropped and the function
+    # returned `None`, leaving milk/oil/etc. without a per-kg price
+    # in price-compare cards. See the sibling fix in
+    # `shopstack/services/price_memory.py::_price_per_kg` for the
+    # equivalent volume handling.
+    if is_weight_based and unit in ("g", "mL"):
         result["price_per_kg"] = round(price / quantity * 1000, 2)
         result["price_per_100g"] = round(price / quantity * 100, 2)
     elif is_piece_based and unit == "pieces":

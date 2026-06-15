@@ -24,6 +24,37 @@ def test_today_dashboard_returns_correct_shape(app):
         assert isinstance(r, str)
 
 
+def test_launch_reinstalls_pwa_and_health_routes(monkeypatch, app):
+    """The launch wrapper should restore routes after Gradio rebuilds the app."""
+    import app as app_module
+
+    calls: list[str] = []
+
+    def fake_mount_pwa_static(blocks):
+        calls.append("pwa")
+
+    def fake_mount_health_endpoint(blocks, db):
+        calls.append("health")
+
+    def fake_launch(self, *args, **kwargs):
+        calls.append("launch")
+        return "launched"
+
+    monkeypatch.setattr(app_module, "mount_pwa_static", fake_mount_pwa_static)
+    monkeypatch.setattr(app_module, "mount_health_endpoint", fake_mount_health_endpoint)
+    monkeypatch.setattr(gr.Blocks, "launch", fake_launch, raising=False)
+
+    built = app_module.build_app()
+    assert calls.count("pwa") == 1
+    assert calls.count("health") == 1
+
+    result = built.launch()
+    assert result == "launched"
+    assert calls.count("launch") == 1
+    assert calls.count("pwa") == 2
+    assert calls.count("health") == 2
+
+
 def test_all_view_functions_importable(app):
     """Verify all tab builders are registered in the tab registry."""
     from shopstack.ui.tabs.registry import get_builder, registered_tab_ids
