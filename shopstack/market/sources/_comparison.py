@@ -5,6 +5,7 @@ from html import escape
 from typing import Any
 
 from shopstack.market.sources._registry import SourceRegistry
+from shopstack.ui.components.primitives import home_card
 
 
 @dataclass
@@ -102,12 +103,15 @@ def format_cross_source_html(comparisons: list[CrossSourcePrice]) -> str:
             f"</tr>"
         )
 
-    return (
-        f"<div class='home-card' style='text-align:left;margin-bottom:12px;'><h3>Multi-Source Price Comparison</h3>"
-        f"<table style='width:100%;border-collapse:collapse;font-size: 0.75rem;'><thead><tr style='border-bottom:2px solid var(--border);'>"
-        f"<th style='text-align:left;padding:4px;'>Item</th>{header_cells}"
-        f"<th style='text-align:left;padding:4px;'>Savings</th></tr></thead>"
-        f"<tbody>{''.join(rows)}</tbody></table></div>"
+    return home_card(
+        style="text-align:left;margin-bottom:12px;",
+        body=(
+            f"<h3>Multi-Source Price Comparison</h3>"
+            f"<table style='width:100%;border-collapse:collapse;font-size: 0.75rem;'><thead><tr style='border-bottom:2px solid var(--border);'>"
+            f"<th style='text-align:left;padding:4px;'>Item</th>{header_cells}"
+            f"<th style='text-align:left;padding:4px;'>Savings</th></tr></thead>"
+            f"<tbody>{''.join(rows)}</tbody></table>"
+        ),
     )
 
 

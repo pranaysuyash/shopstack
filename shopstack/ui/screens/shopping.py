@@ -684,11 +684,12 @@ def shopping_list_share() -> str:
         logger.warning("shopping_list_share: get_active failed: %s", exc)
         return ""
     if not sl:
-        return (
-            "<div class='home-card'>"
-            "<div style='font-size: 0.75rem;color:var(--text-dim);'>"
-            "No active shopping list. Create or activate a list first."
-            "</div></div>"
+        return home_card(
+            body=(
+                "<div style='font-size: 0.75rem;color:var(--text-dim);'>"
+                "No active shopping list. Create or activate a list first."
+                "</div>"
+            ),
         )
     # Build the row dicts the share_text helper expects
     rows: list[dict[str, Any]] = []

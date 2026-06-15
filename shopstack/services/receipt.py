@@ -8,6 +8,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
+from shopstack.app_context import APP_NAME
 from shopstack.portability import ImportResult
 from shopstack.domain import canonicalize_name, normalize_item_name
 from shopstack.schemas.models import (
@@ -396,6 +397,18 @@ def confirm_receipt(database: Any, result: ReceiptResult, user_id: str = "") -> 
         # the whole confirm; just surface the issue via messages.
         ir.errors.append(f"Failed to save receipt audit trail: {exc}")
         logger.warning("receipt audit trail save failed: %s", exc)
+    # Parallel .txt export (added 2026-06-13). The .txt is the
+    # human-readable counterpart of the JSON audit file; both
+    # are written on every confirm so the audit trail is
+    # reviewable in any text editor (not just by the JSON-aware
+    # tooling).
+    try:
+        txt_path = export_receipt_txt(result, user_id=user_id)
+        ir.messages.append(f"Saved receipt .txt: {txt_path}")
+        logger.info("receipt .txt saved: %s", txt_path)
+    except OSError as exc:
+        ir.errors.append(f"Failed to save receipt .txt: {exc}")
+        logger.warning("receipt .txt save failed: %s", exc)
 
     return ir
 
@@ -467,3 +480,101 @@ def export_receipt_json(
     with path.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, ensure_ascii=False, indent=2)
     return path
+
+
+def _receipt_txt_body(result: "ReceiptResult") -> str:
+    """Render a parsed receipt as plain text for human-readable export.
+
+    Used by :func:`export_receipt_txt` (audit-trail side effect) and
+    by the public ``receipt_export_txt`` Gradio adapter (on-demand
+    download). Format is plain text with no markdown so the file
+    can be opened in any text editor or pasted into a notes app
+    without rendering issues.
+    """
+    lines: list[str] = []
+    lines.append(f"{APP_NAME} Receipt")
+    lines.append("=" * 40)
+    lines.append(f"Merchant:  {result.merchant or '(unknown)'}")
+    date_str = (
+        result.purchase_date.isoformat()
+        if hasattr(result.purchase_date, "isoformat")
+        else str(result.purchase_date)
+    )
+    lines.append(f"Date:     {date_str}")
+    lines.append(f"Total:    {result.total:.2f}")
+    lines.append("")
+    lines.append("Items:")
+    if not result.lines:
+        lines.append("  (no items parsed)")
+    for line in result.lines:
+        qty_str = f"{line.quantity:g}" if line.quantity else "?"
+        unit_str = line.unit or ""
+        price_str = f"{line.price:.2f}" if line.price else "?"
+        lines.append(
+            f"  - {line.display_name or line.canonical_name} "
+            f"({qty_str} {unit_str}) @ {price_str}"
+        )
+    if getattr(result, "raw_text", ""):
+        lines.append("")
+        lines.append("Raw OCR text:")
+        lines.append("-" * 40)
+        lines.append(result.raw_text)
+    return "\n".join(lines) + "\n"
+
+
+def export_receipt_txt(
+    result: "ReceiptResult",
+    user_id: str = "",
+    data_dir: Path | None = None,
+) -> Path:
+    """Save a parsed receipt as a human-readable .txt audit file.
+
+    Per ``Docs/REMAINING_WORK.md`` Tier 2 #Receipt TXT Export,
+    the receipt service should also save the parsed result as a
+    plain-text file for sharing/audit alongside the structured
+    JSON. The .txt is easier to read in a text editor and easier
+    to forward via messaging apps that don't preserve JSON
+    formatting.
+
+    Filename pattern is the same as the JSON export
+    (``<timestamp>_<merchant>.txt``) so the two files are
+    trivially correlatable.
+
+    Args:
+        result: The parsed receipt.
+        user_id: The user who confirmed the receipt (for audit).
+        data_dir: Optional override for the data directory.
+            Defaults to ``data/receipts/``.
+
+    Returns:
+        The path of the written .txt file.
+
+    Raises:
+        OSError: If the directory cannot be created or file written.
+    """
+    base_dir = data_dir if data_dir is not None else Path("data") / "receipts"
+    base_dir.mkdir(parents=True, exist_ok=True)
+
+    # Sanitize merchant for filename (same as JSON export).
+    safe_merchant = re.sub(r"[^A-Za-z0-9 _-]", "", result.merchant or "unknown").strip()[:50]
+    safe_merchant = safe_merchant.replace(" ", "_") or "unknown"
+    timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+    filename = f"{timestamp}_{safe_merchant}.txt"
+    path = base_dir / filename
+
+    body = _receipt_txt_body(result)
+    # Audit-trail header: who confirmed + when.
+    header = (
+        f"# Audit: confirmed by {user_id or 'unknown'} at "
+        f"{datetime.now().isoformat()}\n"
+    )
+    with path.open("w", encoding="utf-8") as handle:
+        handle.write(header)
+        handle.write(body)
+    return path
+
+
+# Note: ``APP_NAME`` is now imported at the top of this module
+# (was previously lazily resolved via a __getattr__ shim; that
+# shim was removed 2026-06-13 when the explicit import was added
+# to support the .txt export).

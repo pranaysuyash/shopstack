@@ -44,6 +44,7 @@ from shopstack.ui.screens import (
 from shopstack.ui.screens.receipt import (
     _load_ocr_model,
     receipt_confirm,
+    receipt_export_txt,
     receipt_parse_text,
     receipt_scan_ocr,
 )
@@ -111,8 +112,18 @@ def build_basket_add_items(app: gr.Blocks, ctx: TabContext) -> None:
                         label="Purchase Date (YYYY-MM-DD)", interactive=True
                     )
 
-                receipt_confirm_btn = gr.Button(
-                    "Confirm & Add to Inventory", variant="primary"
+                with gr.Row():
+                    receipt_confirm_btn = gr.Button(
+                        "Confirm & Add to Inventory", variant="primary"
+                    )
+                    receipt_export_btn = gr.Button(
+                        "💾 Save as .txt", elem_id="receipt-export-btn"
+                    )
+                receipt_export_out = gr.Textbox(
+                    label="Receipt .txt (copy or paste into a notes app)",
+                    lines=10,
+                    interactive=False,
+                    visible=False,
                 )
                 receipt_result = gr.HTML(
                     empty_state_enhanced(
@@ -152,6 +163,27 @@ def build_basket_add_items(app: gr.Blocks, ctx: TabContext) -> None:
                         "Confirm parsed receipt lines and add items to inventory"
                     ),
                     js="() => showToast('Adding receipt items to inventory...', 'info')",
+                )
+                # "Save as .txt" button: renders the receipt as a
+                # plain-text snippet the user can copy or paste
+                # into a notes app / WhatsApp / email. The textbox
+                # is hidden by default and shown on click so the
+                # receipt sub-tab doesn't get cluttered.
+                def _show_export(text: str) -> tuple[str, gr.update]:
+                    return text, gr.update(visible=True)
+                receipt_export_btn.click(
+                    receipt_export_txt,
+                    [receipt_merchant, receipt_date, receipt_raw_text],
+                    receipt_export_out,
+                    api_name="receipt_export_txt",
+                    api_description=(
+                        "Render the most-recently-confirmed receipt "
+                        "as a plain-text snippet for sharing/audit."
+                    ),
+                ).then(
+                    _show_export,
+                    receipt_export_out,
+                    [receipt_export_out, receipt_export_out],
                 )
                 app.load(_load_ocr_model, outputs=receipt_status)
 

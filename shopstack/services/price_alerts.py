@@ -24,6 +24,7 @@ from typing import Any
 
 from shopstack.market.schema import MarketSnapshot
 from shopstack.services.price_memory import PriceMemoryService
+from shopstack.ui.components.primitives import home_card
 
 logger = logging.getLogger(__name__)
 
@@ -193,11 +194,13 @@ def render_price_drops_html(alerts: list[PriceDropAlert]) -> str:
             f"</div>"
         )
 
-    return (
-        f"<div class='home-card' style='margin-bottom:12px;'><h3 style='margin:0 0 4px 0;'>📉 Price Drops</h3>"
-        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>Items currently priced noticeably below your historical median."
-        f"</div>{''.join(rows)}"
-        f"</div>"
+    return home_card(
+        style="margin-bottom:12px;",
+        body=(
+            f"<h3 style='margin:0 0 4px 0;'>📉 Price Drops</h3>"
+            f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>Items currently priced noticeably below your historical median."
+            f"</div>{''.join(rows)}"
+        ),
     )
 
 

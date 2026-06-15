@@ -29,6 +29,7 @@ from shopstack.services.cookbook import (
 )
 from shopstack.services.i18n import DEFAULT_LOCALE, load_locale_preference
 from shopstack.services.recipes import get_recipe, match_recipe
+from shopstack.ui.components.primitives import home_card
 
 logger = logging.getLogger(__name__)
 
@@ -149,15 +150,12 @@ def cookbook_shop_missing(
         HTML status string (success / nothing-to-add / not-found).
     """
     if not recipe_id:
-        return (
-            "<div class='home-card' style='border-left:3px solid var(--red);'>"
-            "⚠ No recipe selected.</div>"
-        )
+        return home_card(style="border-left:3px solid var(--red);", body="⚠ No recipe selected.")
     recipe = get_recipe(recipe_id)
     if recipe is None:
-        return (
-            "<div class='home-card' style='border-left:3px solid var(--red);'>"
-            f"⚠ Recipe <code>{recipe_id}</code> not found.</div>"
+        return home_card(
+            style="border-left:3px solid var(--red);",
+            body=f"⚠ Recipe <code>{recipe_id}</code> not found.",
         )
     try:
         inventory = db.get_inventory(user_id=current_user_id() or "")
@@ -166,9 +164,9 @@ def cookbook_shop_missing(
         )
     except Exception as exc:
         logger.warning("cookbook shop_missing failed: %s", exc)
-        return (
-            "<div class='home-card' style='border-left:3px solid var(--red);'>"
-            f"⚠ Could not update shopping list: {exc}</div>"
+        return home_card(
+            style="border-left:3px solid var(--red);",
+            body=f"⚠ Could not update shopping list: {exc}",
         )
 
     # The cookbook service returns a dict with these keys (see
@@ -177,21 +175,19 @@ def cookbook_shop_missing(
     # The status card branches on ``count`` and ``reason``.
     if result.get("added") and result.get("count", 0) > 0:
         added = result["count"]
-        return (
-            "<div class='home-card' style='border-left:3px solid var(--green);'>"
-            f"✓ Added {added} missing item{'s' if added != 1 else ''} from {recipe.name} to the active shopping list."
-            "</div>"
+        return home_card(
+            style="border-left:3px solid var(--green);",
+            body=f"✓ Added {added} missing item{'s' if added != 1 else ''} from {recipe.name} to the active shopping list.",
         )
     if result.get("count", 0) == 0 and result.get("reason", "").startswith("Nothing missing"):
-        return (
-            "<div class='home-card' style='border-left:3px solid var(--green);'>"
-            f"✓ You already have every ingredient for {recipe.name}."
-            "</div>"
+        return home_card(
+            style="border-left:3px solid var(--green);",
+            body=f"✓ You already have every ingredient for {recipe.name}.",
         )
     # Catch-all: anything else the service reports (no list, db error, etc.)
-    return (
-        "<div class='home-card' style='border-left:3px solid var(--amber);'>"
-        f"⚠ {result.get('reason', 'No items added.')} ({recipe.name})</div>"
+    return home_card(
+        style="border-left:3px solid var(--amber);",
+        body=f"⚠ {result.get('reason', 'No items added.')} ({recipe.name})",
     )
 
 

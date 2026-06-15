@@ -5,6 +5,7 @@ from html import escape
 
 from shopstack.market.schema import NormalizedMarketRecord
 from shopstack.services.market_sources import get_latest_snapshot, source_status_report
+from shopstack.ui.components.primitives import home_card
 from shopstack.ui.screens._utils import safe_render, source_freshness_html
 
 
@@ -36,12 +37,17 @@ def swiggy_market_view() -> str:
     parts: list[str] = []
 
     parts.append(
-        f"<div class='home-card' style='text-align:left;margin-bottom:12px;'><h3>Swiggy Fresh Vegetables \u2014 {snapshot.captured_at}</h3>"
-        f"{_market_freshness_html(snapshot)}<div style='display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;'>"
-        f"<div><strong>{analytics['total']}</strong> items</div><div style='color:var(--green);'><strong>{analytics['available']}</strong> available</div>"
-        f"<div style='color:var(--red);'><strong>{analytics['sold_out']}</strong> sold out</div><div><strong>{analytics['combos']}</strong> combos</div>"
-        f"<div>Avg: <strong>&#8377;{analytics['avg_price']}</strong></div><div>Median: <strong>&#8377;{analytics['median_price']}</strong></div>"
-        f"<div>Avg discount: <strong>{analytics['avg_discount']}%</strong></div></div></div>"
+        home_card(
+            style="text-align:left;margin-bottom:12px;",
+            body=(
+                f"<h3>Swiggy Fresh Vegetables \u2014 {snapshot.captured_at}</h3>"
+                f"{_market_freshness_html(snapshot)}<div style='display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;'>"
+                f"<div><strong>{analytics['total']}</strong> items</div><div style='color:var(--green);'><strong>{analytics['available']}</strong> available</div>"
+                f"<div style='color:var(--red);'><strong>{analytics['sold_out']}</strong> sold out</div><div><strong>{analytics['combos']}</strong> combos</div>"
+                f"<div>Avg: <strong>&#8377;{analytics['avg_price']}</strong></div><div>Median: <strong>&#8377;{analytics['median_price']}</strong></div>"
+                f"<div>Avg discount: <strong>{analytics['avg_discount']}%</strong></div></div>"
+            ),
+        )
     )
 
     bv = analytics.get("best_value_by_canonical", {})
@@ -70,22 +76,32 @@ def swiggy_market_view() -> str:
             )
 
         parts.append(
-            f"<div class='home-card' style='text-align:left;margin-bottom:12px;'><h3>Best Value by Price/kg <span style='font-weight:normal;font-size: 0.75rem;color:var(--text-dim);'>(available first, weight-based only)</span></h3>"
-            f"<table style='width:100%;border-collapse:collapse;font-size: 0.75rem;'><thead><tr style='border-bottom:2px solid var(--border);'>"
-            f"<th style='text-align:left;padding:4px;'>Item</th><th style='text-align:right;padding:4px;'>&#8377;/kg</th>"
-            f"<th style='text-align:left;padding:4px;'>Size</th><th style='text-align:right;padding:4px;'>Price</th>"
-            f"<th style='text-align:center;padding:4px;'>Avail</th><th style='text-align:right;padding:4px;'>Off</th>"
-            f"</tr></thead><tbody>{''.join(rows)}</tbody>"
-            f"</table></div>"
+            home_card(
+                style="text-align:left;margin-bottom:12px;",
+                body=(
+                    f"<h3>Best Value by Price/kg <span style='font-weight:normal;font-size: 0.75rem;color:var(--text-dim);'>(available first, weight-based only)</span></h3>"
+                    f"<table style='width:100%;border-collapse:collapse;font-size: 0.75rem;'><thead><tr style='border-bottom:2px solid var(--border);'>"
+                    f"<th style='text-align:left;padding:4px;'>Item</th><th style='text-align:right;padding:4px;'>&#8377;/kg</th>"
+                    f"<th style='text-align:left;padding:4px;'>Size</th><th style='text-align:right;padding:4px;'>Price</th>"
+                    f"<th style='text-align:center;padding:4px;'>Avail</th><th style='text-align:right;padding:4px;'>Off</th>"
+                    f"</tr></thead><tbody>{''.join(rows)}</tbody>"
+                    f"</table>"
+                ),
+            )
         )
 
     sold_out = [r for r in snapshot.normalized_records if not r.is_available and not r.is_combo]
     if sold_out:
         sold_out_names = sorted(set(r.canonical_name.replace("_", " ").title() for r in sold_out))
         parts.append(
-            f"<div class='home-card' style='text-align:left;margin-bottom:12px;'><h3>Sold Out ({len(sold_out_names)} items)</h3>"
-            f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>{', '.join(escape(n) for n in sold_out_names[:30])}"
-            f"</div></div>"
+            home_card(
+                style="text-align:left;margin-bottom:12px;",
+                body=(
+                    f"<h3>Sold Out ({len(sold_out_names)} items)</h3>"
+                    f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>{', '.join(escape(n) for n in sold_out_names[:30])}"
+                    f"</div>"
+                ),
+            )
         )
 
     return "".join(parts) if parts else "<div style='color:var(--text-dim);'>No market data available.</div>"

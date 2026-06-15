@@ -22,6 +22,7 @@ from shopstack.services.today_intelligence import (
 )
 from shopstack.services.trip_advisor import advise_trip, _build_use_soon_count
 from shopstack.services.weather import get_weather
+from shopstack.ui.components.primitives import home_card
 
 logger = logging.getLogger(__name__)
 
@@ -104,11 +105,12 @@ def today_intelligence_screen(
         return render_today_intelligence_html(intel)
     except Exception as exc:
         logger.warning("today_intelligence_screen failed: %s", exc)
-        return (
-            "<div class='home-card' style='text-align:center;padding:12px;'>"
-            "<div style='color:var(--amber);font-weight:600;'>Could not load today's intelligence</div>"
-            f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{escape(str(exc)[:120])}</div>"
-            "</div>"
+        return home_card(
+            style="text-align:center;padding:12px;",
+            body=(
+                "<div style='color:var(--amber);font-weight:600;'>Could not load today's intelligence</div>"
+                f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{escape(str(exc)[:120])}</div>"
+            ),
         )
 
 

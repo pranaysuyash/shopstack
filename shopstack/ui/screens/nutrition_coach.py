@@ -18,6 +18,7 @@ from shopstack.services.nutrition_coach import (
     build_coaching,
     render_coaching_html,
 )
+from shopstack.ui.components.primitives import home_card
 
 logger = logging.getLogger(__name__)
 
@@ -53,10 +54,9 @@ def nutrition_coach_screen(
         return render_coaching_html(coaching, locale=locale)
     except Exception as exc:
         logger.warning("nutrition_coach_screen failed: %s", exc)
-        return (
-            "<div class='home-card' style='text-align:center;color:var(--text-dim);padding:16px;'>"
-            "🥗 Add some inventory first to see nutrition coaching."
-            "</div>"
+        return home_card(
+            style="text-align:center;color:var(--text-dim);padding:16px;",
+            body="🥗 Add some inventory first to see nutrition coaching.",
         )
 
 

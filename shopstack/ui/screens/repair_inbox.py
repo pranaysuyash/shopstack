@@ -22,6 +22,7 @@ from shopstack.services.condition import (
     record_condition_event,
 )
 from shopstack.ui.components.decorators import aria_live_screen
+from shopstack.ui.components.primitives import home_card
 from shopstack.ui.screens._utils import safe_render
 
 logger = logging.getLogger(__name__)
@@ -65,20 +66,23 @@ def repair_inbox_view(severity: str = "") -> str:
         items = get_repair_inbox(db, severity=sev, limit=50)
     except Exception as exc:
         logger.exception("repair_inbox_view failed")
-        return (
-            "<div class='home-card' style='text-align:center;padding:16px;'>"
-            "<div style='color:var(--red);font-weight:600;'>Could not load inbox</div>"
-            f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{escape(str(exc)[:120])}</div>"
-            "</div>"
+        return home_card(
+            style="text-align:center;padding:16px;",
+            body=(
+                "<div style='color:var(--red);font-weight:600;'>Could not load inbox</div>"
+                f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{escape(str(exc)[:120])}</div>"
+            ),
         )
     if not items:
-        return (
-            "<div class='home-card' style='text-align:center;padding:24px;'>"
-            "<div style='font-size:1.5rem;margin-bottom:8px;'>✓</div>"
-            "<div style='font-weight:600;'>All clear</div>"
-            "<div style='font-size:0.75rem;color:var(--text-dim);margin-top:4px;'>"
-            "No open condition issues. Items in good shape."
-            "</div></div>"
+        return home_card(
+            style="text-align:center;padding:24px;",
+            body=(
+                "<div style='font-size:1.5rem;margin-bottom:8px;'>✓</div>"
+                "<div style='font-weight:600;'>All clear</div>"
+                "<div style='font-size:0.75rem;color:var(--text-dim);margin-top:4px;'>"
+                "No open condition issues. Items in good shape."
+                "</div>"
+            ),
         )
 
     parts: list[str] = []

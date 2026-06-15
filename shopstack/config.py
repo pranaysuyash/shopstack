@@ -56,7 +56,13 @@ class Settings(BaseSettings):
     grounding_backend: str = "grounding_dino"
     image_gen_backend: str = "svg"
     embeddings_backend: str = "nomic"
-    tool_call_parser_backend: str = "minicpm5"
+    # Phase 11 #1.7: was "minicpm5" but MiniCPM5Provider does not declare
+    # ``tool_call_parser`` in its capabilities (it only does text+planning).
+    # The registry would fall through to MockToolCallParser anyway. Default
+    # to "mock" so the registry resolves immediately and the operator
+    # sees the canonical parser without a silent capability mismatch.
+    # Per Docs/NOT_STARTED_FEATURES.md §1.7.
+    tool_call_parser_backend: str = "mock"
     planner_compact_tools: bool = False  # Use compact type-shorthand tool descriptions (~90% accuracy vs ~50%)
     planner_allow_writes: bool = False
 

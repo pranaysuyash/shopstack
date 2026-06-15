@@ -69,7 +69,7 @@ import functools
 import json as _json
 import warnings
 from html import escape
-from typing import Any
+from typing import Any, Callable
 
 # Re-exports for backward compatibility — the JS helpers and the
 # aria_live_screen decorator were moved to dedicated modules in
@@ -117,43 +117,8 @@ def _canonical_aria_live_html(content: str, level: str = "polite") -> str:
     )
 
 
-# ─── Supersession decorator (defined 2026-06-14, motto_v3 §7) ────────
-# This decorator was referenced by the deprecated re-exports below but
-# never actually defined in the module — a half-finished supersession
-# that left the module in a NameError state at attribute access. We
-# define it here so the aliases (busy_js, autocomplete_injector_js,
-# url_state_sync_js, aria_live_screen) work as the existing test
-# contract in ``tests/test_ui_support.py`` requires:
-#   * emit a DeprecationWarning on first call
-#   * point the user to the canonical path in the warning message
-#   * forward args/kwargs to the canonical implementation
-# Deleting the aliases instead would break the test contract — the
-# right fix is to make them work as documented.
-def _deprecated_alias(old_path: str, canonical_path: str):
-    """Decorator factory: mark a function as a deprecated re-export.
-
-    Emits a ``DeprecationWarning`` pointing at the canonical path on
-    every call (callers usually see it once thanks to Python's
-    default warning filter). Forwards positional + keyword args to
-    the wrapped function unchanged.
-    """
-
-    def decorator(fn):
-        @functools.wraps(fn)
-        def wrapper(*args, **kwargs):
-            warnings.warn(
-                f"{old_path} is deprecated; use {canonical_path} instead. "
-                "(motto_v3 §7 supersession protocol)",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            return fn(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
-
-
+# ═══════════════════════════════════════════════════════════════════════
+# Tooltip — superseded by shopstack.services.tooltips
 # ═══════════════════════════════════════════════════════════════════════
 # ItemRow — standardized inventory/shopping item row
 # ═══════════════════════════════════════════════════════════════════════
@@ -531,20 +496,152 @@ def with_loading_state(button, result_panels: list | None = None):
     return busy, idle
 
 
-# Re-export ``aria_live_screen`` from the decorators module so legacy
-# WIP imports of ``from shopstack.ui.components.primitives import
-# aria_live_screen`` still resolve. The real implementation lives
-# in :mod:`shopstack.ui.components.decorators`; the import at the top
-# of this module already establishes the re-export, so no second
-# import is needed here.
+def prereq_interactive(prereq: Callable[..., bool]) -> Callable:
+    """Build a Gradio event handler that toggles a button's ``interactive`` flag.
+
+    Implements Item #45 (motto_v3 §0.14 Product Reality and Operator
+    Workflow): buttons that fire on empty/invalid input are a
+    direct source of "Why didn't anything happen?" support tickets.
+    The button is only enabled when the prereq returns True.
+
+    Usage:
+        submit_btn = gr.Button("Add", interactive=False)
+        submit_btn.change(
+            prereq_interactive(prereq=lambda name, qty, unit, **_: bool(name and qty and unit)),
+            [p_name, p_qty, p_unit, ...],
+            submit_btn,
+        )
+
+    Args:
+        prereq: A callable that accepts the live input values from
+            a Gradio ``.change()`` event (positional, in the order
+            of the input components wired into ``inputs=``) and
+            returns True when the button should be enabled.
+
+    Returns:
+        A handler suitable for Gradio's event wiring. The
+        handler accepts ``*values`` (the live input values) and
+        returns a ``gr.update`` that sets
+        ``interactive=prereq(*values)``.
+
+    Why a helper (motto_v3 §11):
+        Hand-rolled ``gr.update(interactive=...)`` wiring for every
+        button is repetitive and easy to forget on new screens.
+        Centralising it here means new call sites can opt in
+        with one line and the prereq contract lives in one place.
+
+    Defensive behavior:
+        If ``prereq`` itself raises, the helper returns
+        ``interactive=True`` (the conservative choice) so a buggy
+        prereq never disables the button permanently. The user
+        can still trigger the action and see the real error.
+    """
+    import gradio as gr  # local import keeps this module's import
+    # surface lean for tests that don't otherwise need Gradio.
+
+    def _handler(*values: Any) -> Any:
+        try:
+            enabled = bool(prereq(*values))
+        except Exception:  # noqa: BLE001
+            enabled = True
+        return gr.update(interactive=enabled)
+
+    return _handler
 
 
-# Convenience: extract the elem_id from a Gradio component.
-def elem_id_of(component) -> str:
-    """Return the ``elem_id`` of a Gradio component, or empty string if unset."""
-    return str(getattr(component, "elem_id", None) or "")
+def last_updated_stamp(
+    when: Any = None,
+    *,
+    label: str = "Last updated",
+    prefix: str = "Last updated",
+    relative: bool = True,
+) -> str:
+    """Render a small "last updated N ago" stamp for any data surface.
+
+    Implements Item #41 (motto_v3 §0.10 Observability Is Delivery,
+    customer-facing surface): users should never have to guess
+    whether what they're looking at is fresh. A consistent
+    "Last updated 5 minutes ago" stamp at the top of every
+    data card answers the freshness question in one glance.
+
+    Args:
+        when: A ``datetime.datetime`` (or ``date.date``) instance.
+            When ``None``, the stamp degrades to "Last updated: unknown"
+            so callers can pass ``None`` for surfaces that haven't
+            been loaded yet (e.g. the panel rendered before the
+            first fetch resolved).
+        label: The prefix text. Defaults to ``"Last updated"``.
+            Override for non-English locales or different
+            semantics (e.g. ``"Captured"`` for market snapshots).
+        prefix: Same as label; kept for back-compat with earlier
+            draft of the function. Use ``label`` in new code.
+        relative: When True (default), render "5 minutes ago" /
+            "2 hours ago" / "3 days ago" / "Jan 15". When False,
+            render an absolute "Jan 15, 2026 14:32" stamp.
+
+    Returns:
+        XSS-safe HTML safe to inject via ``gr.HTML``. Designed to
+        be small (font-size 0.6875rem), muted, right-aligned
+        in a card header. Renders as ``<time datetime="...">`` so
+        browser tooltips and screen readers see the absolute time.
+    """
+    from html import escape as _esc
+    # Resolve the absolute time for the <time datetime="..."> attr.
+    abs_attr = ""
+    rel_text = "unknown"
+    if when is not None:
+        # datetime or date — both have isoformat(); datetime is the
+        # more common case so we handle it explicitly.
+        try:
+            abs_attr = when.isoformat(timespec="seconds")
+        except TypeError:
+            abs_attr = when.isoformat()
+        if relative:
+            try:
+                from datetime import datetime as _dt, timezone as _tz
+                now = _dt.now(tz=_tz.utc)
+                # If `when` is naive, treat as UTC for diff purposes.
+                ref = when if hasattr(when, "tzinfo") and when.tzinfo else (
+                    when.replace(tzinfo=_tz.utc) if hasattr(when, "tzinfo") else None
+                )
+                if ref is not None and hasattr(ref, "tzinfo"):
+                    delta = now - ref
+                    seconds = int(delta.total_seconds())
+                    if seconds < 0:
+                        rel_text = "just now"
+                    elif seconds < 60:
+                        rel_text = "just now"
+                    elif seconds < 3600:
+                        mins = seconds // 60
+                        rel_text = f"{mins} minute{'s' if mins != 1 else ''} ago"
+                    elif seconds < 86400:
+                        hours = seconds // 3600
+                        rel_text = f"{hours} hour{'s' if hours != 1 else ''} ago"
+                    elif seconds < 86400 * 30:
+                        days = seconds // 86400
+                        rel_text = f"{days} day{'s' if days != 1 else ''} ago"
+                    else:
+                        rel_text = abs_attr[:10]  # YYYY-MM-DD
+                else:
+                    rel_text = abs_attr[:10]
+            except Exception:  # noqa: BLE001
+                rel_text = abs_attr[:10] if abs_attr else "unknown"
+
+    final_label = label or prefix
+    safe_label = _esc(final_label)
+    safe_abs = _esc(abs_attr) if abs_attr else ""
+    safe_rel = _esc(rel_text)
+    return (
+        f"<div class='last-updated-stamp' "
+        f"style='font-size:0.6875rem;color:var(--text-dim);text-align:right;margin-top:-4px;margin-bottom:6px;'>"
+        f"<span aria-hidden='true'>{safe_label}: {safe_rel}</span>"
+        f"<time datetime='{safe_abs}' style='display:none;'>{safe_abs}</time>"
+        f"</div>"
+    )
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# Tooltip — superseded by shopstack.services.tooltips
 # ═══════════════════════════════════════════════════════════════════════
 # Toast — success/error notification
 # ═══════════════════════════════════════════════════════════════════════
@@ -1003,46 +1100,37 @@ def required_marker() -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# Deprecated re-export aliases (motto_v3 §7 supersession protocol)
-# ═══════════════════════════════════════════════════════════════════════
-# These were moved to dedicated modules but we keep backward-compat
-# aliases here so existing ``from shopstack.ui.components import
-# primitives; primitives.busy_js(...)`` call sites keep working while
-# emitting a DeprecationWarning pointing at the canonical path.
-
-from shopstack.ui.components.js_helpers import (  # noqa: E402, F811
-    busy_js as _canonical_busy_js,
-    autocomplete_injector_js as _canonical_autocomplete_injector_js,
-    url_state_sync_js as _canonical_url_state_sync_js,
-)
-from shopstack.ui.components.decorators import (  # noqa: E402, F811
-    aria_live_screen as _canonical_aria_live_screen,
-)
-
-busy_js = _deprecated_alias(  # noqa: F811
-    "shopstack.ui.components.primitives.busy_js",
-    "shopstack.ui.components.js_helpers.busy_js",
-)(_canonical_busy_js)
-
-autocomplete_injector_js = _deprecated_alias(  # noqa: F811
-    "shopstack.ui.components.primitives.autocomplete_injector_js",
-    "shopstack.ui.components.js_helpers.autocomplete_injector_js",
-)(_canonical_autocomplete_injector_js)
-
-url_state_sync_js = _deprecated_alias(  # noqa: F811
-    "shopstack.ui.components.primitives.url_state_sync_js",
-    "shopstack.ui.components.js_helpers.url_state_sync_js",
-)(_canonical_url_state_sync_js)
-
-aria_live_screen = _deprecated_alias(  # noqa: F811
-    "shopstack.ui.components.primitives.aria_live_screen",
-    "shopstack.ui.components.decorators.aria_live_screen"
-)(_canonical_aria_live_screen)
+# Deprecated re-export aliases REMOVED (Pass 10 deletion held by Pass 11
+# verification tests in tests/test_primitives_deprecation.py). Drift had
+# re-added them between Pass 10 and Pass 11; the new real tests caught
+# the regression. The aliases are now permanently gone.
+#
+# If you need any of these symbols, import them from the canonical
+# path directly:
+#
+#   from shopstack.ui.components.js_helpers import busy_js
+#   from shopstack.ui.components.decorators import aria_live_screen
 
 
 # ═══════════════════════════════════════════════════════════════════════
 # Tooltip — superseded by shopstack.services.tooltips
 # ═══════════════════════════════════════════════════════════════════════
+
+
+def elem_id_of(component: Any) -> str:
+    """Read the ``elem_id`` attribute from a Gradio component.
+
+    Returns the ``elem_id`` string if set, or an empty string if
+    the component has no ``elem_id`` (or it is ``None``).
+
+    Args:
+        component: A Gradio component instance (``gr.Button``,
+            ``gr.Textbox``, etc.).
+
+    Returns:
+        The ``elem_id`` string, or ``""``.
+    """
+    return str(getattr(component, "elem_id", None) or "")
 
 
 def tooltip_icon(help_id: str, *, locale: str = "en") -> str:

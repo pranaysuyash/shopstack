@@ -8,6 +8,7 @@ from typing import Any
 from shopstack.app_context import db, providers, tools, current_user_id
 from shopstack.services.market_lens import MarketLensResult, analyze_market_lens
 from shopstack.ui.components import render_grouped_cards
+from shopstack.ui.components.primitives import home_card
 from shopstack.traces.export import create_trace, update_trace_confirmation
 from shopstack.ui.screens._utils import WORKFLOW_STEPS, source_freshness_html
 from shopstack.ui.screens.ask import ask_shopstack, render_ask_response
@@ -37,9 +38,7 @@ def market_lens_process(image_path: str | None, audio_path: str | None) -> tuple
         result_html = (
             source_metadata
             + barcode_section
-            + "<div class='home-card'>"
-            f"<h3>Market Lens</h3>{analysis}{swiggy_section}"
-            "</div>"
+            + home_card(body=f"<h3>Market Lens</h3>{analysis}{swiggy_section}")
         )
         analysis = service_result.analysis_json
 
@@ -94,7 +93,7 @@ def _render_barcode_section(result: MarketLensResult) -> str:
             f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>Type: {escape(str(code['type']))} | Code: {escape(code['code'])}</div><div style='margin-top:6px;color:var(--text-dim);font-size: 0.6875rem;'>Barcode scanned — use the button below to add to inventory.</div>"
             f"</div>"
         )
-    return "<div class='home-card'><h3>Barcode detected</h3>" + "".join(barcode_parts) + "</div>"
+    return home_card(body="<h3>Barcode detected</h3>" + "".join(barcode_parts))
 
 
 def _render_swiggy_section(decisions: list[dict[str, Any]]) -> str:
@@ -144,11 +143,12 @@ def _render_market_lens_source_metadata(result: MarketLensResult) -> str:
             + "</ul>"
         )
 
-    return (
-        "<div class='home-card' style='margin-bottom:10px;'>"
-        f"<h4>Market Lens context</h4><div style='margin-bottom:6px;'><strong>Source mode:</strong> {escape(result.source_mode.title())}</div>"
-        f"<div style='font-size: 0.75rem;color:var(--text-dim);'>{escape(result.freshness_label)}</div>{warning_html}"
-        "</div>"
+    return home_card(
+        style="margin-bottom:10px;",
+        body=(
+            f"<h4>Market Lens context</h4><div style='margin-bottom:6px;'><strong>Source mode:</strong> {escape(result.source_mode.title())}</div>"
+            f"<div style='font-size: 0.75rem;color:var(--text-dim);'>{escape(result.freshness_label)}</div>{warning_html}"
+        ),
     )
 
 

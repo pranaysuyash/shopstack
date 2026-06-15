@@ -24,6 +24,7 @@ from shopstack.services.community_price_map import (
     render_opt_in_toggle_html,
     set_opt_in,
 )
+from shopstack.ui.components.primitives import home_card
 
 logger = logging.getLogger(__name__)
 
@@ -42,24 +43,23 @@ def community_pool_stats_screen() -> str:
     try:
         stats = pool_stats()
         if not stats.get("size"):
-            return (
-                "<div class='home-card' style='font-size: 0.6875rem;color:var(--text-dim);padding:8px;'>"
-                "👥 Local community pool is empty. Opt in to start sharing prices."
-                "</div>"
+            return home_card(
+                style="font-size: 0.6875rem;color:var(--text-dim);padding:8px;",
+                body="👥 Local community pool is empty. Opt in to start sharing prices.",
             )
-        return (
-            "<div class='home-card' style='font-size: 0.6875rem;color:var(--text-muted, #5F5144);padding:8px;'>"
-            f"👥 Local pool: <strong>{stats['size']}</strong> observations, <strong>{stats['distinct_items']}</strong> items, "
-            f"<strong>{stats['distinct_anon']}</strong> anonymized contributors"
-            + (f" · newest: {stats['newest']}" if stats.get("newest") else "")
-            + "</div>"
+        return home_card(
+            style="font-size: 0.6875rem;color:var(--text-muted, #5F5144);padding:8px;",
+            body=(
+                f"👥 Local pool: <strong>{stats['size']}</strong> observations, <strong>{stats['distinct_items']}</strong> items, "
+                f"<strong>{stats['distinct_anon']}</strong> anonymized contributors"
+                + (f" · newest: {stats['newest']}" if stats.get("newest") else "")
+            ),
         )
     except Exception as exc:
         logger.warning("community_pool_stats_screen failed: %s", exc)
-        return (
-            "<div class='home-card' style='font-size: 0.6875rem;color:var(--text-dim);padding:8px;'>"
-            "<span style='color:var(--amber);'>Community pool stats unavailable</span>"
-            "</div>"
+        return home_card(
+            style="font-size: 0.6875rem;color:var(--text-dim);padding:8px;",
+            body="<span style='color:var(--amber);'>Community pool stats unavailable</span>",
         )
 
 

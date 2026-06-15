@@ -33,6 +33,8 @@ from html import escape
 from pathlib import Path
 from typing import Any
 
+from shopstack.ui.components.primitives import home_card
+
 logger = logging.getLogger(__name__)
 
 
@@ -251,6 +253,7 @@ def find_recipes_for_inventory(
     dietary_preference: str = "omnivore",
     max_recipes: int = 6,
     min_have_pct: float = 0.0,
+    min_have_count: int = 1,
 ) -> list[RecipeMatch]:
     """Return the top recipes ranked for the household's current inventory.
 
@@ -264,9 +267,22 @@ def find_recipes_for_inventory(
         max_recipes: Cap on the returned list length.
         min_have_pct: Drop recipes the user has < this fraction of
             ingredients for (0.0 = no filter, 0.5 = at least half-have).
+        min_have_count: Drop recipes the user has fewer than this
+            many on-hand ingredients for. Default 1 — "Cook Tonight"
+            implies "I can make this NOW", so a recipe the user has
+            zero ingredients for is excluded. The user can find
+            those recipes via the cookbook search instead.
+            Set to 0 to restore the old "show all" behaviour (only
+            recommended when the user explicitly opts in).
 
-    Returns:
-        List of ``RecipeMatch`` sorted by score descending.
+    Note (motto_v3 §0.14 Product Reality):
+        The previous default of ``min_have_pct=0.0`` meant a
+        user with an empty pantry still saw 10 recipes ranked by
+        "negative score" — a confusing UX where the cook-tonight
+        card advertised meals the user couldn't actually cook.
+        The new ``min_have_count=1`` default closes that hole
+        without sacrificing the "use-soon boosted" ranking for
+        recipes the user CAN cook.
     """
     matches: list[RecipeMatch] = []
     for recipe in _load_recipes():
@@ -274,6 +290,8 @@ def find_recipes_for_inventory(
             continue
         m = match_recipe(recipe, inventory, use_soon_items)
         if min_have_pct > 0 and m.completion_pct < min_have_pct * 100:
+            continue
+        if m.have_count < min_have_count:
             continue
         matches.append(m)
     matches.sort(key=lambda m: m.score, reverse=True)
@@ -307,11 +325,12 @@ def missing_to_shopping_items(matches: list[RecipeMatch]) -> list[dict[str, Any]
 def render_cook_tonight_html(matches: list[RecipeMatch]) -> str:
     """Render the cook-tonight card as XSS-safe HTML for a Gradio component."""
     if not matches:
-        return (
-            "<div class='home-card' style='text-align:center;padding:16px;color:var(--text-dim);'>"
-            "No recipe suggestions right now. Add some ingredients to your "
-            "inventory, or run the Onboarding quiz to seed staples."
-            "</div>"
+        return home_card(
+            style="text-align:center;padding:16px;color:var(--text-dim);",
+            body=(
+                "No recipe suggestions right now. Add some ingredients to your "
+                "inventory, or run the Onboarding quiz to seed staples."
+            ),
         )
 
     parts: list[str] = []
@@ -357,11 +376,13 @@ def render_cook_tonight_html(matches: list[RecipeMatch]) -> str:
             f"</div></div>"
         )
 
-    return (
-        f"<div class='home-card' style='margin-bottom:12px;'><h3 style='margin:0 0 4px 0;'>🍳 Cook Tonight</h3>"
-        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>Recipes that use what you have. ⏰ marks recipes that rescue expiring items."
-        f"</div>{''.join(parts)}"
-        f"</div>"
+    return home_card(
+        style="margin-bottom:12px;",
+        body=(
+            f"<h3 style='margin:0 0 4px 0;'>🍳 Cook Tonight</h3>"
+            f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>Recipes that use what you have. ⏰ marks recipes that rescue expiring items."
+            f"</div>{''.join(parts)}"
+        ),
     )
 
 

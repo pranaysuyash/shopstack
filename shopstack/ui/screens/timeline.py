@@ -23,6 +23,7 @@ from shopstack.services.timeline import (
     render_timeline_html,
 )
 from shopstack.ui.components.decorators import aria_live_screen
+from shopstack.ui.components.primitives import home_card
 from shopstack.ui.screens._utils import safe_render
 
 logger = logging.getLogger(__name__)
@@ -54,11 +55,12 @@ def timeline_view(
         result = TimelineService(db).query(query, user_id=user_id)
     except Exception as exc:
         logger.warning("timeline_view failed: %s", exc)
-        return (
-            "<div class='home-card' style='text-align:center;padding:16px;'>"
-            "<div style='color:var(--amber);font-weight:600;'>Could not load timeline</div>"
-            f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{escape(str(exc)[:120])}</div>"
-            "</div>"
+        return home_card(
+            style="text-align:center;padding:16px;",
+            body=(
+                "<div style='color:var(--amber);font-weight:600;'>Could not load timeline</div>"
+                f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{escape(str(exc)[:120])}</div>"
+            ),
         )
     return render_timeline_html(result)
 

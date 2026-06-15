@@ -35,6 +35,8 @@ from dataclasses import dataclass, field
 from html import escape
 from typing import Any
 
+from shopstack.ui.components.primitives import home_card
+
 logger = logging.getLogger(__name__)
 
 
@@ -326,15 +328,17 @@ _SEVERITY_COLOR = {
 def render_seasonal_html(rec: SeasonalRecommendation) -> str:
     """Render a single ``SeasonalRecommendation`` as XSS-safe HTML."""
     color = _SEVERITY_COLOR.get(rec.severity, "var(--text-dim)")
-    return (
-        f"<div class='home-card' style='margin-bottom:12px;'><h3 style='margin:0 0 4px 0;color:{color};'>{escape(rec.icon)} {escape(rec.title)}</h3>"
-        f"<div style='font-size: 0.8125rem;color:var(--text);'>{escape(rec.body)}</div>"
-        + (
-            f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:6px;'><strong>Suggested:</strong> {escape(rec.action)}</div>"
-            if rec.action
-            else ""
-        )
-        + "</div>"
+    return home_card(
+        style="margin-bottom:12px;",
+        body=(
+            f"<h3 style='margin:0 0 4px 0;color:{color};'>{escape(rec.icon)} {escape(rec.title)}</h3>"
+            f"<div style='font-size: 0.8125rem;color:var(--text);'>{escape(rec.body)}</div>"
+            + (
+                f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:6px;'><strong>Suggested:</strong> {escape(rec.action)}</div>"
+                if rec.action
+                else ""
+            )
+        ),
     )
 
 

@@ -36,97 +36,13 @@ from shopstack.services.onboarding import (
     mark_onboarding_skipped,
     submit_onboarding,
 )
-from shopstack.ui.components.primitives import home_card, loading_skeleton
+from shopstack.ui.components.primitives import home_card
 
 logger = logging.getLogger(__name__)
 
 
 # Build a lookup map for display names (used by _collect_and_submit)
 COMMON_STAPLES_MAP = {s["canonical_name"]: s["label"] for s in COMMON_STAPLES}
-
-
-def _step1_household_size() -> str:
-    """Render step 1: household size."""
-    buttons = []
-    for size in HOUSEHOLD_SIZES:
-        buttons.append(
-            f"<button class='onboarding-btn' data-value='{size['key']}'><strong>{escape(size['label'])}</strong></button>"
-        )
-    return home_card(
-        title="Step 1 of 5 — How big is your household?",
-        body=(
-            "<div class='muted' style='margin-bottom:12px;'>This helps us scale "
-            "quantities for your starter inventory.</div>"
-            f"{''.join(buttons)}"
-        ),
-        style="text-align:left;",
-    )
-
-
-def _step2_diet() -> str:
-    """Render step 2: dietary preference."""
-    buttons = []
-    for pref in DIETARY_PREFERENCES:
-        buttons.append(
-            f"<button class='onboarding-btn' data-value='{pref['key']}'><strong>{escape(pref['label'])}</strong></button>"
-        )
-    return home_card(
-        title="Step 2 of 5 — Dietary preference",
-        body=(
-            "<div class='muted' style='margin-bottom:12px;'>We'll exclude "
-            f"non-veg items if you're vegetarian or vegan.</div>{''.join(buttons)}"
-        ),
-        style="text-align:left;",
-    )
-
-
-def _step3_staples() -> str:
-    """Render step 3: common staples (checkboxes rendered as Gradio later)."""
-    items_html = []
-    for item in COMMON_STAPLES:
-        items_html.append(
-            f"<div style='padding:4px 0;'><label><input type='checkbox' class='staple-cb' "
-            f"value='{item['canonical_name']}'> {escape(item['label'])} <span class='muted'>({escape(item['category'])})</span></label>"
-            f"</div>"
-        )
-    return home_card(
-        title="Step 3 of 5 — Common staples",
-        body=(
-            "<div class='muted' style='margin-bottom:12px;'>Select the items "
-            f"your household always needs.</div>{''.join(items_html)}"
-        ),
-        style="text-align:left;",
-    )
-
-
-def _step4_retailers() -> str:
-    """Render step 4: preferred retailers."""
-    buttons = []
-    for r in RETAILERS:
-        buttons.append(
-            f"<button class='onboarding-btn retailer-btn' data-value='{r['key']}'><strong>{escape(r['label'])}</strong></button>"
-        )
-    return home_card(
-        title="Step 4 of 5 — Your preferred stores",
-        body=(
-            "<div class='muted' style='margin-bottom:12px;'>Select the stores "
-            f"you shop at most. This helps us prioritize market data.</div>{''.join(buttons)}"
-        ),
-        style="text-align:left;",
-    )
-
-
-def _step5_city() -> str:
-    """Render step 5: city."""
-    return home_card(
-        title="Step 5 of 5 — Your city",
-        body=(
-            "<div class='muted' style='margin-bottom:12px;'>Used for weather-aware "
-            "suggestions and local market context.</div>"
-            f"<input type='text' id='onboarding-city' placeholder='{DEFAULT_CITY}' class='onboarding-city-input' />"
-        ),
-        style="text-align:left;",
-    )
 
 
 def _collect_and_submit(
@@ -203,35 +119,35 @@ def build_onboarding_wizard(app: gr.Blocks) -> gr.Group:
             "suggestions to your home."
         )
 
-        step1_html = gr.HTML(_step1_household_size())
+        gr.Markdown("**Step 1 of 5 — How big is your household?**\n\nThis helps us scale quantities for your starter inventory.")
         hs_radio = gr.Radio(
             label="Household size",
             choices=[(s["label"], s["key"]) for s in HOUSEHOLD_SIZES],
             value=None,
         )
 
-        step2_html = gr.HTML(_step2_diet())
+        gr.Markdown("**Step 2 of 5 — Dietary preference**\n\nWe'll exclude non-veg items if you're vegetarian or vegan.")
         diet_radio = gr.Radio(
             label="Dietary preference",
             choices=[(p["label"], p["key"]) for p in DIETARY_PREFERENCES],
             value=None,
         )
 
-        step3_html = gr.HTML(_step3_staples())
+        gr.Markdown("**Step 3 of 5 — Common staples**\n\nSelect the items your household always needs.")
         staples_checkboxes = gr.CheckboxGroup(
             label="Common staples",
             choices=[(s["label"], s["canonical_name"]) for s in COMMON_STAPLES],
             value=[s["canonical_name"] for s in COMMON_STAPLES[:12]],
         )
 
-        step4_html = gr.HTML(_step4_retailers())
+        gr.Markdown("**Step 4 of 5 — Your preferred stores**\n\nSelect the stores you shop at most. This helps us prioritize market data.")
         retailers_checkboxes = gr.CheckboxGroup(
             label="Preferred stores",
             choices=[(r["label"], r["key"]) for r in RETAILERS],
             value=[],
         )
 
-        step5_html = gr.HTML(_step5_city())
+        gr.Markdown("**Step 5 of 5 — Your city**\n\nUsed for weather-aware suggestions and local market context.")
         city_input = gr.Textbox(
             label="City",
             placeholder=DEFAULT_CITY,

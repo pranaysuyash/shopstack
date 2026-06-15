@@ -14,6 +14,7 @@ from shopstack.services.per_member_activity import (
     aggregate_by_actor,
     render_per_member_html,
 )
+from shopstack.ui.components.primitives import home_card
 
 logger = logging.getLogger(__name__)
 
@@ -36,11 +37,12 @@ def per_member_screen(window_days: int = 30) -> str:
         return render_per_member_html(activity)
     except Exception as exc:
         logger.warning("per_member_screen failed: %s", exc)
-        return (
-            "<div class='home-card' style='text-align:center;padding:12px;'>"
-            "<div style='color:var(--amber);font-weight:600;'>Could not load per-member activity</div>"
-            f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{escape(str(exc)[:120])}</div>"
-            "</div>"
+        return home_card(
+            style="text-align:center;padding:12px;",
+            body=(
+                "<div style='color:var(--amber);font-weight:600;'>Could not load per-member activity</div>"
+                f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{escape(str(exc)[:120])}</div>"
+            ),
         )
 
 

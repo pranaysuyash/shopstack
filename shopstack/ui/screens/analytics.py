@@ -10,6 +10,9 @@ import logging
 
 from shopstack.app_context import current_user_id, db
 from shopstack.services.analytics import aggregate_analytics, render_analytics_html
+from shopstack.ui.components.primitives import home_card
+
+logger = logging.getLogger(__name__)
 
 
 def analytics_screen(window_days: int = 180) -> str:
@@ -24,10 +27,9 @@ def analytics_screen(window_days: int = 180) -> str:
         return render_analytics_html(analytics)
     except Exception as exc:
         logger.warning("analytics_screen failed: %s", exc)
-        return (
-            "<div class='home-card' style='text-align:center;color:var(--text-dim);padding:16px;'>"
-            "📊 No analytics yet. Add some receipts to see insights."
-            "</div>"
+        return home_card(
+            style="text-align:center;color:var(--text-dim);padding:16px;",
+            body="📊 No analytics yet. Add some receipts to see insights.",
         )
 
 

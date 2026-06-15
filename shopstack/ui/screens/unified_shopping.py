@@ -12,6 +12,7 @@ from html import escape
 from typing import Any
 
 from shopstack.app_context import db, tools, current_user_id
+from shopstack.ui.components.primitives import home_card
 from shopstack.ui.screens._utils import safe_render
 
 logger = logging.getLogger(__name__)
@@ -123,14 +124,16 @@ def _render_summary_card(result: dict[str, Any]) -> str:
     use_soon_count = summary.get("use_soon", 0)
     sold_out_count = summary.get("sold_out", 0)
 
-    return (
-        "<div class='home-card' style='margin-bottom:12px;'>"
-        "<h4>Plan Summary</h4>"
-        "<div style='display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;'>"
-        f"<div><strong>{buy_count}</strong> to buy</div><div><strong>{skip_count}</strong> to skip</div>"
-        f"<div><strong>{use_soon_count}</strong> to use soon</div><div style='color:var(--red);'><strong>{sold_out_count}</strong> sold out</div>"
-        f"<div>Estimated total: <strong>&#8377;{total:.0f}</strong></div>"
-        "</div></div>"
+    return home_card(
+        style="margin-bottom:12px;",
+        body=(
+            "<h4>Plan Summary</h4>"
+            "<div style='display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;'>"
+            f"<div><strong>{buy_count}</strong> to buy</div><div><strong>{skip_count}</strong> to skip</div>"
+            f"<div><strong>{use_soon_count}</strong> to use soon</div><div style='color:var(--red);'><strong>{sold_out_count}</strong> sold out</div>"
+            f"<div>Estimated total: <strong>&#8377;{total:.0f}</strong></div>"
+            "</div>"
+        ),
     )
 
 
@@ -142,15 +145,16 @@ def _render_graph_projection(result: dict[str, Any]) -> str:
     next_actions = ", ".join(projection.get("next_actions", [])[:3]) or "none"
     matched = ", ".join(projection.get("matched_names", [])[:4]) or "none"
     unmatched = ", ".join(projection.get("unmatched_names", [])[:4]) or "none"
-    return (
-        "<div class='home-card' style='margin-bottom:12px;'>"
-        "<h4>Graph Projection</h4>"
-        f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:6px;'>{escape(projection.get('title', 'Unified Shopping'))}</div><div style='display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;'>"
-        f"<div><strong>{summary.get('items', 0)}</strong> clustered</div><div><strong>{summary.get('buy', 0)}</strong> buy</div>"
-        f"<div><strong>{summary.get('compare', 0)}</strong> compare</div><div><strong>{summary.get('substitute', 0)}</strong> substitute</div>"
-        "</div>"
-        f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:8px;'>Matched: {escape(matched)} · Missing: {escape(unmatched)}</div><div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>Next: {escape(next_actions)}</div>"
-        "</div>"
+    return home_card(
+        style="margin-bottom:12px;",
+        body=(
+            "<h4>Graph Projection</h4>"
+            f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:6px;'>{escape(projection.get('title', 'Unified Shopping'))}</div><div style='display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;'>"
+            f"<div><strong>{summary.get('items', 0)}</strong> clustered</div><div><strong>{summary.get('buy', 0)}</strong> buy</div>"
+            f"<div><strong>{summary.get('compare', 0)}</strong> compare</div><div><strong>{summary.get('substitute', 0)}</strong> substitute</div>"
+            "</div>"
+            f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:8px;'>Matched: {escape(matched)} · Missing: {escape(unmatched)}</div><div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>Next: {escape(next_actions)}</div>"
+        ),
     )
 
 
@@ -162,8 +166,10 @@ def run_unified_plan(goal: str, items_text: str) -> tuple[str, str]:
 
     if not items_text:
         return (
-            "<div class='home-card' style='text-align:center;padding:20px;color:var(--text-dim);'>"
-            "Enter items to get a unified shopping plan.</div>",
+            home_card(
+                style="text-align:center;padding:20px;color:var(--text-dim);",
+                body="Enter items to get a unified shopping plan.",
+            ),
             "",
         )
 
@@ -199,9 +205,13 @@ def run_unified_plan(goal: str, items_text: str) -> tuple[str, str]:
         if not items:
             continue
         detail_parts.append(
-            f"<div class='home-card' style='margin-bottom:10px;'><h4 style='margin-bottom:6px;'>{dec.replace('_', ' ').title()} ({len(items)})</h4>"
-            + "".join(_render_item_row(i) for i in items)
-            + "</div>"
+            home_card(
+                style="margin-bottom:10px;",
+                body=(
+                    f"<h4 style='margin-bottom:6px;'>{dec.replace('_', ' ').title()} ({len(items)})</h4>"
+                    + "".join(_render_item_row(i) for i in items)
+                ),
+            )
         )
 
     detail_html = "".join(detail_parts)
@@ -230,9 +240,10 @@ def run_unified_plan(goal: str, items_text: str) -> tuple[str, str]:
 @safe_render
 def unified_plan_summary() -> str:
     """Return a quick summary of the most recent plan or empty state."""
-    return (
-        "<div class='home-card' style='text-align:center;padding:20px;color:var(--text-dim);'>"
-        "Enter a goal and items above, then click <strong>Run Plan</strong> "
-        "to get classified items with prices, deals, and substitutions."
-        "</div>"
+    return home_card(
+        style="text-align:center;padding:20px;color:var(--text-dim);",
+        body=(
+            "Enter a goal and items above, then click <strong>Run Plan</strong> "
+            "to get classified items with prices, deals, and substitutions."
+        ),
     )

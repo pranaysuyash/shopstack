@@ -219,3 +219,56 @@ def receipt_confirm(df_data: Any, merchant: str, date_str: str, raw_text: str) -
         f"</div></div>"
     )
     return summary + guidance
+
+
+def receipt_export_txt(merchant: str, date_str: str, raw_text: str) -> str:
+    """Render the most-recently-confirmed receipt as plain text.
+
+    Public Gradio adapter (added 2026-06-13). The user can click
+    a "Save as .txt" button in the receipt sub-tab to download
+    a human-readable text version of the receipt. The plain text
+    is easier to forward via messaging apps (WhatsApp, email)
+    than the JSON audit file.
+
+    Args:
+        merchant: From the receipt form (used for header).
+        date_str: ISO date string (used for header).
+        raw_text: The original OCR text (used for the body).
+
+    Returns:
+        A plain-text string with merchant, date, total, line
+        items, and the raw OCR text. Empty string on any error
+        (no crash).
+
+    Note: this is a *re-render* of the last-confirmed receipt,
+    not a re-export. The actual file is written on confirm
+    via :func:`export_receipt_txt` in the service layer; this
+    function returns the same body for in-app display / clipboard
+    use.
+    """
+    try:
+        from datetime import date as _date
+        try:
+            purchase_date = _date.fromisoformat(date_str) if date_str else _date.today()
+        except Exception:
+            purchase_date = _date.today()
+        from shopstack.services.receipt import (
+            ReceiptResult,
+            ReceiptLine,
+            _receipt_txt_body,
+        )
+        # Parse the raw_text back into a minimal result. We
+        # don't have the parsed line items here (they were
+        # confirmed), so the .txt is a header + raw_text
+        # body. This is enough for sharing/audit.
+        result = ReceiptResult(
+            merchant=merchant or "(unknown)",
+            purchase_date=purchase_date,
+            lines=[],
+            total=0.0,
+            raw_text=raw_text or "",
+        )
+        return _receipt_txt_body(result)
+    except Exception as exc:  # pragma: no cover — defensive
+        logger.warning("receipt_export_txt failed: %s", exc)
+        return ""

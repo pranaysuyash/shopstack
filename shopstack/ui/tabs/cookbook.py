@@ -27,6 +27,7 @@ from __future__ import annotations
 import gradio as gr
 
 from shopstack.module_registry import tab_label as _tab_label
+from shopstack.ui.components.primitives import home_card
 from shopstack.ui.screens.cookbook import (
     cookbook_shop_missing,
     cookbook_view_recipe,
@@ -68,8 +69,8 @@ def build_cookbook_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> No
         recipe_selector = filters.recipe_selector
         refresh_recipes = filters.refresh_recipes
 
-        grid_html = gr.HTML("<div class='home-card'>Loading recipes…</div>")
-        detail_html = gr.HTML("<div class='home-card'>Select a recipe above to see ingredients and steps.</div>")
+        grid_html = gr.HTML(home_card(body="Loading recipes…"))
+        detail_html = gr.HTML(home_card(body="Select a recipe above to see ingredients and steps."))
         status_html = gr.HTML("")
 
         # Re-render the grid + recipe selector whenever any filter changes.

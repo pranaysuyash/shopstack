@@ -157,8 +157,20 @@ class TestMatchRecipe:
 
 
 class TestFindRecipes:
-    def test_empty_inventory_returns_recipes_sorted(self):
+    def test_empty_inventory_returns_no_recipes_by_default(self):
+        """The default ``min_have_count=1`` filter excludes recipes
+        the user has 0 on-hand ingredients for. This is the
+        correct "Cook Tonight" UX — see Item #11 in
+        PROJECT_INTELLIGENCE for the rationale.
+        """
         matches = find_recipes_for_inventory([], max_recipes=3)
+        assert len(matches) == 0
+
+    def test_empty_inventory_with_legacy_opt_in(self):
+        """Passing ``min_have_count=0`` restores the old "show all"
+        behaviour for callers that need it (e.g. cookbook search).
+        """
+        matches = find_recipes_for_inventory([], max_recipes=3, min_have_count=0)
         assert len(matches) == 3
         # Sorted by score descending
         assert matches[0].score >= matches[1].score >= matches[2].score
@@ -208,7 +220,9 @@ class TestFindRecipes:
         assert len(ids_with) > 0
 
     def test_max_recipes_caps_results(self):
-        matches = find_recipes_for_inventory([], max_recipes=5)
+        """With the legacy min_have_count=0 opt-in, max_recipes
+        caps the result length."""
+        matches = find_recipes_for_inventory([], max_recipes=5, min_have_count=0)
         assert len(matches) == 5
 
     def test_min_have_pct_filters(self):
@@ -254,10 +268,27 @@ class TestRenderCookTonight:
         assert "No recipe suggestions" in html
 
     def test_renders_recipe_cards(self):
+        """Empty inventory → no cook-tonight cards (the new
+        default of min_have_count=1 hides them). The HTML must
+        say so in a user-friendly way — not "Cook Tonight" with
+        an empty list.
+        """
         matches = find_recipes_for_inventory([], max_recipes=3)
+        assert matches == []
+        html = render_cook_tonight_html(matches)
+        # The empty-state copy must be present, not the heading.
+        assert "Cook Tonight" not in html
+        assert "No recipe suggestions" in html
+
+    def test_renders_recipe_cards_with_inventory(self):
+        """With ingredients on hand, the "Cook Tonight" header
+        appears and the recipe names are rendered.
+        """
+        inv = _inventory(("onion", 1), ("tomato", 1))
+        matches = find_recipes_for_inventory(inv, [], max_recipes=3)
+        assert matches, "fixture must produce at least one match"
         html = render_cook_tonight_html(matches)
         assert "Cook Tonight" in html
-        # Each recipe should be present (by name)
         for m in matches:
             assert m.recipe.name in html
 
@@ -289,3 +320,61 @@ class TestRenderCookTonight:
         assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
         # Reset for other tests
         r.name = "Roti (Whole Wheat Flatbread)"
+
+
+class TestMinHaveCount:
+    """Item #11 (motto_v3 §0.14): the previous ``min_have_pct=0.0``
+    default returned recipes the user has 0 ingredients for —
+    "Cook Tonight" advertised meals the user couldn't cook.
+    The new ``min_have_count=1`` default closes that hole.
+    """
+
+    def test_empty_inventory_returns_zero_matches(self):
+        matches = find_recipes_for_inventory([], [], max_recipes=10)
+        assert matches == [], (
+            f"Empty inventory must not return any recipes, got "
+            f"{[m.recipe.name for m in matches]}"
+        )
+
+    def test_min_have_count_zero_restores_legacy_behaviour(self):
+        """Passing ``min_have_count=0`` is the documented opt-out
+        for the legacy "show all" behaviour. Callers that need
+        the pre-fix UX (e.g. showing recipes the user can
+        ADD to their shopping list, not cook now) can opt in.
+        """
+        matches = find_recipes_for_inventory([], [], max_recipes=10, min_have_count=0)
+        assert len(matches) == 10
+
+    def test_min_have_count_two_filters_singles(self):
+        """Recipes with only 1 on-hand ingredient are excluded
+        when min_have_count=2 — the user wants to see recipes
+        they can mostly make."""
+        # 1 ingredient: too few
+        inv1 = _inventory(("onion", 1))
+        matches = find_recipes_for_inventory(inv1, [], max_recipes=10, min_have_count=2)
+        assert matches == [], "1 ingredient must not satisfy min_have_count=2"
+
+        # 2 ingredients: should match
+        inv2 = _inventory(("onion", 1), ("tomato", 1))
+        matches = find_recipes_for_inventory(inv2, [], max_recipes=10, min_have_count=2)
+        assert len(matches) > 0, "2 ingredients must satisfy min_have_count=2"
+
+    def test_min_have_pct_and_min_have_count_compose(self):
+        """The two filters are AND-ed: a recipe must satisfy BOTH."""
+        # 1 of 10 ingredients, with min_have_pct=0.5 (50%): fails pct
+        inv = _inventory(("onion", 1))
+        matches = find_recipes_for_inventory(
+            inv, [], max_recipes=10,
+            min_have_pct=0.5, min_have_count=1,
+        )
+        assert matches == [], "1/10 ingredients must fail min_have_pct=0.5"
+
+    def test_min_have_count_default_is_one(self):
+        """The signature default is 1 — cook tonight implies
+        "I can make this NOW". A user with 0 on-hand ingredients
+        sees no cook-tonight card, which is the correct UX
+        (the cookbook search is the right surface for them).
+        """
+        import inspect
+        sig = inspect.signature(find_recipes_for_inventory)
+        assert sig.parameters["min_have_count"].default == 1

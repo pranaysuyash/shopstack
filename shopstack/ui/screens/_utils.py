@@ -9,7 +9,13 @@ from typing import Any, Callable
 
 from shopstack.domain import normalize_item_name
 from shopstack.ui.components.cards import card as ui_card
-from shopstack.ui.components.cards import render_workflow_rail
+from shopstack.ui.components.primitives import home_card
+from shopstack.ui.components.workflow import (
+    WORKFLOW_ACTION_STEPS,
+    WORKFLOW_STEPS,
+    workflow_header,
+    workflow_title_bar,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,51 +57,21 @@ def safe_render(fn: Callable) -> Callable:
         except Exception as exc:
             logger.exception("UI render error in %s", fn.__name__)
             tb_line = traceback.format_exc().strip().split("\n")[-1]
-            error_html = (
-                "<div class='home-card' style='border-left:3px solid var(--red);text-align:left;'>"
-                f"<div style='color:var(--red);font-weight:600;'>&#9888; Something went wrong</div><div style='margin-top:6px;font-size: 0.75rem;'>{escape(str(exc))}</div>"
-                f"<div style='margin-top:4px;font-size: 0.6875rem;color:var(--text-dim);'>{escape(tb_line)}</div>"
-                "</div>"
+            error_html = home_card(
+                style="border-left:3px solid var(--red);text-align:left;",
+                body=(
+                    f"<div style='color:var(--red);font-weight:600;'>&#9888; Something went wrong</div><div style='margin-top:6px;font-size: 0.75rem;'>{escape(str(exc))}</div>"
+                    f"<div style='margin-top:4px;font-size: 0.6875rem;color:var(--text-dim);'>{escape(tb_line)}</div>"
+                ),
             )
             return error_html
     return wrapper
 
-WORKFLOW_STEPS = (
-    "Input",
-    "Perception/Parsing",
-    "Inventory Context",
-    "Decision",
-    "Proposed Actions",
-    "Human Confirmation",
-    "Saved Trace",
-)
-WORKFLOW_ACTION_STEPS = (
-    "Input",
-    "Perception",
-    "Inventory Context",
-    "Decision",
-    "Proposed Actions",
-    "Human Confirmation",
-    "Saved Trace",
-)
 from shopstack.module_registry import tab_order as _tab_order  # noqa: E402 — deferred to avoid circular import
 
 # Derive workflow navigation labels from the module registry.
 # These map to tab IDs in the UI and stay in sync automatically.
 WORKFLOW_NAV: tuple[str, ...] = tuple(label for _tid, label in _tab_order())
-
-
-def workflow_header(steps: tuple[str, ...], current_step: int | None = None) -> str:
-    return render_workflow_rail(list(steps), current_step=current_step)
-
-
-def workflow_title_bar(title: str, subtitle: str = "") -> str:
-    return (
-        "<div class='home-card' style='margin-bottom:10px;'>"
-        f"<h2>{escape(title)}</h2>"
-        + (f"<div style='color:var(--text-dim);'>{escape(subtitle)}</div>" if subtitle else "")
-        + "</div>"
-    )
 
 
 def rows_to_html(rows: list[dict[str, Any]], headers: list[str]) -> str:

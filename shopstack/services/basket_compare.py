@@ -19,6 +19,8 @@ from dataclasses import dataclass, field
 from html import escape
 from typing import Any
 
+from shopstack.ui.components.primitives import home_card
+
 logger = logging.getLogger(__name__)
 
 
@@ -459,21 +461,27 @@ def _savings_callout(comparison: BasketComparison) -> str:
     if not comparison.cheapest_source_id:
         return ""
     if comparison.total_savings_inr <= 0:
-        return (
-            f"<div class='home-card' style='margin-bottom:12px;'><h3 style='margin:0 0 4px 0;'>Basket Comparison</h3>"
-            f"<div style='font-size: 0.8125rem;'>All loaded sources price this basket within ₹0–₹10 of each other."
-            f"</div></div>"
+        return home_card(
+            style="margin-bottom:12px;",
+            body=(
+                f"<h3 style='margin:0 0 4px 0;'>Basket Comparison</h3>"
+                f"<div style='font-size: 0.8125rem;'>All loaded sources price this basket within ₹0–₹10 of each other."
+                f"</div>"
+            ),
         )
     label = SOURCE_LABELS.get(
         comparison.cheapest_source_id, comparison.cheapest_source_id.title()
     )
-    return (
-        f"<div class='home-card' style='margin-bottom:12px;'><h3 style='margin:0 0 4px 0;'>Basket Comparison</h3>"
-        f"<div style='font-size: 0.875rem;'><strong>Cheapest:</strong> {escape(label)} · "
-        f"<strong>Save up to:</strong> <span style='color:var(--green);font-weight:600;'>"
-        f"₹{comparison.total_savings_inr:.0f} ({comparison.savings_pct:.0f}%)</span></div>"
-        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:4px;'>{comparison.matched_count}/{comparison.total_requested} items matched across sources"
-        f"</div></div>"
+    return home_card(
+        style="margin-bottom:12px;",
+        body=(
+            f"<h3 style='margin:0 0 4px 0;'>Basket Comparison</h3>"
+            f"<div style='font-size: 0.875rem;'><strong>Cheapest:</strong> {escape(label)} · "
+            f"<strong>Save up to:</strong> <span style='color:var(--green);font-weight:600;'>"
+            f"₹{comparison.total_savings_inr:.0f} ({comparison.savings_pct:.0f}%)</span></div>"
+            f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:4px;'>{comparison.matched_count}/{comparison.total_requested} items matched across sources"
+            f"</div>"
+        ),
     )
 
 
@@ -570,38 +578,42 @@ def render_basket_comparison_html(comparison: BasketComparison) -> str:
     variables as the rest of the dashboard.
     """
     if not comparison.has_any_data:
-        return (
-            "<div class='home-card' style='text-align:center;padding:20px;'>"
-            "No market sources loaded. Capture or import data for at least one "
-            "source (Swiggy, Blinkit, Zepto, DMart) to compare baskets."
-            "</div>"
+        return home_card(
+            style="text-align:center;padding:20px;",
+            body=(
+                "No market sources loaded. Capture or import data for at least one "
+                "source (Swiggy, Blinkit, Zepto, DMart) to compare baskets."
+            ),
         )
 
     if not comparison.per_item:
-        return (
-            "<div class='home-card' style='text-align:center;padding:20px;'>"
-            "Enter at least one item to compare.</div>"
+        return home_card(
+            style="text-align:center;padding:20px;",
+            body="Enter at least one item to compare.",
         )
 
     if not comparison.is_meaningful:
         loaded = ", ".join(escape(s) for s in comparison.source_ids) or "none"
-        return (
-            "<div class='home-card' style='text-align:center;padding:20px;'>"
-            "Basket comparison needs at least 2 sources with matching data. "
-            f"Currently loaded: {loaded}. "
-            "Capture another source's snapshot to enable side-by-side totals."
-            "</div>"
+        return home_card(
+            style="text-align:center;padding:20px;",
+            body=(
+                "Basket comparison needs at least 2 sources with matching data. "
+                f"Currently loaded: {loaded}. "
+                "Capture another source's snapshot to enable side-by-side totals."
+            ),
         )
 
     header_cells = "".join(
         f"<th style='padding:6px;text-align:right;font-size: 0.6875rem;color:var(--text-dim);'>{escape(s.label)}</th>"
         for s in comparison.per_source
     )
-    table = (
-        f"<div class='home-card'><table style='width:100%;border-collapse:collapse;font-size: 0.75rem;'>"
-        f"<thead><tr style='border-bottom:2px solid var(--border);'><th style='text-align:left;padding:6px;'>Item</th>"
-        f"{header_cells}</tr></thead>"
-        f"<tbody>{_line_rows(comparison)}</tbody></table></div>"
+    table = home_card(
+        body=(
+            f"<table style='width:100%;border-collapse:collapse;font-size: 0.75rem;'>"
+            f"<thead><tr style='border-bottom:2px solid var(--border);'><th style='text-align:left;padding:6px;'>Item</th>"
+            f"{header_cells}</tr></thead>"
+            f"<tbody>{_line_rows(comparison)}</tbody></table>"
+        ),
     )
 
     return (

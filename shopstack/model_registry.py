@@ -277,7 +277,7 @@ MODEL_REGISTRY: list[ModelEntry] = [
         runtime="transformers",
         status="active",
         badge_relevance="off_the_grid",
-        notes="Open-vocabulary grounding backbone. Paired with ShopStack promptable segmentation for shelf / fridge / cupboard localization. Commercial-allowed and benchmarked in the grounding lane.",
+        notes="Open-vocabulary grounding backbone. Paired with ShopStack promptable segmentation for shelf / fridge / cupboard localization. Real-photo grounding run (fridge/cupboard/table) reached 0.2042 mean box IoU and 0.3333 grounding success after dtype and processor fixes. Commercial-allowed and benchmarked in the grounding lane.",
     ),
     ModelEntry(
         provider_group="grounding",
@@ -288,7 +288,7 @@ MODEL_REGISTRY: list[ModelEntry] = [
         runtime="transformers",
         status="candidate",
         badge_relevance="llama_champion",
-        notes="Qwen3-VL grounding helper. Not the primary mask generator, but useful for disambiguation and grounding prompts in household scenes. Benchmarked in the grounding lane alongside GroundingDINO.",
+        notes="Qwen3-VL grounding helper. Not the primary mask generator, but useful for disambiguation and grounding prompts in household scenes. Real-photo grounding run stayed helper-only at 0.0136 mean box IoU and 0.0000 success, so it should stay a prompt helper rather than the box-localization primary.",
     ),
     # Planner
     ModelEntry(

@@ -25,6 +25,8 @@ from dataclasses import dataclass, field
 from html import escape
 from typing import Any
 
+from shopstack.ui.components.primitives import home_card
+
 logger = logging.getLogger(__name__)
 
 
@@ -156,11 +158,13 @@ def render_waste_coach_html(signals: list[dict[str, Any]]) -> str:
             f"</div></div>"
         )
 
-    return (
-        f"<div class='home-card' style='margin-bottom:12px;'><h3 style='margin:0 0 4px 0;'>🌱 Waste Coach</h3>"
-        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>Actionable fixes for the items you waste most."
-        f"</div>{''.join(rows)}"
-        f"</div>"
+    return home_card(
+        style="margin-bottom:12px;",
+        body=(
+            f"<h3 style='margin:0 0 4px 0;'>🌱 Waste Coach</h3>"
+            f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>Actionable fixes for the items you waste most."
+            f"</div>{''.join(rows)}"
+        ),
     )
 
 

@@ -9,6 +9,7 @@ from shopstack.app_context import db, providers, tools, current_user_id
 from shopstack.schemas.shelf import ProposedInventoryAction, ShelfIntelligenceResult
 from shopstack.services.shelf_intelligence import analyze_shelf_scene
 from shopstack.traces.export import create_trace, update_trace_confirmation
+from shopstack.ui.components.primitives import home_card
 
 logger = logging.getLogger(__name__)
 
@@ -239,24 +240,26 @@ def _render_shelf_scan(result: ShelfIntelligenceResult) -> str:
     summary = result.confidence_summary
     speech_html = ""
     if result.speech_intent and result.speech_intent.original_text:
-        speech_html = (
-            "<div class='home-card' style='margin-top:10px;'>"
-            "<h4>Voice note</h4>"
-            f"<div style='margin-top:4px;font-size: 0.8125rem;'><strong>Heard:</strong> {escape(result.speech_intent.original_text)}</div><div style='margin-top:4px;font-size: 0.8125rem;color:var(--text-dim);'><strong>Translated:</strong> {escape(result.speech_intent.translated_text or result.speech_intent.original_text)}</div>"
-            f"<div style='margin-top:4px;font-size: 0.75rem;color:var(--text-dim);'>Action: {escape(result.speech_intent.action)} · Scene hint: {escape(result.speech_intent.target_scene.value)}</div>"
-            "</div>"
+        speech_html = home_card(
+            style="margin-top:10px;",
+            body=(
+                "<h4>Voice note</h4>"
+                f"<div style='margin-top:4px;font-size: 0.8125rem;'><strong>Heard:</strong> {escape(result.speech_intent.original_text)}</div><div style='margin-top:4px;font-size: 0.8125rem;color:var(--text-dim);'><strong>Translated:</strong> {escape(result.speech_intent.translated_text or result.speech_intent.original_text)}</div>"
+                f"<div style='margin-top:4px;font-size: 0.75rem;color:var(--text-dim);'>Action: {escape(result.speech_intent.action)} · Scene hint: {escape(result.speech_intent.target_scene.value)}</div>"
+            ),
         )
 
     warning_html = ""
     if result.warnings:
-        warning_html = (
-            "<div class='home-card' style='margin-top:10px;border-left:4px solid var(--amber);'>"
-            "<h4>Notes</h4>"
-            + "".join(
-                f"<div style='font-size: 0.75rem;margin-top:4px;color:var(--amber);'>&#9888; {escape(w)}</div>"
-                for w in result.warnings
-            )
-            + "</div>"
+        warning_html = home_card(
+            style="margin-top:10px;border-left:4px solid var(--amber);",
+            body=(
+                "<h4>Notes</h4>"
+                + "".join(
+                    f"<div style='font-size: 0.75rem;margin-top:4px;color:var(--amber);'>&#9888; {escape(w)}</div>"
+                    for w in result.warnings
+                )
+            ),
         )
 
     aggregate_cards = "".join(_render_aggregate_card(item) for item in result.aggregates) or _empty_block("No items grouped yet.")
@@ -264,24 +267,45 @@ def _render_shelf_scan(result: ShelfIntelligenceResult) -> str:
     review_cards = "".join(_render_review_card(item) for item in result.corrections_needed[:6]) or _empty_block("Nothing needs review.")
     instance_cards = "".join(_render_instance_card(item) for item in result.instances[:8]) or _empty_block("No visible instances.")
 
-    return (
-        "<div class='home-card'>"
-        f"<h3>Home Scan · {escape(result.scene_label)}</h3><div style='display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;'>"
-        f"{_badge(result.perception_mode, 'var(--blue)')}{_badge(f'{summary.items_seen} seen', 'var(--text-dim)')}"
-        f"{_badge(f'{summary.items_grouped} grouped', 'var(--text-dim)')}{_badge(f'{summary.needs_review_count} review', 'var(--amber)')}"
-        f"{_badge(f'{summary.overall_confidence:.0%} overall', 'var(--green)')}"
-        "</div>"
-        f"<div style='margin-top:8px;color:var(--text-dim);font-size: 0.75rem;'>Scene: {escape(result.scene_type.value)} · Image confidence {summary.image_confidence:.0%} · Speech confidence {summary.speech_confidence:.0%}</div>"
-        f"{warning_html}{speech_html}"
-        "<div class='home-card' style='margin-top:10px;'><h4>Detected items</h4>"
-        f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:8px;'>{instance_cards}</div></div>"
-        "<div class='home-card' style='margin-top:10px;'><h4>Grouped view</h4>"
-        f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:8px;'>{aggregate_cards}</div></div>"
-        "<div class='home-card' style='margin-top:10px;'><h4>Proposed updates</h4>"
-        f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:8px;'>{action_cards}</div></div>"
-        "<div class='home-card' style='margin-top:10px;'><h4>Review prompts</h4>"
-        f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:8px;'>{review_cards}</div></div>"
-        "</div>"
+    detected_card = home_card(
+        style="margin-top:10px;",
+        body=(
+            "<h4>Detected items</h4>"
+            f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:8px;'>{instance_cards}</div>"
+        ),
+    )
+    grouped_card = home_card(
+        style="margin-top:10px;",
+        body=(
+            "<h4>Grouped view</h4>"
+            f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:8px;'>{aggregate_cards}</div>"
+        ),
+    )
+    actions_card = home_card(
+        style="margin-top:10px;",
+        body=(
+            "<h4>Proposed updates</h4>"
+            f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:8px;'>{action_cards}</div>"
+        ),
+    )
+    review_card = home_card(
+        style="margin-top:10px;",
+        body=(
+            "<h4>Review prompts</h4>"
+            f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:8px;'>{review_cards}</div>"
+        ),
+    )
+    return home_card(
+        body=(
+            f"<h3>Home Scan · {escape(result.scene_label)}</h3><div style='display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;'>"
+            f"{_badge(result.perception_mode, 'var(--blue)')}{_badge(f'{summary.items_seen} seen', 'var(--text-dim)')}"
+            f"{_badge(f'{summary.items_grouped} grouped', 'var(--text-dim)')}{_badge(f'{summary.needs_review_count} review', 'var(--amber)')}"
+            f"{_badge(f'{summary.overall_confidence:.0%} overall', 'var(--green)')}"
+            "</div>"
+            f"<div style='margin-top:8px;color:var(--text-dim);font-size: 0.75rem;'>Scene: {escape(result.scene_type.value)} · Image confidence {summary.image_confidence:.0%} · Speech confidence {summary.speech_confidence:.0%}</div>"
+            f"{warning_html}{speech_html}"
+            f"{detected_card}{grouped_card}{actions_card}{review_card}"
+        ),
     )
 
 

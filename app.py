@@ -101,7 +101,7 @@ def build_app() -> gr.Blocks:
     Adding a new tab does NOT require editing this file — register it
     in ``module_registry.TAB_ORDER`` and ``shopstack.ui.tabs.registry``.
     """
-    with gr.Blocks(title=APP_NAME, css=CSS) as app:
+    with gr.Blocks(title=APP_NAME) as app:
         mount_sms_webhook(app)
         mount_global_search(app)
         mount_privacy_endpoints(app)
@@ -118,6 +118,35 @@ def build_app() -> gr.Blocks:
         # Hidden runtime_status API endpoint (external consumers can
         # query whether the app is in mock or real mode)
         build_runtime_status()
+
+        # ── Onboarding wizard (first-run household setup) ──
+        # Rendered above the tab bar so first-time users see setup
+        # immediately, instead of after scrolling past every tab's
+        # content. Hidden by default; auto-shown on first load if the
+        # active household hasn't completed onboarding yet. See
+        # Docs/HANDOFF_ONBOARDING_WIRING_2026-06-13.md.
+        onboarding_wizard = build_onboarding_wizard(app)
+
+        def _show_onboarding_if_first_run() -> gr.update:
+            from shopstack.services.onboarding import should_show_onboarding
+            return gr.update(visible=should_show_onboarding(db))
+
+        app.load(
+            _show_onboarding_if_first_run,
+            outputs=[onboarding_wizard],
+        )
+
+        # ── Household settings accordion (workspace admin panel) ──
+        # Rendered above the tab bar — a workspace switcher belongs at
+        # the top of the page, accessible from any tab, not buried
+        # below the last tab's content.
+        hh = build_household_settings(app)
+        household_dropdown = hh.household_dropdown
+        add_hh_btn = hh.add_hh_btn
+        hh_add_row = hh.hh_add_row
+        hh_name_input = hh.hh_name_input
+        hh_create_btn = hh.hh_create_btn
+        hh_cancel_btn = hh.hh_cancel_btn
 
         # ── Tab bar — driven by module_registry.TAB_ORDER via the builder registry ──
         with gr.Tabs(elem_classes="tabs", elem_id="main-content"):
@@ -151,30 +180,6 @@ def build_app() -> gr.Blocks:
         today_changed = today_handles.today_changed
         p_location = reconcile_handles.p_location
         move_dest = reconcile_handles.move_dest
-
-        # ── Household settings accordion (workspace admin panel) ──
-        hh = build_household_settings(app)
-        household_dropdown = hh.household_dropdown
-        add_hh_btn = hh.add_hh_btn
-        hh_add_row = hh.hh_add_row
-
-        # ── Onboarding wizard (first-run household setup) ──
-        # Hidden by default; auto-shown on first load if the active
-        # household hasn't completed onboarding yet. See
-        # Docs/HANDOFF_ONBOARDING_WIRING_2026-06-13.md.
-        onboarding_wizard = build_onboarding_wizard(app)
-
-        def _show_onboarding_if_first_run() -> gr.update:
-            from shopstack.services.onboarding import should_show_onboarding
-            return gr.update(visible=should_show_onboarding(db))
-
-        app.load(
-            _show_onboarding_if_first_run,
-            outputs=[onboarding_wizard],
-        )
-        hh_name_input = hh.hh_name_input
-        hh_create_btn = hh.hh_create_btn
-        hh_cancel_btn = hh.hh_cancel_btn
 
         # Refresh dropdown choices on initial load
         app.load(
@@ -255,7 +260,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     app = build_app()
-    app.launch(server_port=args.port, share=args.share, theme=gr.themes.Base(), head=pwa_head_html(), prevent_thread_lock=True)
+    app.launch(server_port=args.port, share=args.share, theme=gr.themes.Base(), head=pwa_head_html(), css=CSS, prevent_thread_lock=True)
     # Post-launch re-mounts: launch() discards the FastAPI app constructed
     # during build_app() and creates a new one, so any custom routes we
     # registered in build_app() are lost. Re-mount PWA + health here so

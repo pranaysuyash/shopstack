@@ -116,9 +116,13 @@ from shopstack.ui.screens.consumption import (
     consumption_rates,
 )
 from shopstack.ui.screens.find_trail import (
+    add_object_note,
     find_trail_view,
     add_negative_memory,
     add_person_association,
+    create_find_object,
+    record_find_feedback,
+    record_object_sighting,
 )
 from shopstack.ui.screens.timeline import (
     timeline_view,
@@ -223,6 +227,10 @@ __all__ = [
     "find_trail_view",
     "add_negative_memory",
     "add_person_association",
+    "create_find_object",
+    "record_object_sighting",
+    "add_object_note",
+    "record_find_feedback",
     "timeline_view",
     "timeline_for_canonical",
     "timeline_for_lot",

@@ -10,6 +10,8 @@ from __future__ import annotations
 from html import escape
 from typing import Any
 
+from shopstack.ui.components.primitives import home_card
+
 
 _SEVERITY_COLOR = {
     "info": "var(--blue)",
@@ -40,10 +42,12 @@ def render_seasonal(rec: dict[str, Any] | None) -> str:
             f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:6px;'><strong>Suggested:</strong> {escape(action)}</div>"
         )
 
-    return (
-        f"<div class='home-card' style='margin-bottom:12px;'><h3 style='margin:0 0 4px 0;color:{color};'>{icon} {title}</h3>"
-        f"<div style='font-size: 0.8125rem;color:var(--text);'>{body}</div>{action_html}"
-        f"</div>"
+    return home_card(
+        style="margin-bottom:12px;",
+        body=(
+            f"<h3 style='margin:0 0 4px 0;color:{color};'>{icon} {title}</h3>"
+            f"<div style='font-size: 0.8125rem;color:var(--text);'>{body}</div>{action_html}"
+        ),
     )
 
 

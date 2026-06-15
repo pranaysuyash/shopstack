@@ -43,6 +43,7 @@ from html import escape
 from typing import Any, Iterable
 
 from shopstack.persistence.database import Database
+from shopstack.ui.components.primitives import home_card
 
 logger = logging.getLogger(__name__)
 
@@ -632,10 +633,9 @@ def render_timeline_html(result: TimelineResult, *, max_buckets: int = 14) -> st
     2. Day-bucketed event list.
     """
     if not result.events:
-        return (
-            "<div class='home-card' style='text-align:center;padding:16px;color:var(--text-dim);'>"
-            "No events in the selected window."
-            "</div>"
+        return home_card(
+            style="text-align:center;padding:16px;color:var(--text-dim);",
+            body="No events in the selected window.",
         )
 
     parts: list[str] = []

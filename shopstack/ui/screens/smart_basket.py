@@ -16,6 +16,7 @@ from shopstack.services.smart_planner import (
     build_smart_basket,
     render_smart_basket_html,
 )
+from shopstack.ui.components.primitives import home_card
 
 
 def smart_basket_screen(
@@ -61,11 +62,12 @@ def smart_basket_screen(
         return render_smart_basket_html(basket)
     except Exception as exc:
         logger.warning("smart_basket_screen failed: %s", exc)
-        return (
-            "<div class='home-card' style='text-align:center;padding:12px;'>"
-            "<div style='color:var(--amber);font-weight:600;'>Could not build smart basket</div>"
-            f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{escape(str(exc)[:120])}</div>"
-            "</div>"
+        return home_card(
+            style="text-align:center;padding:12px;",
+            body=(
+                "<div style='color:var(--amber);font-weight:600;'>Could not build smart basket</div>"
+                f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{escape(str(exc)[:120])}</div>"
+            ),
         )
 
 

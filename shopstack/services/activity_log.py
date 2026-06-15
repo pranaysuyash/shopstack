@@ -30,6 +30,8 @@ from datetime import datetime, timedelta, timezone
 from html import escape
 from typing import Any, Iterable
 
+from shopstack.ui.components.primitives import home_card
+
 logger = logging.getLogger(__name__)
 
 
@@ -220,10 +222,9 @@ def render_activity_log_html(summary: ActivitySummary, *, max_days: int = 14) ->
     4. Recent timeline (the most-recent ``max_days`` days).
     """
     if summary.total_traces == 0:
-        return (
-            "<div class='home-card' style='text-align:center;padding:16px;color:var(--text-dim);'>"
-            "No activity yet. Add a purchase, log a recipe, or use the app to see it here."
-            "</div>"
+        return home_card(
+            style="text-align:center;padding:16px;color:var(--text-dim);",
+            body="No activity yet. Add a purchase, log a recipe, or use the app to see it here.",
         )
 
     parts: list[str] = []

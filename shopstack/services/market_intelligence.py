@@ -5,7 +5,6 @@ from datetime import date
 from typing import Any
 
 from shopstack.decisions import classify_all
-from shopstack.market.sources import compare_across_sources
 from shopstack.market.sources.swiggy import snapshot_freshness
 from shopstack.persistence.database import Database
 from shopstack.schemas.models import DecisionResult, DecisionSet
@@ -843,6 +842,10 @@ def build_market_intelligence_graph(
         source_best = ""
         source_best_price = None
         if registry is not None:
+            # Lazy import: avoid a circular dependency on
+            # ``shopstack.market.sources.__init__`` (which itself loads
+            # the registry machinery during its own init phase).
+            from shopstack.market.sources._comparison import compare_across_sources
             cross_source = compare_across_sources(registry, canonical)
             if cross_source is not None:
                 source_best = cross_source.best_source

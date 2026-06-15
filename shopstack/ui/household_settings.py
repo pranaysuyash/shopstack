@@ -42,6 +42,7 @@ from shopstack.ui.components.primitives import (
     confirm_dialog,
     confirm_hide_updates,
     confirm_toggle_updates,
+    home_card,
 )
 from shopstack.ui.header import model_download_status, runtime_label
 from shopstack.ui.screens.community import (
@@ -177,7 +178,7 @@ def build_household_settings(app: gr.Blocks) -> HouseholdSettingsHandles:
                     "the city, and the city-scoped store tag."
                 )
                 community_status_html = gr.HTML(
-                    value="<div class='home-card'>Loading…</div>"
+                    value=home_card(body="Loading…")
                 )
                 community_stats_html = gr.HTML("")
                 with gr.Row():

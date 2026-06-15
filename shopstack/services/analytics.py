@@ -42,6 +42,8 @@ from datetime import date, datetime, timedelta
 from html import escape
 from typing import Any, Iterable
 
+from shopstack.ui.components.primitives import home_card
+
 logger = logging.getLogger(__name__)
 
 
@@ -265,10 +267,9 @@ def render_analytics_html(analytics: HouseholdAnalytics) -> str:
     5. Waste rate (small badge).
     """
     if not analytics.purchase_count:
-        return (
-            "<div class='home-card' style='text-align:center;padding:16px;color:var(--text-dim);'>"
-            "📊 No purchase history yet. Add a few receipts to see analytics."
-            "</div>"
+        return home_card(
+            style="text-align:center;padding:16px;color:var(--text-dim);",
+            body="📊 No purchase history yet. Add a few receipts to see analytics.",
         )
     parts: list[str] = []
     parts.append("<div class='ha-block'>")

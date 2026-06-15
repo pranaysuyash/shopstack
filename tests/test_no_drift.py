@@ -232,6 +232,11 @@ _FORBIDDEN_PATHS: list[tuple[str, str]] = [
     # have been fully migrated (0 production callers). If drift
     # re-adds the deprecated aliases, the canonical migration is
     # broken.
+    #
+    # These four are documented as comments (not real path checks)
+    # because the deprecation is at the module-level function alias
+    # level, not the file level. A real test verifying the
+    # deprecation is in tests/test_primitives_deprecation.py.
     ("shopstack/ui/components/primitives.busy_js",
      "Deprecated alias removed in Pass 10. Use shopstack.ui.components.js_helpers.busy_js."),
     ("shopstack/ui/components/primitives.autocomplete_injector_js",

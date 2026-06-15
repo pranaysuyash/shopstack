@@ -10,6 +10,8 @@ from __future__ import annotations
 from html import escape
 from typing import Any
 
+from shopstack.ui.components.primitives import home_card
+
 
 # ══════════════════════════════════════════════════════════════════════
 # SearchInput — styled wrapper for Gradio Textbox search
@@ -205,11 +207,12 @@ def timeline(
             f"{connector}"
         )
 
-    return (
-        "<div class='home-card' style='text-align:left;'>"
-        "<h3>Workflow Timeline</h3>"
-        f"<div class='timeline'>{step_html}</div>"
-        "</div>"
+    return home_card(
+        style="text-align:left;",
+        body=(
+            "<h3>Workflow Timeline</h3>"
+            f"<div class='timeline'>{step_html}</div>"
+        ),
     )
 
 
@@ -220,13 +223,14 @@ def timeline(
 def price_chart_empty_state(item_name: str = "") -> str:
     """Return an empty-state placeholder for a price chart."""
     label = escape(item_name) if item_name else "this item"
-    return (
-        "<div class='home-card' style='text-align:center;padding:40px 20px;'>"
-        "<div class='section-kicker'>Price Trend</div>"
-        f"<div class='muted' style='font-size: 0.875rem;margin-top:8px;'>No price data yet for {label}.</div>"
-        "<div class='muted' style='font-size: 0.75rem;margin-top:4px;'>"
-        "Record purchases with price to build trend history.</div>"
-        "</div>"
+    return home_card(
+        style="text-align:center;padding:40px 20px;",
+        body=(
+            "<div class='section-kicker'>Price Trend</div>"
+            f"<div class='muted' style='font-size: 0.875rem;margin-top:8px;'>No price data yet for {label}.</div>"
+            "<div class='muted' style='font-size: 0.75rem;margin-top:4px;'>"
+            "Record purchases with price to build trend history.</div>"
+        ),
     )
 
 
@@ -241,11 +245,12 @@ def price_summary_card(
     """Render a summary card for price intelligence."""
     safe_name = escape(item_name)
     if not latest_price or observation_count == 0:
-        return (
-            "<div class='home-card' style='text-align:left;'>"
-            f"<h3>{safe_name}</h3>"
-            "<div class='muted'>No price observations yet.</div>"
-            "</div>"
+        return home_card(
+            style="text-align:left;",
+            body=(
+                f"<h3>{safe_name}</h3>"
+                "<div class='muted'>No price observations yet.</div>"
+            ),
         )
 
     direction_icon = {"up": "&#8593;", "down": "&#8595;", "stable": "&#8594;"}.get(direction, "")
@@ -254,7 +259,6 @@ def price_summary_card(
     }.get(direction, "var(--text-dim)")
 
     parts = [
-        "<div class='home-card' style='text-align:left;'>",
         f"<h3>{safe_name}</h3>",
         "<div style='display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;'>",
         f"<div><div class='stat-value'>&pound;{latest_price:.0f}</div>"
@@ -272,8 +276,8 @@ def price_summary_card(
     parts.append(
         f"<div><div class='stat-value'>{observation_count}</div><div class='stat-label'>Observations</div></div>"
     )
-    parts.append("</div></div>")
-    return "".join(parts)
+    parts.append("</div>")
+    return home_card(style="text-align:left;", body="".join(parts))
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -340,14 +344,15 @@ def location_card(
     if items_preview and len(items_preview) > 0:
         expand_attr = " style='cursor:pointer;'"
 
-    return (
-        "<div class='home-card' style='text-align:left;margin-bottom:8px;'>"
-        "<div style='display:flex;justify-content:space-between;align-items:center;'>"
-        "<div>"
-        f"<div style='font-weight:600;color:var(--text);'>{safe_name}</div><div style='font-size: 0.6875rem;color:var(--text-dim);'>{type_badge} {hierarchy}</div>"
-        "</div>"
-        f"<div>{count_badge}</div>"
-        "</div>"
-        f"{items_html}"
-        "</div>"
+    return home_card(
+        style="text-align:left;margin-bottom:8px;",
+        body=(
+            "<div style='display:flex;justify-content:space-between;align-items:center;'>"
+            "<div>"
+            f"<div style='font-weight:600;color:var(--text);'>{safe_name}</div><div style='font-size: 0.6875rem;color:var(--text-dim);'>{type_badge} {hierarchy}</div>"
+            "</div>"
+            f"<div>{count_badge}</div>"
+            "</div>"
+            f"{items_html}"
+        ),
     )

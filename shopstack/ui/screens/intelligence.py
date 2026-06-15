@@ -5,6 +5,7 @@ from html import escape
 
 from shopstack.app_context import db, current_user_id
 from shopstack.memory.waste_patterns import get_waste_insights
+from shopstack.ui.components.primitives import home_card
 from shopstack.ui.screens.price_memory import price_intelligence_view
 from shopstack.ui.screens._utils import safe_render
 
@@ -39,15 +40,17 @@ def get_intelligence_dashboard():
                     )
 
             if waste_items:
-                waste_html = "<div class='home-card' style='border-left:4px solid var(--red);'>" \
-                             "<h4>High Waste Items</h4><ul>" + "".join(waste_items[:10]) + "</ul></div>"
+                waste_html = home_card(
+                    style="border-left:4px solid var(--red);",
+                    body="<h4>High Waste Items</h4><ul>" + "".join(waste_items[:10]) + "</ul>",
+                )
             else:
-                waste_html = "<div class='home-card'>No waste patterns detected yet. Great job!</div>"
+                waste_html = home_card(body="No waste patterns detected yet. Great job!")
         else:
-            waste_html = "<div class='home-card'>No waste data available.</div>"
+            waste_html = home_card(body="No waste data available.")
     except Exception as e:
         logger.warning("Error loading waste insights: %s", e)
-        waste_html = "<div class='home-card'>Error loading waste insights.</div>"
+        waste_html = home_card(body="Error loading waste insights.")
 
     # 2. Preferences (enhanced with delete capability)
     pref_html = _render_preferences(uid)
@@ -57,7 +60,7 @@ def get_intelligence_dashboard():
         price_html = price_intelligence_view()
     except Exception as e:
         logger.warning("Error loading price intelligence: %s", e)
-        price_html = "<div class='home-card'>Error loading price intelligence.</div>"
+        price_html = home_card(body="Error loading price intelligence.")
 
     return waste_html, pref_html, price_html
 
@@ -97,12 +100,9 @@ def _render_preferences(user_id: str) -> str:
         )
 
     if not sections:
-        return "<div class='home-card'>No preference signals learned yet. Complete more shopping trips or add preferences manually below.</div>"
+        return home_card(body="No preference signals learned yet. Complete more shopping trips or add preferences manually below.")
 
-    return (
-        "<div class='home-card'><h4>Learned Preferences</h4>"
-        + "".join(sections) + "</div>"
-    )
+    return home_card(body="<h4>Learned Preferences</h4>" + "".join(sections))
 
 
 @safe_render

@@ -4,6 +4,7 @@ from html import escape
 import re
 from typing import Any
 from shopstack.schemas.models import DecisionResult, _ACTION_COLORS, _ACTION_ICONS
+from shopstack.ui.components.primitives import home_card
 
 
 _CARD_ID_COUNTER: int = 0
@@ -75,11 +76,12 @@ def card(title: str, body: str, *, compact: bool = True) -> str:
 
 
 def render_hero_panel(title: str, subtitle: str, eyebrow: str = "Today") -> str:
-    return (
-        "<div class='home-card hero-panel'>"
-        f"<div class='section-kicker'>{escape(str(eyebrow))}</div><h2>{escape(str(title))}</h2>"
-        f"<p class='hero-copy'>{escape(str(subtitle))}</p>"
-        "</div>"
+    return home_card(
+        extra_class="hero-panel",
+        body=(
+            f"<div class='section-kicker'>{escape(str(eyebrow))}</div><h2>{escape(str(title))}</h2>"
+            f"<p class='hero-copy'>{escape(str(subtitle))}</p>"
+        ),
     )
 
 
@@ -149,8 +151,9 @@ def render_action_grid(actions: list[dict[str, str]]) -> str:
 
 
 def empty_state(message: str) -> str:
-    return (
-        f"<div class='home-card' style='text-align:left;'><div class='muted'>{escape(str(message))}</div></div>"
+    return home_card(
+        style="text-align:left;",
+        body=f"<div class='muted'>{escape(str(message))}</div>",
     )
 
 
@@ -248,10 +251,13 @@ def render_unified_decision_card(d: DecisionResult) -> str:
             f">{escape(action_label)} →</button></div>"
         )
 
-    return (
-        f"<div class='home-card' style='margin-bottom:10px;border-left:4px solid {color};'><div style='display:flex;justify-content:space-between;align-items:center;'>"
-        f"<strong style='font-size: 0.875rem;'>{escape(d.display_name)}</strong>{badge}</div><div style='font-size: 0.8125rem;margin-top:4px;'>{reason}{price_info}</div>"
-        f"{evidence_html}{warnings_html}{stale_html}{action_btn}</div>"
+    return home_card(
+        style=f"margin-bottom:10px;border-left:4px solid {color};",
+        body=(
+            f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
+            f"<strong style='font-size: 0.875rem;'>{escape(d.display_name)}</strong>{badge}</div><div style='font-size: 0.8125rem;margin-top:4px;'>{reason}{price_info}</div>"
+            f"{evidence_html}{warnings_html}{stale_html}{action_btn}"
+        ),
     )
 
 
@@ -309,9 +315,10 @@ def render_workflow_rail(steps: list[str], current_step: int | None = None) -> s
         step + ("<span class='workflow-arrow'>→</span>" if idx + 1 < len(step_markers) else "")
         for idx, step in enumerate(step_markers)
     )
-    return (
-        "<div class='home-card workflow-rail'>"
-        "<div class='section-kicker'>Workflow Steps</div>"
-        f"<div class='workflow-steps'>{rail}</div>"
-        "</div>"
+    return home_card(
+        extra_class="workflow-rail",
+        body=(
+            "<div class='section-kicker'>Workflow Steps</div>"
+            f"<div class='workflow-steps'>{rail}</div>"
+        ),
     )

@@ -113,13 +113,26 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                         label="Category",
                         placeholder="e.g. Dairy, Grains, Vegetables",
                     )
-                p_submit = gr.Button("Add to Pantry")
+                p_submit = gr.Button("Add to Pantry", interactive=False)
                 p_result = gr.HTML(
                     empty_state_enhanced(
                         "Items you add will appear here with what was saved.",
                         icon="\U0001f6d2",
                     )
                 )
+                # Item #45 (motto_v3 §0.14): enable the button only
+                # when the required fields are filled. A user who
+                # clicks an empty form gets a "could not add" error
+                # that costs support time; the prereq gate prevents
+                # the no-op click in the first place.
+                from shopstack.ui.components.primitives import prereq_interactive as _prereq_gate
+                p_submit_prereq = _prereq_gate(
+                    prereq=lambda name, qty, unit, *_: bool(
+                        (name or "").strip() and qty and qty > 0 and (unit or "").strip()
+                    )
+                )
+                for _inp in (p_name, p_qty, p_unit):
+                    _inp.change(p_submit_prereq, [p_name, p_qty, p_unit], p_submit)
                 p_submit.click(
                     add_purchase_form,
                     [p_name, p_qty, p_unit, p_price, p_store, p_location, p_date, p_category],

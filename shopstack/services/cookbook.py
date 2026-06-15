@@ -36,6 +36,7 @@ from shopstack.services.recipes import (
     match_recipe,
     missing_to_shopping_items,
 )
+from shopstack.ui.components.primitives import home_card
 
 logger = logging.getLogger(__name__)
 
@@ -208,10 +209,9 @@ def render_cookbook_grid_html(
 ) -> str:
     """Render the full cookbook grid as a single HTML string."""
     if not matches:
-        return (
-            "<div class='home-card' style='text-align:center;padding:24px;color:var(--text-dim);'>"
-            f"{escape(t('cookbook.no_recipes', locale))}"
-            "</div>"
+        return home_card(
+            style="text-align:center;padding:24px;color:var(--text-dim);",
+            body=escape(t('cookbook.no_recipes', locale)),
         )
     cards = "".join(render_cookbook_card_html(m, locale) for m in matches)
     return (

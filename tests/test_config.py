@@ -85,7 +85,11 @@ class TestSettings:
         # sensevoice STT). Earlier revisions of the preset pinned more
         # fields, but those have since become the defaults.
         assert s.embeddings_backend == "nomic"
-        assert s.tool_call_parser_backend == "minicpm5"
+        # Phase 11 #1.7: was "minicpm5" but MiniCPM5Provider does not
+        # declare ``tool_call_parser`` in its capabilities set.
+        # The default is now "mock" so the registry resolves
+        # immediately to MockToolCallParser.
+        assert s.tool_call_parser_backend == "mock"
         assert s.stt_backend == "sensevoice"
 
     def test_provider_backends_compat_alias(self):
