@@ -282,7 +282,10 @@ def mark_items_purchased_service(
     from ``shopstack.ui.renderers`` for Gradio HTML display.
     """
     if item_ids_json == "[]" or item_ids_json == [] or not item_ids_json:
-        return MarkPurchasedResult(success=False, message="No items selected.")
+        return MarkPurchasedResult(
+            success=False,
+            message="No items selected — add items to the list first, then mark them as purchased.",
+        )
 
     if isinstance(item_ids_json, list):
         selected = item_ids_json
@@ -293,7 +296,10 @@ def mark_items_purchased_service(
             return MarkPurchasedResult(success=False, message="Could not parse selection.")
 
     if not selected:
-        return MarkPurchasedResult(success=False, message="No items selected.")
+        return MarkPurchasedResult(
+            success=False,
+            message="No items selected — add items to the list first, then mark them as purchased.",
+        )
 
     sl = database.get_active_shopping_list(user_id=user_id)
     if not sl or not sl.items:

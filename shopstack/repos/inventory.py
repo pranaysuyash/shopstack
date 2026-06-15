@@ -186,7 +186,10 @@ class InventoryRepo:
 
         events = self.db.get_inventory_events(lot_id=resolved_id, limit=1)
         if not events:
-            return {"success": False, "error": "No history to undo for this lot"}
+            return {
+                "success": False,
+                "error": "No history to undo for this lot — make a change first, then try again.",
+            }
         last_event = events[0]
 
         undo_event = last_event.get_undo_event()

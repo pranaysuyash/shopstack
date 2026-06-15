@@ -338,6 +338,24 @@ def pytest_configure(config):
     except ImportError:
         pass
 
+    # Disable the cacheprovider plugin. Discovered 2026-06-15: when the
+    # full sample runs test_regression_pass13.py BEFORE test_screens.py,
+    # the cache provider's stored state causes RecursionError in
+    # TestRenderListSummary, TestMarketLensSaveTrace, etc. The
+    # ``-p no:cacheprovider`` flag is the documented workaround but is
+    # easy to forget at the CLI. Blocking the plugin here is the
+    # canonical fix per the project's existing pattern of disabling
+    # xdist in this same hook.
+    try:
+        config.pluginmanager.set_blocked("cacheprovider")
+        logging.getLogger(__name__).debug(
+            "pytest_configure: blocked pytest-cacheprovider plugin "
+            "(avoids RecursionError in test_screens.py when run after "
+            "test_regression_pass13.py)"
+        )
+    except Exception:
+        pass
+
     # Register custom pytest marks used in this repo. Avoids
     # "PytestUnknownMarkWarning" for marks used in test files.
     config.addinivalue_line(

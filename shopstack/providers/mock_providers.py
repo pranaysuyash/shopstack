@@ -300,6 +300,7 @@ class MockEmbeddingsProvider(EmbeddingsProvider):
     name = "mock_embeddings"
     model_id = "mock-embeddings-v1"
     parameter_count = 0.0
+    backend = "mock"
 
     def load(self) -> None:
         pass

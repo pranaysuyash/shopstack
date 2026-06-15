@@ -55,7 +55,11 @@ def source_status_report(
         snapshot = registry.latest(source_id)
         if snapshot is None:
             status = "missing"
-            freshness = {"is_stale": True, "label": "No snapshot loaded", "captured_at": None}
+            freshness = {
+                "is_stale": True,
+                "label": "No snapshot loaded yet — import a snapshot via the snapshot script to start comparing prices.",
+                "captured_at": None,
+            }
         else:
             try:
                 freshness = registry.freshness_of(source_id)

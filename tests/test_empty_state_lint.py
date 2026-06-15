@@ -69,19 +69,46 @@ def test_production_code_passes_empty_state_lint() -> None:
     )
     # The lint exits 0 by default (advisory) — that's fine; we read
     # stdout regardless.
-
     text = result.stdout
-    # The excluded files are not in the scan output. Anything that
-    # remains is a real production finding.
-    assert "lint_empty_states: no findings" in text or \
-           "production findings: 0" in text, (
-        f"Empty-state lint found new production-code finding(s). "
-        f"The empty-state rewrite (UX_OVERHAUL_PLAN §Phase 3) "
-        f"requires every user-facing empty state to include an "
-        f"actionable next step.\n\n"
-        f"Lint output:\n{text}\n\n"
-        f"Fix: replace the message with one that includes an "
-        f"actionable verb (Add, Import, Scan, Try) or pass an "
-        f"action_label to empty_state_enhanced(). See "
-        f"shopstack/services/empty_states.py for the canonical pattern."
+
+    # The lint scans the whole repo including tests/. Production
+    # findings are paths that are NOT in tests/ and NOT in the
+    # excluded set. We re-apply the test/production split here so
+    # the assertion can be precise.
+    production_findings: list[str] = []
+    for line in text.splitlines():
+        m = re.match(r"^(.*?\.py):\d+$", line)
+        if not m:
+            continue
+        raw_path = m.group(1)
+        # Normalise: strip the repo_root prefix if present.
+        try:
+            rel = Path(raw_path).resolve().relative_to(repo_root.resolve())
+        except ValueError:
+            rel = Path(raw_path)
+        rel_str = str(rel)
+        # Tests are not production code — exclude them.
+        if rel_str.startswith("tests/") or rel_str == "tests":
+            continue
+        # Re-apply the same excludes the lint was given.
+        if any(pat in rel_str for pat in (
+            "shopstack/planner/prompts.py",
+            "shopstack/services/sparkline.py",
+            "shopstack/tools/lint_empty_states.py",
+            "benchmarks/",
+        )):
+            continue
+        production_findings.append(line)
+
+    assert not production_findings, (
+        f"Empty-state lint found {len(production_findings)} production-code "
+        f"finding(s). The empty-state rewrite (UX_OVERHAUL_PLAN §Phase 3) "
+        f"requires every user-facing empty state to include an actionable "
+        f"next step.\n\n"
+        f"Production findings:\n"
+        + "\n".join(production_findings)
+        + "\n\nFix: replace the message with one that includes an "
+        "actionable verb (Add, Import, Scan, Try) or pass an "
+        "action_label to empty_state_enhanced(). See "
+        "shopstack/services/empty_states.py for the canonical pattern."
     )

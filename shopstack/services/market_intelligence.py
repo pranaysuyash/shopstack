@@ -997,7 +997,7 @@ def _freshness_for_snapshot(snapshot: Any | None):
         return FreshnessReport(
             status="unknown",
             age_days=None,
-            label="No snapshot available",
+            label="No snapshot available yet — import a snapshot via the snapshot script to start comparing prices.",
             captured_at="",
             is_stale=True,
             warning="Market data unavailable.",

@@ -1,17 +1,19 @@
 """Memory tab — composition only.
 
-This is the "what did we learn?" tab. It composes 8 sub-tabs by
+This is the "what did we learn?" tab. It composes 9 sub-tabs by
 delegating each to its own sub-builder module:
 
-  1. **Patterns**     → ``memory_intelligence.build_memory_intelligence``
-  2. **Remember**     → ``memory_notes.build_memory_notes``
-  3. **What Happened** → ``memory_history.build_memory_history``
-  4. **Nutrition**    → ``memory_nutrition.build_memory_nutrition``
-  5. **Activity**     → ``memory_activity.build_memory_activity``
-  6. **Analytics**    → ``memory_activity.build_memory_analytics``
-  7. **Per-member**   → ``memory_activity.build_memory_per_member`` (Phase 11)
-  8. **Advanced**     → ``memory_data.build_memory_advanced`` (developer-only)
-  9. **Backup**       → ``memory_data.build_memory_backup``
+  1. **Recent corrections** → ``memory_data.build_memory_corrections``
+     (close the invisible learning loop — see audit 2026-06-15)
+  2. **Patterns**     → ``memory_intelligence.build_memory_intelligence``
+  3. **Remember**     → ``memory_notes.build_memory_notes``
+  4. **What Happened** → ``memory_history.build_memory_history``
+  5. **Nutrition**    → ``memory_nutrition.build_memory_nutrition``
+  6. **Activity**     → ``memory_activity.build_memory_activity``
+  7. **Analytics**    → ``memory_activity.build_memory_analytics``
+  8. **Per-member**   → ``memory_activity.build_memory_per_member`` (Phase 11)
+  9. **Advanced**     → ``memory_data.build_memory_advanced`` (developer-only)
+ 10. **Backup**       → ``memory_data.build_memory_backup``
 
 The sub-builder pattern is documented at the module level of each
 sub-builder. The composition here is intentionally minimal — just the
@@ -31,7 +33,11 @@ import gradio as gr
 from shopstack.module_registry import tab_label as _tab_label
 from shopstack.ui.tabs.context import TabContext
 from shopstack.ui.tabs.memory_activity import build_memory_activity, build_memory_analytics, build_memory_per_member
-from shopstack.ui.tabs.memory_data import build_memory_advanced, build_memory_backup
+from shopstack.ui.tabs.memory_data import (
+    build_memory_advanced,
+    build_memory_backup,
+    build_memory_corrections,
+)
 from shopstack.ui.tabs.memory_history import build_memory_history
 from shopstack.ui.tabs.memory_intelligence import build_memory_intelligence
 from shopstack.ui.tabs.memory_notes import build_memory_notes
@@ -41,15 +47,15 @@ from shopstack.ui.tabs.memory_nutrition import build_memory_nutrition
 def build_memory_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None:
     """Build the Memory tab inside the parent's ``gr.Tabs`` context.
 
-    Composes 8 sub-tabs by delegating each to its own sub-builder.
+    Composes 9 sub-tabs by delegating each to its own sub-builder.
     No business logic lives in this function — all wiring is in the
     sub-builder modules.
 
     Args:
         blocks: Alias for the parent gr.Blocks. Kept for symmetry with
             other tab builders.
-        app: The root gr.Blocks instance — passed to each sub-builder
-            for ``app.load(...)`` handlers.
+        app: The root :class:`gr.Blocks` instance — passed to each
+            sub-builder for ``app.load(...)`` handlers.
         ctx: Shared dependencies (currently unused by any sub-builder,
             but part of the uniform builder signature for symmetry).
 
@@ -60,6 +66,15 @@ def build_memory_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
     """
     with gr.Tab(_tab_label("memory"), id="memory"):
         with gr.Tabs():
+            # ── Recent corrections is the user's window into the
+            # learning loop. Putting it first (a) makes the
+            # feature discoverable and (b) is the right answer
+            # to "what did ShopStack learn?" — the user can
+            # audit, accept, or reject before the signal
+            # propagates further.
+            with gr.Tab("Recent corrections"):
+                build_memory_corrections(app=app, ctx=ctx)
+
             with gr.Tab("Patterns"):
                 build_memory_intelligence(app=app, ctx=ctx)
 

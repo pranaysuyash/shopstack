@@ -133,7 +133,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # Empty / error states
         "empty.no_inventory": "Your inventory is empty. Add some items to get started.",
         "empty.no_lists": "No shopping lists yet.",
-        "empty.fallback": "Nothing here yet.",
+        "empty.fallback": "Nothing here yet — add an item, import a snapshot, or use the command input to get started.",
         # Empty-state presets (used by shopstack.services.empty_states)
         "empty.dashboard.title": "Welcome home",
         "empty.dashboard.body": "Your dashboard is empty. Add your first 5 pantry staples or import a Swiggy receipt to get started.",

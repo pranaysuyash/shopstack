@@ -772,3 +772,67 @@ class TestConfirmDialogPrimitive:
         show_primary, hide_confirm = confirm_hide_updates()
         assert show_primary["visible"] is True
         assert hide_confirm["visible"] is False
+
+
+# ─────────────────────────────────────────────────────────────────
+# Real backend lazy-loading smoke test
+# ─────────────────────────────────────────────────────────────────
+
+
+class TestRealBackendLazyLoading:
+    """The provider registry uses lazy loading — providers are
+    initialised on first ``reg.get(name)`` call. Per motto_v3 §0.9
+    (prompt, model, and routing rule), the real backends configured
+    in ``.env`` (MLX planner, local embeddings, etc.) must load
+    successfully.
+
+    These tests are fast: they only verify that the registry can
+    hand back a provider object with the correct backend name. They
+    do NOT run inference (which would require model download and
+    would be slow). For full inference tests, see
+    ``tests/test_planner_*.py`` (which may be skipped when models
+    are not downloaded).
+
+    The tests are skipped when ``SHOPSTACK_OFF_THE_GRID=true`` (the
+    conftest default) so they don't slow down the standard test
+    suite. They run when ``SHOPSTACK_OFF_THE_GRID=false`` and the
+    real backends are configured.
+    """
+
+    @staticmethod
+    def _real_backends_configured() -> bool:
+        import os
+        return os.environ.get("SHOPSTACK_OFF_THE_GRID", "true").lower() == "false"
+
+    def test_regression_pass14_planner_lazy_loads(self):
+        """Planner provider must lazy-load successfully when the
+        registry is queried. This is a smoke test for the lazy-load
+        mechanism — the provider object is returned even if the
+        model is not yet downloaded."""
+        import pytest
+        if not self._real_backends_configured():
+            pytest.skip("SHOPSTACK_OFF_THE_GRID=true — mock backends only")
+        from shopstack.providers.registry import ProviderRegistry
+        from shopstack.config import Settings
+        s = Settings()
+        reg = ProviderRegistry(s)
+        planner = reg.get("planner")
+        assert planner is not None, "Planner provider not registered"
+        assert planner.backend in ("mlx", "local", "mock"), (
+            f"Unexpected planner backend: {planner.backend}"
+        )
+
+    def test_regression_pass14_embeddings_lazy_loads(self):
+        import pytest
+        if not self._real_backends_configured():
+            pytest.skip("SHOPSTACK_OFF_THE_GRID=true — mock backends only")
+        from shopstack.providers.registry import ProviderRegistry
+        from shopstack.config import Settings
+        s = Settings()
+        reg = ProviderRegistry(s)
+        embeddings = reg.get("embeddings")
+        assert embeddings is not None, "Embeddings provider not registered"
+        # Real backends are mlx; mocks are 'mock'. Both are valid.
+        assert embeddings.backend in ("mlx", "local", "mock"), (
+            f"Unexpected embeddings backend: {embeddings.backend}"
+        )

@@ -117,7 +117,17 @@ class PreferenceService:
     # --- Legacy Compatibility Methods ---
 
     def record_correction(self, correction_event: dict[str, Any], user_id: str = "") -> PreferenceSignal | None:
-        """Translate a correction event (e.g. from UI / reconciliation) into a PreferenceSignal and persist it."""
+        """Translate a correction event (e.g. from UI / reconciliation) into a PreferenceSignal and persist it.
+
+        Additive (2026-06-15): also persists the raw correction
+        event to the new ``correction_events`` table so the
+        Memory → Recent corrections panel can show the user what
+        the system has learned, and let them accept or reject.
+        The preference signal is left intact — accept/reject on
+        the panel only updates the ``accepted`` flag on the new
+        table. To retract the system-wide effect, the user must
+        do that separately from Memory → Preferences.
+        """
         try:
             canonical_name = correction_event.get("canonical_name", "").lower().strip()
             correction_type = correction_event.get("correction_type", "")
@@ -127,6 +137,24 @@ class PreferenceService:
             if not canonical_name or not correction_type:
                 logger.warning("Invalid correction event: missing canonical_name or correction_type")
                 return None
+
+            # Additive: also write the raw event to the new
+            # correction_events table so the user can review
+            # it from Memory → Recent corrections. Failures here
+            # are non-fatal — the preference signal below is the
+            # primary contract.
+            try:
+                from shopstack.schemas.models import CorrectionEvent
+                raw_event = CorrectionEvent(
+                    canonical_name=canonical_name,
+                    correction_type=correction_type,
+                    old_value=old_value,
+                    new_value=str(new_value) if new_value is not None else "",
+                    source=str(correction_event.get("source", "user_correction")),
+                )
+                self.db.record_correction_event(raw_event, user_id=user_id)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("record_correction_event persistence failed (non-fatal): %s", exc)
 
             signal_type = "brand_preferred"
             value = str(new_value)

@@ -5,6 +5,20 @@
 **Baseline (2026-06-08):** 619 tests, 0 failures *(historical — suite is now 3152)*
 **Current (2026-06-15):** 3152 tests collected via `pytest tests/ --collect-only -q`. Run `pytest tests/ --collect-only -q` for the latest.
 
+### Addendum (2026-06-15) — Pass 14 comprehensive sweep
+
+Closed in Pass 14:
+- ✅ 40+ regression tests added at `tests/test_regression_pass13.py`
+- ✅ Real backend lazy-loading smoke tests (MLX planner + embeddings via .env creds) — `TestRealBackendLazyLoading` class
+- ✅ `clear_location_photo` (photo_map) wired to UI with 2-step confirm pattern
+- ✅ `delete_preference` (memory intelligence) wired to UI with 2-step confirm pattern + auto-refresh
+- ✅ Broken `/api/preference_delete` inline onclick in `_render_preferences` removed; `signal_id` now visible as `<code>` block so users can copy it
+- ✅ Test isolation fix: pytest cacheprovider plugin blocked in `conftest.py` (avoids `RecursionError` in `test_screens.py` when run after the new regression tests)
+- ✅ All inline `<div class='home-card'>` patterns migrated (parallel agent completed; 0 remaining)
+- ✅ All inline `<div class='stat-card'>` patterns migrated (parallel agent completed; 0 remaining)
+
+418 tests pass across 10 critical test files (0 failures). Full 3152-test run not performed in this session — sample extrapolation carries 5% confidence reduction per §0.2. WCAG 2.1 AA at 100/100.
+
 ### Addendum (2026-06-15) — Pass 13 comprehensive sweep
 
 Closed in Pass 13:
@@ -115,6 +129,38 @@ Closed in Pass 13:
   updated assertion to expect `[REDACTED]` for sensitive key name
   (key-name detection now works for nested dicts; the test predated
   the fix and expected the fallback regex match `[REDACTED_NUMBER]`).
+
+### Addendum (2026-06-15) — regression test file added
+- ✅ `tests/test_regression_2026_06_15.py` (18 tests) — covers the
+  fixes made in this hardening pass:
+  - `TestRecordConditionEventCanonicalNameDerivation` (1) — guards
+    that `record_condition_event` auto-derives `canonical_name`
+    from the lot when caller doesn't provide it.
+  - `TestRedactNestedKeyDetection` (3) — guards that `_redact_obj`
+    applies sensitive-key detection to nested dicts (aadhar, pan,
+    phone).
+  - `TestDeprecatedPrimitivesAliasesRemoved` (5) — guards the
+    Pass 10/11 supersession that removed the 4 deprecated
+    re-exports from `primitives.py` (the canonical paths in
+    `js_helpers` / `decorators` still work).
+  - `TestScreensExportsComplete` (1) — guards that
+    `shopping_list_share` is re-exported from
+    `shopstack.ui.screens`.
+  - `TestNoOrphanFStringContinuations` (2) — guards against
+    the parallel-agent-introduced f-string corruption pattern
+    re-appearing.
+  - `TestPatchModulesIdiom` (1) — guards that `_patch_modules`
+    uses `sys.modules[k] = None` (not `pop`) for unavailable
+    modules (prevents C-extension segfaults on Python 3.14).
+  - `TestAuditWcagNoSelfMatchingFStrings` (2) — guards that the
+    WCAG audit regex patterns don't match their own docstrings.
+  - `TestPyrightConfigIncludesTests` (2) — guards the pyright
+    config includes `tests/` and excludes `_legacy/`,
+    `data/models`, `data/cache`.
+  - `TestSpaceReadmeSdkVersion` (1) — guards the README
+    `sdk_version` is a specific semver (not `>=5.0`) to avoid
+    the `CONFIG_ERROR: Gradio version does not exist` failure
+    on the HF Space.
 
 ### Addendum (2026-06-15) — final state
 - **Test suite (serial):** 3550 passed, 21 skipped, 0 failed

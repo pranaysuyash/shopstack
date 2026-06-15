@@ -10,6 +10,7 @@ from typing import Any
 
 from shopstack.config import settings
 from shopstack.schemas.models import (
+    CorrectionEvent,  # 2026-06-15 — Recent corrections panel
     FindFeedback,
     HouseholdObject,
     InventoryEvent,
@@ -352,6 +353,27 @@ class Database:
                 notes TEXT,
                 user_id TEXT DEFAULT ''
             );
+
+            -- correction_events: user-feedback/correction log that
+            -- closes the invisible learning loop. Created 2026-06-15
+            -- as part of the full-app audit. Additive; the
+            -- preference_signals table continues to hold the
+            -- translated signals (this table holds the raw event
+            -- so the user can review, accept, or reject via the
+            -- Memory → Recent corrections panel).
+            CREATE TABLE IF NOT EXISTS correction_events (
+                event_id TEXT PRIMARY KEY,
+                timestamp TEXT NOT NULL,
+                canonical_name TEXT NOT NULL,
+                correction_type TEXT NOT NULL,
+                old_value TEXT,
+                new_value TEXT NOT NULL,
+                source TEXT NOT NULL DEFAULT 'user_correction',
+                accepted INTEGER NOT NULL DEFAULT 0,
+                user_id TEXT DEFAULT ''
+            );
+            CREATE INDEX IF NOT EXISTS idx_correction_events_user_ts
+                ON correction_events (user_id, timestamp DESC);
 
             CREATE TABLE IF NOT EXISTS households (
                 household_id TEXT PRIMARY KEY,
@@ -1686,6 +1708,73 @@ class Database:
         rows = self.conn.execute(query, params).fetchall()
         return [_row_to_reconciliation(r) for r in rows]
 
+    # --- Correction Events (user-feedback learning loop) ---
+
+    def record_correction_event(self, event: CorrectionEvent, user_id: str = "") -> CorrectionEvent:
+        """Persist a user correction (alias, brand, pack_size, avoid, etc.).
+
+        Additive to the existing ``preference_signals`` flow: the
+        preference service still translates corrections into typed
+        signals, but the raw event is also kept here so the user can
+        review, accept, or reject it from the Memory → Recent
+        corrections panel.
+        """
+        user_id = self._scope_user_id(user_id)
+        ts = event.timestamp.isoformat() if hasattr(event.timestamp, "isoformat") else str(event.timestamp)
+        self.conn.execute(
+            """
+            INSERT OR REPLACE INTO correction_events
+                (event_id, timestamp, canonical_name, correction_type,
+                 old_value, new_value, source, accepted, user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)
+            """,
+            (
+                event.event_id, ts, event.canonical_name, event.correction_type,
+                event.old_value, event.new_value, event.source, user_id,
+            ),
+        )
+        self.conn.commit()
+        return event
+
+    def get_recent_correction_events(
+        self,
+        limit: int = 20,
+        accepted_only: bool = False,
+        user_id: str = "",
+    ) -> list[CorrectionEvent]:
+        """Return the most recent correction events for the active user.
+
+        The Memory → Recent corrections panel uses this to surface
+        pending (accepted=0) corrections so the user can accept or
+        reject them with one tap.
+        """
+        user_id = self._scope_user_id(user_id)
+        query = "SELECT * FROM correction_events WHERE 1=1"
+        params: list[str | int] = []
+        if accepted_only:
+            query += " AND accepted = 1"
+        if user_id:
+            query += " AND user_id = ?"
+            params.append(user_id)
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+        rows = self.conn.execute(query, params).fetchall()
+        return [_row_to_correction(r) for r in rows]
+
+    def mark_correction_accepted(self, event_id: str, accepted: bool = True) -> None:
+        """Mark a correction event as accepted (1) or rejected (0).
+
+        Used by the Memory → Recent corrections panel's accept/reject
+        buttons. The preference signal that the event produced is
+        left intact (the user can separately retract it via Memory →
+        Preferences if they want to).
+        """
+        self.conn.execute(
+            "UPDATE correction_events SET accepted = ? WHERE event_id = ?",
+            (1 if accepted else 0, event_id),
+        )
+        self.conn.commit()
+
     # --- Inventory Events (audit trail) ---
 
     def record_inventory_event(self, event: InventoryEvent, user_id: str = "") -> InventoryEvent:
@@ -2203,6 +2292,19 @@ def _row_to_reconciliation(row: sqlite3.Row) -> ReconciliationEvent:
         substituted_with=row["substituted_with"],
         notes=row["notes"],
         source=row["source"],
+    )
+
+
+def _row_to_correction(row: sqlite3.Row) -> CorrectionEvent:
+    """Convert a correction_events row to a CorrectionEvent model."""
+    return CorrectionEvent(
+        event_id=row["event_id"],
+        timestamp=datetime.fromisoformat(row["timestamp"]) if row["timestamp"] else datetime.now(),
+        canonical_name=row["canonical_name"],
+        correction_type=row["correction_type"],
+        old_value=row["old_value"],
+        new_value=row["new_value"],
+        source=row["source"] or "user_correction",
     )
 
 

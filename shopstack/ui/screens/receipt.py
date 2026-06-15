@@ -4,6 +4,8 @@ import logging
 from html import escape
 from typing import Any
 
+import pandas as pd
+
 
 from shopstack.app_context import db, providers, current_user_id
 from shopstack.services.dashboard import clear_dashboard_cache
@@ -77,13 +79,17 @@ def _render_receipt_review(result: ReceiptResult | None) -> str:
     )
 
 
-def _build_receipt_rows(lines: list) -> list[list[Any]]:
-    return [[
+RECEIPT_COLUMNS = ["Item", "Quantity", "Unit", "Price"]
+
+
+def _build_receipt_rows(lines: list) -> pd.DataFrame:
+    rows = [[
         line.display_name,
         line.quantity,
         line.unit,
         line.price,
     ] for line in lines]
+    return pd.DataFrame(rows, columns=RECEIPT_COLUMNS)
 
 
 def _resolve_path(file_input: Any) -> str:
@@ -147,6 +153,11 @@ def receipt_parse_text(raw_text: str) -> tuple[list[list[Any]], str, str]:
 @safe_render
 def receipt_confirm(df_data: Any, merchant: str, date_str: str, raw_text: str) -> str:
     # df_data is a pandas DataFrame or list of lists
+    if df_data is None:
+        return (
+            "<div style='color:var(--red);'>Receipt draft not ready yet. "
+            "Wait for Scan &amp; Parse to finish, then click Confirm again.</div>"
+        )
     if hasattr(df_data, "values"):
         # pandas DataFrame
         df_list = df_data.values.tolist()

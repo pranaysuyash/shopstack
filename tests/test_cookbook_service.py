@@ -315,7 +315,13 @@ def test_shop_missing_db_error_does_not_raise():
     inv = []
     result = shop_missing(_BadDB(), recipe, inv, user_id="hh-1")
     assert result["added"] is False
-    assert "Failed" in result["reason"] or "db" in result["reason"].lower()
+    # User-facing message should communicate the failure (any of the
+    # common failure words) so the user isn't confused by silent failure.
+    reason_lower = result["reason"].lower()
+    assert any(
+        word in reason_lower
+        for word in ("failed", "couldn't", "could not", "db", "try again", "error")
+    ), f"Expected a user-friendly failure message, got: {result['reason']!r}"
 
 
 # ── XSS safety ────────────────────────────────────────────────

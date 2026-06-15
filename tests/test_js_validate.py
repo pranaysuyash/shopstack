@@ -254,8 +254,29 @@ class TestPrecommitWiring:
 
         rc = js_validate.main([])
         assert rc == 0, (
-            f"JS validator found SyntaxErrors — the pre-commit "
-            f"hook would block the commit. Run "
-            f"`uv run python -m shopstack.tools.js_validate` to "
-            f"see the report."
+            f"js_validate.main() exited {rc} — JS SyntaxErrors in "
+            f"the codebase would block pre-commit (Item #56)."
+        )
+
+    def test_ci_workflow_also_runs_js_validate(self):
+        """Item #56 (motto_v3 §0.5): the same gate should exist
+        in CI. Pre-commit protects local commits; CI protects
+        pushes. Both must invoke the validator. A regression
+        where the CI job is removed would let a SyntaxError
+        through on a PR committed via the GitHub web UI.
+        """
+        from pathlib import Path
+        wf = Path(".github/workflows/quality-gates.yml")
+        if not wf.is_file():
+            pytest.skip("No quality-gates workflow; CI may be elsewhere")
+        text = wf.read_text(encoding="utf-8")
+        assert "shopstack.tools.js_validate" in text, (
+            "The CI quality-gates workflow must run "
+            "shopstack.tools.js_validate (Item #56: "
+            "JS validator must gate pushes, not just commits)."
+        )
+        # A job that uploads the report is a useful audit trail.
+        assert "JS_VALIDATION" in text or "js-validation" in text.lower(), (
+            "The CI job should also upload the JS_VALIDATION.json "
+            "report as an artifact for postmortem."
         )

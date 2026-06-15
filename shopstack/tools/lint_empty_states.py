@@ -231,6 +231,52 @@ def _has_ancestor_call(node: ast.AST, parents: dict[int, ast.AST],
     return False
 
 
+def _is_call_title_with_actionable_body(
+    node: ast.Constant,
+    parents: dict[int, ast.AST],
+    call_name: str,
+    title_kwarg: str = "title",
+    body_kwarg: str = "body",
+) -> bool:
+    """Return True if ``node`` is a Constant passed as ``title=`` to a
+    ``call_name`` call where the same call has a non-empty ``body=``
+    kwarg. Used to recognise the ``home_card(title=..., body=...)`` and
+    similar patterns where the title is the passive label and the body
+    carries the actionable hint.
+    """
+    cur: ast.AST | None = parents.get(id(node))
+    while cur is not None and not isinstance(cur, ast.Call):
+        cur = parents.get(id(cur))
+    if cur is None:
+        return False
+    fn = cur.func
+    fn_name = None
+    if isinstance(fn, ast.Name):
+        fn_name = fn.id
+    elif isinstance(fn, ast.Attribute):
+        fn_name = fn.attr
+    if fn_name != call_name:
+        return False
+    # Check that the constant IS the title kwarg
+    for kw in cur.keywords:
+        if kw.arg == title_kwarg and kw.value is node:
+            break
+    else:
+        return False
+    # Check that the call has a body kwarg with actionable content
+    body = _kwarg_value(cur, body_kwarg)
+    if body and _is_actionable(body):
+        return True
+    # Also accept non-string body values (e.g. f-strings we can't
+    # statically analyse) as long as the body kwarg is present and
+    # not None/empty.
+    for kw in cur.keywords:
+        if kw.arg == body_kwarg and not (isinstance(kw.value, ast.Constant)
+                                        and kw.value.value in (None, "")):
+            return True
+    return False
+
+
 def _full_fstring_value(node: ast.Constant, parents: dict[int, ast.AST]) -> str:
     """If ``node`` is a Constant inside a JoinedStr (f-string), return
     the concatenation of all sibling Constant parts (with ``{...}``
@@ -343,6 +389,12 @@ def _scan_python_file(path: Path) -> list[Finding]:
                         continue
                     # Skip i18n keys whose sibling body key is actionable.
                     if _is_i18n_title_with_actionable_body(node, source):
+                        continue
+                    # Skip home_card() / stat_card() titles whose
+                    # body kwarg already carries the actionable hint.
+                    if _is_call_title_with_actionable_body(node, parents, "home_card"):
+                        continue
+                    if _is_call_title_with_actionable_body(node, parents, "stat_card"):
                         continue
                     findings.append(Finding(
                         file=str(path),

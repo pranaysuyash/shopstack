@@ -115,7 +115,10 @@ def advise_trip(
     if active_list_size <= 0:
         return TripAdvice(
             recommendation="neutral",
-            reason="Your shopping list is empty — nothing to trip on right now.",
+            reason=(
+                "Your shopping list is empty — add a few items to plan a trip, "
+                "then come back for weather, store, and price advice."
+            ),
             trip_friendly=True,
             weather=weather,
         )

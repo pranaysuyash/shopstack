@@ -200,7 +200,10 @@ class TestHandoffDocInventory:
          "Supersession audit (archived)"),
         # This handoff
         ("Docs/HANDOFF_ENV_AND_HANDOFF_LOCK_2026-06-13.md",
-         "This handoff (env + handoff inventory regression checks)"),
+         "Env + handoff inventory regression checks"),
+        # Audit hardening handoff
+        ("Docs/HANDOFF_AUDIT_HEALTH_HARDENING_2026-06-13.md",
+         "Audit health hardening (percentage tolerance + 120s timeout + 2 regression checks)"),
     ]
 
     def test_all_handoff_docs_exist(self):
@@ -271,6 +274,7 @@ class TestHandoffDocInventory:
             "tests/test_receipt_txt_export.py",
             "tests/test_2026_06_13_regression_audit.py",
             "tests/test_env_and_handoff_lock.py",  # this file
+            # (no new test file this turn — modifications only to existing audit)
         ]
         missing = [f for f in expected if not (REPO / f).exists()]
         assert not missing, (

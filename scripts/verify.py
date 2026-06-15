@@ -101,7 +101,7 @@ def phase_tests() -> tuple[bool, str]:
          "--ignore=tests/test_visual_qa.py",  # playwright; needs running app
          "--deselect=tests/test_accessibility_components.py",  # parallel-agent refactor in flight
         ],
-        timeout=600,
+        timeout=900,  # 15 min — full suite + live tests take 5-8 min
     )
     summary_line = [line for line in result.stdout.split("\n") if line.strip() and ("passed" in line.lower() or "failed" in line.lower())]
     summary = summary_line[-1] if summary_line else result.stdout.strip()[-200:]

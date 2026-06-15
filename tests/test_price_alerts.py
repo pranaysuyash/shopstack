@@ -34,6 +34,12 @@ def fresh_db():
     must register ``default`` as a household and add ``default`` as
     its owner. Without this, every ``record_price(..., user_id="default")``
     fails with ``PermissionError: user 'default' is not a member of 'default'``.
+
+    Also sets ``db.active_household_id = "default"`` so the household
+    scoping in get_price_history() and other DB methods picks up the
+    right household. Without this, the DB's default active_household_id
+    ("default_household") would mismatch the "default" household the
+    test created, and get_price_history() would return [].
     """
     fd, path = tempfile.mkstemp(suffix=".db")
     import os
@@ -42,6 +48,7 @@ def fresh_db():
     db = Database(path)
     db.add_household("default", "Default Test Household")
     db.add_household_member("default", "default", role="owner")
+    db.active_household_id = "default"
     yield db, path
     _remove_db_with_sidecars(path)
 

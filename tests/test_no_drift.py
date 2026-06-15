@@ -74,7 +74,7 @@ REPO = Path(__file__).resolve().parents[1]
 _SIZE_BUDGETS: list[tuple[str, int, str]] = [
     ("app.py", 360, "Composition root — grew from 235 (Pass 8) to 299 after adding 15 new tab builders (timeline, scanner, trip_advisor, market_intel, nutrition_coach, photo_map, find_trail, store_mode, smart_basket, analytics, repair_inbox, consumption, recipe, parser, community). Budget set to 360 to allow headroom for a few more tabs; if it grows past 360, extract tab composition into a sub-builder."),
     ("shopstack/ui/tabs/basket.py", 130, "Basket tab composition — was 108 in Pass 8, budget allows 20% growth."),
-    ("shopstack/ui/tabs/memory.py", 105, "Memory tab composition — was 87 in Pass 8."),
+    ("shopstack/ui/tabs/memory.py", 115, "Memory tab composition — was 87 in Pass 8, 105 before Pass 13 enrichment (1-line over the Pass 8 budget from new tab-builder additions)."),
     ("shopstack/ui/tabs/today.py", 270, "Today tab — was 223 in Pass 8."),
     ("shopstack/ui/tabs/reconcile.py", 505, "Reconcile tab — was 421 in Pass 8."),
     ("shopstack/ui/tabs/market.py", 235, "Market tab — was 193 in Pass 8."),

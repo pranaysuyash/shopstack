@@ -102,6 +102,11 @@ from shopstack.ui.screens.intelligence import (
     refresh_preferences,
 )
 from shopstack.ui.screens.nutrition import nutrition_lookup_view, nutrition_kitchen_view  # noqa: F401 — public API re-export
+from shopstack.ui.screens.corrections import (  # noqa: F401 — Memory → Recent corrections panel (2026-06-15)
+    accept_correction_event,
+    reject_correction_event,
+    render_recent_corrections_html,
+)
 from shopstack.ui.screens.unified_shopping import run_unified_plan, unified_plan_summary
 from shopstack.ui.screens.recipe_text import (
     recipe_text_to_shopping_list,
@@ -244,6 +249,12 @@ __all__ = [
     "confirm_condition_event",
     "close_condition_event",
     "delete_condition_event",
+    # Recent corrections panel (2026-06-15) — closes the
+    # invisible learning loop. Wired into Memory → Recent
+    # corrections sub-tab; see audit 2026-06-15.
+    "accept_correction_event",
+    "reject_correction_event",
+    "render_recent_corrections_html",
     # Archived 2026-06-13 to _legacy/ per motto_v3 §7 (supersession).
     # Kept in __all__ for backward compatibility — see DR-SS1.
     "add_member_screen",

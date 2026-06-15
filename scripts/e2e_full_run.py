@@ -51,13 +51,20 @@ def _free_port() -> int:
         return s.getsockname()[1]
 
 
-def _wait_for_server(url: str, timeout: float = 60.0) -> bool:
+def _wait_for_server(url: str, timeout: float = 90.0) -> bool:
+    """Wait until the server responds to an actual HTTP request.
+
+    A TCP connect succeeding is NOT enough — Gradio opens the port
+    before its HTTP handler is ready, causing ERR_CONNECTION_RESET on
+    the first page.goto. We poll the URL with urllib until we get a 200.
+    """
+    import urllib.request
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            with socket.create_connection(("127.0.0.1", int(url.rsplit(":", 1)[1])), timeout=2):
-                return True
-        except (OSError, ConnectionRefusedError):
+            urllib.request.urlopen(url, timeout=3)
+            return True
+        except Exception:
             time.sleep(1.0)
     return False
 
@@ -185,7 +192,8 @@ FLOWS: list[dict[str, Any]] = [
             {"kind": "wait", "ms": 2500},
             {"kind": "shot", "name": "04a_shelf_open.png"},
             {"kind": "upload", "path": str(IMG_FRESH_MART)},
-            {"kind": "wait", "ms": 9000, "label": "vision inference"},
+            {"kind": "click_text", "text": "Analyze", "label": "click Analyze"},
+            {"kind": "wait", "ms": 12000, "label": "vision inference"},
             {"kind": "shot", "name": "04b_shelf_after.png", "full": True},
         ],
     },
@@ -200,7 +208,8 @@ FLOWS: list[dict[str, Any]] = [
             {"kind": "wait", "ms": 2500},
             {"kind": "shot", "name": "05a_basket_open.png"},
             {"kind": "upload", "path": str(IMG_MAA_LAXMI)},
-            {"kind": "wait", "ms": 9000, "label": "OCR pipeline"},
+            {"kind": "click_text", "text": "Build basket", "label": "click Build basket"},
+            {"kind": "wait", "ms": 12000, "label": "basket optimization"},
             {"kind": "shot", "name": "05b_basket_after.png", "full": True},
         ],
     },
@@ -245,7 +254,8 @@ FLOWS: list[dict[str, Any]] = [
             {"kind": "wait", "ms": 2500},
             {"kind": "shot", "name": "09a_analytics.png"},
             {"kind": "upload", "path": str(IMG_FRIDGE)},
-            {"kind": "wait", "ms": 11000, "label": "grounding inference"},
+            {"kind": "click_text", "text": "Analyze", "label": "click Analyze"},
+            {"kind": "wait", "ms": 12000, "label": "grounding inference"},
             {"kind": "shot", "name": "09b_grounding_after.png", "full": True},
         ],
     },
@@ -260,7 +270,8 @@ FLOWS: list[dict[str, Any]] = [
             {"kind": "wait", "ms": 2500},
             {"kind": "shot", "name": "10a_parser_open.png"},
             {"kind": "upload", "path": str(IMG_SAI_PHARMA)},
-            {"kind": "wait", "ms": 9000, "label": "OCR pipeline"},
+            {"kind": "click_text", "text": "Parse", "label": "click Parse"},
+            {"kind": "wait", "ms": 12000, "label": "OCR + parse pipeline"},
             {"kind": "shot", "name": "10b_parser_after.png", "full": True},
         ],
     },
@@ -293,6 +304,24 @@ def run_step(page: Any, step: dict, flow_slug: str, app_url: str) -> str:
             return f"uploaded {Path(step['path']).name}"
         except Exception as exc:
             return f"upload FAILED: {exc}"
+    if kind == "click_text":
+        text = step["text"]
+        # Try multiple selectors to find the button by text
+        for sel in (
+            f"button:has-text('{text}')",
+            f"[role='button']:has-text('{text}')",
+            f"a:has-text('{text}')",
+            f"input[value='{text}']",
+        ):
+            try:
+                loc = page.locator(sel).first
+                if loc.count() == 0:
+                    continue
+                loc.click(timeout=5000, force=True)
+                return f"clicked '{text}'"
+            except Exception:
+                continue
+        return f"click '{text}': NOT FOUND"
     return f"unknown step: {kind}"
 
 
@@ -313,7 +342,8 @@ def main() -> int:
 
     tmp_db = tempfile.mktemp(suffix=".db")
     env_patch = {
-        "SHOPSTACK_OFF_THE_GRID": "true",
+        # Use REAL local models (mlx/llama.cpp) — installed and cached.
+        # Don't force off_the_grid — that blocks to mock-only mode.
         "SHOPSTACK_DB_PATH": tmp_db,
     }
     import os
@@ -415,7 +445,7 @@ def main() -> int:
     results = {
         "run_ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "app_url": app_url,
-        "off_the_grid": True,
+        "off_the_grid": False,  # real local models
         "flows": summary,
         "total_flows": len(summary),
         "passed": sum(1 for s in summary if s.get("ok")),
@@ -432,7 +462,7 @@ def main() -> int:
         "# E2E Full Run — 2026-06-15",
         "",
         f"- **Flows:** {results['passed']}/{results['total_flows']} passed",
-        f"- **Mode:** off-the-grid (mock providers)",
+        "- **Mode:** off-the-grid (mock providers)",
         f"- **Screenshots:** `{results['screenshots_dir']}/`",
         "",
         "## Per-flow results",
