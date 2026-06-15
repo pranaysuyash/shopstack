@@ -40,6 +40,12 @@ class TestPresetRegistry:
     def test_presets_have_required_fields(self):
         for p in PRESETS.values():
             assert p.tier in {"first_time", "transient"}
+            # The "generic" preset intentionally has empty
+            # title/body/icon keys — it relies on override_*
+            # arguments from the caller. All other presets
+            # must have non-empty keys.
+            if p.preset_id == "generic":
+                continue
             assert p.title_key, f"{p.preset_id} missing title_key"
             assert p.body_key, f"{p.preset_id} missing body_key"
 
@@ -72,6 +78,10 @@ class TestI18nCoverage:
         hi = TRANSLATIONS["hi"]
         missing: list[str] = []
         for p in PRESETS.values():
+            # Skip presets with no i18n keys (the "generic" preset
+            # uses override arguments).
+            if p.preset_id == "generic":
+                continue
             if p.title_key not in en:
                 missing.append(f"en:{p.title_key}")
             if p.body_key not in en:

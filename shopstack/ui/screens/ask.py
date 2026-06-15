@@ -8,7 +8,7 @@ from typing import Any
 
 from shopstack.app_context import APP_NAME, db, planner, providers, tools, current_user_id
 from shopstack.ui.components.cards import card as ui_card
-from shopstack.ui.components.primitives import empty_state_enhanced, toast
+from shopstack.ui.components.primitives import empty_state_enhanced, home_card, toast
 from shopstack.ui.renderers.image_cards import render_decision_card as render_unified_decision_card
 from shopstack.traces.export import create_trace
 from shopstack.ui.screens._utils import (
@@ -157,9 +157,9 @@ def render_ask_response(answer: dict[str, Any] | Any) -> str:
     dropped the trace and broke audio-only market-lens flows.
     """
     if isinstance(answer, str):
-        return f"home_card(body='{answer}', style='text-align:left;')"
+        return home_card(body=str(answer), style='text-align:left;')
     if not isinstance(answer, dict):
-        return f"home_card(body='{escape(str(answer))}', style='text-align:left;')"
+        return home_card(body=escape(str(answer)), style='text-align:left;')
 
     # ── Intent: empty ──
     intent = answer.get("intent", "")
@@ -182,7 +182,7 @@ def render_ask_response(answer: dict[str, Any] | Any) -> str:
         results = answer.get("results", [])
         if not results:
             return (
-                f"home_card(body='<div style=\"color:var(--text-dim);\">No matching items found.</div>', style='text-align:left;')"
+                home_card(body='<div style="color:var(--text-dim);">No matching items found.</div>', style='text-align:left;')
             )
         rows = []
         for r in results[:6]:
@@ -224,9 +224,12 @@ def render_ask_response(answer: dict[str, Any] | Any) -> str:
                 f"<div class='item-row'><div><div style='font-weight:600;'>{name}</div>"
                 f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>{reason_text}</div></div><span class='badge {badge_cls}'>{escape(badge_label)}</span></div>"
             )
-        return (
-            f"home_card(body='<div style='font-weight:600;margin-bottom:8px;'>{len(decisions)} suggestion{'s' if len(decisions) != 1 else ''}', style='text-align:left;')"
-            f"{''.join(rows)}</div>"
+        return home_card(
+            body=(
+                f"<div style='font-weight:600;margin-bottom:8px;'>{len(decisions)} suggestion{'s' if len(decisions) != 1 else ''}</div>"
+                f"{''.join(rows)}"
+            ),
+            style="text-align:left;",
         )
 
     # ── AI planner response (tool_calls / outcomes / message) ──
@@ -250,7 +253,7 @@ def render_ask_response(answer: dict[str, Any] | Any) -> str:
                     )
         if parts:
             return (
-                f"home_card(body='{''.join(parts)}', style='text-align:left;')"
+                home_card(body=''.join(parts), style='text-align:left;')
             )
 
     # ── Fallback: render key-value pairs ──

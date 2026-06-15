@@ -17,7 +17,7 @@ lives in ``shopstack.services.recipes``.
 **Output:** list of ``RecipeIngredient`` with parsed canonical_name,
 quantity, and unit. The canonical name is the lowercased-underscored
 first token after the qty+unit prefix; the caller can post-process with
-``shopstack.market.normalization.resolve_canonical`` if a strict
+``shopstack.domain.resolve_canonical`` if a strict
 match is needed.
 
 This is a *parser*, not a *classifier*. It doesn't try to validate the

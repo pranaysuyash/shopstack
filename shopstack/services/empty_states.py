@@ -227,6 +227,18 @@ PRESETS: dict[str, EmptyStatePreset] = {
         body_key="empty.search.body",
         icon="🔎",
     ),
+    # Generic catch-all for legacy call sites. The renderer
+    # accepts overrides for title/body/icon so the old
+    # `empty_state_enhanced(message, icon=...)` pattern maps
+    # cleanly to this preset. New screens should prefer the
+    # named presets above.
+    "generic": EmptyStatePreset(
+        preset_id="generic",
+        tier="transient",
+        title_key="",  # empty → renderer uses override_title
+        body_key="",   # empty → renderer uses override_body
+        icon="",       # empty → renderer uses override_icon
+    ),
 }
 
 
@@ -316,6 +328,9 @@ def render(
     *,
     options: RenderOptions | None = None,
     household: HouseholdContext | None = None,
+    override_title: str | None = None,
+    override_body: str | None = None,
+    override_icon: str | None = None,
 ) -> str:
     """Render the HTML for ``preset_id``.
 
@@ -328,6 +343,11 @@ def render(
             has data, the renderer falls through to the matching
             "transient" preset (e.g. ``home.dashboard`` -> a
             generic "all caught up" placeholder).
+        override_title: When the preset has no title_key (the
+            ``"generic"`` preset), this string is used as the
+            title verbatim.
+        override_body: Same for the body.
+        override_icon: Same for the icon.
 
     Returns:
         An HTML string. Inject into the page via ``gr.HTML`` or any
@@ -353,12 +373,20 @@ def render(
         if sibling and sibling in PRESETS:
             effective_preset = PRESETS[sibling]
 
-    title = get_translation(options.locale, effective_preset.title_key)
-    body = get_translation(options.locale, effective_preset.body_key)
+    # Resolve title/body/icon: preset keys first, then overrides.
+    if effective_preset.title_key:
+        title = get_translation(options.locale, effective_preset.title_key)
+    else:
+        title = override_title or ""
+    if effective_preset.body_key:
+        body = get_translation(options.locale, effective_preset.body_key)
+    else:
+        body = override_body or ""
+    icon = effective_preset.icon or (override_icon or "")
 
     if options.compact:
         return _render_compact(title, body, effective_preset, options)
-    return _render_full(title, body, effective_preset, options)
+    return _render_full(title, body, effective_preset, icon, options)
 
 
 def _render_compact(
@@ -381,19 +409,27 @@ def _render_full(
     title: str,
     body: str,
     preset: EmptyStatePreset,
+    icon: str,
     options: RenderOptions,
 ) -> str:
-    """Card-style empty state with icon, body, and CTAs."""
-    icon = (
-        f'<div class="empty-state-icon" aria-hidden="true">{escape(preset.icon)}</div>'
-        if preset.icon
+    """Card-style empty state with icon, body, and CTAs.
+
+    The preset provides the CTAs; the icon is resolved (preset
+    icon wins unless empty, then override_icon is used). This
+    split lets the ``"generic"`` preset work: it has no icon
+    in the registry, so the caller's override_icon is used.
+    """
+    resolved_icon = preset.icon or icon
+    icon_html = (
+        f'<div class="empty-state-icon" aria-hidden="true">{escape(resolved_icon)}</div>'
+        if resolved_icon
         else ""
     )
     cta_html = _render_ctas(preset, options)
     return (
         f'<div class="empty-state {escape(options.extra_class)}" '
         f'role="status" aria-live="polite">'
-        f'{icon}'
+        f'{icon_html}'
         f'<h3 class="empty-state-title">{escape(title)}</h3>'
         f'<p class="empty-state-body">{escape(body)}</p>'
         f'{cta_html}'

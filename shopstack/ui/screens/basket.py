@@ -16,15 +16,8 @@ def get_basket_ui_html() -> str:
     candidates = optimize_baskets(decision_set, registry)
     
     if not candidates:
-        return (
-            "<div class='home-card' style='text-align:center;padding:40px;color:var(--text-dim);'>"
-            "<h3>Build a basket</h3>"
-            "<div style='margin-top:8px;'>No basket candidates yet because the active shopping list is empty.</div>"
-            "<div style='margin-top:8px;font-size: 0.75rem;'>"
-            "Try: add items from a free-text shopping list or run the demo seed workflow."
-            "</div>"
-            "</div>"
-        )
+        from shopstack.services.empty_states import render as _es_render
+        return _es_render("groceries.basket")
 
     html_parts = []
     for idx, c in enumerate(candidates):

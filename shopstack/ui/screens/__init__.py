@@ -8,6 +8,7 @@ from shopstack.ui.screens.shopping import (
     _build_shopping_list_and_refresh,  # noqa: F401 — test backward compat
     complete_shopping_list,
     shopping_list_item_choices,
+    shopping_list_share,
     mark_items_purchased,
     get_reconciliation_draft,
     confirm_reconciliation,
@@ -147,6 +148,7 @@ __all__ = [
     "build_shopping_list_and_refresh",
     "complete_shopping_list",
     "shopping_list_item_choices",
+    "shopping_list_share",
     "mark_items_purchased",
     "get_reconciliation_draft",
     "confirm_reconciliation",

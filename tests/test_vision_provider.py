@@ -206,3 +206,51 @@ def test_qwen3vl_detect_uses_canonical_prompt():
         assert all("label" in r for r in result)
         assert all("source" in r for r in result)
         assert all(r["source"] == "qwen3vl" for r in result)
+
+
+def test_qwen3vl_ground_returns_bbox_payload():
+    """The new ground() helper must emit parsed bbox results."""
+    from shopstack.providers.vision_provider import Qwen3VLProvider
+
+    provider = Qwen3VLProvider.__new__(Qwen3VLProvider)
+    provider._available = True
+    provider._model = MagicMock()
+    provider._processor = MagicMock()
+    provider._error = None
+    provider._last_latency_ms = None
+    provider._model_name = "Qwen/Qwen3-VL-8B-Instruct"
+    provider._device = "cpu"
+
+    template_return = {"input_ids": MagicMock(shape=[1, 5])}
+    template_return["to"] = MagicMock(return_value={"input_ids": MagicMock(shape=[1, 5])})
+    provider._processor.apply_chat_template = MagicMock(return_value=template_return)
+
+    mock_generated_ids = MagicMock()
+    mock_generated_ids.__getitem__.return_value = MagicMock()
+    provider._model.generate = MagicMock(return_value=mock_generated_ids)
+    provider._processor.batch_decode = MagicMock(return_value=[
+        json.dumps(
+            {
+                "found": True,
+                "bbox": [12, 34, 56, 78],
+                "label": "milk bottle",
+                "confidence": 0.88,
+                "all_detections": [
+                    {"label": "milk bottle", "bbox": [12, 34, 56, 78], "confidence": 0.88}
+                ],
+            }
+        )
+    ])
+
+    mock_image = MagicMock()
+    mock_image.convert.return_value = mock_image
+    with patch("PIL.Image.open", return_value=mock_image), \
+         patch("os.path.isfile", return_value=True), \
+         patch("torch.no_grad"):
+        result = provider.ground("/fake/image.png", "milk bottle")
+
+    assert result["found"] is True
+    assert result["bbox"] == [12, 34, 56, 78]
+    assert result["confidence"] == 0.88
+    assert result["label"] == "milk bottle"
+    assert result["model"] == "Qwen/Qwen3-VL-8B-Instruct"

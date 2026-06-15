@@ -157,8 +157,8 @@ class TestI18nScript:
     """The inline JS that wires up setLocale must call the save_locale API."""
 
     def test_set_locale_calls_save_locale_endpoint(self):
-        from shopstack.services.i18n import render_i18n_script
-        js = render_i18n_script()
+        from shopstack.services.i18n import render_language_script
+        js = render_language_script()
         # The setLocale function should POST to the save_locale endpoint
         assert "setLocale" in js
         assert "save_locale" in js
@@ -168,8 +168,8 @@ class TestI18nScript:
         assert "shopstack-locale" in js
 
     def test_set_locale_uses_post(self):
-        from shopstack.services.i18n import render_i18n_script
-        js = render_i18n_script()
+        from shopstack.services.i18n import render_language_script
+        js = render_language_script()
         # Should POST to the endpoint
         assert "method: 'POST'" in js or 'method:"POST"' in js
         # Should send JSON
@@ -177,8 +177,8 @@ class TestI18nScript:
         assert "application/json" in js
 
     def test_set_locale_reloads_after_save(self):
-        from shopstack.services.i18n import render_i18n_script
-        js = render_i18n_script()
+        from shopstack.services.i18n import render_language_script
+        js = render_language_script()
         # The page should reload after the locale is persisted
         assert "window.location.reload" in js
 
@@ -229,8 +229,8 @@ class TestI18nWiringXSS:
 
     def test_set_locale_argument_in_setitem(self):
         """The setLocale JS reads from a setItem call; argument is the literal."""
-        from shopstack.services.i18n import render_i18n_script
-        js = render_i18n_script()
+        from shopstack.services.i18n import render_language_script
+        js = render_language_script()
         # The setLocale function is async, takes a 'loc' parameter
         # and uses it in fetch() and localStorage.setItem
         # Verifying: the function exists and uses 'loc' as a parameter
@@ -239,8 +239,8 @@ class TestI18nWiringXSS:
 
     def test_no_unescaped_braces_in_js(self):
         """The f-string JS must have all braces doubled for {{ escaping."""
-        from shopstack.services.i18n import render_i18n_script
-        js = render_i18n_script()
+        from shopstack.services.i18n import render_language_script
+        js = render_language_script()
         # Count single-brace patterns that aren't doubled
         # A simple sanity check: no unescaped {LOCALE_STORAGE_KEY}
         assert "{LOCALE_STORAGE_KEY}" not in js  # would be the unescaped form
@@ -248,8 +248,8 @@ class TestI18nWiringXSS:
 
     def test_returns_valid_html_js_string(self):
         """The script should be a valid HTML-embeddable string."""
-        from shopstack.services.i18n import render_i18n_script
-        js = render_i18n_script()
+        from shopstack.services.i18n import render_language_script
+        js = render_language_script()
         # Opens with <script>, closes with </script>
         assert js.lstrip().startswith("<script")
         assert js.rstrip().endswith("</script>")

@@ -95,7 +95,6 @@ def build_app() -> gr.Blocks:
     in ``module_registry.TAB_ORDER`` and ``shopstack.ui.tabs.registry``.
     """
     with gr.Blocks(title=APP_NAME, css=CSS) as app:
-        mount_pwa_static(app)
         mount_sms_webhook(app)
 
         initial_locale = load_locale_preference(current_user_id() or "default_household")
@@ -225,10 +224,12 @@ def build_app() -> gr.Blocks:
             api_description="Create a new household, switch to it, and refresh the dashboard",
         )
 
-    # /health/ui — operator liveness probe (motto_v3 §0.10 Observability Is
-    # Delivery). Reports database + gradio_blocks + pwa_assets status.
-    # Must be mounted AFTER the ``with gr.Blocks()`` block exits: inside the
-    # context, Gradio is in "set" mode and silently no-ops ``add_route`` calls.
+    # PWA shell (manifest/sw.js/icons) and the /health/ui liveness probe
+    # (motto_v3 §0.10 Observability Is Delivery) must both be mounted AFTER
+    # the ``with gr.Blocks()`` block exits: exiting the context recreates
+    # ``app.app`` (a fresh FastAPI instance), discarding any routes added
+    # while inside the context.
+    mount_pwa_static(app)
     mount_health_endpoint(app, db)
 
     return app

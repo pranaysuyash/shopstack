@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
+from pathlib import Path
 from typing import Any
 
 from shopstack.portability import ImportResult
@@ -381,4 +383,87 @@ def confirm_receipt(database: Any, result: ReceiptResult, user_id: str = "") -> 
     ir.messages.append(
         f"Receipt from {result.merchant} ({result.purchase_date}): {len(result.lines)} items, total {result.total:.2f}"
     )
+
+    # Audit trail: save the parsed receipt as a structured JSON file
+    # so the raw OCR text + parse result can be reviewed later.
+    # Per Docs/NOT_STARTED_FEATURES.md §4.1 acceptance criteria.
+    try:
+        receipt_path = export_receipt_json(result, user_id=user_id)
+        ir.messages.append(f"Saved receipt audit trail: {receipt_path}")
+        logger.info("receipt audit trail saved: %s", receipt_path)
+    except OSError as exc:
+        # Disk full, permission denied, or other I/O error. Don't fail
+        # the whole confirm; just surface the issue via messages.
+        ir.errors.append(f"Failed to save receipt audit trail: {exc}")
+        logger.warning("receipt audit trail save failed: %s", exc)
+
     return ir
+
+
+def export_receipt_json(
+    result: "ReceiptResult",
+    user_id: str = "",
+    data_dir: Path | None = None,
+) -> Path:
+    """Save a parsed receipt as a structured JSON file for audit.
+
+    Per Docs/NOT_STARTED_FEATURES.md §4.1, the receipt service
+    saves the parsed result to ``data/receipts/<timestamp>_<merchant>.json``
+    so the raw OCR text + parse result can be reviewed later. This
+    is the audit trail: even if the parsed lines are wrong, the
+    raw text is preserved.
+
+    The JSON includes:
+        * raw_text: the original OCR text (input to parse_receipt_text)
+        * parsed: the structured ReceiptResult (merchant, date, total, lines)
+        * user_id: who confirmed the receipt (for multi-user audit)
+        * confirmed_at: ISO timestamp
+
+    Args:
+        result: The parsed receipt (must have raw_text attribute).
+        user_id: The user who confirmed the receipt (for audit trail).
+        data_dir: Optional override for the data directory. Defaults
+            to ``data/receipts/`` relative to the working directory.
+
+    Returns:
+        The path of the written JSON file.
+
+    Raises:
+        OSError: If the directory cannot be created or the file written.
+    """
+    base_dir = data_dir if data_dir is not None else Path("data") / "receipts"
+    base_dir.mkdir(parents=True, exist_ok=True)
+
+    # Sanitize merchant for filename: keep only alphanumeric + spaces + hyphens
+    safe_merchant = re.sub(r"[^A-Za-z0-9 _-]", "", result.merchant or "unknown").strip()[:50]
+    safe_merchant = safe_merchant.replace(" ", "_") or "unknown"
+    timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+    filename = f"{timestamp}_{safe_merchant}.json"
+    path = base_dir / filename
+
+    payload = {
+        "raw_text": getattr(result, "raw_text", ""),
+        "parsed": {
+            "merchant": result.merchant,
+            "purchase_date": result.purchase_date.isoformat()
+            if hasattr(result.purchase_date, "isoformat")
+            else str(result.purchase_date),
+            "total": result.total,
+            "lines": [
+                {
+                    "canonical_name": line.canonical_name,
+                    "display_name": line.display_name,
+                    "quantity": line.quantity,
+                    "unit": line.unit,
+                    "price": line.price,
+                }
+                for line in result.lines
+            ],
+        },
+        "user_id": user_id,
+        "confirmed_at": datetime.now().isoformat(),
+    }
+
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, ensure_ascii=False, indent=2)
+    return path

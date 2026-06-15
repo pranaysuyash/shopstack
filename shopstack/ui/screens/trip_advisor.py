@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from shopstack.app_context import current_user_id, db
+from shopstack.app_context import current_user_id, db, tools
 from shopstack.services.i18n import DEFAULT_LOCALE, t
 from shopstack.services.trip_advisor import (
     TripAdvice,
@@ -46,7 +46,7 @@ def trip_advisor_screen(
             active_list_size = 0
         # Use-soon count (items expiring in 2-3 days)
         try:
-            use_soon = db.get_use_soon_items(user_id=user_id) or []  # type: ignore[attr-defined]
+            use_soon = tools.inventory.get_use_soon(days=3, user_id=user_id).get("items", [])
             use_soon_count = len(use_soon)
         except Exception:
             use_soon_count = 0

@@ -208,7 +208,7 @@ def script_bootstrap_js() -> str:
     `gr.HTML(...)` or `app.launch(head=...)` are inserted via
     `innerHTML`/template parsing, which the HTML spec marks "already
     started" — browsers never execute them. This affects
-    `header_script()`, `render_i18n_script()`, `render_shortcuts_script()`,
+    `header_script()`, `render_language_script()`, `render_shortcuts_script()`,
     `render_walkthrough_script()`, and `pwa_head_html()`'s service-worker
     registration and hydration-recovery scripts alike.
 

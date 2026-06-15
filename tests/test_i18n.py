@@ -16,7 +16,7 @@ from shopstack.services.i18n import (
     is_supported_locale,
     load_locale_preference,
     normalize_locale,
-    render_i18n_script,
+    render_language_script,
     render_language_selector_html,
     save_locale_preference,
     t,
@@ -209,7 +209,7 @@ def test_render_language_selector_html_marks_current_active():
 
 
 def test_render_i18n_script_sets_data_locale():
-    out = render_i18n_script()
+    out = render_language_script()
     assert LOCALE_STORAGE_KEY in out
     assert "data-locale" in out
     assert "setLocale" in out

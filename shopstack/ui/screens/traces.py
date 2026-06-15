@@ -171,7 +171,8 @@ def _trace_bundle(trace_id: str) -> tuple[str, str]:
 def agent_trace_bootstrap(search: str = "", input_type_filter: str = "") -> tuple:
     traces = _filter_traces(search, input_type_filter)
     if not traces:
-        no_data = "<div style='color:var(--text-dim);'>No activity recorded yet.</div>"
+        from shopstack.services.empty_states import render as _es_render
+        no_data = _es_render("memory.recent")
         return gr.update(choices=[("No activity yet", "")], value=""), "", no_data, no_data
     first = traces[0]
     timeline, raw = _trace_bundle(first.trace_id)

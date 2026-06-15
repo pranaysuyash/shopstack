@@ -38,6 +38,11 @@ from html import escape
 import gradio as gr
 
 from shopstack.app_context import current_user_id
+from shopstack.ui.components.primitives import (
+    confirm_dialog,
+    confirm_hide_updates,
+    confirm_toggle_updates,
+)
 from shopstack.ui.header import model_download_status, runtime_label
 from shopstack.ui.screens.community import (
     community_pool_stats_screen as _community_stats,
@@ -189,12 +194,12 @@ def build_household_settings(app: gr.Blocks) -> HouseholdSettingsHandles:
                         "📤 Export share file", elem_classes="secondary", scale=1
                     )
                     federation_export_file = gr.File(
-                        label="Share file (.jsonl)",
+                        label="Share file",
                         file_count="single",
                         visible=False,
                     )
                     federation_import_file = gr.File(
-                        label="Import share file (.jsonl)",
+                        label="Import share file",
                         file_count="single",
                         scale=2,
                     )
@@ -351,6 +356,19 @@ def build_household_settings(app: gr.Blocks) -> HouseholdSettingsHandles:
                 scale=3,
             )
             member_remove_btn = gr.Button("Remove", elem_classes="secondary", scale=0)
+        with gr.Group(visible=False) as member_remove_confirm_group:
+            gr.HTML(
+                confirm_dialog(
+                    "Remove this member from the household? This action is hard to undo.",
+                    confirm_label="Yes, Remove",
+                    variant="danger",
+                )
+            )
+            with gr.Row():
+                member_remove_yes_btn = gr.Button(
+                    "Yes, Remove", variant="stop", scale=0
+                )
+                member_remove_no_btn = gr.Button("Cancel", elem_classes="secondary", scale=0)
         member_remove_status = gr.HTML("")
         def _do_remove_member(uid: str):
             from shopstack.app_context import current_user_id, db
@@ -358,12 +376,27 @@ def build_household_settings(app: gr.Blocks) -> HouseholdSettingsHandles:
             hid = db.get_config_value("active_household_id", "") or ""
             members, status = _hh_remove(hid, uid, actor)
             return members, status
+        # Step 1: user clicks "Remove" — show confirm, hide primary button
         member_remove_btn.click(
+            confirm_toggle_updates,
+            None,
+            [member_remove_btn, member_remove_confirm_group],
+        )
+        # Step 2a: user confirms — fire the action then restore the primary button
+        member_remove_yes_btn.click(
             _do_remove_member,
             member_remove_input,
             [members_html, member_remove_status],
-            api_name="hh_remove_member",
-            api_description="Remove a member from the active household",
+        ).then(
+            confirm_hide_updates,
+            None,
+            [member_remove_btn, member_remove_confirm_group],
+        )
+        # Step 2b: user cancels — restore the primary button
+        member_remove_no_btn.click(
+            confirm_hide_updates,
+            None,
+            [member_remove_btn, member_remove_confirm_group],
         )
         with gr.Row():
             member_change_uid = gr.Textbox(

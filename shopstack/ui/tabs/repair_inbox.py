@@ -10,7 +10,13 @@ from __future__ import annotations
 import gradio as gr
 
 from shopstack.module_registry import tab_label as _tab_label
-from shopstack.ui.components.primitives import empty_state_enhanced, loading_skeleton
+from shopstack.ui.components.primitives import (
+    confirm_dialog,
+    confirm_hide_updates,
+    confirm_toggle_updates,
+    empty_state_enhanced,
+    loading_skeleton,
+)
 from shopstack.ui.screens.repair_inbox import (
     close_condition_event,
     confirm_condition_event,
@@ -37,7 +43,7 @@ def build_repair_inbox_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -
         gr.Markdown("---")
         gr.Markdown("### Report damage")
         with gr.Row():
-            ri_lot = gr.Textbox(label="Lot ID", scale=2)
+            ri_lot = gr.Textbox(label="Batch", scale=2)
             ri_kind = gr.Dropdown(
                 label="Kind",
                 choices=["physical_damage", "liquid_leak", "expiry_risk", "wear_tear",
@@ -62,6 +68,17 @@ def build_repair_inbox_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -
             ri_close_btn = gr.Button("Close", scale=0)
             ri_delete = gr.Textbox(label="Event ID to delete", scale=2)
             ri_delete_btn = gr.Button("Delete", scale=0)
+        with gr.Group(visible=False) as ri_delete_confirm_group:
+            gr.HTML(
+                confirm_dialog(
+                    "Delete this condition event permanently? This cannot be undone.",
+                    confirm_label="Yes, Delete",
+                    variant="danger",
+                )
+            )
+            with gr.Row():
+                ri_delete_yes_btn = gr.Button("Yes, Delete", variant="stop", scale=0)
+                ri_delete_no_btn = gr.Button("Cancel", elem_classes="secondary", scale=0)
         ri_action_result = gr.HTML("")
 
         ri_refresh.click(repair_inbox_view, ri_severity, ri_view,
@@ -76,7 +93,24 @@ def build_repair_inbox_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -
         ri_close_btn.click(close_condition_event, ri_close, ri_action_result,
                            api_name="close_condition_event",
                            api_description="Close a condition event, marking the issue as resolved")
-        ri_delete_btn.click(delete_condition_event, ri_delete, ri_action_result,
-                            api_name="delete_condition_event",
-                            api_description="Delete a condition event permanently from the inbox")
+        # 2-step delete: first click shows confirm group, second click fires
+        ri_delete_btn.click(
+            confirm_toggle_updates,
+            None,
+            [ri_delete_btn, ri_delete_confirm_group],
+        )
+        ri_delete_yes_btn.click(
+            delete_condition_event,
+            ri_delete,
+            ri_action_result,
+        ).then(
+            confirm_hide_updates,
+            None,
+            [ri_delete_btn, ri_delete_confirm_group],
+        )
+        ri_delete_no_btn.click(
+            confirm_hide_updates,
+            None,
+            [ri_delete_btn, ri_delete_confirm_group],
+        )
         app.load(repair_inbox_view, inputs=ri_severity, outputs=ri_view)

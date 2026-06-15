@@ -305,6 +305,12 @@ def scan_i18n() -> list[Violation]:
     A blocklist match in i18n.py is still a violation: the registry
     is the canonical copy. If the i18n string itself contains a
     forbidden term, we should either translate the term or reword.
+
+    Skips:
+      * Lines inside Python docstrings (the audit is a UI linter,
+        not a code-comment linter).
+      * i18n KEY names on the left side of the ``:`` (only the
+        VALUES are user-visible).
     """
     out: list[Violation] = []
     rel = str(I18N_FILE.relative_to(PROJECT_ROOT))
@@ -314,12 +320,25 @@ def scan_i18n() -> list[Violation]:
         text = I18N_FILE.read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return out
+    # Reuse the docstring detector from js_validate
+    from shopstack.tools.js_validate import _compute_skipped_lines
+    skipped_lines = _compute_skipped_lines(text)
     for m in re.finditer(r'"([^"\\]*(?:\\.[^"\\]*)*)"', text):
         literal = m.group(1)
+        line = text.count("\n", 0, m.start()) + 1
+        # Skip docstrings
+        if line in skipped_lines:
+            continue
+        # Skip i18n KEY names. The registry looks like
+        # ``"key": "value"`` — the literal we matched is the
+        # KEY, not the VALUE. Detect by checking the text
+        # immediately after the closing quote.
+        tail = text[m.end(): m.end() + 5]
+        if tail.lstrip().startswith(":"):
+            continue
         literal_lower = literal.lower()
         for term, (suggestion, why) in OVERRIDES.items():
             if term in literal_lower:
-                line = text.count("\n", 0, m.start()) + 1
                 col = m.start() - text.rfind("\n", 0, m.start())
                 out.append(
                     Violation(

@@ -44,7 +44,22 @@ class FieldNotesView:
     status_html: str
 
 
-ERROR_HTML = "<div style='color:var(--red);'>Could not load price history due to a database error.</div>"
+ERROR_HTML = (
+    "<div style='color:var(--red);'>Could not load price history due to a database error.</div>"
+)
+# Item #36 (2026-06-14): prefer the branded recovery shell so the
+# user sees a consistent ShopStack face instead of a raw error
+# string. Kept as a module-level callable so call sites can pass
+# the actual exception detail for the operator-facing <details> block.
+from shopstack.ui.components.primitives import branded_error_shell  # noqa: E402
+
+
+def _recovery_shell(message: str, exc: Exception | None = None) -> str:
+    """Return a branded_error_shell with optional operator detail."""
+    detail = ""
+    if exc is not None:
+        detail = f"{type(exc).__name__}: {exc}"
+    return branded_error_shell(message=message, detail=detail)
 EMPTY_DF = pd.DataFrame(columns=["date", "store", "price", "unit_price", "qty", "unit", "source"])
 
 
@@ -104,9 +119,12 @@ def build_price_memory_view(database: Database, item_name: str | None, user_id: 
 
     try:
         history = database.get_price_history(cleaned_name, user_id=user_id)
-    except Exception:
+    except Exception as exc:
         return PriceMemoryView(
-            summary_html=ERROR_HTML,
+            summary_html=_recovery_shell(
+                "Couldn't load price history",
+                exc=exc,
+            ),
             df=EMPTY_DF,
             table=[["Could not load price history"]],
         )

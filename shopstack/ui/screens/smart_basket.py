@@ -10,7 +10,7 @@ import logging
 from html import escape
 from typing import Any
 
-from shopstack.app_context import current_user_id, db
+from shopstack.app_context import current_user_id, db, tools
 from shopstack.services.community_price_map import community_median
 from shopstack.services.smart_planner import (
     build_smart_basket,
@@ -50,7 +50,7 @@ def smart_basket_screen(
         use_soon_items: list[dict[str, Any]] = []
         try:
             user_id = current_user_id() or ""
-            use_soon_items = db.get_use_soon_items(user_id=user_id) or []
+            use_soon_items = tools.inventory.get_use_soon(days=3, user_id=user_id).get("items", [])
         except Exception:
             use_soon_items = []
         basket = build_smart_basket(

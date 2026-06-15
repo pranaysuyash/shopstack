@@ -82,7 +82,7 @@ def build_memory_analytics(app: gr.Blocks, ctx: TabContext) -> None:
     gr.Markdown(
         "Monthly spend trend, top items by cost, top merchants, "
         "and a waste-rate estimate. The numbers come from your "
-        "purchase traces — add receipts to see this populate."
+        "purchase records — add receipts to see this populate."
     )
     analytics_html = gr.HTML(loading_skeleton("card"))
     analytics_refresh = gr.Button("Refresh", elem_classes="secondary")
@@ -98,8 +98,7 @@ def build_memory_per_member(app: gr.Blocks, ctx: TabContext) -> None:
     """Build the Per-member sub-tab inside the Memory tab.
 
     Per-member activity attribution (Phase 11): who added /
-    consumed / observed in the household, sorted by trace
-    count. Single refresh button.
+    consumed / observed in the household,sorted by action count. Single refresh button.
 
     Args:
         app: The root gr.Blocks instance.
@@ -110,8 +109,8 @@ def build_memory_per_member(app: gr.Blocks, ctx: TabContext) -> None:
     """
     gr.Markdown("### 👥 Per-member activity")
     gr.Markdown(
-        "Who actually triggered each action — sorted by trace count "
-        "in the last 30 days. Pre-Phase-11 traces appear as "
+        "Who actually triggered each action — sorted by action count "
+        "in the last 30 days. Earlier records appear as "
         "(unknown). Use the household settings to manage members."
     )
     per_member_html = gr.HTML(loading_skeleton("card"))

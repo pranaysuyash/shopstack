@@ -47,6 +47,7 @@ from shopstack.ui.screens import (
     get_reconciliation_draft,
     mark_items_purchased,
     shopping_list_item_choices,
+    shopping_list_share,
     shopping_list_substitutions_view,
     shopping_list_view_with_cards,
 )
@@ -92,6 +93,14 @@ def build_basket_shopping_list(app: gr.Blocks, ctx: TabContext) -> None:
                 placeholder="milk, bread, tomato, onion",
                 lines=3,
             )
+        with gr.Row():
+            share_btn = gr.Button(
+                "📤 Share list",
+                variant="primary",
+                scale=1,
+                elem_id="sl-share-btn",
+            )
+            share_status = gr.HTML("")
         sl_share = gr.HTML(loading_skeleton("text"))
 
         # --- Shopping Poster Export ---
@@ -288,6 +297,21 @@ def build_basket_shopping_list(app: gr.Blocks, ctx: TabContext) -> None:
             get_reconciliation_draft,
             None,
             [sl_reconciliation_table, sl_list_id, sl_reconcile_result],
+        )
+        # Share button: renders the shareable list HTML (textarea +
+        # Copy button + WhatsApp link). Public Gradio adapter
+        # `shopping_list_share` (added 2026-06-13) wraps the
+        # internal share_text + share_html helpers.
+        share_btn.click(
+            shopping_list_share,
+            None,
+            sl_share,
+            api_name="shopping_list_share",
+            api_description=(
+                "Render the active shopping list as a shareable "
+                "HTML snippet (textarea + Copy button + WhatsApp link) "
+                "so the user can share it with their household."
+            ),
         )
         sl_reconcile_confirm_btn.click(
             confirm_reconciliation,

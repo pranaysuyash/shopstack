@@ -391,10 +391,9 @@ def inventory_cards_view(search: str = "") -> str:
         # original was a string concatenation with bad escaping
         # that wouldn't parse — fixed 2026-06-13 alongside the
         # onboarding skip-tracking pass).
-        cards += ui_card(
+        cards += home_card(
             title=str(loc_name),
             body=body,
-            compact=False,
         )
     return search_note + cards
 

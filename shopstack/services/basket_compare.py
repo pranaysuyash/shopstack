@@ -421,7 +421,7 @@ def parse_basket_input(text: str) -> list[dict[str, Any]]:
         "onions"             # → quantity 1.0, unit "unit"
 
     Lines starting with ``#`` and blank lines are ignored. Item names are
-    canonicalised via ``shopstack.market.normalization.resolve_canonical``
+    canonicalised via ``shopstack.domain.resolve_canonical``
     so Hinglish / regional aliases map to the same canonical name used by
     the market snapshots.
     """

@@ -218,8 +218,25 @@ def render_walkthrough_script(max_sessions: int = MAX_TOUR_SESSIONS) -> str:
   var COUNT_KEY = '{SESSION_COUNT_KEY}';
   var MAX = {max_sessions};
 
-  function safeGet(k) {{ try {{ return localStorage.getItem(k); }} catch (e) {{ return null; }} }}
-  function safeSet(k, v) {{ try {{ localStorage.setItem(k, v); }} catch (e) {{}} }}
+  // localStorage throws (or is a silent no-op) in some private-browsing
+  // contexts. Without a fallback, TOUR_SHOWN_KEY never persists and the
+  // tour reopens on every page load / household-switch reload. Fall back
+  // to sessionStorage (survives reloads within the tab) and finally a
+  // cookie (survives across tabs/sessions) so "Skip"/"Done" actually stick.
+  function safeGet(k) {{
+    try {{ var v = localStorage.getItem(k); if (v !== null) return v; }} catch (e) {{}}
+    try {{ var v2 = sessionStorage.getItem(k); if (v2 !== null) return v2; }} catch (e) {{}}
+    try {{
+      var m = document.cookie.match(new RegExp('(?:^|; )' + k + '=([^;]*)'));
+      if (m) return decodeURIComponent(m[1]);
+    }} catch (e) {{}}
+    return null;
+  }}
+  function safeSet(k, v) {{
+    try {{ localStorage.setItem(k, v); return; }} catch (e) {{}}
+    try {{ sessionStorage.setItem(k, v); return; }} catch (e) {{}}
+    try {{ document.cookie = k + '=' + encodeURIComponent(v) + '; path=/; max-age=31536000; SameSite=Lax'; }} catch (e) {{}}
+  }}
 
   // Increment session count (best-effort)
   var count = parseInt(safeGet(COUNT_KEY) || '0', 10);

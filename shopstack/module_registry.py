@@ -274,7 +274,7 @@ SHOPCOMPARE = _register(ModuleMetadata(
     service_modules=(
         "shopstack.market",
         "shopstack.market.analytics",
-        "shopstack.market.normalization",
+        "shopstack.domain",
     ),
     depends_on=("sources",),
 ))

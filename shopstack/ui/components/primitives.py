@@ -743,8 +743,9 @@ def home_card(
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# EmptyState (enhanced) — empty state with icon and CTA
+# EmptyState — superseded by shopstack.services.empty_states
 # ═══════════════════════════════════════════════════════════════════════
+
 
 def empty_state_enhanced(
     message: str,
@@ -753,38 +754,135 @@ def empty_state_enhanced(
     on_click_tab: str = "",
     secondary_text: str = "",
 ) -> str:
-    """Render an enhanced empty state with icon, message, and optional CTA.
+    """Render an accessible empty-state card.
+
+    Faithfully implements the long-standing contract: the wrapper has
+    ``role="status"`` with ``aria-live="polite"`` and an
+    ``aria-label`` that includes ``message``; when ``action_label``
+    is provided, a button is rendered that switches to the
+    ``on_click_tab`` tab on click.
 
     Args:
-        message: Primary empty state message
-        icon: Emoji or text icon
-        action_label: If provided, renders a CTA button
-        on_click_tab: Tab to navigate to when CTA is clicked
-        secondary_text: Additional hint text below the message
+        message: Human-readable description of the empty state.
+        icon: Emoji or symbol shown above the title.
+        action_label: Optional CTA button text.
+        on_click_tab: Tab id to switch to when the CTA is clicked.
+        secondary_text: Optional second line of supporting text.
+    """
+    safe_message = escape(str(message))
+    safe_secondary = escape(str(secondary_text)) if secondary_text else ""
+    safe_action = escape(str(action_label)) if action_label else ""
+    safe_tab = escape(str(on_click_tab)) if on_click_tab else ""
+
+    cta_button = ""
+    if safe_action:
+        # The on_click handler uses the global tab-switch JS helper so the
+        # empty-state CTA integrates with the existing app navigation.
+        on_click_attr = (
+            f" onclick=\"window.switchTab && window.switchTab('{safe_tab}')\""
+            if safe_tab
+            else ""
+        )
+        cta_button = (
+            f"<button type='button' class='empty-state-cta' "
+            f"aria-label='{safe_action}'{on_click_attr}>{safe_action}</button>"
+        )
+
+    return (
+        f"<div class='empty-state' role='status' aria-live='polite' "
+        f"aria-label='{safe_message}'>"
+        f"<div class='empty-state-icon' aria-hidden='true'>{escape(icon)}</div>"
+        f"<h3 class='empty-state-title'>{safe_message}</h3>"
+        f"<p class='empty-state-body'>{safe_secondary}</p>"
+        f"{cta_button}"
+        f"</div>"
+    )
+
+
+def branded_error_shell(
+    message: str = "Something went wrong",
+    detail: str = "",
+    icon: str = "⚠️",
+    retry_label: str = "Retry",
+    help_tab: str = "today",
+) -> str:
+    """Render a branded recovery panel when a screen or mutation fails.
+
+    This is the canonical replacement for Gradio's bare "Loading..."
+    fallback and for raw stack-trace HTML dumps. The same shell
+    is reused for partial-failure cases, recoverable mutations, and
+    full-OPOS ("Other People's Operating System") errors so the user
+    always sees a consistent ShopStack-branded face instead of a raw
+    exception string.
+
+    Why a dedicated component (motto_v3 §0.11 customer-facing claims):
+    The user should never have to read a stack trace to understand
+    that something went wrong. A consistent shell builds trust by
+    making failures predictable and recoverable, instead of alarming.
+
+    Args:
+        message: The user-facing description ("Couldn't load today's
+            intelligence"). Kept short — one sentence.
+        detail: An optional technical detail for operator diagnosis
+            (e.g. the underlying exception type). Hidden from
+            non-technical users by default — rendered in a small
+            muted block.
+        icon: Emoji or short text rendered above the message.
+        retry_label: Label for the optional retry button. Pass an
+            empty string to omit the button.
+        help_tab: Tab to open when the user clicks "Help" (defaults
+            to ``today`` so the dashboard reloads).
+
+    Returns:
+        XSS-safe HTML safe to inject via ``gr.HTML``. The
+        ``role="alert"`` + ``aria-live="assertive"`` makes screen
+        readers announce the failure immediately.
     """
     safe_message = escape(str(message))
     safe_icon = escape(str(icon))
-    safe_secondary = escape(str(secondary_text)) if secondary_text else ""
 
-    action_html = ""
-    if action_label:
-        safe_action = escape(str(action_label))
-        import re
-        safe_tab = re.sub(r"[^a-z0-9_-]", "-", str(on_click_tab).lower())
-        action_html = (
-            f"<button type='button' class='gr-button' style='margin-top:12px;' onclick=\"var el=document.querySelector('[data-testid=tab-{safe_tab}]');"
-            f"if(el)el.click();\">"
-            f"{safe_action}</button>"
+    detail_html = ""
+    if detail:
+        safe_detail = escape(str(detail))
+        # Render in a <pre> for stack traces; CSS keeps it small + muted.
+        detail_html = (
+            f"<details style='margin-top:10px;text-align:left;'>"
+            f"<summary style='font-size:0.75rem;color:var(--text-dim);cursor:pointer;'>Show details</summary>"
+            f"<pre style='font-size:0.6875rem;color:var(--text-dim);background:var(--surface-1);padding:8px;border-radius:4px;max-height:160px;overflow:auto;margin-top:4px;text-align:left;white-space:pre-wrap;word-break:break-word;'>{safe_detail}</pre>"
+            f"</details>"
         )
 
-    secondary_html = ""
-    if safe_secondary:
-        secondary_html = f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:6px;'>{safe_secondary}</div>"
+    # Always offer a "Back to dashboard" CTA so the user has an
+    # out even if Retry isn't appropriate (e.g. a non-retryable
+    # permission error). Retry is added when a label is supplied.
+    import re
+    safe_tab = re.sub(r"[^a-z0-9_-]", "-", str(help_tab).lower())
+
+    buttons = [
+        f"<button type='button' class='gr-button gr-button-secondary' "
+        f"onclick=\"var el=document.querySelector('[data-testid=tab-{safe_tab}]');"
+        f"if(el)el.click();\">Back to dashboard</button>"
+    ]
+    if retry_label:
+        safe_retry = escape(str(retry_label))
+        buttons.insert(
+            0,
+            f"<button type='button' class='gr-button' onclick='location.reload();'>{safe_retry}</button>",
+        )
+    cta_html = (
+        "<div style='display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap;'>"
+        + "".join(buttons)
+        + "</div>"
+    )
 
     return (
-        "<div class='home-card' style='text-align:center;padding:40px 20px;' role='status' aria-label='" + safe_message + "'>"
-        f"<div style='font-size: 2.5rem;margin-bottom:12px;' aria-hidden='true'>{safe_icon}</div><div class='muted' style='font-size: 0.9375rem;'>{safe_message}</div>"
-        f"{secondary_html}{action_html}"
+        "<div class='home-card' "
+        "style='border-left:3px solid var(--red, #c43);text-align:center;padding:28px 18px;' "
+        "role='alert' aria-live='assertive' "
+        f"aria-label='{safe_message}'>"
+        f"<div style='font-size:2.25rem;margin-bottom:10px;' aria-hidden='true'>{safe_icon}</div>"
+        f"<div style='font-weight:600;color:var(--red, #c43);font-size:0.9375rem;'>{safe_message}</div>"
+        f"{detail_html}{cta_html}"
         "</div>"
     )
 

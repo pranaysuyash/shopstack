@@ -93,7 +93,7 @@ def build_basket_compare(app: gr.Blocks, ctx: TabContext) -> None:
                     api_description="Refresh multi-source price comparison dashboard",
                 )
                 pc_status_btn = gr.Button(
-                    "Check Registry Status", elem_classes="secondary"
+                    "Check Status", elem_classes="secondary"
                 )
                 pc_status_btn.click(
                     refresh_source_registry,

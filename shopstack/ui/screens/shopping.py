@@ -260,6 +260,13 @@ def _record_shopping_trace(
 
 
 def _shopping_list_share_text(items: list[dict[str, Any]]) -> str:
+    """Plain-text version of the shopping list, grouped by decision.
+
+    Format is plain text (no markdown) so it can be pasted into
+    WhatsApp / SMS / email / any other messaging surface without
+    formatting issues. Public callers should use
+    :func:`shopping_list_share` which wraps this with HTML.
+    """
     if not items:
         return f"{APP_NAME} list for today\nNo items in list."
     must_buy: list[str] = []
@@ -440,7 +447,8 @@ def generate_shopping_poster() -> tuple[str, str]:
 
 def _shopping_list_view_with_cards() -> tuple[str, str, list[list[str]], str, str, str]:
     goal_html, tbl, list_id, list_goal, cards, share = _shopping_list_payload()
-    empty_cards = "<div style='color:var(--text-dim);'>No items classified for display yet.</div>"
+    from shopstack.services.empty_states import render as _es_render
+    empty_cards = _es_render("groceries.basket")
     card_wrap = "home_card(body='<h3>Shopping List</h3>" + (cards or empty_cards) + "', style='text-align:left;')"
     return card_wrap, goal_html, tbl, list_id, list_goal, share
 
@@ -645,3 +653,63 @@ def build_shopping_list_and_refresh(
 ) -> tuple[str, str, str, list[list[str]], str, str, str]:
     """Public handler for building shopping list and refreshing view."""
     return _build_shopping_list_and_refresh(goal, items_text)
+
+
+def shopping_list_share() -> str:
+    """Render the shareable shopping list as HTML (textarea + WhatsApp link).
+
+    The returned HTML includes:
+      * A readonly ``<textarea>`` with the plain-text share content
+        (so the user can copy it manually if clipboard JS fails).
+      * A "Copy" button that copies the textarea's text to the
+        clipboard via ``navigator.clipboard.writeText`` (with a
+        "Copied!" confirmation that auto-resets).
+      * An "Open WhatsApp" link that opens
+        ``https://wa.me/?text=<share>`` in a new tab, pre-filled
+        with the share text.
+
+    This is the public Gradio adapter (added 2026-06-13). The
+    internal ``_shopping_list_share_text`` and
+    ``_shopping_list_share_html`` helpers do the real work; this
+    function just composes them and is the single entry point
+    for the Gradio ``gr.Button.click`` wiring.
+
+    Returns:
+        HTML string for the share panel. Empty string if the
+        active household has no shopping list.
+    """
+    try:
+        sl = db.get_active_shopping_list(user_id=current_user_id() or "")
+    except Exception as exc:  # pragma: no cover — defensive
+        logger.warning("shopping_list_share: get_active failed: %s", exc)
+        return ""
+    if not sl:
+        return (
+            "<div class='home-card'>"
+            "<div style='font-size: 0.75rem;color:var(--text-dim);'>"
+            "No active shopping list. Create or activate a list first."
+            "</div></div>"
+        )
+    # Build the row dicts the share_text helper expects
+    rows: list[dict[str, Any]] = []
+    try:
+        for lot in sl.items:
+            if getattr(lot, "status", "active") in ("bought", "skipped"):
+                continue
+            rows.append(
+                {
+                    "canonical_name": lot.canonical_name,
+                    "requested_quantity": lot.requested_quantity or 1.0,
+                    "unit": lot.unit or "unit",
+                    "smart_decision": "must_buy",
+                }
+            )
+    except Exception as exc:  # pragma: no cover — defensive
+        logger.warning("shopping_list_share: build rows failed: %s", exc)
+        return ""
+    try:
+        share_text = _shopping_list_share_text(rows)
+        return _shopping_list_share_html(share_text)
+    except Exception as exc:  # pragma: no cover — defensive
+        logger.warning("shopping_list_share: render failed: %s", exc)
+        return ""

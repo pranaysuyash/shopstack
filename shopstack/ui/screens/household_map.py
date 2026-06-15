@@ -110,7 +110,8 @@ def what_is_in_fridge_now() -> str:
         if (i.storage_location_id in fridge_nodes)
     ]
     if not items:
-        return "<div style='color:var(--text-dim);'>Fridge is empty right now.</div>"
+        from shopstack.services.empty_states import render as _es_render
+        return _es_render("household.fridge")
     rows = "".join(
         item_row(
             name=i.display_name,

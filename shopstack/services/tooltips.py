@@ -313,7 +313,7 @@ def tooltips_missing(
             "federation",
             "sms phone",
             "voice memo retention",
-            "trace retention",
+            "action history retention",
             "backup format",
             "actor id",
             "household role",

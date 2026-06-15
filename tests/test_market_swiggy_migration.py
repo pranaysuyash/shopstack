@@ -18,7 +18,7 @@ verified (with one explicitly-documented API redesign for
 1. ``_parse_size()`` (private helper in the deprecated module)
    returned a ``(quantity: float, unit: str)`` tuple. The
    canonical ``parse_size()`` (in
-   :mod:`shopstack.market.normalization`) returns a
+   :mod:`shopstack.domain`) returns a
    :class:`SizeParseResult` with ``normalized_quantity``,
    ``normalized_unit``, AND a new ``is_size_class`` flag for
    patterns like "2 Medium" (size classes are now first-class).

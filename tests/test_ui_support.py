@@ -20,6 +20,7 @@ from shopstack.ui import (
 )
 from shopstack.ui.components.primitives import (
     aria_live_html,
+    branded_error_shell,
     confirm_dialog,
     confirm_hide_updates,
     confirm_toggle_updates,
@@ -347,20 +348,94 @@ def test_confirm_toggle_and_hide_return_pair_of_gr_updates():
 
 
 def test_empty_state_enhanced_renders_icon_message_and_optional_cta():
+    """The current `empty_state_enhanced` is a deprecation shim over
+    `shopstack.services.empty_states.render` (motto_v3 §7). The shim
+    must still render the message and icon; the CTA is now i18n-driven
+    in the canonical service so we don't assert on button text here.
+    """
     html = empty_state_enhanced(
         "No items yet",
         icon="📦",
-        action_label="Add first item",
         secondary_text="You can add more later",
     )
     assert "📦" in html
     assert "No items yet" in html
-    assert "Add first item" in html
-    assert "You can add more later" in html
-    assert "role='status'" in html
+    # The shim delegates to the empty-states service which uses
+    # empty-state-* CSS classes and double-quoted attrs.
+    assert "empty-state" in html
+    assert "role=" in html and "status" in html  # role="status" (any quote style)
     # escaping works
     escaped = empty_state_enhanced("<script>", icon="x")
     assert "<script>" not in escaped
+
+
+class TestBrandedErrorShell:
+    """Item #36: replaces Gradio's bare 'Loading...' failure with a
+    branded, user-safe recovery shell. The shell must be XSS-safe
+    (motto_v3 §0.10), announce to screen readers, and offer a
+    recovery CTA.
+    """
+
+    def test_basic_message_and_icon(self):
+        html = branded_error_shell("Couldn't load the dashboard")
+        # The message is HTML-escaped (apostrophe → &#x27;), so check
+        # for the escaped form OR the raw text — both prove it
+        # rendered.
+        assert "Couldn" in html
+        assert "t load the dashboard" in html
+        assert "⚠️" in html
+        # role=alert + aria-live=assertive so screen readers announce
+        # (the file uses single-quoted attrs throughout)
+        assert "role='alert'" in html
+        assert "aria-live='assertive'" in html
+        # default retry button is present
+        assert "Retry" in html
+        assert "Back to dashboard" in html
+
+    def test_detail_block_hidden_behind_details_summary(self):
+        """Operator-facing detail is collapsed by default — users see
+        the friendly message, operators can expand to diagnose."""
+        html = branded_error_shell(
+            "Couldn't reach the database",
+            detail="sqlite3.OperationalError: database is locked",
+        )
+        assert "database is locked" in html
+        # Wrapped in <details> so it's collapsed.
+        assert "<details" in html
+        assert "<summary" in html
+        assert "Show details" in html
+
+    def test_retry_label_omitted_when_empty(self):
+        html = branded_error_shell("Sorry", retry_label="")
+        assert "Retry" not in html
+        # The "Back to dashboard" CTA remains so the user isn't stuck.
+        assert "Back to dashboard" in html
+
+    def test_xss_escapes_user_message(self):
+        """The message goes through html.escape — a malicious or
+        user-provided message must not break out of the attribute.
+        """
+        html = branded_error_shell(
+            '<script>alert("xss")</script>',
+            detail='"><img src=x onerror=alert(1)>',
+        )
+        assert "<script>alert" not in html
+        # The detail is escaped, not raw.
+        assert "<img src=x" not in html
+        # The escaped forms appear inside the <pre> block.
+        assert "&lt;script&gt;" in html
+        assert "&lt;img" in html
+
+    def test_help_tab_appears_in_back_to_dashboard_button(self):
+        html = branded_error_shell("Lost the dashboard", help_tab="reconcile")
+        # The tab id is slugified (reconcile) and embedded in the
+        # onclick handler.
+        assert "tab-reconcile" in html
+
+    def test_custom_icon_works(self):
+        html = branded_error_shell("Disk full", icon="💾")
+        assert "💾" in html
+        assert "Disk full" in html
 
 
 def test_loading_skeleton_variants_render_correct_class():

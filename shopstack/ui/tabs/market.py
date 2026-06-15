@@ -28,6 +28,8 @@ from shopstack.ui.screens import (
 from shopstack.ui.components.primitives import (
     empty_state_enhanced,
     loading_skeleton,
+    tooltip_icon,
+)
     with_loading_state,
 )
 from shopstack.ui.components.js_helpers import busy_js
@@ -143,7 +145,7 @@ def build_market_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                         "utility",
                     ],
                     value="auto",
-                    label="Scene Type",
+                    label="Image type",
                 )
                 with gr.Row():
                     hs_scan_btn = gr.Button("Scan home area", variant="primary", elem_id="home-scan-btn")

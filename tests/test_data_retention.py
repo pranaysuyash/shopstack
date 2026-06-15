@@ -254,12 +254,14 @@ class TestPrivacyPanelHtml:
         s = RetentionPolicy()
         html = render_privacy_panel_html(s, locale="en")
         # Each knob is referenced by its i18n key (the actual
-        # English text appears).
+        # English text appears). "SMS phone registry" was
+        # renamed to "Phone numbers" in R2.1 to match the
+        # consumer-friendly label.
         for must in (
             "Action history",
             "Community price pool",
             "Voice memos",
-            "SMS phone registry",
+            "Phone numbers",
             "Backups on disk",
             "Remember my language",
             "Share prices with the community",

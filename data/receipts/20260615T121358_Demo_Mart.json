@@ -1,0 +1,19 @@
+{
+  "raw_text": "Milk 2 L 120",
+  "parsed": {
+    "merchant": "Demo Mart",
+    "purchase_date": "2026-06-06",
+    "total": 120.0,
+    "lines": [
+      {
+        "canonical_name": "milk",
+        "display_name": "Milk",
+        "quantity": 2.0,
+        "unit": "L",
+        "price": 120.0
+      }
+    ]
+  },
+  "user_id": "house_a",
+  "confirmed_at": "2026-06-15T12:13:58.449303"
+}

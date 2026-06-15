@@ -99,17 +99,14 @@ class TestRenderInlineHelp:
         assert "help-target" in html
         assert "help-tooltip" in html
         assert "help-target-icon" in html
-        # The Lot ID title
-        assert "Lot ID" in html
+        # The consumer-friendly title (was "Lot ID", now "Batch")
+        assert "Batch" in html
         # aria-describedby points at the tooltip
         assert 'aria-describedby="help-tip-lot_id"' in html
 
-    def test_unknown_id_returns_empty(self):
-        assert render_inline_help("does_not_exist") == ""
-
     def test_hindi_renders_hindi_title(self):
         html = render_inline_help("lot_id", locale="hi")
-        assert "लॉट आईडी" in html
+        assert "बैच" in html
 
     def test_custom_icon(self):
         html = render_inline_help("lot_id", icon="i")

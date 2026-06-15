@@ -30,7 +30,7 @@ from shopstack.app_context import providers
 from shopstack.config import settings
 from shopstack.services.i18n import (
     DEFAULT_LOCALE,
-    render_i18n_script,
+    render_language_script,
     render_language_selector_html,
 )
 from shopstack.services.shortcuts import (
@@ -409,7 +409,7 @@ def header_block(brand_title: str, brand_subtitle: str, current_locale: str = DE
     return (
         header_html(brand_title, brand_subtitle, current_locale)
         + header_script()
-        + render_i18n_script()
+        + render_language_script()
         + render_shortcuts_help_html()
         + render_shortcuts_script()
         + render_walkthrough_html(current_locale)

@@ -217,10 +217,13 @@ class TestCanonicalize:
     def test_golden_sambar_veg_combo(self):
         canonical, variety, components = canonicalize_name("Sambar Veg Combo")
         assert "combo" in canonical
+        # Components are extracted from the Swiggy snapshot description
+        # (see data/swiggy_fresh_vegetables_cards_6jun26.json):
+        # "Drumstick, Brinjal, Raw Banana and Pumpkin..."
         assert "drumstick" in components
-        assert "radish" in components
-        assert "cluster_beans" in components
-        assert "ladys_finger" in components
+        assert "brinjal" in components
+        assert "raw_banana" in components
+        assert "pumpkin" in components
 
     def test_golden_ooty_carrot(self):
         canonical, variety, components = canonicalize_name("Ooty Carrot")
