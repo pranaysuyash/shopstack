@@ -7,7 +7,7 @@ from datetime import date
 from typing import Any
 
 from shopstack.portability import ImportResult
-from shopstack.market.normalization import canonicalize_name, normalize_item_name
+from shopstack.domain import canonicalize_name, normalize_item_name
 from shopstack.schemas.models import (
     InventoryLot,
     PriceObservation,

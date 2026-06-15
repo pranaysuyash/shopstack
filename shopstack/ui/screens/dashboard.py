@@ -349,33 +349,37 @@ def _render_onboarding_gate(state, ds) -> str:
     Shows a welcoming first-run screen that guides the user through
     the onboarding wizard instead of a dead dashboard.
     """
-    return (
-        "<div class='home-card' style='margin-top:10px;text-align:left;border:2px solid var(--accent, #176B49);'>"
-        "<h3>Welcome to ShopStack</h3>"
-        "<div style='margin-bottom:8px;'>"+APP_NAME+" learns from your household to help you plan groceries, "
-        "reduce waste, and save money. It takes about 2 minutes to set up.</div>"
-        "<div style='font-size:0.75rem;color:var(--text-dim);margin-bottom:12px;'>"+APP_DESCRIPTION+"</div>"
-        "<div style='font-size:0.8125rem;margin-bottom:12px;'>"+"You'll be asked about: household size, dietary preference, "
-        "common staples, preferred stores, and your city.</div>"
-        f"{render_action_grid([{
+    action_items = [
+        {
             'label': 'Set up my household',
             'subtitle': 'Tell us about your home so we can help',
             'tab_id': 'reconcile',
             'tone': 'primary',
-        }, {
+        },
+        {
             'label': 'Skip for now',
             'subtitle': 'Browse the app first, set up later',
             'tab_id': 'market',
             'tone': 'default',
-        }])}"
+        },
+    ]
+    return (
+        "home_card(body='"
+        "<h3>Welcome to ShopStack</h3>"
+        "<div style='margin-bottom:8px;'>" + APP_NAME + " learns from your household to help you plan groceries, "
+        "reduce waste, and save money. It takes about 2 minutes to set up.', style='margin-top:10px;text-align:left;border:2px solid var(--accent, #176B49);')"
+        "<div style='font-size:0.75rem;color:var(--text-dim);margin-bottom:12px;'>" + APP_DESCRIPTION + "</div>"
+        "<div style='font-size:0.8125rem;margin-bottom:12px;'>" + "You'll be asked about: household size, dietary preference, "
+        "common staples, preferred stores, and your city.</div>"
+        f"{render_action_grid(action_items)}"
     )
 
 
 def _render_today_empty_hints(state, ds) -> str:
     return (
-        "<div class='home-card' style='margin-top:10px;text-align:left;'>"
+        "home_card(body='"
         "<h3>Start with home life</h3>"
-        "<div class='muted' style='margin-bottom:8px;'>No household data yet. Add one real fact and the rest of the loop can start learning.</div>"
+        "<div class='muted' style='margin-bottom:8px;'>No household data yet. Add one real fact and the rest of the loop can start learning.', style='margin-top:10px;text-align:left;')"
         "<div style='margin-bottom:10px;'>Plan groceries, add what came home, check a shelf item, or scan a receipt.</div>"
         f"{render_action_grid([
             {
@@ -512,9 +516,9 @@ def _render_market_next_steps(graph) -> str:
 
     if not actions:
         return (
-            "<div class='home-card' style='text-align:left;margin-top:8px;'>"
+            "home_card(body='"
             "<h3>Next steps</h3>"
-            "<div class='muted'>No market actions to prioritize yet.</div>"
+            "<div class='muted'>No market actions to prioritize yet.', style='text-align:left;margin-top:8px;')"
             "</div>"
         )
 

@@ -12,7 +12,8 @@ import logging
 from html import escape
 from typing import Any
 
-from shopstack.app_context import current_user_id, db
+from shopstack.app_context import current_user_id, db, tools
+from shopstack.services._utils import safe_get
 from shopstack.services.community_price_map import community_median
 from shopstack.services.dashboard import build_dashboard_state
 from shopstack.services.today_intelligence import (
@@ -61,7 +62,7 @@ def today_intelligence_screen(
     """
     try:
         user_id = current_user_id() or ""
-        state = build_dashboard_state(db, [], user_id=user_id, city=city)
+        state = build_dashboard_state(db, tools.inventory, user_id=user_id, city=city)
         # Use-soon items for community lookup
         use_soon = safe_get(state, "use_soon_items", default=[]) or []
         restock = safe_get(state, "restock_predictions", default=[]) or []

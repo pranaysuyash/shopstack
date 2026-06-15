@@ -15,7 +15,7 @@ from shopstack.market import (
     get_produce_metadata,
     use_first,
 )
-from shopstack.market.normalization import (
+from shopstack.domain import (
     canonicalize_name,
     compute_unit_prices,
     parse_size,

@@ -149,7 +149,7 @@ def run_unified_shopping_flow(
         UnifiedShoppingResult with per-item decisions, market data,
         substitutions, and deal scores.
     """
-    from shopstack.market.normalization import normalize_item_name
+    from shopstack.domain import normalize_item_name
     from shopstack.services.shopping import (
         classify_shopping_items,
         enrich_items_with_swiggy,
@@ -208,7 +208,7 @@ def run_unified_shopping_flow(
 def _parse_items(text: str) -> list[dict[str, Any]]:
     """Parse free-text into list of item dicts."""
     from shopstack.ui.screens._utils import parse_shopping_text
-    from shopstack.market.normalization import normalize_item_name
+    from shopstack.domain import normalize_item_name
 
     text = (text or "").strip()
     if not text:

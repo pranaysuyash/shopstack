@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from shopstack.market.normalization import normalize_item_name
+from shopstack.domain import normalize_item_name
 from shopstack.schemas.shelf import ShelfSceneType, SpeechIntent
 
 _HOUSEHOLD_ALIASES: dict[str, str] = {

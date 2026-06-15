@@ -135,8 +135,60 @@ class OnboardingResult:
 
 
 def is_onboarding_complete(db: Database) -> bool:
-    """True when the user has previously completed onboarding."""
+    """True when the user has previously completed onboarding.
+
+    Note: this is the *completion* flag. It is set by
+    :func:`submit_onboarding` when the user finishes the wizard.
+    For the "should we show the wizard on first page load?" check,
+    use :func:`should_show_onboarding` which also considers the
+    "skipped" flag.
+    """
     return db.get_config_value("onboarding_complete", "0") == "1"
+
+
+def is_onboarding_skipped(db: Database) -> bool:
+    """True when the user has explicitly clicked "Skip for now".
+
+    Separate from :func:`is_onboarding_complete` so we can
+    distinguish between (a) the user finished setup and
+    (b) the user explicitly opted out. The "skipped" flag
+    suppresses the auto-show on first page load so the
+    wizard doesn't re-appear on every refresh.
+    """
+    return db.get_config_value("onboarding_skipped", "0") == "1"
+
+
+def mark_onboarding_skipped(db: Database) -> None:
+    """Set the ``onboarding_skipped=1`` flag so the auto-show stops.
+
+    Idempotent: calling it twice has the same effect as calling it
+    once. Wired to the "Skip for now" button in the wizard.
+    """
+    db.set_config_value("onboarding_skipped", "1")
+
+
+def reset_onboarding_skip(db: Database) -> None:
+    """Clear the ``onboarding_skipped`` flag so the wizard re-shows.
+
+    Useful for the "I'd like to set up later" entry point — the
+    user can change their mind, and clicking the gate's
+    "Set up my household" button will reset the skip flag
+    and re-show the wizard.
+    """
+    db.set_config_value("onboarding_skipped", "0")
+
+
+def should_show_onboarding(db: Database) -> bool:
+    """True if the onboarding wizard should be shown on page load.
+
+    Composite check: show the wizard if the user has NOT yet
+    completed onboarding AND has NOT yet explicitly skipped it.
+    This is what the ``app.load`` handler in :mod:`app` calls.
+    """
+    return (
+        not is_onboarding_complete(db)
+        and not is_onboarding_skipped(db)
+    )
 
 
 # ── Sub-routines ────────────────────────────────────────────────────────

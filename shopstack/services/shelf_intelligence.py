@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from shopstack.market.normalization import normalize_item_name, parse_size
+from shopstack.domain import normalize_item_name, parse_size
 from shopstack.repos.inventory import InventoryRepo
 from shopstack.schemas.shelf import (
     AggregatedVisibleItem,

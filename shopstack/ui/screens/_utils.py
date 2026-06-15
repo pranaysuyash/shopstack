@@ -7,7 +7,7 @@ import traceback
 from html import escape
 from typing import Any, Callable
 
-from shopstack.market.normalization import normalize_item_name
+from shopstack.domain import normalize_item_name
 from shopstack.ui.components.cards import card as ui_card
 from shopstack.ui.components.cards import render_workflow_rail
 

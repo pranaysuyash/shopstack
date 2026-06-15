@@ -118,7 +118,7 @@ def _to_canonical_name(name: str) -> str:
     if not s:
         return "unknown"
     try:
-        from shopstack.market.normalization import resolve_canonical
+        from shopstack.domain import resolve_canonical
 
         resolved = resolve_canonical(s)
         if resolved:

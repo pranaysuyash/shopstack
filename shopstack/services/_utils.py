@@ -37,10 +37,11 @@ from typing import Any
 def safe_get(obj: Any, *keys: str, default: Any = None) -> Any:
     """Walk a chain of dict keys / dataclass attributes.
 
-    Returns ``default`` if any step yields ``None``. Stops at the
-    first key that produces a non-None value (so we don't try to
-    ``getattr`` on a string returned by an earlier key, or override
-    a real value with the second key's default).
+    Returns the **first** non-None value found in the chain.
+    Stops walking as soon as a key resolves to a non-None value
+    (so we don't override a real value with the second key's
+    default, and we don't ``getattr`` on a string returned by
+    an earlier key).
 
     Args:
         obj: A dict or any object with attributes.
@@ -48,7 +49,8 @@ def safe_get(obj: Any, *keys: str, default: Any = None) -> Any:
         default: Value to return if any step yields ``None``.
 
     Returns:
-        The value at the end of the chain, or ``default``.
+        The first non-None value at the end of the chain, or
+        ``default`` if all keys resolve to ``None``.
 
     Examples:
         >>> safe_get({"a": {"b": 1}}, "a", "b")
@@ -57,8 +59,8 @@ def safe_get(obj: Any, *keys: str, default: Any = None) -> Any:
         'fallback'
         >>> safe_get(None, "anything", default="fallback")
         'fallback'
-        >>> safe_get("string", "upper", default="fallback")
-        'FALLBACK'  # getattr on str works
+        >>> safe_get("DMart", "best_source", "cheapest_source", default="")
+        'DMart'  # first non-None wins; doesn't fall through to getattr on str
     """
     cur = obj
     for k in keys:
@@ -68,7 +70,9 @@ def safe_get(obj: Any, *keys: str, default: Any = None) -> Any:
             cur = cur.get(k, default)
         else:
             cur = getattr(cur, k, default)
-    return cur
+        if cur is not None:
+            return cur
+    return cur if cur is not None else default
 
 
 __all__ = ["safe_get"]

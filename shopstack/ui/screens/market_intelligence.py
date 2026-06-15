@@ -42,9 +42,7 @@ def market_intelligence_view(search: str = "", lane_filter: str = "") -> str:
 
     if not clusters and not graph.clusters:
         return (
-            "<div class='home-card' style='text-align:left;'>"
-            "<h3>Market Intelligence Graph</h3>"
-            "<div style='color:var(--text-dim);'>No market snapshots are available yet. Load Swiggy or another source to build the graph.</div>"
+            "home_card(body='"\n            "<h3>Market Intelligence Graph</h3>"\n            "<div style=\'color:var(--text-dim);\'>No market snapshots are available yet. Load Swiggy or another source to build the graph.', style='text-align:left;')"
             "</div>"
         )
 
@@ -115,17 +113,12 @@ def market_intelligence_view(search: str = "", lane_filter: str = "") -> str:
 
     if not lane_sections:
         return (
-            f"<div class='home-card' style='text-align:left;'>"
-            f"<h3>Market Intelligence Graph</h3>"
-            f"{freshness_badge}{freshness_line}"
-            "<div style='margin-top:10px;color:var(--text-dim);'>No items matched your current filters.</div>"
+            f"home_card(body='"\n            f"<h3>Market Intelligence Graph</h3>"\n            f"{freshness_badge}{freshness_line}"\n            "<div style=\'margin-top:10px;color:var(--text-dim);\'>No items matched your current filters.', style='text-align:left;')"
             "</div>"
         )
 
     return (
-        "<div class='home-card' style='text-align:left;'>"
-        "<h3>Market Intelligence Graph</h3>"
-        f"<div style='display:flex;gap:8px;align-items:center;flex-wrap:wrap;'>{freshness_badge}</div>"
+        "home_card(body='"\n        "<h3>Market Intelligence Graph</h3>"\n        f"<div style=\'display:flex;gap:8px;align-items:center;flex-wrap:wrap;\'>{freshness_badge}', style='text-align:left;')"
         f"{freshness_line}"
         f"<div style='margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;'>{summary_cards}</div>"
         f"<div style='margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;'>{truth_cards}</div>"
@@ -170,11 +163,7 @@ def _render_lane_section(lane: str, clusters: list[MarketCluster]) -> str:
     }.get(lane, "Household decision lane.")
     lanes_html = "".join(_render_cluster_card(cluster) for cluster in clusters[:6])
     return (
-        f"<div class='home-card' style='text-align:left;margin-top:12px;border-left:3px solid { _lane_color(lane) };'>"
-        f"<div style='display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;'>"
-        f"<h3 style='margin:0;'>{escape(title)}</h3>"
-        f"{badge_html(str(len(clusters)), variant)}"
-        f"</div>"
+        f"home_card(body='"\n        f"<div style=\'display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;\'>"\n        f"<h3 style=\'margin:0;\'>{escape(title)}</h3>"\n        f"{badge_html(str(len(clusters)), variant)}"\n        f"', style='text-align:left;margin-top:12px;border-left:3px solid { _lane_color(lane) };')"
         f"<div style='margin-top:6px;font-size: 0.75rem;color:var(--text-dim);'>{escape(lane_note)}</div>"
         f"<div style='margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;'>{lanes_html}</div>"
         f"</div>"
@@ -265,11 +254,7 @@ def _render_cluster_card(cluster: MarketCluster) -> str:
         )
 
     return (
-        f"<div class='home-card' style='text-align:left;border:1px solid var(--border);{muted_style}'>"
-        f"<div style='display:flex;justify-content:space-between;align-items:center;gap:8px;'>"
-        f"<strong>{escape(cluster.display_name)}</strong>"
-        f"{badge_html(cluster.graph_lane.replace('_', ' ').title(), 'blue' if cluster.graph_lane in {'compare', 'watch'} else _lane_variant(cluster.graph_lane))}"
-        f"</div>"
+        f"home_card(body='"\n        f"<div style=\'display:flex;justify-content:space-between;align-items:center;gap:8px;\'>"\n        f"<strong>{escape(cluster.display_name)}</strong>"\n        f"{badge_html(cluster.graph_lane.replace(\'_\', \' \').title(), \'blue\' if cluster.graph_lane in {\'compare\', \'watch\'} else _lane_variant(cluster.graph_lane))}"\n        f"', style='text-align:left;border:1px solid var(--border);{muted_style}')"
         f"<div style='display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;'>{truth_badge}{decision_badge}{graph_badge}</div>"
         f"<div style='font-size: 0.75rem;margin-top:6px;color:var(--text-dim);'>"
         f"Home: {escape(home_qty)} · Market: {escape(market_price + ppk)} · Memory: {escape(memory)}"
@@ -315,10 +300,7 @@ def _render_graph_details(graph) -> str:
         for edge in graph.edges[:8]
     )
     return (
-        "<div class='home-card' style='text-align:left;margin-top:12px;'>"
-        "<h3>Graph Details</h3>"
-        "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;'>"
-        f"<div><div style='font-weight:600;margin-bottom:6px;'>Nodes</div>{node_rows or '<div style=\"color:var(--text-dim);\">No nodes.</div>'}</div>"
+        "home_card(body='"\n        "<h3>Graph Details</h3>"\n        "<div style=\'display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;\'>"\n        f"<div><div style=\'font-weight:600;margin-bottom:6px;\'>Nodes', style='text-align:left;margin-top:12px;'){node_rows or '<div style=\"color:var(--text-dim);\">No nodes.</div>'}</div>"
         f"<div><div style='font-weight:600;margin-bottom:6px;'>Edges</div>{edge_rows or '<div style=\"color:var(--text-dim);\">No edges.</div>'}</div>"
         "</div></div>"
     )

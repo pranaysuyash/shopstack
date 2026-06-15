@@ -119,35 +119,6 @@ def verify_twilio_signature(
     return hmac.compare_digest(expected, signature_header.strip())
 
 
-def _household_scoped_dispatcher(
-    db: Any,
-    fallback_user_id: str,
-) -> Callable[[str, dict], dict]:
-    """Wrap a dispatcher so DB writes always scope to the phone-resolved id.
-
-    The SMS flow resolves the sender's household from the phone registry
-    (``sms_quick_add.handle_webhook`` → ``lookup_phone``). That resolved
-    ``user_id`` is what the dispatcher must scope DB writes to — NOT the
-    process-global ``current_user_id()`` (which reflects whichever
-    household is active in the UI at request time, and would corrupt
-    cross-household data).
-
-    ``handle_webhook`` calls ``dispatcher(user_id, parsed)`` where
-    ``user_id`` is the phone-resolved id (falling back to "default" when
-    unregistered). We honor that id and only fall back to
-    ``fallback_user_id`` (the process default) when the resolved id is
-    empty — preserving the previous behavior for the local-dev Stub path
-    where no phone registry exists.
-    """
-    base = _default_intent_dispatcher(db)
-
-    def _dispatch(user_id: str, parsed: dict) -> dict:
-        uid = user_id or fallback_user_id or ""
-        return base(uid, parsed)
-
-    return _dispatch
-
-
 def mount_sms_webhook(app: gr.Blocks) -> None:
     """Mount the SMS / WhatsApp inbound webhook at ``/api/sms/incoming``.
 
@@ -192,6 +163,9 @@ def mount_sms_webhook(app: gr.Blocks) -> None:
     from starlette.requests import Request as _SMSRequest
     from starlette.responses import JSONResponse as _SMSResponse
     from shopstack.app_context import current_user_id, db
+    from shopstack.services.sms_intent_handlers import (
+        make_household_scoped_dispatcher,
+    )
     from shopstack.services.sms_quick_add import (
         StubAdapter as _SMSStub,
         TwilioAdapter as _SMSTwilio,
@@ -199,7 +173,7 @@ def mount_sms_webhook(app: gr.Blocks) -> None:
     )
 
     auth_token = settings.twilio_auth_token
-    dispatcher = _household_scoped_dispatcher(db, current_user_id() or "")
+    dispatcher = make_household_scoped_dispatcher(db, current_user_id() or "")
 
     async def _sms_webhook_endpoint(request: _SMSRequest):
         # ── Authentication: verify Twilio HMAC signature (fail-closed) ──

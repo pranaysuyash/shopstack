@@ -44,6 +44,36 @@ from shopstack.ui.components.js_helpers import (
 )
 
 
+def _household_switch_reload_js() -> str:
+    """Return JS that reloads the page after a household switch.
+
+    Per audit 2026-06-14 finding #7: the household dropdown switch
+    only refreshed the Today tab's 6 HTML outputs. The other 20+ tabs
+    (Basket, Memory, Timeline, Find, etc.) continued showing stale
+    data from the previous household until the user manually refreshed
+    each tab — a broken user workflow per motto_v3 §0.14 (Product
+    Reality and Operator Workflow Rule).
+
+    The robust fix is a full page reload. This guarantees every tab
+    re-fetches its data through the active household, the user sees
+    a clean view of the new household, and no tab silently displays
+    the wrong household's data.
+
+    We use ``setTimeout(50)`` to give the Today tab refresh time to
+    commit to the DOM before the reload tears it down, so the user
+    doesn't see a flash of the old household on Today.
+    """
+    return (
+        "() => {"
+        "setTimeout(function(){"
+        # Preserve the URL hash so the user lands on the same tab.
+        "var hash = window.location.hash || '';"
+        "window.location.href = window.location.pathname + hash;"
+        "}, 50);"
+        "}"
+    )
+
+
 def build_app() -> gr.Blocks:
     """Compose the ShopStack app — pure composition, no business logic.
 
@@ -126,8 +156,8 @@ def build_app() -> gr.Blocks:
         onboarding_wizard = build_onboarding_wizard(app)
 
         def _show_onboarding_if_first_run() -> gr.update:
-            from shopstack.services.onboarding import is_onboarding_complete
-            return gr.update(visible=not is_onboarding_complete(db))
+            from shopstack.services.onboarding import should_show_onboarding
+            return gr.update(visible=should_show_onboarding(db))
 
         app.load(
             _show_onboarding_if_first_run,
@@ -150,6 +180,11 @@ def build_app() -> gr.Blocks:
             [household_dropdown, today_stats, today_soon, today_list, today_low, today_recent, today_changed],
             api_name="switch_household",
             api_description="Switch active household and refresh dashboard",
+        ).then(
+            None,
+            js=_household_switch_reload_js(),
+            api_name="after_switch_household",
+            api_description="Reload the page after household switch so all tabs show fresh data",
         )
 
         # Per-render refresh of location-dependent dropdowns.

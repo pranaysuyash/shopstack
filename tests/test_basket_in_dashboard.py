@@ -50,6 +50,10 @@ def test_basket_in_dashboard_with_active_list(db):
 
     inventory = MockInventory()
 
+    # Use the same user_id the dashboard queries with
+    from shopstack.app_context import current_user_id
+    user_id = current_user_id()
+
     # Verify initially optimized_basket is None (no active shopping list or snapshot)
     state = build_dashboard_state(db, inventory)
     assert state.optimized_basket is None
@@ -69,11 +73,11 @@ def test_basket_in_dashboard_with_active_list(db):
     )
     db.save_market_snapshot(snapshot)
 
-    # Create active shopping list
+    # Create active shopping list (scoped to the current user)
     lst = ShoppingList(list_id="list_1", name="Trip", is_active=True)
     db.conn.execute(
         "INSERT INTO shopping_lists (list_id, name, is_active, created_at, updated_at, user_id) VALUES (?, ?, ?, ?, ?, ?)",
-        (lst.list_id, lst.name, 1 if lst.is_active else 0, lst.created_at.isoformat(), lst.updated_at.isoformat(), ""),
+        (lst.list_id, lst.name, 1 if lst.is_active else 0, lst.created_at.isoformat(), lst.updated_at.isoformat(), user_id),
     )
     item = ShoppingListItem(list_item_id="item_1", canonical_name="milk", requested_quantity=2.0, unit="L")
     db.add_list_item(lst.list_id, item)

@@ -477,7 +477,7 @@ def _match_canonical(query: str, available: set[str]) -> str | None:
     if lowered in available:
         return lowered
     
-    from shopstack.market.normalization import resolve_canonical
+    from shopstack.domain import resolve_canonical
     mapped = resolve_canonical(lowered)
     if mapped and mapped in available:
         return mapped

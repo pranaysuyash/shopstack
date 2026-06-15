@@ -59,6 +59,8 @@ from datetime import datetime, timezone
 from html import escape
 from typing import Any, Iterable
 
+from shopstack.services._utils import safe_get
+
 logger = logging.getLogger(__name__)
 
 
@@ -107,25 +109,6 @@ class SmartBasket:
 
 
 # ─── Build a smart basket ────────────────────────────────────────
-
-
-
-    Returns ``default`` if any step yields None. Stops at the
-    first key that produces a non-None value (so we don't
-    try to ``getattr`` on a string returned by an earlier key
-    or override a real value with the second key's default).
-    """
-    cur = obj
-    for k in keys:
-        if cur is None:
-            return default
-        if isinstance(cur, dict):
-            cur = cur.get(k, default)
-        else:
-            cur = getattr(cur, k, default)
-        if cur is not None:
-            return cur
-    return cur if cur is not None else default
 
 
 def _build_smart_line(

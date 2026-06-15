@@ -125,3 +125,35 @@ def test_app_py_uses_registry_for_tabs():
     assert not missing, (
         f"app.py does not reference these essential composition helpers: {missing}."
     )
+
+
+def test_app_py_guards_required_handles():
+    """app.py must assert that required tab handles are non-None.
+
+    Per audit 2026-06-14 P0 finding: if build_today_tab or
+    build_reconcile_tab returns None (or is silently skipped by the
+    registry), app.py would crash with AttributeError deep inside the
+    event wiring. This is a P0 guard.
+
+    The guards must:
+    - Check handles.get("today") and handles.get("reconcile")
+    - Raise a clear RuntimeError with diagnostic context
+    - Mention which builder is missing and where to look
+    """
+    app_source = (Path(__file__).resolve().parents[1] / "app.py").read_text()
+
+    # Check for the guard pattern
+    required_patterns = [
+        ('handles.get("today")', "Today tab handle extraction"),
+        ('handles.get("reconcile")', "Reconcile tab handle extraction"),
+        ("RuntimeError", "Explicit runtime error (not silent AttributeError)"),
+    ]
+    missing_patterns = [name for pattern, name in required_patterns
+                        if pattern not in app_source]
+    assert not missing_patterns, (
+        f"app.py is missing required handle guards: {missing_patterns}. "
+        f"Per audit 2026-06-14, app.py must fail fast with a clear "
+        f"RuntimeError if today or reconcile builders return None. "
+        f"Without these guards, a broken tab builder would crash with "
+        f"a confusing AttributeError deep in the event wiring."
+    )

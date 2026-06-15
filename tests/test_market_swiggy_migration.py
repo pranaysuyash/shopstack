@@ -68,7 +68,7 @@ import pytest
 
 from shopstack.config import settings
 from shopstack.market.analytics import compute_snapshot_analytics
-from shopstack.market.normalization import parse_size
+from shopstack.domain import parse_size
 from shopstack.market.sources.swiggy import (
     DEFAULT_SNAPSHOT_ID,
     import_swiggy_snapshot_to_db,

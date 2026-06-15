@@ -202,6 +202,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "help.global_search.body": "Search inventory, lists, recipes, and traces from one box. Press Enter to jump to the first result.",
         "help.search_syntax.title": "Search syntax",
         "help.search_syntax.body": "By default, plain text searches everything. Use prefixes to scope: prefix:milk, type:recipe, household:guest.",
+        # Global search palette (used by shopstack.services.global_search)
+        "search.placeholder": "Search items, lists, recipes, or run a command",
+        "search.status_idle": "Type to search",
         "error.generic": "Something went wrong. Please try again.",
     },
     # ── Hindi (हिन्दी) ──────────────────────────────────────────────
@@ -350,6 +353,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "help.global_search.body": "इन्वेंटरी, लिस्ट, रेसिपी, ट्रेस — एक बॉक्स से।",
         "help.search_syntax.title": "सर्च सिंटैक्स",
         "help.search_syntax.body": "डिफ़ॉल्ट से सब सर्च होता है। स्कोप: prefix:milk, type:recipe।",
+        # Global search palette
+        "search.placeholder": "आइटम, लिस्ट, रेसिपी सर्च करें या कमांड चलाएँ",
+        "search.status_idle": "सर्च के लिए टाइप करें",
         "error.generic": "कुछ गड़बड़ हो गई। फिर से कोशिश करें।",
     },
 }

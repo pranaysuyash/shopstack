@@ -46,9 +46,7 @@ def store_mode_view() -> str:
     ]
     if not items:
         return (
-            "<div class='home-card' style='text-align:center;padding:24px;'>"
-            "<h3>✅ All done!</h3>"
-            "<div class='muted'>Every item on your list has been checked off.</div>"
+            "home_card(body='"\n            "<h3>✅ All done!</h3>"\n            "<div class=\'muted\'>Every item on your list has been checked off.', style='text-align:center;padding:24px;')"
             "</div>"
         )
 

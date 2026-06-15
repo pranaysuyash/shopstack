@@ -11,7 +11,8 @@ from shopstack.services.dashboard import clear_dashboard_cache
 from shopstack.ui.components.decorators import aria_live_screen
 from shopstack.ui.components.primitives import (
     item_row,
-    stat_card,
+    stat_card,,
+    home_card,
 )
 from shopstack.ui.screens._utils import safe_render
 
@@ -119,7 +120,7 @@ def what_is_in_fridge_now() -> str:
         )
         for i in items
     )
-    return f"<div class='home-card' style='text-align:left;'><h3>What's in the fridge now?</h3>{rows}</div>"
+    return f"home_card(body='<h3>What is in the fridge now?</h3>{rows}', style='text-align:left;')"
 
 
 def inventory_alerts(days_since_purchase: int = 3) -> str:
@@ -168,4 +169,4 @@ def inventory_alerts(days_since_purchase: int = 3) -> str:
         alerts += "<div style='margin-bottom:8px;'><strong>Use soon reminders</strong><ul>"
         alerts += "".join(f"<li>{escape(lot.display_name)}: last purchased {(date.today() - lot.purchase_date).days if lot.purchase_date else '?'} days ago</li>" for lot in stale)
         alerts += "</ul></div>"
-    return f"<div class='home-card' style='text-align:left'>{alerts}</div>"
+    return f"home_card(body='{alerts}', style='text-align:left')"

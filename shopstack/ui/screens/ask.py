@@ -157,25 +157,23 @@ def render_ask_response(answer: dict[str, Any] | Any) -> str:
     dropped the trace and broke audio-only market-lens flows.
     """
     if isinstance(answer, str):
-        return f"<div class='home-card' style='text-align:left;'>{answer}</div>"
+        return f"home_card(body='{answer}', style='text-align:left;')"
     if not isinstance(answer, dict):
-        return f"<div class='home-card' style='text-align:left;'>{escape(str(answer))}</div>"
+        return f"home_card(body='{escape(str(answer))}', style='text-align:left;')"
 
     # ── Intent: empty ──
     intent = answer.get("intent", "")
     if intent == "empty":
         msg = escape(answer.get("message", ""))
         return (
-            f"<div class='home-card' style='text-align:left;'>"
-            f"<div style='color:var(--text-muted);'>{msg}</div></div>"
+            f"home_card(body='"\n            f"<div style=\'color:var(--text-muted);\'>{msg}', style='text-align:left;')</div>"
         )
 
     # ── Intent: unknown ──
     if intent == "unknown":
         suggestion = escape(answer.get("suggestion", ""))
         return (
-            f"<div class='home-card' style='text-align:left;'>"
-            f"<div style='color:var(--text-muted);'>{suggestion}</div></div>"
+            f"home_card(body='"\n            f"<div style=\'color:var(--text-muted);\'>{suggestion}', style='text-align:left;')</div>"
         )
 
     # ── Intent: find_item ──
@@ -183,8 +181,7 @@ def render_ask_response(answer: dict[str, Any] | Any) -> str:
         results = answer.get("results", [])
         if not results:
             return (
-                f"<div class='home-card' style='text-align:left;'>"
-                f"<div style='color:var(--text-dim);'>No matching items found.</div></div>"
+                f"home_card(body='"\n                f"<div style=\'color:var(--text-dim);\'>No matching items found.', style='text-align:left;')</div>"
             )
         rows = []
         for r in results[:6]:
@@ -202,8 +199,7 @@ def render_ask_response(answer: dict[str, Any] | Any) -> str:
                 f"<span style='font-weight:500;'>{qty_str}</span></div>"
             )
         return (
-            f"<div class='home-card' style='text-align:left;'>"
-            f"<div style='font-weight:600;margin-bottom:8px;'>Found {len(results)} item{'s' if len(results) != 1 else ''}</div>"
+            f"home_card(body='"\n            f"<div style=\'font-weight:600;margin-bottom:8px;\'>Found {len(results)} item{\'s\' if len(results) != 1 else \'\'}', style='text-align:left;')"
             f"{''.join(rows)}</div>"
         )
 
@@ -224,8 +220,7 @@ def render_ask_response(answer: dict[str, Any] | Any) -> str:
                 f"<span class='badge {badge_cls}'>{escape(badge_label)}</span></div>"
             )
         return (
-            f"<div class='home-card' style='text-align:left;'>"
-            f"<div style='font-weight:600;margin-bottom:8px;'>{len(decisions)} suggestion{'s' if len(decisions) != 1 else ''}</div>"
+            f"home_card(body='"\n            f"<div style=\'font-weight:600;margin-bottom:8px;\'>{len(decisions)} suggestion{\'s\' if len(decisions) != 1 else \'\'}', style='text-align:left;')"
             f"{''.join(rows)}</div>"
         )
 
@@ -251,8 +246,7 @@ def render_ask_response(answer: dict[str, Any] | Any) -> str:
                     )
         if parts:
             return (
-                f"<div class='home-card' style='text-align:left;'>"
-                f"{''.join(parts)}</div>"
+                f"home_card(body='"\n                f"{\'\'.join(parts)}', style='text-align:left;')"
             )
 
     # ── Fallback: render key-value pairs ──
@@ -272,10 +266,9 @@ def render_ask_response(answer: dict[str, Any] | Any) -> str:
             f"<span style='font-size: 0.75rem;color:var(--text-dim);'>{escape(val_str[:200])}</span></div>"
         )
     if parts:
-        return f"<div class='home-card' style='text-align:left;'>{''.join(parts)}</div>"
+        return f"home_card(body="{''.join(parts)}", style='text-align:left;')"
     return (
-        f"<div class='home-card' style='text-align:left;'>"
-        f"<div style='color:var(--text-dim);'>No answer available.</div></div>"
+        f"home_card(body='"\n        f"<div style=\'color:var(--text-dim);\'>No answer available.', style='text-align:left;')</div>"
     )
 
 
@@ -402,16 +395,14 @@ def _render_ask_answer_html(response: Any) -> str:
         # Bare string answer — wrap as a card.
         safe = escape(response)
         return (
-            "<div class='home-card' style='text-align:left;'>"
-            f"<div style='font-size: 0.875rem;line-height:1.5;'>{safe}</div>"
+            "home_card(body='"\n            f"<div style=\'font-size: 0.875rem;line-height:1.5;\'>{safe}', style='text-align:left;')"
             "</div>"
         )
 
     if not isinstance(response, dict):
         safe = escape(str(response))
         return (
-            "<div class='home-card' style='text-align:left;'>"
-            f"<div>{safe}</div>"
+            "home_card(body='"\n            f"<div>{safe}', style='text-align:left;')"
             "</div>"
         )
 
@@ -421,8 +412,7 @@ def _render_ask_answer_html(response: Any) -> str:
 
     if msg and not response.get("decisions"):
         return (
-            "<div class='home-card' style='text-align:left;'>"
-            f"<div style='font-size: 0.875rem;line-height:1.5;'>{escape(str(msg))}</div>"
+            "home_card(body='"\n            f"<div style=\'font-size: 0.875rem;line-height:1.5;\'>{escape(str(msg))}', style='text-align:left;')"
             + (f"<div class='muted' style='margin-top:6px;font-size: 0.6875rem;'>Intent: {escape(str(intent))}</div>" if intent else "")
             + "</div>"
         )
@@ -441,8 +431,7 @@ def _render_ask_answer_html(response: Any) -> str:
         if cards:
             body = "".join(cards)
             return (
-                "<div class='home-card' style='text-align:left;'>"
-                f"<h3>What I found</h3>{body}</div>"
+                "home_card(body='"\n                f"<h3>What I found</h3>{body}', style='text-align:left;')"
             )
 
     # Find-item results: show top hits as a small list.
@@ -459,15 +448,13 @@ def _render_ask_answer_html(response: Any) -> str:
         )
         if rows:
             return (
-                "<div class='home-card' style='text-align:left;'>"
-                f"<h3>What I found</h3>{rows}</div>"
+                "home_card(body='"\n                f"<h3>What I found</h3>{rows}', style='text-align:left;')"
             )
 
     # Fall back to a friendly message rather than dumping raw JSON.
     if msg:
         return (
-            "<div class='home-card' style='text-align:left;'>"
-            f"<div style='font-size: 0.875rem;line-height:1.5;'>{escape(str(msg))}</div></div>"
+            "home_card(body='"\n            f"<div style=\'font-size: 0.875rem;line-height:1.5;\'>{escape(str(msg))}', style='text-align:left;')</div>"
         )
     return empty_state_enhanced(
         "I didn't get a clear answer. Try rephrasing the question.",

@@ -23,9 +23,9 @@ from datetime import datetime, timezone
 from urllib.parse import urlencode
 
 from shopstack.schemas.models import InventoryLot
+from shopstack.services.sms_intent_handlers import make_household_scoped_dispatcher
 from shopstack.services.sms_webhook import (
     _default_intent_dispatcher,
-    _household_scoped_dispatcher,
     verify_twilio_signature,
 )
 
@@ -323,7 +323,7 @@ class TestHouseholdScopedDispatcher:
         the process default is household-A."""
         db = _FakeDB()
         # fallback is household-A, but the resolved id (from phone lookup) is household-B
-        dispatcher = _household_scoped_dispatcher(db, fallback_user_id="household-A")
+        dispatcher = make_household_scoped_dispatcher(db, fallback_user_id="household-A")
         dispatcher("household-B", {
             "intent": "add_inventory_item",
             "args": {"canonical_name": "milk"},
@@ -334,7 +334,7 @@ class TestHouseholdScopedDispatcher:
         """An empty resolved id (local-dev Stub path) falls back to the
         process default — preserving the previous behavior."""
         db = _FakeDB()
-        dispatcher = _household_scoped_dispatcher(db, fallback_user_id="default_household")
+        dispatcher = make_household_scoped_dispatcher(db, fallback_user_id="default_household")
         dispatcher("", {
             "intent": "add_inventory_item",
             "args": {"canonical_name": "milk"},
@@ -344,7 +344,7 @@ class TestHouseholdScopedDispatcher:
     def test_no_cross_household_leak(self):
         """Concurrent messages from two households must not interleave writes."""
         db = _FakeDB()
-        dispatcher = _household_scoped_dispatcher(db, fallback_user_id="default")
+        dispatcher = make_household_scoped_dispatcher(db, fallback_user_id="default")
         dispatcher("family-1", {"intent": "add_inventory_item", "args": {"canonical_name": "rice"}})
         dispatcher("family-2", {"intent": "add_inventory_item", "args": {"canonical_name": "bread"}})
         assert db.add_calls[0]["user_id"] == "family-1"

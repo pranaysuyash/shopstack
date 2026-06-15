@@ -58,6 +58,8 @@ from datetime import date, datetime, timedelta
 from html import escape
 from typing import Any, Iterable
 
+from shopstack.services._utils import safe_get
+
 logger = logging.getLogger(__name__)
 
 

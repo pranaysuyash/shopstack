@@ -16,7 +16,8 @@ from shopstack.ui.components.primitives import (
     form_error,
     item_row,
     toast,
-    toast_floating,
+    toast_floating,,
+    home_card,
 )
 
 logger = logging.getLogger(__name__)
@@ -388,8 +389,7 @@ def inventory_cards_view(search: str = "") -> str:
                 extra=lot["reason"],
             )
         cards += (
-            "<div class='home-card' style='margin-bottom:10px;'>"
-            f"<h4>{escape(str(loc_name))}</h4>{body}</div>"
+            "home_card(body='"\n            f"<h4>{escape(str(loc_name))}</h4>{body}', style='margin-bottom:10px;')"
         )
     return search_note + cards
 

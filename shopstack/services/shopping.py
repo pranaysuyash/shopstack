@@ -5,7 +5,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from shopstack.market.normalization import normalize_item_name
+from shopstack.domain import normalize_item_name
 from shopstack.decisions.rules import classify_inventory_comparison
 from shopstack.repos.inventory import InventoryRepo
 from shopstack.services.results import (

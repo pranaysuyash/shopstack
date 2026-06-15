@@ -33,7 +33,7 @@ def _canonicalize_query(query: str) -> str | None:
     household to re-train their brain to English.
     """
     try:
-        from shopstack.market.normalization import resolve_canonical
+        from shopstack.domain import resolve_canonical
 
         return resolve_canonical(query)
     except Exception:

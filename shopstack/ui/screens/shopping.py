@@ -8,7 +8,7 @@ from html import escape
 from typing import Any
 from urllib.parse import quote
 
-from shopstack.app_context import APP_NAME, db, providers, tools
+from shopstack.app_context import APP_NAME, current_user_id, db, providers, tools
 from shopstack.services.dashboard import clear_dashboard_cache
 from shopstack.services.shopping import (
     classify_shopping_items,
@@ -27,7 +27,8 @@ from shopstack.ui.components.primitives import (
     empty_state_enhanced,
     item_row,
     toast,
-    toast_floating,
+    toast_floating,,
+    home_card,
 )
 from shopstack.ui.renderers import render_mark_purchased, render_shopping_completion
 from shopstack.traces.export import create_trace
@@ -38,11 +39,6 @@ from shopstack.ui.screens._utils import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _user_id() -> str:
-    from shopstack.app_context import current_user_id
-    return current_user_id()
 
 
 def shopping_list_view():
@@ -73,7 +69,7 @@ def shopping_list_view():
 
 
 def shopping_list_create(goal: str, items_json: str) -> str:
-    uid = _user_id()
+    uid = current_user_id()
     if not items_json:
         items = []
         plan_note = empty_state_enhanced("No items specified yet.", icon="📝")
@@ -257,7 +253,7 @@ def _record_shopping_trace(
             ],
             final_response=plan_note,
             human_confirmation="auto-summarized",
-            user_id=_user_id(),
+            user_id=current_user_id(),
         )
     except Exception as exc:
         logger.debug("Failed to record shopping trace: %s", exc)
@@ -324,7 +320,7 @@ def _shopping_list_share_html(share_text: str) -> str:
 
 
 def _shopping_list_payload() -> tuple[str, list[list[str]], str, str, str, str]:
-    sl = db.get_active_shopping_list(user_id=_user_id())
+    sl = db.get_active_shopping_list(user_id=current_user_id())
     if not sl:
         return (
             empty_state_enhanced("No active shopping list. Create one with your goal or rough text.", icon="🛒", action_label="Create List", on_click_tab="shopping"),
@@ -390,7 +386,7 @@ def generate_shopping_poster() -> tuple[str, str]:
     Returns:
         (file_path_or_empty, status_html)
     """
-    sl = db.get_active_shopping_list(user_id=_user_id())
+    sl = db.get_active_shopping_list(user_id=current_user_id())
     if not sl or not sl.items:
         return "", "<div class='muted'>No active shopping list to generate a poster from.</div>"
 
@@ -445,12 +441,12 @@ def generate_shopping_poster() -> tuple[str, str]:
 def _shopping_list_view_with_cards() -> tuple[str, str, list[list[str]], str, str, str]:
     goal_html, tbl, list_id, list_goal, cards, share = _shopping_list_payload()
     empty_cards = "<div style='color:var(--text-dim);'>No items classified for display yet.</div>"
-    card_wrap = "<div class='home-card' style='text-align:left;'><h3>Shopping List</h3>" + (cards or empty_cards) + "</div>"
+    card_wrap = "home_card(body='<h3>Shopping List</h3>" + (cards or empty_cards) + "', style='text-align:left;')"
     return card_wrap, goal_html, tbl, list_id, list_goal, share
 
 
 def shopping_list_item_choices() -> list[tuple[str, str]]:
-    sl = db.get_active_shopping_list(user_id=_user_id())
+    sl = db.get_active_shopping_list(user_id=current_user_id())
     if not sl or not sl.items:
         return []
     items = [i for i in sl.items if i.status != "bought" and i.status != "skipped"]
@@ -471,7 +467,7 @@ def mark_items_purchased(item_ids_json: str | list[str]) -> str:
         item_ids = item_ids_json
     else:
         item_ids = item_ids_json
-    uid = _user_id()
+    uid = current_user_id()
     result = mark_items_purchased_service(item_ids, tools.inventory, db, user_id=uid)
     clear_dashboard_cache(uid)
     return render_mark_purchased(result) + toast_floating(f"Marked {len(item_ids)} item(s) as bought", kind="success")
@@ -479,7 +475,7 @@ def mark_items_purchased(item_ids_json: str | list[str]) -> str:
 
 @aria_live_screen()
 def complete_shopping_list(list_id: str) -> str:
-    uid = _user_id()
+    uid = current_user_id()
     result = complete_shopping_list_service(list_id, tools.inventory, db, user_id=uid)
     clear_dashboard_cache(uid)
     return render_shopping_completion(result) + toast_floating("Shopping list completed", kind="success")
@@ -494,7 +490,7 @@ def _build_shopping_list_and_refresh(
 
 
 def get_reconciliation_draft() -> tuple[list[list[Any]], str, str]:
-    sl = db.get_active_shopping_list(user_id=_user_id())
+    sl = db.get_active_shopping_list(user_id=current_user_id())
     if not sl or not sl.items:
         return [], "", "<div class='muted'>No active shopping list.</div>"
     
@@ -527,7 +523,7 @@ def confirm_reconciliation(df_data: Any, list_id: str) -> str:
     if not list_id:
         return "<div style='color:var(--red);'>No active list ID.</div>"
         
-    uid = _user_id()
+    uid = current_user_id()
 
     if hasattr(df_data, "values"):
         df_list = df_data.values.tolist()
@@ -590,7 +586,7 @@ def confirm_reconciliation(df_data: Any, list_id: str) -> str:
             user_id=uid,
         )
         db.mark_list_complete(list_id)
-        return f"<div class='home-card' style='color:var(--green);font-weight:600;'>Reconciliation complete. {result.message}</div>"
+        return f"home_card(body='Reconciliation complete. {result.message}', style='color:var(--green);font-weight:600;')"
     except Exception as e:
         logger.warning("Failed to reconcile shopping trip: %s", e)
 
@@ -612,7 +608,7 @@ def shopping_list_substitutions_view() -> str:
     there is no active list, no market data, or no sold-out items to
     surface alternatives for.
     """
-    sl = db.get_active_shopping_list(user_id=_user_id())
+    sl = db.get_active_shopping_list(user_id=current_user_id())
     if not sl or not sl.items:
         return ""
 

@@ -29,7 +29,7 @@ import logging
 from html import escape
 from typing import Any
 
-from shopstack.app_context import current_user_id, db
+from shopstack.app_context import current_user_id, db, tools
 from shopstack.services.dashboard import build_dashboard_state
 from shopstack.services.restock_action import add_prediction_to_list
 from shopstack.ui.components.primitives import toast
@@ -115,7 +115,7 @@ def restock_card_screen(limit: int = 8) -> str:
     """Top-level screen wrapper that pulls the dashboard state and renders the card."""
     try:
         user_id = current_user_id() or ""
-        state = build_dashboard_state(db, [], user_id=user_id)
+        state = build_dashboard_state(db, tools.inventory, user_id=user_id)
         return render_restock_card_html(state.restock_predictions or [])
     except Exception as exc:
         logger.warning("restock_card_screen failed: %s", exc)
@@ -126,7 +126,7 @@ def add_restock_to_list(canonical_name: str) -> str:
     """Add a single restock prediction to the active shopping list. Returns a toast."""
     try:
         user_id = current_user_id() or ""
-        state = build_dashboard_state(db, [], user_id=user_id)
+        state = build_dashboard_state(db, tools.inventory, user_id=user_id)
         match = next(
             (p for p in (state.restock_predictions or [])
              if p.get("canonical_name") == canonical_name),

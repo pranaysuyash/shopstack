@@ -102,4 +102,34 @@ INTENT_HANDLERS: dict[str, IntentHandler] = {
 }
 
 
-__all__ = ["INTENT_HANDLERS", "IntentHandler"]
+def make_household_scoped_dispatcher(
+    db: Any,
+    fallback_user_id: str,
+) -> Callable[[str, dict], dict]:
+    """Wrap ``make_dispatcher`` so DB writes scope to the phone-resolved id.
+
+    The SMS flow resolves the sender's household from the phone registry
+    (``sms_quick_add.handle_webhook`` → ``lookup_phone``). That resolved
+    ``user_id`` is what the dispatcher must scope DB writes to — NOT the
+    process-global ``current_user_id()`` (which reflects whichever
+    household is active in the UI at request time, and would corrupt
+    cross-household data).
+
+    ``handle_webhook`` calls ``dispatcher(user_id, parsed)`` where
+    ``user_id`` is the phone-resolved id (falling back to "default" when
+    unregistered). We honor that id and only fall back to
+    ``fallback_user_id`` (the process default) when the resolved id is
+    empty — preserving the previous behavior for the local-dev Stub path
+    where no phone registry exists.
+    """
+    from shopstack.services.sms_webhook import _default_intent_dispatcher
+
+    base = _default_intent_dispatcher(db)
+
+    def _dispatch(user_id: str, parsed: dict) -> dict:
+        return base(user_id or fallback_user_id or "", parsed)
+
+    return _dispatch
+
+
+__all__ = ["INTENT_HANDLERS", "IntentHandler", "make_household_scoped_dispatcher"]

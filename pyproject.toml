@@ -14,20 +14,51 @@ dependencies = [
     "pyzbar",
     "huggingface_hub>=0.20",
     "opentelemetry-api>=1.0",
-    "sentence-transformers",
-    "torch",
-    "transformers",
-    "mlx",
-    "llama-cpp-python>=0.3",
-    "openai>=1.0",
 ]
 
 [project.optional-dependencies]
+# Core ML/vision dependencies are OPTIONAL to keep the base install
+# lightweight (per audit 2026-06-14). ShopStack's local-first,
+# off-grid philosophy means cloud and local-model deps should not
+# be forced on every user.
+#
+# Install profiles:
+#   pip install shopstack              # Gradio app only (mock providers)
+#   pip install shopstack[cloud]       # + OpenAI / HF cloud providers
+#   pip install shopstack[local-gguf]  # + llama-cpp-python for local GGUF
+#   pip install shopstack[local-mlx]   # + mlx for Apple Silicon local
+#   pip install shopstack[vision]      # + transformers / torch for vision
+#   pip install shopstack[embeddings]  # + sentence-transformers for embeddings
+#   pip install shopstack[all]         # everything
+cloud = [
+    "openai>=1.0",
+]
+local-gguf = [
+    "llama-cpp-python>=0.3",
+]
+local-mlx = [
+    "mlx",
+]
+vision = [
+    "transformers",
+    "torch",
+]
+embeddings = [
+    "sentence-transformers",
+]
 dev = [
     "psutil",
     "pytest>=9",
     "pytest-cov",
     "pytest-benchmark",
+]
+all = [
+    "openai>=1.0",
+    "llama-cpp-python>=0.3",
+    "mlx",
+    "transformers",
+    "torch",
+    "sentence-transformers",
 ]
 
 [build-system]

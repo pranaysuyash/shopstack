@@ -48,7 +48,7 @@ ERROR_HTML = "<div style='color:var(--red);'>Could not load price history due to
 EMPTY_DF = pd.DataFrame(columns=["date", "store", "price", "unit_price", "qty", "unit", "source"])
 
 
-from shopstack.market.normalization import parse_size, compute_unit_prices
+from shopstack.domain import parse_size, compute_unit_prices
 
 def _compute_unit_price(price: float, quantity: float, unit: str) -> float | None:
     if quantity <= 0:

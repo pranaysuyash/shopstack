@@ -93,12 +93,19 @@ class TestHinglishAliasCanonicalization:
         results = semantic_search(db, "pyaaz")
         assert any(r.canonical_name == "onion" and r.match_type == "exact" for r in results)
 
-    def test_dahi_resolves_to_yogurt(self, db, tool_registry):
+    def test_dahi_resolves_to_curd(self, db, tool_registry):
+        """dahi must resolve to 'curd' (Indian market canonical).
+
+        Prior to audit 2026-06-14, this test asserted dahi→yogurt
+        (the _CANONICAL_MAP slug). The alias maps have been unified
+        so dahi/curd/yogurt all resolve to 'curd' — the canonical
+        Indian-English market name.
+        """
         tool_registry.add_inventory_item(
-            canonical_name="yogurt", display_name="Yogurt", quantity=0.5, unit="kg",
+            canonical_name="curd", display_name="Curd (dahi)", quantity=0.5, unit="kg",
         )
         results = semantic_search(db, "dahi")
-        assert any(r.canonical_name == "yogurt" and r.match_type == "exact" for r in results)
+        assert any(r.canonical_name == "curd" and r.match_type == "exact" for r in results)
 
     def test_hinglish_canonicalization_skips_when_no_match(self, db, tool_registry):
         # "cheese" is not in the alias map, so it should fall through to the

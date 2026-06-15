@@ -425,7 +425,7 @@ def parse_basket_input(text: str) -> list[dict[str, Any]]:
     so Hinglish / regional aliases map to the same canonical name used by
     the market snapshots.
     """
-    from shopstack.market.normalization import resolve_canonical
+    from shopstack.domain import resolve_canonical
 
     items: list[dict[str, Any]] = []
     for raw_line in (text or "").splitlines():

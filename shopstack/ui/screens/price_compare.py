@@ -199,7 +199,7 @@ def single_item_compare(item_name: str) -> str:
         return empty_state_enhanced("Source registry not available.", icon="🔌")
 
     try:
-        from shopstack.market.normalization import canonicalize_name
+        from shopstack.domain import canonicalize_name
         canonical, _, _ = canonicalize_name(item_name)
     except Exception as exc:
         logger.debug("single_item_compare: canonicalize failed: %s", exc)

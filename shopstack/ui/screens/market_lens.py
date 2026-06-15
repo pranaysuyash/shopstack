@@ -122,12 +122,15 @@ def _render_swiggy_section(decisions: list[dict[str, Any]]) -> str:
                 f"<strong>{name}</strong> <span style='color:var(--green);'>&#8377;{d['swiggy_price']:.0f}{ppk_str}</span>"
                 f"</div>"
             )
-    return (
-        "<div class='stat-card' style='margin-top:10px;'>"
-        "<h4>Swiggy Instamart Prices</h4>"
-        + "".join(swiggy_rows)
-        + source_freshness_html("swiggy")
-        + "</div>"
+    return stat_card(
+        value="",
+        label="",
+        body_html=(
+            "<h4>Swiggy Instamart Prices</h4>"
+            + "".join(swiggy_rows)
+            + source_freshness_html("swiggy")
+        ),
+        style="margin-top:10px;",
     )
 
 

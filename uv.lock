@@ -2466,9 +2466,6 @@ dependencies = [
     { name = "gradio" },
     { name = "httpx" },
     { name = "huggingface-hub" },
-    { name = "llama-cpp-python" },
-    { name = "mlx" },
-    { name = "openai" },
     { name = "opentelemetry-api" },
     { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "pandas", version = "3.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
@@ -2477,17 +2474,38 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pydub" },
     { name = "pyzbar" },
+]
+
+[package.optional-dependencies]
+all = [
+    { name = "llama-cpp-python" },
+    { name = "mlx" },
+    { name = "openai" },
     { name = "sentence-transformers" },
     { name = "torch" },
     { name = "transformers" },
 ]
-
-[package.optional-dependencies]
+cloud = [
+    { name = "openai" },
+]
 dev = [
     { name = "psutil" },
     { name = "pytest" },
     { name = "pytest-benchmark" },
     { name = "pytest-cov" },
+]
+embeddings = [
+    { name = "sentence-transformers" },
+]
+local-gguf = [
+    { name = "llama-cpp-python" },
+]
+local-mlx = [
+    { name = "mlx" },
+]
+vision = [
+    { name = "torch" },
+    { name = "transformers" },
 ]
 
 [package.metadata]
@@ -2495,9 +2513,12 @@ requires-dist = [
     { name = "gradio", specifier = ">=5" },
     { name = "httpx" },
     { name = "huggingface-hub", specifier = ">=0.20" },
-    { name = "llama-cpp-python", specifier = ">=0.3" },
-    { name = "mlx" },
-    { name = "openai", specifier = ">=1.0" },
+    { name = "llama-cpp-python", marker = "extra == 'all'", specifier = ">=0.3" },
+    { name = "llama-cpp-python", marker = "extra == 'local-gguf'", specifier = ">=0.3" },
+    { name = "mlx", marker = "extra == 'all'" },
+    { name = "mlx", marker = "extra == 'local-mlx'" },
+    { name = "openai", marker = "extra == 'all'", specifier = ">=1.0" },
+    { name = "openai", marker = "extra == 'cloud'", specifier = ">=1.0" },
     { name = "opentelemetry-api", specifier = ">=1.0" },
     { name = "pandas" },
     { name = "pillow" },
@@ -2509,11 +2530,14 @@ requires-dist = [
     { name = "pytest-benchmark", marker = "extra == 'dev'" },
     { name = "pytest-cov", marker = "extra == 'dev'" },
     { name = "pyzbar" },
-    { name = "sentence-transformers" },
-    { name = "torch" },
-    { name = "transformers" },
+    { name = "sentence-transformers", marker = "extra == 'all'" },
+    { name = "sentence-transformers", marker = "extra == 'embeddings'" },
+    { name = "torch", marker = "extra == 'all'" },
+    { name = "torch", marker = "extra == 'vision'" },
+    { name = "transformers", marker = "extra == 'all'" },
+    { name = "transformers", marker = "extra == 'vision'" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["cloud", "local-gguf", "local-mlx", "vision", "embeddings", "dev", "all"]
 
 [[package]]
 name = "six"

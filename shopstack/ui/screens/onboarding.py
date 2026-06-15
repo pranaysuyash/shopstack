@@ -27,6 +27,7 @@ from shopstack.services.onboarding import (
     DIETARY_PREFERENCES,
     HOUSEHOLD_SIZES,
     RETAILERS,
+    mark_onboarding_skipped,
     submit_onboarding,
 )
 from shopstack.ui.components.primitives import loading_skeleton
@@ -43,10 +44,7 @@ def _step1_household_size() -> str:
             f"<strong>{escape(size['label'])}</strong></button>"
         )
     return (
-        "<div class='home-card' style='text-align:left;'>"
-        "<h3>Step 1 of 5 — How big is your household?</h3>"
-        "<div class='muted' style='margin-bottom:12px;'>This helps us scale "
-        "quantities for your starter inventory.</div>"
+        "home_card(body='"\n        "<h3>Step 1 of 5 — How big is your household?</h3>"\n        "<div class=\'muted\' style=\'margin-bottom:12px;\'>This helps us scale "\n        "quantities for your starter inventory.', style='text-align:left;')"
         f"{''.join(buttons)}"
         "</div>"
     )
@@ -61,10 +59,7 @@ def _step2_diet() -> str:
             f"<strong>{escape(pref['label'])}</strong></button>"
         )
     return (
-        "<div class='home-card' style='text-align:left;'>"
-        "<h3>Step 2 of 5 — Dietary preference</h3>"
-        "<div class='muted' style='margin-bottom:12px;'>We'll exclude "
-        "non-veg items if you're vegetarian or vegan.</div>"
+        "home_card(body='"\n        "<h3>Step 2 of 5 — Dietary preference</h3>"\n        "<div class=\'muted\' style=\'margin-bottom:12px;\'>We\'ll exclude "\n        "non-veg items if you\'re vegetarian or vegan.', style='text-align:left;')"
         f"{''.join(buttons)}"
         "</div>"
     )
@@ -82,10 +77,7 @@ def _step3_staples() -> str:
             f"</div>"
         )
     return (
-        "<div class='home-card' style='text-align:left;'>"
-        "<h3>Step 3 of 5 — Common staples</h3>"
-        "<div class='muted' style='margin-bottom:12px;'>Select the items "
-        "your household always needs.</div>"
+        "home_card(body='"\n        "<h3>Step 3 of 5 — Common staples</h3>"\n        "<div class=\'muted\' style=\'margin-bottom:12px;\'>Select the items "\n        "your household always needs.', style='text-align:left;')"
         f"{''.join(items_html)}"
         "</div>"
     )
@@ -100,10 +92,7 @@ def _step4_retailers() -> str:
             f"<strong>{escape(r['label'])}</strong></button>"
         )
     return (
-        "<div class='home-card' style='text-align:left;'>"
-        "<h3>Step 4 of 5 — Your preferred stores</h3>"
-        "<div class='muted' style='margin-bottom:12px;'>Select the stores "
-        "you shop at most. This helps us prioritize market data.</div>"
+        "home_card(body='"\n        "<h3>Step 4 of 5 — Your preferred stores</h3>"\n        "<div class=\'muted\' style=\'margin-bottom:12px;\'>Select the stores "\n        "you shop at most. This helps us prioritize market data.', style='text-align:left;')"
         f"{''.join(buttons)}"
         "</div>"
     )
@@ -112,10 +101,7 @@ def _step4_retailers() -> str:
 def _step5_city() -> str:
     """Render step 5: city."""
     return (
-        "<div class='home-card' style='text-align:left;'>"
-        "<h3>Step 5 of 5 — Your city</h3>"
-        "<div class='muted' style='margin-bottom:12px;'>Used for weather-aware "
-        "suggestions and local market context.</div>"
+        "home_card(body='"\n        "<h3>Step 5 of 5 — Your city</h3>"\n        "<div class=\'muted\' style=\'margin-bottom:12px;\'>Used for weather-aware "\n        "suggestions and local market context.', style='text-align:left;')"
         f"<input type='text' id='onboarding-city' "
         f"placeholder='{DEFAULT_CITY}' class='onboarding-city-input' />"
         "</div>"
@@ -132,16 +118,12 @@ def _collect_and_submit(
     """Collect wizard inputs and call submit_onboarding()."""
     if not household_size or household_size not in {s["key"] for s in HOUSEHOLD_SIZES}:
         return (
-            "<div class='home-card' style='border:2px solid var(--red);'>"
-            "<h3>Setup incomplete</h3>"
-            "<div>Please select a household size.</div>"
+            "home_card(body='"\n            "<h3>Setup incomplete</h3>"\n            "<div>Please select a household size.', style='border:2px solid var(--red);')"
             "</div>"
         )
     if not dietary_preference or dietary_preference not in {d["key"] for d in DIETARY_PREFERENCES}:
         return (
-            "<div class='home-card' style='border:2px solid var(--red);'>"
-            "<h3>Setup incomplete</h3>"
-            "<div>Please select a dietary preference.</div>"
+            "home_card(body='"\n            "<h3>Setup incomplete</h3>"\n            "<div>Please select a dietary preference.', style='border:2px solid var(--red);')"
             "</div>"
         )
 
@@ -163,10 +145,7 @@ def _collect_and_submit(
     if result.success:
         items_list = ", ".join(COMMON_STAPLES_MAP.get(c, c.replace("_", " ").title()) for c in common_items[:8])
         return (
-            "<div class='home-card' style='border:2px solid var(--green);text-align:left;'>"
-            "<h3>✅ Household set up!</h3>"
-            f"<div style='margin-bottom:8px;'>Added <strong>{result.items_added}</strong> "
-            f"starter item{'s' if result.items_added != 1 else ''} to your pantry.</div>"
+            "home_card(body='"\n            "<h3>✅ Household set up!</h3>"\n            f"<div style=\'margin-bottom:8px;\'>Added <strong>{result.items_added}</strong> "\n            f"starter item{\'s\' if result.items_added != 1 else \'\'} to your pantry.', style='border:2px solid var(--green);text-align:left;')"
             f"<div style='margin-bottom:8px;'>{items_list}</div>"
             "<div class='muted'>Your first shopping list is ready. "
             "Head to the <strong>Today</strong> tab to see what's happening.</div>"
@@ -174,9 +153,7 @@ def _collect_and_submit(
         )
     else:
         return (
-            "<div class='home-card' style='border:2px solid var(--red);'>"
-            "<h3>Setup failed</h3>"
-            f"<div>{escape(result.error) if result.error else 'An unexpected error occurred.'}</div>"
+            "home_card(body='"\n            "<h3>Setup failed</h3>"\n            f"<div>{escape(result.error) if result.error else \'An unexpected error occurred.\'}', style='border:2px solid var(--red);')"
             "</div>"
         )
 
@@ -246,7 +223,12 @@ def build_onboarding_wizard(app: gr.Blocks) -> gr.Group:
     def _hide_wizard():
         return gr.update(visible=False)
 
-    cancel_btn.click(_hide_wizard, outputs=onboarding_group)
+    def _skip_and_hide():
+        """Mark the wizard as skipped so the auto-show stops, then hide."""
+        mark_onboarding_skipped(db)
+        return gr.update(visible=False)
+
+    cancel_btn.click(_skip_and_hide, outputs=onboarding_group)
     submit_btn.click(
         _collect_and_submit,
         inputs=[hs_radio, diet_radio, staples_checkboxes, retailers_checkboxes, city_input],

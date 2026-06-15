@@ -18,7 +18,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from shopstack.market.normalization import (
+from shopstack.domain import (
     SizeParseResult,
     canonicalize_name,
     compute_unit_prices,
