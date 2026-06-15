@@ -189,7 +189,7 @@ def cookbook_shop_missing(
     # Catch-all: anything else the service reports (no list, db error, etc.)
     return home_card(
         style="border-left:3px solid var(--amber);",
-        body=f"⚠ {result.get('reason', 'No items added.')} ({recipe.name})",
+        body=f"⚠ {result.get('reason', 'No items added yet — add ingredients manually.')} ({recipe.name})",
     )
 
 

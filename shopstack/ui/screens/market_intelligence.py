@@ -118,7 +118,10 @@ def market_intelligence_view(search: str = "", lane_filter: str = "") -> str:
             title="Market Intelligence Graph",
             body=(
                 f"{freshness_badge}{freshness_line}"
-                "<div style='margin-top:10px;color:var(--text-dim);'>No items matched your current filters.</div>"
+                "<div style='margin-top:10px;color:var(--text-dim);'>"
+                "No items matched your current filters. Try widening the filters above, "
+                "or import a fresh snapshot to see more retailers."
+                "</div>"
             ),
             style="text-align:left;",
         )

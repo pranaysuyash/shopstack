@@ -49,6 +49,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime
 from html import escape
 from typing import Any
 
@@ -129,6 +130,13 @@ class IntelligenceCard:
     confidence: ConfidenceLabel | None = None
     primary_action: dict[str, str] = field(default_factory=dict)
     secondary_action: dict[str, str] = field(default_factory=dict)
+    # Item #41 (motto_v3 §0.10): when this card was rendered
+    # (i.e. when the dashboard was last built). The renderer
+    # converts this into a "Last updated: just now" relative-
+    # time stamp so every card on the home dashboard tells the
+    # user how fresh the data is. Optional so existing call
+    # sites that don't care can leave it None.
+    last_updated: datetime | None = None
 
     def to_html(self) -> str:
         return render_intelligence_card(self)
@@ -145,6 +153,7 @@ def build_buy_soon_card(
     purchase_count: int = 0,
     typical_qty: float | None = None,
     unit: str = "unit",
+    last_updated: datetime | None = None,
 ) -> IntelligenceCard:
     """Card for "buy this soon" recommendations."""
     if days_until is None:
@@ -167,6 +176,7 @@ def build_buy_soon_card(
     return IntelligenceCard(
         kind="buy_soon",
         title=item,
+        last_updated=last_updated,
         subtitle=subtitle,
         secondary=secondary,
         confidence=confidence,
@@ -190,6 +200,7 @@ def build_use_soon_card(
     item: str,
     days_until_expiry: int | None = None,
     confidence: ConfidenceLabel | None = None,
+    last_updated: datetime | None = None,
 ) -> IntelligenceCard:
     """Card for "use this before it spoils" recommendations."""
     if days_until_expiry is None:
@@ -209,6 +220,7 @@ def build_use_soon_card(
             else ""
         ),
         confidence=confidence,
+        last_updated=last_updated,
         primary_action={
             "label": "Show recipes",
             "target_id": "",
@@ -314,6 +326,7 @@ def build_restock_card(
     typical_qty: float | None = None,
     unit: str = "unit",
     confidence: ConfidenceLabel | None = None,
+    last_updated: datetime | None = None,
 ) -> IntelligenceCard:
     """Card for "you'll run out soon" restock predictions."""
     if days_until is None:
@@ -338,6 +351,7 @@ def build_restock_card(
         subtitle=subtitle,
         secondary=secondary,
         confidence=confidence,
+        last_updated=last_updated,
         primary_action={
             "label": "Add to shopping list",
             "target_id": "",
@@ -463,8 +477,13 @@ def render_intelligence_card(card: IntelligenceCard) -> str:
     secondary_html = (
         f"<div class='ic-secondary'>{secondary}</div>" if card.secondary else ""
     )
+    from shopstack.ui.components.primitives import last_updated_stamp
+    last_updated_html = last_updated_stamp(
+        card.last_updated, label="Last updated"
+    ) if card.last_updated else ""
     return (
         f"<div class='intelligence-card intelligence-card--{escape(card.kind)}'>"
+        f"{last_updated_html}"
         f"<div class='ic-head'>"
         f"<span class='ic-icon' aria-hidden='true'>{icon}</span>"
         f"<div class='ic-title-block'>"

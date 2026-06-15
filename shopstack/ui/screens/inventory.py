@@ -38,6 +38,40 @@ def _user_id() -> str:
     return current_user_id()
 
 
+# ── User-facing error mapping (2026-06-15) ──────────────────────────
+# The tool/repo layer returns raw error strings like
+# "Lot {lot_id} not found" or "Quantity to consume must be a positive
+# number". The legacy UI prefixed them with "Error: " and dumped them
+# raw. Per motto_v3 §0.14 (Product Reality), the user must see
+# end-user copy, not raw engineering strings. This mapper translates
+# known phrases to friendly messages; anything unknown falls back to
+# a generic "please try again" hint. The original error is logged at
+# ``warning`` level so operators still see it.
+_INVENTORY_ERROR_FRIENDLY: dict[str, str] = {
+    "not found": "We couldn't find that item. Check the ID and try again.",
+    "must be a positive": "Enter a quantity greater than 0.",
+    "consumption failed": "Couldn't record that consumption. Please try again.",
+    "internal error": "Something went wrong on our end. Please try again.",
+}
+
+
+def _friendly_inventory_error(
+    raw: str,
+    fallback: str = "Couldn't complete that action. Please try again.",
+) -> str:
+    """Map a raw tool error to a user-facing message.
+
+    Substring-match against a small table of known phrases (the
+    tool layer doesn't use stable error codes, so substring match
+    is the best we can do without refactoring the tool contract).
+    """
+    raw_lower = raw.lower()
+    for needle, friendly in _INVENTORY_ERROR_FRIENDLY.items():
+        if needle in raw_lower:
+            return friendly
+    return fallback
+
+
 # Maps `InventoryLot.source_event_id` values/prefixes to a consumer-facing
 # provenance label. New sources should add a prefix here rather than
 # falling through to "Imported" so freshness badges stay accurate.
@@ -289,7 +323,12 @@ def add_purchase_batch(raw_batch: str) -> str:
         added.append(f"{escape(name)} ({escape(str(lot_id)[:8])})")
 
     if not added:
-        return "<div style='color:var(--text-dim);'>No items were added.</div>"
+        return (
+            "<div style='color:var(--text-dim);'>"
+            "No items were added. Fill in the item name, quantity, and store above, "
+            "then click Add to Pantry to save them."
+            "</div>"
+        )
     clear_dashboard_cache(_user_id())
     return f"<div style='color:var(--green);'>Added {len(added)} item(s): {', '.join(added)}</div>"
 
@@ -411,7 +450,11 @@ def consume_item(lot_id: str, qty: float) -> str:
     uid = _user_id()
     result = tools.consume_inventory_item(lot_id, qty, user_id=uid)
     if "error" in result:
-        return toast(f"Error: {result['error']}", kind="error")
+        # Friendly mapping for known error codes; log the original
+        # technical detail so operators can still see it.
+        raw = result["error"]
+        logger.warning("consume_item failed: %s", raw)
+        return toast(_friendly_inventory_error(raw), kind="error")
     clear_dashboard_cache(uid)
     return f"<div style='color:var(--green);'>Consumed {escape(str(qty))}. Remaining: {escape(str(result.get('remaining', 0)))}</div>" + toast_floating(
         f"Consumed {qty} — {result.get('remaining', 0)} left",
@@ -430,7 +473,9 @@ def undo_last_change(lot_id: str) -> str:
     uid = _user_id()
     result = tools.undo_last_inventory_change(lot_id.strip(), user_id=uid)
     if not result.get("success"):
-        return toast(f"Error: {result.get('error', 'Undo failed')}", kind="error")
+        raw = result.get("error", "Undo failed")
+        logger.warning("undo_last_inventory_change failed: %s", raw)
+        return toast(_friendly_inventory_error(raw, fallback="Couldn't undo that change."), kind="error")
     clear_dashboard_cache(uid)
     lot = result.get("lot") or {}
     return (

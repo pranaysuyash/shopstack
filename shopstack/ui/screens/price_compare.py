@@ -89,7 +89,7 @@ def multi_source_price_view() -> str:
             if available:
                 availability = f"Available snapshots: {', '.join(escape(name) for name in available)} loaded."
             else:
-                availability = "No snapshots loaded."
+                availability = "No snapshots loaded yet. Import a snapshot via the snapshot script, or record your first purchase with a price to seed the price memory."
             missing_label = ", ".join(escape(name) for name in missing)
             return empty_state_enhanced(
                 f"{availability} Missing or stale: {missing_label}.",
@@ -120,7 +120,11 @@ def multi_source_price_view() -> str:
                     all_names.add(rec.canonical_name)
 
     if not all_names:
-        return empty_state_enhanced("No items found in market snapshots.", icon="🔍")
+        return empty_state_enhanced(
+            "No items found in market snapshots.",
+            icon="🔍",
+            secondary_text="Import a snapshot via the snapshot script, or record your first purchase with a price to seed the price memory.",
+        )
 
     # Compare each item across sources
     comparisons = []

@@ -38,6 +38,7 @@ them as the single entry point.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from html import escape
 from typing import Any
 
@@ -213,6 +214,7 @@ def _action_to_card(action: Any) -> str:
                 item=display,
                 days_until_expiry=_safe_int(action.secondary),
                 confidence=confidence,
+                last_updated=datetime.now(timezone.utc),
             )
         )
     if action.action == "restock_due":
@@ -221,6 +223,7 @@ def _action_to_card(action: Any) -> str:
                 item=display,
                 days_until=_safe_int(action.secondary),
                 confidence=confidence,
+                last_updated=datetime.now(timezone.utc),
             )
         )
     if action.action == "price_drop":

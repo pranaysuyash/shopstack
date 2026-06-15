@@ -150,7 +150,9 @@ def _format_trace_selector_label(trace) -> str:
 def agent_trace_choices(search: str = "", input_type_filter: str = "") -> tuple[list[tuple[str, str]], str]:
     traces = _filter_traces(search, input_type_filter)
     if not traces:
-        return [("No activity yet", "")], ""
+        # Gradio Dropdown requires at least one option; use an
+        # actionable placeholder so the empty state is explained.
+        return [("No activity yet — try Add Purchase or Use Soon", "")], ""
     choices = [(f"{_format_trace_selector_label(t)} | {t.trace_id[:12]}", t.trace_id) for t in traces]
     default = traces[0].trace_id
     return choices, default
@@ -172,7 +174,9 @@ def agent_trace_bootstrap(search: str = "", input_type_filter: str = "") -> tupl
     if not traces:
         from shopstack.services.empty_states import render as _es_render
         no_data = _es_render("memory.recent")
-        return gr.update(choices=[("No activity yet", "")], value=""), "", no_data, no_data
+        # Gradio Dropdown requires at least one option; use an
+        # actionable placeholder so the empty state is explained.
+        return gr.update(choices=[("No activity yet — try Add Purchase or Use Soon", "")], value=""), "", no_data, no_data
     first = traces[0]
     timeline, raw = _trace_bundle(first.trace_id)
     choices = [(f"{_format_trace_selector_label(t)} | {t.trace_id[:12]}", t.trace_id) for t in traces]
@@ -182,7 +186,7 @@ def agent_trace_bootstrap(search: str = "", input_type_filter: str = "") -> tupl
 def agent_trace_view(search: str = "", input_type_filter: str = "") -> tuple:
     traces = _filter_traces(search, input_type_filter)
     if not traces:
-        return [["No activity yet"]], ""
+        return [["No activity yet — try Add Purchase or Use Soon"]], ""
     tbl = _traces_to_table(traces)
     return tbl, traces[0].trace_id if traces else ""
 

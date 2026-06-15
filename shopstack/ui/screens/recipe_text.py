@@ -397,7 +397,7 @@ def recipe_image_to_text(file_input: Any) -> tuple[str, str]:
             return "", toast("Couldn't read that file. Check the path and try again.", kind="error")
         if not raw_text.strip():
             return "", toast(
-                "The uploaded text file is empty.",
+                "The uploaded text file is empty. Upload a non-empty text file with your recipe to parse it.",
                 kind="warning",
             )
         return raw_text, toast(

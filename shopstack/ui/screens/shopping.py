@@ -73,7 +73,11 @@ def shopping_list_create(goal: str, items_json: str) -> str:
     uid = current_user_id()
     if not items_json:
         items = []
-        plan_note = empty_state_enhanced("No items specified yet.", icon="📝")
+        plan_note = empty_state_enhanced(
+            "No items specified yet.",
+            icon="📝",
+            secondary_text="Add items from Pantry, or use the command input to plan today's shopping.",
+        )
     else:
         try:
             parsed_json = json.loads(items_json)
@@ -269,7 +273,10 @@ def _shopping_list_share_text(items: list[dict[str, Any]]) -> str:
     :func:`shopping_list_share` which wraps this with HTML.
     """
     if not items:
-        return f"{APP_NAME} list for today\nNo items in list."
+        return (
+            f"{APP_NAME} list for today\n"
+            "No items in list — add items from Pantry or use the command input to plan today's shopping."
+        )
     must_buy: list[str] = []
     optional: list[str] = []
     skipped: list[str] = []
@@ -543,7 +550,12 @@ def confirm_reconciliation(df_data: Any, list_id: str) -> str:
         df_list = df_data
 
     if not df_list:
-        return "<div style='color:var(--red);'>No data in reconciliation table.</div>"
+        return (
+            "<div style='color:var(--red);'>"
+            "No data in reconciliation table. Add a few purchases or import a Swiggy "
+            "receipt to start seeing the reconciliation view."
+            "</div>"
+        )
 
     sl = db.get_active_shopping_list(user_id=uid)
     if not sl:

@@ -353,9 +353,9 @@ class TestTraceServiceExport:
         assert len(lines_b) == 1
         assert "household_b_task" in lines_b[0]
 
-        # Export without user_id sees both
+        # Export with user_id=None sees both (explicit unscoped for admin/backup)
         out_all = tmp_path / "export_all.jsonl"
-        count_all = svc.export_all_to_jsonl(str(out_all))
+        count_all = svc.export_all_to_jsonl(str(out_all), user_id=None)
         assert count_all == 2, f"Expected 2 traces unfiltered, got {count_all}"
 
     def test_export_all_to_jsonl_scoped_empty_household(self, db, tmp_path):
@@ -417,8 +417,8 @@ class TestTraceServiceExport:
             user_id="household_someone",
         )
 
-        path = svc.export_trace_to_jsonl(trace.trace_id)  # no user_id
-        assert path != "", "Expected non-empty path without user_id"
+        path = svc.export_trace_to_jsonl(trace.trace_id, user_id=None)
+        assert path != "", "Expected non-empty path with user_id=None"
         assert path.endswith(".jsonl")
         with open(path) as f:
             content = f.read().strip()

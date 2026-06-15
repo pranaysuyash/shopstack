@@ -9,6 +9,11 @@ from __future__ import annotations
 import gradio as gr
 
 from shopstack.module_registry import tab_label as _tab_label
+from shopstack.services.empty_states import (
+    build_household_context,
+    render,
+    render_empty_state_script,
+)
 from shopstack.ui.components.primitives import empty_state_enhanced
 from shopstack.ui.screens.find_trail import (
     add_negative_memory,
@@ -20,6 +25,17 @@ from shopstack.ui.tabs.context import TabContext
 
 def build_find_trail_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None:
     """Build the Find / Object Trail tab."""
+    # Pass 15 §2.5: use the rich empty-state service for the "no query
+    # yet" state. The smart context picks transient vs first-time copy
+    # based on whether the household has any data. The legacy
+    # ``empty_state_enhanced(...)`` one-liner stays as the
+    # fallback (no deletion — the screen helper still uses it for
+    # other call sites). This is the "make better, not remove"
+    # pattern from motto_v3 §7 / user's Pass 13 directive.
+    household_ctx = build_household_context(ctx.db)
+    no_query_empty_state = render(
+        "find_trail.no_query", household=household_ctx
+    )
     with gr.Tab(_tab_label("find_trail"), id="find_trail"):
         gr.Markdown("### Find an item")
         gr.HTML(
@@ -33,9 +49,12 @@ def build_find_trail_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> 
                 label="Search", placeholder="e.g. passport, milk, charger", scale=3
             )
             ft_search = gr.Button("Search", scale=0)
-        ft_result = gr.HTML(empty_state_enhanced(
-            "Enter an item name to see its trail.", icon="\U0001f50d"
-        ))
+        ft_result = gr.HTML(no_query_empty_state)
+        # Inject the empty-state CTA JS handler (idempotent; the function
+        # is global so subsequent injections are no-ops). The script
+        # is also included via the header in other tabs, so this is
+        # just a defense-in-depth for tabs that opt in.
+        gr.HTML(render_empty_state_script())
 
         gr.Markdown("---")
         gr.Markdown("### Actions")

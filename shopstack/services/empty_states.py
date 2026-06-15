@@ -184,6 +184,17 @@ PRESETS: dict[str, EmptyStatePreset] = {
         body_key="empty.find_trail.body",
         icon="🧭",
     ),
+    # Pass 15 §2.5: tab-level empty state for the Find Trail tab before
+    # the user enters a query. Different from ``memory.find_trail``
+    # (which fires when the user has searched but found no trail) — this
+    # fires on first tab visit with no input.
+    "find_trail.no_query": EmptyStatePreset(
+        preset_id="find_trail.no_query",
+        tier="transient",
+        title_key="empty.find_trail.no_query.title",
+        body_key="empty.find_trail.no_query.body",
+        icon="🔍",
+    ),
     "while_shopping.manual_add": EmptyStatePreset(
         preset_id="while_shopping.manual_add",
         tier="transient",

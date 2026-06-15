@@ -141,7 +141,7 @@ def _is_decision_skip_message(s: str) -> bool:
 ACTIONABLE_VERBS: tuple[str, ...] = (
     "add ", "import ", "scan ", "tap ", "click ", "try ", "open ",
     "record ", "open the ", "switch to ", "go to ", "navigate to ",
-    "call ", "use ", "select ",
+    "call ", "use ", "select ", "upload ",
     "add your first", "add a few", "add 5", "add 3", "add the",
     "we'll start", "we'll predict", "we'll show", "once you add",
     "to start", "to enable", "to begin",
@@ -231,6 +231,36 @@ def _has_ancestor_call(node: ast.AST, parents: dict[int, ast.AST],
     return False
 
 
+def _full_fstring_value(node: ast.Constant, parents: dict[int, ast.AST]) -> str:
+    """If ``node`` is a Constant inside a JoinedStr (f-string), return
+    the concatenation of all sibling Constant parts (with ``{...}``
+    placeholders preserved as ``"{}"``). Otherwise return the constant's
+    own value as a plain string.
+
+    This is needed because Python's f-string parser splits the literal
+    parts of an f-string into multiple ``ast.Constant`` children of the
+    surrounding ``ast.JoinedStr``. The actionable verb "add" might be
+    in a different segment than the passive "No X" prefix, so checking
+    only one segment produces false positives.
+    """
+    if not isinstance(node, ast.Constant):
+        return ""
+    cur: ast.AST | None = parents.get(id(node))
+    while cur is not None and not isinstance(cur, ast.JoinedStr):
+        cur = parents.get(id(cur))
+    if cur is None:
+        return str(node.value)
+    # Concatenate all Constant children of the JoinedStr, with
+    # placeholders for FormattedValue children.
+    parts: list[str] = []
+    for child in cur.values:  # JoinedStr.values
+        if isinstance(child, ast.Constant):
+            parts.append(str(child.value))
+        elif isinstance(child, ast.FormattedValue):
+            parts.append("{}")
+    return "".join(parts)
+
+
 def _scan_python_file(path: Path) -> list[Finding]:
     """Scan a Python file for passive empty-state patterns.
 
@@ -300,7 +330,9 @@ def _scan_python_file(path: Path) -> list[Finding]:
                 continue
             if _has_ancestor_call(node, parents, "render_empty_state"):
                 continue
-            s = node.value
+            # For f-strings, the actionable verb may be in a sibling
+            # Constant segment. Concatenate all parts before checking.
+            s = _full_fstring_value(node, parents)
             if not (10 <= len(s) <= 200) or _looks_like_code(s):
                 continue
             if _looks_like_svg_or_html(s) or _is_decision_skip_message(s):

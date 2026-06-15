@@ -110,7 +110,7 @@ def clear_location_photo(location_id: str) -> str:
         return "<div style='color:var(--red);'>Location ID required.</div>"
     removed = clear_photo(location_id.strip(), db)
     if not removed:
-        return f"<div style='color:var(--text-dim);'>No photo to clear for {escape(location_id)}.</div>"
+        return f"<div style='color:var(--text-dim);'>No photo to clear for {escape(location_id)} — add or scan a photo for this location first.</div>"
     return f"<div style='color:var(--green);'>Photo cleared for {escape(location_id)}.</div>"
 
 

@@ -46,6 +46,14 @@ COMMAND_SURFACE = ROOT / "shopstack" / "ui" / "tabs" / "command_surface.py"
 SERVICES_COMMAND_SURFACE = ROOT / "shopstack" / "services" / "command_surface.py"
 VIEWS = ROOT / "shopstack" / "ui" / "views.py"
 HOME_FLOW = ROOT / "shopstack" / "services" / "home_flow.py"
+INVENTORY = ROOT / "shopstack" / "ui" / "screens" / "inventory.py"
+SHARED_LIST_SYNC = ROOT / "shopstack" / "services" / "shared_list_sync.py"
+RECIPE_TEXT = ROOT / "shopstack" / "ui" / "screens" / "recipe_text.py"
+ASK = ROOT / "shopstack" / "ui" / "screens" / "ask.py"
+PRICE_COMPARE = ROOT / "shopstack" / "ui" / "screens" / "price_compare.py"
+SERVICES_COOKBOOK = ROOT / "shopstack" / "services" / "cookbook.py"
+UI_SCREENS_COOKBOOK = ROOT / "shopstack" / "ui" / "screens" / "cookbook.py"
+RECEIPT = ROOT / "shopstack" / "services" / "receipt.py"
 
 
 # Jargon tokens that must never appear in a user-facing string.
@@ -197,6 +205,53 @@ def test_command_surface_does_not_interpolate_exc_into_user_message() -> None:
             f"(logger.warning/exc_info=True), not the toast. "
             f"Found {len(bad)} occurrences."
         )
+
+
+# ── Broader user-facing copy guard (multi-file) ───────────────────
+
+
+_USER_FACING_FILES: list[Path] = [
+    COMMAND_SURFACE,
+    SERVICES_COMMAND_SURFACE,
+    INVENTORY,
+    SHARED_LIST_SYNC,
+    RECIPE_TEXT,
+    ASK,
+    PRICE_COMPARE,
+    SERVICES_COOKBOOK,
+    UI_SCREENS_COOKBOOK,
+    RECEIPT,
+]
+
+
+@pytest.mark.parametrize("path", _USER_FACING_FILES, ids=lambda p: p.name)
+def test_user_facing_file_has_no_raw_exception_interpolation(path: Path) -> None:
+    """No `f"... {exc} ..."` in any toast / error / message / reason literal.
+
+    Broad guard for the 2026-06-15 sweep: a user-facing string
+    (toast, error, message, reason, body) must never interpolate
+    a raw exception. The exception goes to ``logger.warning`` /
+    ``logger.error`` with ``exc_info=True``; the user-facing
+    string is plain English with a recovery hint.
+    """
+    text = _strip_python_comments_and_docstrings(path.read_text())
+    bad: list[tuple[str, int]] = []
+    # Token arguments that take a string (toast, error, message,
+    # reason, body, headline, subhead) followed by an f-string
+    # that interpolates an exception variable.
+    pattern = re.compile(
+        r"""\b(?:toast|error|message|reason|body|headline|subhead|status_text|note)\s*=\s*f["'][^"']*\{(?:exc|e|err|error|exception)\b[^"']*\}"""
+    )
+    for m in pattern.finditer(text):
+        line = text[: m.start()].count("\n") + 1
+        bad.append((m.group(0), line))
+    assert not bad, (
+        f"{path.name} interpolates a raw exception into a user-facing "
+        f"string. The exception must go to the log, not the toast. "
+        f"Found {len(bad)} occurrences, e.g. {bad[:3]}. "
+        f"Per motto_v3 §0.14, user-facing copy must be plain English with "
+        f"a recovery hint, not raw engineering output."
+    )
 
 
 # ── views.py: ERROR_HTML constant must not return ──────────────────

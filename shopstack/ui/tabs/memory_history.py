@@ -64,7 +64,7 @@ def build_memory_history(app: gr.Blocks, ctx: TabContext) -> None:
     with gr.Row():
         trace_selector = gr.Dropdown(
             label="Select a record",
-            choices=[("No activity yet", "")],
+            choices=[("No activity yet — try Add Purchase or Use Soon", "")],
             value="",
             allow_custom_value=False,
         )

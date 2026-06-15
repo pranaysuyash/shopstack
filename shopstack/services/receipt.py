@@ -370,7 +370,13 @@ def confirm_receipt(database: Any, result: ReceiptResult, user_id: str = "") -> 
             )
             database.add_reconciliation_event(reconcile_event, user_id=user_id)
         except Exception as e:
-            ir.errors.append(f"Failed for '{line.display_name}': {e}")
+            logger.warning(
+                "receipt reconcile_event for %r failed: %s",
+                line.display_name, e, exc_info=True,
+            )
+            ir.errors.append(
+                f"Couldn't record {line.display_name}. Continuing with the rest."
+            )
 
         try:
             po = PriceObservation(
@@ -387,7 +393,14 @@ def confirm_receipt(database: Any, result: ReceiptResult, user_id: str = "") -> 
             database.record_price(po, user_id=user_id)
             ir.price_observations_added += 1
         except Exception as e:
-            ir.errors.append(f"Failed to record price for '{line.display_name}': {e}")
+            logger.warning(
+                "receipt record_price for %r failed: %s",
+                line.display_name, e, exc_info=True,
+            )
+            ir.errors.append(
+                f"Couldn't record the price for {line.display_name}. "
+                "The item is still in your pantry."
+            )
 
     ir.messages.append(
         f"Receipt from {result.merchant} ({result.purchase_date}): {len(result.lines)} items, total {result.total:.2f}"
@@ -403,8 +416,11 @@ def confirm_receipt(database: Any, result: ReceiptResult, user_id: str = "") -> 
     except OSError as exc:
         # Disk full, permission denied, or other I/O error. Don't fail
         # the whole confirm; just surface the issue via messages.
-        ir.errors.append(f"Failed to save receipt audit trail: {exc}")
-        logger.warning("receipt audit trail save failed: %s", exc)
+        logger.warning("receipt audit trail save failed: %s", exc, exc_info=True)
+        ir.errors.append(
+            "Couldn't save the receipt audit trail to disk. The receipt is still "
+            "in your pantry; the audit file just isn't available."
+        )
     # Parallel .txt export (added 2026-06-13). The .txt is the
     # human-readable counterpart of the JSON audit file; both
     # are written on every confirm so the audit trail is
@@ -415,8 +431,11 @@ def confirm_receipt(database: Any, result: ReceiptResult, user_id: str = "") -> 
         ir.messages.append(f"Saved receipt .txt: {txt_path}")
         logger.info("receipt .txt saved: %s", txt_path)
     except OSError as exc:
-        ir.errors.append(f"Failed to save receipt .txt: {exc}")
-        logger.warning("receipt .txt save failed: %s", exc)
+        logger.warning("receipt .txt save failed: %s", exc, exc_info=True)
+        ir.errors.append(
+            "Couldn't save the receipt .txt export. The receipt is still in "
+            "your pantry; the .txt is just not available."
+        )
 
     return ir
 

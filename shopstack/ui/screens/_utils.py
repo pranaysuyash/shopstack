@@ -162,7 +162,13 @@ def render_list_summary(sl) -> str:
     if not items:
         return stat_card(
             style="text-align:left;margin-bottom:12px;",
-            body_html='<h3>Shopping List</h3><div style="color:var(--text-dim);">List is empty.</div>',
+            body_html=(
+                '<h3>Shopping List</h3>'
+                '<div style="color:var(--text-dim);">'
+                'List is empty. Add items from Pantry, '
+                'Ask ShopStack, or the command input to plan a trip.'
+                '</div>'
+            ),
         )
     rows_str = "".join(
         f'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);">'

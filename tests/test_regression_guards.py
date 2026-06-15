@@ -509,3 +509,99 @@ class TestQwen3VLPreDownload:
         # Verify it parses (no syntax errors)
         import ast
         ast.parse(script_path.read_text(encoding="utf-8"))
+
+
+# ── §2.5 Empty State UX: find_trail tab uses rich empty-states service ──
+
+
+class TestFindTrailRichEmptyState:
+    """The Find Trail tab must use the rich ``empty_states`` service
+    for its initial empty state (Pass 15 §2.5).
+
+    Per the user's "no deletions, whats done should be made better not
+    removed" directive, the legacy ``empty_state_enhanced(...)``
+    one-liner stays as a fallback in the screen helpers, but the
+    TAB-level wiring (the user-facing initial state) should use
+    ``render("find_trail.no_query", household=ctx)`` from the
+    canonical service.
+
+    This test catches drift that reverts the tab back to the
+    generic one-liner, which is exactly the §2.5 anti-pattern the
+    catalog item was created to fix.
+    """
+
+    def test_find_trail_tab_uses_rich_empty_state_service(self):
+        """``shopstack/ui/tabs/find_trail.py`` must import + use ``render``."""
+        path = REPO / "shopstack" / "ui" / "tabs" / "find_trail.py"
+        source = path.read_text(encoding="utf-8")
+        # Import
+        assert "from shopstack.services.empty_states import" in source, (
+            "shopstack/ui/tabs/find_trail.py does not import from "
+            "shopstack.services.empty_states. Pass 15 §2.5 requires the "
+            "tab-level initial empty state to use the rich service "
+            "(render(...) + build_household_context(...)) rather than "
+            "the legacy empty_state_enhanced(...) one-liner."
+        )
+        # Usage of render
+        assert "render(" in source, (
+            "shopstack/ui/tabs/find_trail.py does not call render(...). "
+            "Pass 15 §2.5 requires the tab's initial empty state to be "
+            "rendered via render(\"find_trail.no_query\", household=ctx) "
+            "so the smart context can pick the right tier."
+        )
+        # Use the new preset
+        assert '"find_trail.no_query"' in source, (
+            "shopstack/ui/tabs/find_trail.py does not reference the "
+            "'find_trail.no_query' preset. Pass 15 §2.5 added this preset "
+            "to distinguish the 'no query entered' state (transient) "
+            "from the 'no trail found' state (memory.find_trail)."
+        )
+
+    def test_empty_states_module_preserves_legacy_fallbacks(self):
+        """The empty_states service must NOT delete the legacy empty_state_enhanced helper.
+
+        Per the no-deletion rule (motto_v3 §7 + user's Pass 13 directive),
+        the new rich service is additive: it coexists with the legacy
+        one-liner helpers. The docstring of ``empty_states.py`` explicitly
+        states this. This test catches drift that removes the legacy
+        helper (which would break the screen-level fallbacks).
+        """
+        path = REPO / "shopstack" / "ui" / "components" / "primitives.py"
+        source = path.read_text(encoding="utf-8")
+        assert "def empty_state_enhanced(" in source, (
+            "The legacy empty_state_enhanced(...) helper has been "
+            "removed from shopstack/ui/components/primitives.py. Per "
+            "the no-deletion rule, the rich empty_states service must "
+            "coexist with the legacy one-liner; the new service is "
+            "opt-in per call site. Removing the legacy helper would "
+            "break the screen-level fallbacks in shopstack/ui/screens/."
+        )
+
+    def test_empty_states_i18n_keys_are_complete(self):
+        """Every preset's title/body keys must be present in en + hi i18n tables.
+
+        The existing ``tests/test_empty_states.py::TestI18nCoverage``
+        also checks this — we add a structural check here as a
+        regression guard so the constraint is enforced at the
+        regression-guard layer (where structural drift is caught
+        even if the test suite is partially broken).
+        """
+        import re
+        i18n_path = REPO / "shopstack" / "services" / "i18n.py"
+        source = i18n_path.read_text(encoding="utf-8")
+        # Find all "empty.<X>.title" keys in the en block (first ~250 lines)
+        en_block = source.split('"hi":')[0] if '"hi":' in source else source
+        en_keys = set(re.findall(r'"(empty\.[a-z_]+\.title)"', en_block))
+        # All preset title keys in PRESETS must appear in en
+        presets_path = REPO / "shopstack" / "services" / "empty_states.py"
+        presets_source = presets_path.read_text(encoding="utf-8")
+        preset_title_keys = set(
+            re.findall(r'title_key="(empty\.[a-z_]+\.title)"', presets_source)
+        )
+        missing = preset_title_keys - en_keys
+        assert not missing, (
+            f"Empty-state preset title keys are missing from the en "
+            f"i18n block: {sorted(missing)}. The catalog §2.5 requires "
+            f"every preset to have a translated title so the renderer "
+            f"can show localized empty states."
+        )

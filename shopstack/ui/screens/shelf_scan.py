@@ -262,7 +262,7 @@ def _render_shelf_scan(result: ShelfIntelligenceResult) -> str:
             ),
         )
 
-    aggregate_cards = "".join(_render_aggregate_card(item) for item in result.aggregates) or _empty_block("No items grouped yet.")
+    aggregate_cards = "".join(_render_aggregate_card(item) for item in result.aggregates) or _empty_block("No items grouped yet — try a clearer photo, or scan a different scene to detect items.")
     action_cards = "".join(_render_action_card(item) for item in result.proposed_actions) or _empty_block("No actions proposed.")
     review_cards = "".join(_render_review_card(item) for item in result.corrections_needed[:6]) or _empty_block("Nothing needs review.")
     instance_cards = "".join(_render_instance_card(item) for item in result.instances[:8]) or _empty_block("No visible instances.")

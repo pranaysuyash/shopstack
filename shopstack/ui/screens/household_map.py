@@ -43,7 +43,7 @@ def household_map_view() -> str:
             + "".join(f"<div>{escape(str(item))}</div>" for item in item_details)
             + "</div>"
             if item_details
-            else "<div style='margin-top:8px;font-size: 0.6875rem;color:var(--text-dim);'>No items stored here yet.</div>"
+            else "<div style='margin-top:8px;font-size: 0.6875rem;color:var(--text-dim);'>No items stored here yet. Add items to this location to track them.</div>"
         )
         safe_name = escape(str(loc.name))
         safe_type = escape(str(loc.location_type))

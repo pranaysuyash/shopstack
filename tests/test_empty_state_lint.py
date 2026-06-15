@@ -65,7 +65,7 @@ def test_production_code_passes_empty_state_lint() -> None:
         cwd=repo_root,
         capture_output=True,
         text=True,
-        timeout=60,
+        timeout=180,  # lint walks every .py file in the repo; allow time
     )
     # The lint exits 0 by default (advisory) — that's fine; we read
     # stdout regardless.

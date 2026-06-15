@@ -108,7 +108,11 @@ class SourceRegistry:
     def freshness_of(self, source_id: str) -> dict[str, Any]:
         snap = self._repository.latest(source_id)
         if snap is None:
-            return {"source_id": source_id, "is_stale": True, "label": "No snapshot loaded"}
+            return {
+                "source_id": source_id,
+                "is_stale": True,
+                "label": "No snapshot loaded yet — import a snapshot to start comparing prices.",
+            }
         adapter = self.get(source_id)
         return adapter.freshness(snap)
 

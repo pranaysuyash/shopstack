@@ -149,6 +149,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "empty.memory.no_changes.body": "Nothing changed since the last time you checked. New events will show up here.",
         "empty.find_trail.title": "Find trails build with use",
         "empty.find_trail.body": "After a few uses, ShopStack will remember where you keep things so you can ask 'where's the AA battery charger?' in one tap.",
+        # Pass 15 §2.5: distinct empty state for the Find Trail tab
+        # when the user hasn't entered a query yet.
+        "empty.find_trail.no_query.title": "Search for any item",
+        "empty.find_trail.no_query.body": "Type an item name above to see its trail — where it is, where it has been, and where to look next.",
         "empty.manual_add.title": "Tap the + to add what you bought",
         "empty.manual_add.body": "Use this view while you're at the store to mark items as you pick them up.",
         "empty.reconcile.title": "Reconcile when you get back",
@@ -312,6 +316,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "empty.memory.no_changes.body": "पिछली बार से कुछ नहीं बदला। नए इवेंट यहाँ दिखेंगे।",
         "empty.find_trail.title": "खोज इतिहास बनता रहेगा",
         "empty.find_trail.body": "कुछ बार इस्तेमाल के बाद, ShopStack को याद रहेगा कि चीज़ें कहाँ रखी हैं।",
+        # Pass 15 §2.5: Hindi translation for the new find_trail.no_query
+        # preset (mirrors the English entry above).
+        "empty.find_trail.no_query.title": "किसी भी आइटम को खोजें",
+        "empty.find_trail.no_query.body": "ऊपर आइटम का नाम टाइप करें — कहाँ है, कहाँ था, और आगे कहाँ देखना है, सब दिखेगा।",
         "empty.manual_add.title": "जो खरीदा वो + से जोड़ें",
         "empty.manual_add.body": "दुकान में रहते हुए यहाँ जोड़ें।",
         "empty.reconcile.title": "घर आकर रिकॉन्साइल करें",
