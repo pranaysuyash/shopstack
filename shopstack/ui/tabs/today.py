@@ -66,9 +66,8 @@ def build_today_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> Today
         # the user's actual question: "what should I do right now?"
         gr.Markdown("### 🎯 Today intelligence")
         gr.Markdown(
-            "The top 5 things worth doing right now — use-soon, "
-            "restock-due, price-drops, and overpriced-vs-community "
-            "rolled up into one ranked list. Trip advisor call below."
+            "Your next best shopping actions, ranked by urgency, price, "
+            "and household usage."
         )
         from shopstack.ui.screens.today_intelligence import today_intelligence_screen
         def _today_intel() -> str:
@@ -77,7 +76,7 @@ def build_today_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> Today
             except Exception as exc:
                 return f"<div>Today intelligence unavailable: {exc}</div>"
         today_intel_html = gr.HTML(loading_skeleton("card"))
-        today_intel_refresh = gr.Button("🔄 Refresh", elem_classes="secondary", size="sm")
+        today_intel_refresh = gr.Button("Refresh", elem_classes="inline-refresh", size="sm")
         today_intel_refresh.click(
             _today_intel, outputs=today_intel_html,
             api_name="today_intel_refresh",
@@ -86,10 +85,9 @@ def build_today_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> Today
         app.load(_today_intel, outputs=today_intel_html)
 
         # ── Phase 10 Restock next 7 days card ────────────────────
-        gr.Markdown("### 📦 Restock next 7 days")
+        gr.Markdown("### 📦 Restock watch")
         gr.Markdown(
-            "Items you'll likely run out of soon, with a one-tap "
-            "**Add to my list** action for each. Sorted soonest first."
+            "Items you'll likely run out of soon — add to your list with one tap."
         )
         from shopstack.services.restock_card import (
             restock_card_screen as _restock_card,
@@ -101,7 +99,7 @@ def build_today_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> Today
                 return _restock_card()
             except Exception as exc:
                 return f"<div>Restock card unavailable: {exc}</div>"
-        restock_refresh = gr.Button("🔄 Refresh", elem_classes="secondary", size="sm")
+        restock_refresh = gr.Button("Refresh", elem_classes="inline-refresh", size="sm")
         restock_refresh.click(
             _restock_refresh, outputs=restock_card_html,
             api_name="restock_refresh",

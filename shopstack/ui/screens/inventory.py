@@ -6,7 +6,7 @@ from datetime import date, datetime
 from html import escape
 from typing import Any
 
-from shopstack.app_context import db, tools
+from shopstack.app_context import current_user_id, db, tools
 from shopstack.services.dashboard import clear_dashboard_cache
 from shopstack.services.storage_suggest import suggest_storage_location
 from shopstack.traces.export import create_trace
@@ -23,11 +23,6 @@ from shopstack.ui.components.primitives import (
 logger = logging.getLogger(__name__)
 
 from shopstack.data.seed_demo import DEMO_SEED_INVENTORY  # noqa: E402 — data module, must follow logger
-
-
-def _user_id() -> str:
-    from shopstack.app_context import current_user_id
-    return current_user_id()
 
 
 # Maps `InventoryLot.source_event_id` values/prefixes to a consumer-facing
@@ -87,7 +82,7 @@ def _search_inventory_items(search: str) -> tuple[list[Any], str]:
     Uses the fast direct text path first, then falls back to semantic search
     when the user query does not directly match any canonical or display name.
     """
-    uid = _user_id()
+    uid = current_user_id()
     items = db.get_inventory(user_id=uid)
     query = (search or "").strip().lower()
     if not query:
@@ -152,7 +147,7 @@ def add_purchase_form(
         return form_error("Quantity must be 0 or more.", field_id="p_qty")
     if price < 0:
         return form_error("Price must be 0 or more.", field_id="p_price")
-    uid = _user_id()
+    uid = current_user_id()
     add_result = tools.add_inventory_item(
         canonical_name=item_name.lower(),
         display_name=item_name,
@@ -172,7 +167,7 @@ def add_purchase_form(
             unit=item_unit,
             store_name=store,
         )
-    clear_dashboard_cache(_user_id())
+    clear_dashboard_cache(current_user_id())
     result = f"<div style='color:var(--green);'>Added {escape(item_name)} (lot {escape(str(lot_id))})</div>"
     try:
         create_trace(
@@ -198,7 +193,7 @@ def add_purchase_form(
 
 @aria_live_screen()
 def add_purchase_batch(raw_batch: str) -> str:
-    uid = _user_id()
+    uid = current_user_id()
     if not raw_batch or not str(raw_batch).strip():
         return form_error(
             "Add at least one row in the format name, qty, unit, price, store, "
@@ -282,12 +277,12 @@ def add_purchase_batch(raw_batch: str) -> str:
 
     if not added:
         return "<div style='color:var(--text-dim);'>No items were added.</div>"
-    clear_dashboard_cache(_user_id())
+    clear_dashboard_cache(current_user_id())
     return f"<div style='color:var(--green);'>Added {len(added)} item(s): {', '.join(added)}</div>"
 
 
 def seed_demo_inventory() -> str:
-    uid = _user_id()
+    uid = current_user_id()
     existing = db.get_inventory(user_id=uid)
     if existing:
         return "<div style='color:var(--text-dim);'>Demo seed already loaded.</div>"
@@ -317,7 +312,7 @@ def seed_demo_inventory() -> str:
             )
         added.append(f"{name} ({lot_id[:8]})")
 
-    clear_dashboard_cache(_user_id())
+    clear_dashboard_cache(current_user_id())
     return (
         f"<div style='color:var(--green);'>Loaded demo stock ({len(added)} items): {', '.join(escape(a) for a in added)}.</div>"
     ) + toast_floating(f"Loaded {len(added)} demo items into pantry", kind="success")
@@ -400,7 +395,7 @@ def inventory_cards_view(search: str = "") -> str:
 
 @aria_live_screen()
 def consume_item(lot_id: str, qty: float) -> str:
-    uid = _user_id()
+    uid = current_user_id()
     result = tools.consume_inventory_item(lot_id, qty, user_id=uid)
     if "error" in result:
         return toast(f"Error: {result['error']}", kind="error")
@@ -419,7 +414,7 @@ def consume_item(lot_id: str, qty: float) -> str:
 def undo_last_change(lot_id: str) -> str:
     if not lot_id or not lot_id.strip():
         return toast("Enter a lot id to undo", kind="error")
-    uid = _user_id()
+    uid = current_user_id()
     result = tools.undo_last_inventory_change(lot_id.strip(), user_id=uid)
     if not result.get("success"):
         return toast(f"Error: {result.get('error', 'Undo failed')}", kind="error")
@@ -439,7 +434,7 @@ def consume_items_batch(lines_text: str) -> str:
     if not entries:
         return "<div style='color:var(--text-dim);'>No valid lines to parse.</div>"
 
-    uid = _user_id()
+    uid = current_user_id()
     summary = []
     for entry in entries:
         lot_id, _, qty_text = entry.partition(":")
@@ -464,7 +459,7 @@ def consume_items_batch(lines_text: str) -> str:
 
 
 def use_first_view(days: int = 3) -> list[list[str]]:
-    data = tools.get_use_soon_items(days=days, user_id=_user_id())
+    data = tools.get_use_soon_items(days=days, user_id=current_user_id())
     items = data.get("items", [])
     tbl = list_to_table(
         [

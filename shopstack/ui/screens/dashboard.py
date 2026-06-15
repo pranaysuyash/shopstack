@@ -8,7 +8,7 @@ from shopstack.services.dashboard import build_dashboard_state
 from shopstack.ui.components.cards import card as ui_card
 from shopstack.ui.components.cards import badge_html
 from shopstack.ui.components.cards import render_action_grid, render_hero_panel
-from shopstack.ui.components.primitives import stat_card, item_row
+from shopstack.ui.components.primitives import stat_card, item_row, home_card
 from shopstack.ui.renderers import (
     render_cadence_insights,
     render_waste_warnings,
@@ -376,24 +376,31 @@ def _render_onboarding_gate(state, ds) -> str:
             'tone': 'default',
         },
     ]
-    return (
-        "home_card(body='"
-        "<h3>Welcome to ShopStack</h3>"
-        "<div style='margin-bottom:8px;'>" + APP_NAME + " learns from your household to help you plan groceries, "
-        "reduce waste, and save money. It takes about 2 minutes to set up.', style='margin-top:10px;text-align:left;border:2px solid var(--accent, #176B49);')"
-        "<div style='font-size:0.75rem;color:var(--text-dim);margin-bottom:12px;'>" + APP_DESCRIPTION + "</div>"
-        "<div style='font-size:0.8125rem;margin-bottom:12px;'>" + "You'll be asked about: household size, dietary preference, "
-        "common staples, preferred stores, and your city.</div>"
+    body = (
+        "<div style='margin-bottom:8px;'>Know what is at home, what to buy next, "
+        "and what to skip. " + APP_NAME + " learns your household's buying cycle "
+        "so it can tell you. Setup takes about 2 minutes.</div>"
+        f"<div style='font-size:0.75rem;color:var(--text-dim);margin-bottom:12px;'>{APP_DESCRIPTION}</div>"
+        "<div style='font-size:0.8125rem;margin-bottom:12px;'>You'll be asked about: "
+        "household size, dietary preference, common staples, preferred stores, "
+        "and your city.</div>"
         f"{render_action_grid(action_items)}"
+    )
+    return home_card(
+        title="Welcome to ShopStack",
+        body=body,
+        style="margin-top:10px;text-align:left;border:2px solid var(--accent, #176B49);",
     )
 
 
 def _render_today_empty_hints(state, ds) -> str:
-    return (
-        "home_card(body='"
-        "<h3>Start with home life</h3>"
-        "<div class='muted' style='margin-bottom:8px;'>No household data yet. Add one real fact and the rest of the loop can start learning.', style='margin-top:10px;text-align:left;')"
-        "<div style='margin-bottom:10px;'>Plan groceries, add what came home, check a shelf item, or scan a receipt.</div>"
+    body = (
+        "<div class='muted' style='margin-bottom:8px;'>No restock or use-soon "
+        "predictions yet. Add 5 common items you buy often — milk, bread, rice, "
+        "eggs, curd — and ShopStack starts predicting refill dates after a few "
+        "purchases.</div>"
+        "<div style='margin-bottom:10px;'>Or add what came home, scan a receipt, "
+        "or check a shelf item to seed the loop.</div>"
         f"{render_action_grid([
             {
                 "label": "Add what came home",
@@ -420,7 +427,11 @@ def _render_today_empty_hints(state, ds) -> str:
                 "tone": "default",
             },
         ])}"
-        "</div>"
+    )
+    return home_card(
+        title="Start with home life",
+        body=body,
+        style="margin-top:10px;text-align:left;",
     )
 
 
@@ -527,11 +538,14 @@ def _render_market_next_steps(graph) -> str:
         )
 
     if not actions:
-        return (
-            "home_card(body='"
-            "<h3>Next steps</h3>"
-            "<div class='muted'>No market actions to prioritize yet.', style='text-align:left;margin-top:8px;')"
-            "</div>"
+        return home_card(
+            title="Next steps",
+            body=(
+                "<div class='muted'>No market signals yet. Add a few items to "
+                "your pantry or shopping list, and ShopStack will start "
+                "surfacing buy, compare, and substitute recommendations here.</div>"
+            ),
+            style="text-align:left;margin-top:8px;",
         )
 
     top_signals = []

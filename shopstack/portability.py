@@ -9,6 +9,7 @@ from typing import Any, cast
 
 from shopstack.persistence.database import Database
 from shopstack.schemas.models import InventoryLot, ItemStatus, PriceObservation
+from shopstack.ui.components.primitives import stat_card
 
 logger = logging.getLogger(__name__)
 
@@ -193,9 +194,7 @@ class ImportResult:
                 parts.append(f"<div style='font-size: 0.75rem;'>{err}</div>")
             if len(self.errors) > 5:
                 parts.append(f"<div style='font-size: 0.75rem;'>...and {len(self.errors) - 5} more</div>")
-        parts.insert(0, "<div class='stat-card'>")
-        parts.append("</div>")
-        return "".join(parts)
+        return stat_card(body_html="".join(parts))
 
 
 def import_json(

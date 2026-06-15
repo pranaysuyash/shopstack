@@ -15,15 +15,10 @@ from __future__ import annotations
 import logging
 from html import escape
 
-from shopstack.app_context import db
-from shopstack.ui.components.primitives import empty_state_enhanced
+from shopstack.app_context import current_user_id, db
+from shopstack.ui.components.primitives import empty_state_enhanced, home_card
 
 logger = logging.getLogger(__name__)
-
-
-def _user_id() -> str:
-    from shopstack.app_context import current_user_id
-    return current_user_id()
 
 
 def store_mode_view() -> str:
@@ -33,7 +28,7 @@ def store_mode_view() -> str:
     checkbox, large item name, and quantity. Items can be tapped to mark
     as bought.
     """
-    sl = db.get_active_shopping_list(user_id=_user_id())
+    sl = db.get_active_shopping_list(user_id=current_user_id())
     if not sl or not sl.items:
         return empty_state_enhanced(
             "No active shopping list. Create one before you head to the store.",
@@ -45,11 +40,10 @@ def store_mode_view() -> str:
         if lot.status not in ("bought", "skipped")
     ]
     if not items:
-        return (
-            "home_card(body='"
-            "<h3>✅ All done!</h3>"
-            "<div class='muted'>Every item on your list has been checked off.', style='text-align:center;padding:24px;')"
-            "</div>"
+        return home_card(
+            title="✅ All done!",
+            body="<div class='muted'>Every item on your list has been checked off.</div>",
+            style="text-align:center;padding:24px;",
         )
 
     # Group by priority

@@ -13,6 +13,13 @@ from shopstack.planner.parser import parse_tool_calls_with_diagnostics
 from shopstack.providers.registry import ProviderRegistry
 from shopstack.tools.registry import ToolRegistry
 
+
+def _stat_card(*args: Any, **kwargs: Any) -> str:
+    """Deferred import: shopstack.ui's package __init__ imports shopstack.app_context,
+    which imports PlannerEngine from this module — a top-level import here would cycle."""
+    from shopstack.ui.components.primitives import stat_card
+    return stat_card(*args, **kwargs)
+
 logger = logging.getLogger(__name__)
 
 TOOL_ACTIONS_HELP: dict[str, str] = {
@@ -58,11 +65,11 @@ class PlannerEngine:
         if self._cost_guarded():
             return self._budget_blocked_html()
         if provider is None or not getattr(provider, "available", False):
-            return (
-                "<div class='stat-card'>Planner not available. "
+            return _stat_card(body_html=(
+                "Planner not available. "
                 "Set SHOPSTACK_PLANNER_BACKEND=local to use a local model, "
-                "or SHOPSTACK_PLANNER_BACKEND=openai for OpenAI.</div>"
-            )
+                "or SHOPSTACK_PLANNER_BACKEND=openai for OpenAI."
+            ))
 
         if compact_tools is None:
             compact_tools = settings.planner_compact_tools
@@ -107,7 +114,7 @@ class PlannerEngine:
                         return self._budget_blocked_html()
                     if not raw_text:
                         provider_meta["outcome"] = "empty_llm_text"
-                        return "<div class='stat-card'>Planner returned an empty response.</div>"
+                        return _stat_card(body_html="Planner returned an empty response.")
                     tool_calls, parser_meta = self._parse_tool_calls_from_result(raw_text)
                 else:
                     planner_call_ms = round((time.monotonic() - started) * 1000, 2)
@@ -123,7 +130,7 @@ class PlannerEngine:
 
         except Exception as e:
             logger.warning("Planner call failed", exc_info=True)
-            return f"<div class='stat-card'><div style='color:var(--red);'>Planner error: {escape(str(e))}</div></div>"
+            return _stat_card(body_html=f"<div style='color:var(--red);'>Planner error: {escape(str(e))}</div>")
 
         provider_meta["parser"] = parser_meta
         outcomes, execution_meta = self._execute_tool_calls(tool_calls)
@@ -580,11 +587,9 @@ class PlannerEngine:
         )
 
     def _budget_blocked_html(self) -> str:
-        return (
-            "<div class='stat-card'>"
+        return _stat_card(body_html=(
             f"<div style='font-weight:600;color:var(--red);'>Cost budget blocked</div><div>{escape(self._cost_blocked_reason())}</div>"
-            "</div>"
-        )
+        ))
 
     def _format_outcomes(
         self, outcomes: list[dict[str, Any]], original_question: str
@@ -614,11 +619,10 @@ class PlannerEngine:
                 )
 
         if not html_parts:
-            return "<div class='stat-card'>No actions taken.</div>"
+            return _stat_card(body_html="No actions taken.")
 
         title = f"{settings.app_name} AI"
         body = "".join(html_parts)
-        return (
-            f"<div class='stat-card'><div style='font-weight:600;margin-bottom:8px;'>{title}</div>"
-            f"{body}</div>"
-        )
+        return _stat_card(body_html=(
+            f"<div style='font-weight:600;margin-bottom:8px;'>{title}</div>{body}"
+        ))

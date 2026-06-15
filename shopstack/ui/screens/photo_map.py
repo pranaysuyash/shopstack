@@ -26,7 +26,7 @@ from shopstack.services.photo_search import (
     store_photo,
 )
 from shopstack.ui.components.decorators import aria_live_screen
-from shopstack.ui.components.primitives import home_card
+from shopstack.ui.components.primitives import home_card, stat_card
 from shopstack.ui.screens._utils import safe_render
 
 logger = logging.getLogger(__name__)
@@ -54,12 +54,15 @@ def photo_map_view() -> str:
         for loc in with_photo:
             safe_name = escape(str(loc.name))
             safe_path = escape(str(loc.photo_path))
-            parts.append(
-                f"<div class='stat-card' style='text-align:left;margin-bottom:6px;'><div style='font-weight:600;font-size:0.85rem;'>{safe_name}</div>"
-                f"<img src='file={safe_path}' alt='{safe_name}' style='max-width:100%;max-height:120px;border-radius:6px;"
-                f"border:1px solid var(--border);display:block;margin-top:4px;' /><div style='font-size:0.625rem;color:var(--text-dim);margin-top:4px;'>"
-                f"{escape(str(loc.location_type))}</div></div>"
-            )
+            parts.append(stat_card(
+                style="text-align:left;margin-bottom:6px;",
+                body_html=(
+                    f"<div style='font-weight:600;font-size:0.85rem;'>{safe_name}</div>"
+                    f"<img src='file={safe_path}' alt='{safe_name}' style='max-width:100%;max-height:120px;border-radius:6px;"
+                    f"border:1px solid var(--border);display:block;margin-top:4px;' /><div style='font-size:0.625rem;color:var(--text-dim);margin-top:4px;'>"
+                    f"{escape(str(loc.location_type))}</div>"
+                ),
+            ))
         parts.append("</div>")
 
     # Locations without photos
@@ -146,14 +149,16 @@ def find_location_by_photo(image_path: str, top_k: int = 5) -> str:
     )
     for m in matches:
         bar_width = int(m.similarity * 100)
-        parts.append(
-            f"<div class='stat-card' style='text-align:left;margin-bottom:6px;'><div style='display:flex;justify-content:space-between;align-items:center;'>"
-            f"<div style='font-weight:600;'>{escape(m.location_name)}</div><div style='font-size:0.75rem;color:var(--text-dim);'>{m.similarity:.0%}</div>"
-            f"</div><div style='height:4px;background:var(--border);border-radius:2px;margin-top:4px;'>"
-            f"<div style='height:100%;width:{bar_width}%;background:var(--blue);border-radius:2px;'></div></div>"
-            f"<div style='font-size:0.625rem;color:var(--text-dim);margin-top:4px;'>{escape(m.location_id)}</div>"
-            f"</div>"
-        )
+        parts.append(stat_card(
+            style="text-align:left;margin-bottom:6px;",
+            body_html=(
+                f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
+                f"<div style='font-weight:600;'>{escape(m.location_name)}</div><div style='font-size:0.75rem;color:var(--text-dim);'>{m.similarity:.0%}</div>"
+                f"</div><div style='height:4px;background:var(--border);border-radius:2px;margin-top:4px;'>"
+                f"<div style='height:100%;width:{bar_width}%;background:var(--blue);border-radius:2px;'></div></div>"
+                f"<div style='font-size:0.625rem;color:var(--text-dim);margin-top:4px;'>{escape(m.location_id)}</div>"
+            ),
+        ))
     return "".join(parts)
 
 

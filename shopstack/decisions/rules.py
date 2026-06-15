@@ -139,6 +139,18 @@ def classify_all(
             if decision_res:
                 decision_res.source_trace = "rule:classify_all:inventory_loop"
 
+        last_confirmed = None
+        if lot.updated_at:
+            if hasattr(lot.updated_at, "date"):
+                last_confirmed = lot.updated_at.date()
+            elif isinstance(lot.updated_at, date):
+                last_confirmed = lot.updated_at
+            elif isinstance(lot.updated_at, str):
+                try:
+                    last_confirmed = date.fromisoformat(lot.updated_at[:10])
+                except Exception:
+                    pass
+
         if not decision_res:
             decision_res = should_buy(
                 canonical_name=cname,
@@ -154,6 +166,8 @@ def classify_all(
                 last_purchase_date=lot.purchase_date,
                 recently_bought=bool(recently_bought),
                 is_disliked=is_disliked,
+                shelf_life_days=meta.shelf_life_days if meta else 0,
+                last_confirmed=last_confirmed,
             )
             if decision_res:
                 if is_staple and not any("staple" in r.lower() for r in decision_res.reasons):
@@ -173,6 +187,8 @@ def classify_all(
                 market_record=market,
                 freshness=fr,
                 is_disliked=is_disliked,
+                shelf_life_days=meta.shelf_life_days if meta else 0,
+                last_confirmed=last_confirmed,
             )
             if decision_res:
                 decision_res.source_trace = "rule:classify_all:inventory_loop"
@@ -253,6 +269,18 @@ def classify_all(
                     )
 
             decision_res = None
+            last_confirmed = None
+            if inv_match and inv_match.updated_at:
+                if hasattr(inv_match.updated_at, "date"):
+                    last_confirmed = inv_match.updated_at.date()
+                elif isinstance(inv_match.updated_at, date):
+                    last_confirmed = inv_match.updated_at
+                elif isinstance(inv_match.updated_at, str):
+                    try:
+                        last_confirmed = date.fromisoformat(inv_match.updated_at[:10])
+                    except Exception:
+                        pass
+
             if is_disliked:
                 decision_res = should_skip(
                     canonical_name=item.canonical_name,
@@ -265,6 +293,8 @@ def classify_all(
                     market_record=market,
                     freshness=fr,
                     is_disliked=True,
+                    shelf_life_days=meta.shelf_life_days if meta else 0,
+                    last_confirmed=last_confirmed,
                 )
                 if decision_res:
                     decision_res.source_trace = "rule:classify_all:list_loop"
@@ -281,6 +311,8 @@ def classify_all(
                     is_staple=is_staple,
                     waste_risk=meta.waste_risk if meta else "unknown",
                     is_disliked=is_disliked,
+                    shelf_life_days=0,
+                    last_confirmed=None,
                 )
                 if decision_res:
                     if is_staple and not any("staple" in r.lower() for r in decision_res.reasons):
@@ -313,6 +345,8 @@ def classify_all(
                         is_staple=is_staple,
                         waste_risk=meta.waste_risk if meta else "unknown",
                         is_disliked=is_disliked,
+                        shelf_life_days=meta.shelf_life_days if meta else 0,
+                        last_confirmed=last_confirmed,
                     )
                     if decision_res:
                         if is_staple and not any("staple" in r.lower() for r in decision_res.reasons):
@@ -332,6 +366,8 @@ def classify_all(
                         market_record=market,
                         freshness=fr,
                         is_disliked=is_disliked,
+                        shelf_life_days=meta.shelf_life_days if meta else 0,
+                        last_confirmed=last_confirmed,
                     )
                     if decision_res:
                         decision_res.source_trace = "rule:classify_all:list_loop"
@@ -406,7 +442,7 @@ def classify_all(
             decisions.append(DecisionResult(
                 canonical_name=cname,
                 display_name=cname.replace("_", " ").title(),
-                action=action,
+                action=ACTION_MAP.get(action, "wait"),
                 confidence=confidence,
                 reasons=[reason_str],
                 evidence=[DecisionEvidence(source="market", value=f"\u20b9{r.price_inr} at {market_source_name}", confidence=1.0)],

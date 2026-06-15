@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import threading
 from datetime import date, datetime, timedelta, timezone
@@ -27,6 +28,9 @@ from shopstack.schemas.models import (
     ReconciliationEvent,
     PreferenceSignal,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class Database:
@@ -760,6 +764,24 @@ class Database:
     # --- Trace retention policy ---
 
     def _apply_trace_retention_policy(self) -> None:
+        # Item #16 (motto_v3 §0.5 evidence tiers): before
+        # pruning traces per the TTL/max-rows policy, capture
+        # any user-confirmed traces as parser training data.
+        # The capture is append-only and best-effort: a capture
+        # failure must never block the prune. We call the
+        # helper explicitly here rather than auto-wrapping
+        # prune_traces itself (motto_v3 §7: hidden side effects
+        # are the wrong kind of coupling).
+        from shopstack.services.training_capture import (
+            maybe_capture_before_retention,
+        )
+        try:
+            maybe_capture_before_retention(self)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                "training_capture before retention failed: %s", exc
+            )
+
         max_rows = max(0, settings.trace_max_rows)
         ttl_days = settings.trace_ttl_days
         if max_rows:

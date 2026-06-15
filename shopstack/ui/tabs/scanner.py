@@ -80,29 +80,29 @@ def build_scanner_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> Non
 
         ss_scan_btn.click(
             shelf_scan_process,
-            [ss_image, ss_video, ss_audio, ss_scene],
-            [ss_results, ss_state, ss_trace, ss_annotated],
+            inputs=[ss_image, ss_video, ss_audio, ss_scene],
+            outputs=[ss_results, ss_state, ss_trace, ss_annotated],
             api_name="shelf_scan",
             api_description="Scan a shelf or pantry scene",
         )
         ss_confirm.click(
             shelf_scan_confirm,
-            [ss_state, ss_trace],
-            ss_results,
+            inputs=[ss_state, ss_trace],
+            outputs=[ss_results],
             api_name="shelf_scan_confirm",
             api_description="Confirm and apply shelf scan updates",
         )
         ss_skip.click(
             shelf_scan_skip,
-            [ss_state, ss_trace],
-            ss_results,
+            inputs=[ss_state, ss_trace],
+            outputs=[ss_results],
             api_name="shelf_scan_skip",
             api_description="Skip shelf scan without applying",
         )
         ss_save.click(
             shelf_scan_save_trace,
-            [ss_state, ss_trace],
-            ss_results,
+            inputs=[ss_state, ss_trace],
+            outputs=[ss_results],
             api_name="shelf_scan_save",
             api_description="Save shelf scan to activity history",
         )

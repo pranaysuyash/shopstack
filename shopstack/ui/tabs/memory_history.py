@@ -86,22 +86,22 @@ def build_memory_history(app: gr.Blocks, ctx: TabContext) -> None:
 
     trace_search.change(
         agent_trace_search_filter,
-        [trace_search, trace_type_filter],
-        [trace_selector, trace_timeline, trace_raw],
+        inputs=[trace_search, trace_type_filter],
+        outputs=[trace_selector, trace_timeline, trace_raw],
         api_name="trace_search",
         api_description="Search and filter traces",
     )
     trace_type_filter.change(
         agent_trace_search_filter,
-        [trace_search, trace_type_filter],
-        [trace_selector, trace_timeline, trace_raw],
+        inputs=[trace_search, trace_type_filter],
+        outputs=[trace_selector, trace_timeline, trace_raw],
         api_name="trace_filter",
         api_description="Filter traces by input type",
     )
     trace_selector.change(
         trace_bundle,
-        trace_selector,
-        [trace_timeline, trace_raw],
+        inputs=[trace_selector],
+        outputs=[trace_timeline, trace_raw],
         api_name="trace_select",
         api_description="Load timeline and redacted payload for selected trace",
     )
@@ -114,8 +114,8 @@ def build_memory_history(app: gr.Blocks, ctx: TabContext) -> None:
     )
     trace_export.click(
         agent_trace_export_file,
-        trace_selector,
-        trace_file,
+        inputs=[trace_selector],
+        outputs=[trace_file],
         api_name="trace_export",
         api_description="Export selected record as redacted JSONL",
     )

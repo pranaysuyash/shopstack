@@ -89,9 +89,13 @@ def _render_barcode_section(result: MarketLensResult) -> str:
     barcode_parts = []
     for code in result.barcode_info:
         barcode_parts.append(
-            f"<div class='stat-card' style='margin-bottom:8px;'><div style='font-weight:600;'>{escape(code['label'])}</div>"
-            f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>Type: {escape(str(code['type']))} | Code: {escape(code['code'])}</div><div style='margin-top:6px;color:var(--text-dim);font-size: 0.6875rem;'>Barcode scanned — use the button below to add to inventory.</div>"
-            f"</div>"
+            stat_card(
+                style="margin-bottom:8px;",
+                body_html=(
+                    f"<div style='font-weight:600;'>{escape(code['label'])}</div>"
+                    f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>Type: {escape(str(code['type']))} | Code: {escape(code['code'])}</div><div style='margin-top:6px;color:var(--text-dim);font-size: 0.6875rem;'>Barcode scanned — use the button below to add to inventory.</div>"
+                ),
+            )
         )
     return home_card(body="<h3>Barcode detected</h3>" + "".join(barcode_parts))
 

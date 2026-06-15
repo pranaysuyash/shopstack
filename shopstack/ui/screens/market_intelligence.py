@@ -6,7 +6,7 @@ from typing import Any
 from shopstack.app_context import db, tools, current_user_id
 from shopstack.services.market_intelligence import MarketCluster, build_market_intelligence_graph
 from shopstack.ui.components.cards import badge_html, card as ui_card, render_action_grid, render_unified_decision_card
-from shopstack.ui.components.primitives import stat_card
+from shopstack.ui.components.primitives import stat_card, home_card
 from shopstack.ui.screens._utils import safe_render
 
 _LANE_LABELS = {
@@ -112,20 +112,25 @@ def market_intelligence_view(search: str = "", lane_filter: str = "") -> str:
     graph_details = _render_graph_details(graph)
 
     if not lane_sections:
-        return (
-            f"home_card(body='<h3>Market Intelligence Graph</h3>"
-            f"{freshness_badge}{freshness_line}"
-            "<div style='margin-top:10px;color:var(--text-dim);'>No items matched your current filters.', style='text-align:left;')"
-            "</div>"
+        return home_card(
+            title="Market Intelligence Graph",
+            body=(
+                f"{freshness_badge}{freshness_line}"
+                "<div style='margin-top:10px;color:var(--text-dim);'>No items matched your current filters.</div>"
+            ),
+            style="text-align:left;",
         )
 
     return (
-        "home_card(body='"
-            "<h3>Market Intelligence Graph</h3>"
-            f"<div style='display:flex;gap:8px;align-items:center;flex-wrap:wrap;'>{freshness_badge}', style='text-align:left;'){freshness_line}"
-        f"<div style='margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;'>{summary_cards}</div><div style='margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;'>{truth_cards}</div>"
-        f"<div style='margin-top:12px;'>{actions}</div>{legend}"
-        "</div>"
+        home_card(
+            title="Market Intelligence Graph",
+            body=(
+                f"<div style='display:flex;gap:8px;align-items:center;flex-wrap:wrap;'>{freshness_badge}</div>{freshness_line}"
+                f"<div style='margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;'>{summary_cards}</div><div style='margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;'>{truth_cards}</div>"
+                f"<div style='margin-top:12px;'>{actions}</div>{legend}"
+            ),
+            style="text-align:left;",
+        )
         + "".join(lane_sections)
         + graph_details
     )
@@ -163,12 +168,13 @@ def _render_lane_section(lane: str, clusters: list[MarketCluster]) -> str:
         "skip": "Already covered at home or not worth buying.",
     }.get(lane, "Household decision lane.")
     lanes_html = "".join(_render_cluster_card(cluster) for cluster in clusters[:6])
-    return (
-        f"home_card(body='<div style='display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;'>"
-            f"<h3 style='margin:0;'>{escape(title)}</h3>{badge_html(str(len(clusters)), variant)}"
-            f"', style='text-align:left;margin-top:12px;border-left:3px solid { _lane_color(lane) };')<div style='margin-top:6px;font-size: 0.75rem;color:var(--text-dim);'>{escape(lane_note)}</div>"
-        f"<div style='margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;'>{lanes_html}</div></div>"
+    body = (
+        f"<div style='display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;'>"
+        f"<h3 style='margin:0;'>{escape(title)}</h3>{badge_html(str(len(clusters)), variant)}"
+        f"</div><div style='margin-top:6px;font-size: 0.75rem;color:var(--text-dim);'>{escape(lane_note)}</div>"
+        f"<div style='margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;'>{lanes_html}</div>"
     )
+    return home_card(body=body, style=f"text-align:left;margin-top:12px;border-left:3px solid {_lane_color(lane)};")
 
 
 def _render_cluster_card(cluster: MarketCluster) -> str:
@@ -251,10 +257,10 @@ def _render_cluster_card(cluster: MarketCluster) -> str:
             "</div>"
         )
 
-    return (
-        f"home_card(body='<div style='display:flex;justify-content:space-between;align-items:center;gap:8px;'>"
-            f"<strong>{escape(cluster.display_name)}</strong>{badge_html(cluster.graph_lane.replace('_', ' ').title(), 'blue' if cluster.graph_lane in {'compare', 'watch'} else _lane_variant(cluster.graph_lane))}"
-            f"', style='text-align:left;border:1px solid var(--border);{muted_style}')<div style='display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;'>{truth_badge}{decision_badge}{graph_badge}</div>"
+    body = (
+        f"<div style='display:flex;justify-content:space-between;align-items:center;gap:8px;'>"
+        f"<strong>{escape(cluster.display_name)}</strong>{badge_html(cluster.graph_lane.replace('_', ' ').title(), 'blue' if cluster.graph_lane in {'compare', 'watch'} else _lane_variant(cluster.graph_lane))}"
+        f"</div><div style='display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;'>{truth_badge}{decision_badge}{graph_badge}</div>"
         f"<div style='font-size: 0.75rem;margin-top:6px;color:var(--text-dim);'>Home: {escape(home_qty)} · Market: {escape(market_price + ppk)} · Memory: {escape(memory)}"
         f"</div><div style='font-size: 0.75rem;margin-top:6px;'>"
         f"Truth: <strong>{escape(truth.label)}</strong> ({truth.score:.0%}) · Freshness: {escape(cluster.market_freshness_label or cluster.market_freshness)}</div>"
@@ -264,8 +270,8 @@ def _render_cluster_card(cluster: MarketCluster) -> str:
         f"{truth_warning_line}{why_signal}"
         f"{render_unified_decision_card(cluster.decision) if cluster.decision else ''}{combo_line}"
         f"{substitute_line}{edge_summary}"
-        "</div>"
     )
+    return home_card(body=body, style=f"text-align:left;border:1px solid var(--border);{muted_style}")
 
 
 def _legend_html(graph, truth_counts: dict[str, int]) -> str:
@@ -289,14 +295,13 @@ def _render_graph_details(graph) -> str:
         f"<div style='padding:4px 0;border-bottom:1px solid var(--border);'><strong>{escape(edge.get('relation', 'edge'))}</strong> · {escape(str(edge.get('label', '')))}</div>"
         for edge in graph.edges[:8]
     )
-    return (
-        "home_card(body='"
-            "<h3>Graph Details</h3>"
-            "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;'>"
-            f"<div><div style='font-weight:600;margin-bottom:6px;'>Nodes', style='text-align:left;margin-top:12px;'){node_rows or '<div style=\"color:var(--text-dim);\">No nodes.</div>'}</div>"
+    body = (
+        "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;'>"
+        f"<div><div style='font-weight:600;margin-bottom:6px;'>Nodes</div>{node_rows or '<div style=\"color:var(--text-dim);\">No nodes.</div>'}</div>"
         f"<div><div style='font-weight:600;margin-bottom:6px;'>Edges</div>{edge_rows or '<div style=\"color:var(--text-dim);\">No edges.</div>'}</div>"
-        "</div></div>"
+        "</div>"
     )
+    return home_card(title="Graph Details", body=body, style="text-align:left;margin-top:12px;")
 
 
 def _render_why_signal(cluster: MarketCluster) -> str:

@@ -49,17 +49,19 @@ def household_map_view() -> str:
         safe_type = escape(str(loc.location_type))
         safe_parent = escape(str(parent))
         arrow = f" \u2192 {safe_parent}" if parent else ""
-        cards += f"""
-<div class="stat-card" style="text-align:left;margin-bottom:8px;">
-  <div style="display:flex;justify-content:space-between;align-items:center;">
-    <div>
-      <div style="font-weight:600;color:var(--text);">{safe_name}</div>
-      <div style="font-size: 0.6875rem;color:var(--text-dim);">{safe_type}{arrow}</div>
-    </div>
-    <div class="stat-value" style="font-size: 1.5rem;">{count}</div>
-  </div>
-  {item_details_html}
-</div>"""
+        cards += stat_card(
+            style="text-align:left;margin-bottom:8px;",
+            body_html=(
+                "<div style='display:flex;justify-content:space-between;align-items:center;'>"
+                "<div>"
+                f"<div style='font-weight:600;color:var(--text);'>{safe_name}</div>"
+                f"<div style='font-size: 0.6875rem;color:var(--text-dim);'>{safe_type}{arrow}</div>"
+                "</div>"
+                f"<div class='stat-value' style='font-size: 1.5rem;'>{count}</div>"
+                "</div>"
+                f"{item_details_html}"
+            ),
+        )
     return f"<h3>Household Storage Map</h3><div style='display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;'>{cards}</div>"
 
 
@@ -121,7 +123,7 @@ def what_is_in_fridge_now() -> str:
         )
         for i in items
     )
-    return f"home_card(body='<h3>What is in the fridge now?</h3>{rows}', style='text-align:left;')"
+    return home_card(title="What is in the fridge now?", body=rows, style="text-align:left;")
 
 
 def inventory_alerts(days_since_purchase: int = 3) -> str:
@@ -170,4 +172,4 @@ def inventory_alerts(days_since_purchase: int = 3) -> str:
         alerts += "<div style='margin-bottom:8px;'><strong>Use soon reminders</strong><ul>"
         alerts += "".join(f"<li>{escape(lot.display_name)}: last purchased {(date.today() - lot.purchase_date).days if lot.purchase_date else '?'} days ago</li>" for lot in stale)
         alerts += "</ul></div>"
-    return f"home_card(body='{alerts}', style='text-align:left')"
+    return home_card(body=alerts, style="text-align:left")

@@ -9,6 +9,9 @@ Uses Playwright to verify:
 from __future__ import annotations
 
 import os
+import socket
+import urllib.error
+import urllib.request
 import pytest
 
 playwright = pytest.importorskip("playwright")
@@ -16,6 +19,59 @@ from playwright.sync_api import sync_playwright  # noqa: E402
 
 
 APP_URL = os.getenv("SHOPSTACK_TEST_URL", "http://127.0.0.1:7860")
+
+
+def _app_server_reachable(url: str, tcp_timeout: float = 0.5, http_timeout: float = 2.0) -> bool:
+    """Best-effort reachability check for the test app server.
+
+    Returns True ONLY if both:
+    1. A TCP connection to the host:port succeeds within ``tcp_timeout`` seconds.
+    2. An HTTP GET on ``url`` returns a 2xx/3xx response within ``http_timeout``
+       seconds.
+
+    The two-stage check is necessary because a stale Gradio app or a
+    half-closed port can pass a TCP check while failing to serve any
+    HTTP content. (In Pass 12 this was the root cause of the
+    "transient batch-state test failures" pattern: a leftover Python
+    process was listening on 127.0.0.1:7860 but not serving the
+    full Gradio app, so Playwright's `wait_until="networkidle"`
+    timed out and the suite appeared to hang.)
+
+    Use a higher level skip — ``pytest.importorskip("playwright")``
+    is already at the top of this file, and the
+    ``pytestmark = pytest.mark.skipif(...)`` below uses this
+    function to skip the entire visual QA suite when no app
+    server is reachable.
+    """
+    if url.startswith("http://"):
+        host, _, port_str = url[len("http://"):].partition(":")
+        port = int(port_str.split("/", 1)[0] or "80")
+    elif url.startswith("https://"):
+        # Skip HTTP probe for HTTPS — trust the env var.
+        return True
+    else:
+        return False
+    try:
+        with socket.create_connection((host, port), timeout=tcp_timeout):
+            pass
+    except (OSError, socket.timeout):
+        return False
+    try:
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=http_timeout) as resp:
+            return 200 <= resp.status < 400
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError, socket.timeout):
+        return False
+
+
+# Module-level skip: skip the entire visual QA suite if no app server
+# is reachable. This is the single source of truth — the rest of the
+# fixtures inherit the skip via the `page` fixture chain.
+pytestmark = pytest.mark.skipif(
+    not _app_server_reachable(APP_URL),
+    reason=f"SHOPSTACK_TEST_URL server {APP_URL} is not reachable; "
+           "start a local app server to run visual QA tests.",
+)
 
 
 @pytest.fixture(scope="module")

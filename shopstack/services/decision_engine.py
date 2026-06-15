@@ -61,6 +61,8 @@ def should_buy(
     last_purchase_date: date | None = None,
     recently_bought: bool = False,
     is_disliked: bool = False,
+    shelf_life_days: int = 0,
+    last_confirmed: date | None = None,
 ) -> DecisionResult | None:
     """Decide if an item should be bought.
 
@@ -90,11 +92,41 @@ def should_buy(
     market_raw_size = getattr(market_record, "raw_size", "") if has_market else ""
 
     # ── Evidence ──
+    from shopstack.domain.market_freshness import (
+        inventory_confidence,
+        needs_confirmation,
+        confirmation_prompt,
+    )
+
+    inv_conf = 0.95
+    if quantity_at_home > 0:
+        inv_conf = inventory_confidence(
+            purchase_date=last_purchase_date,
+            shelf_life_days=shelf_life_days,
+            last_confirmed=last_confirmed,
+        )
+
     evidence.append(DecisionEvidence(
         source="inventory",
         value=f"{quantity_at_home} {unit}",
-        confidence=0.95,
+        confidence=inv_conf,
     ))
+
+    if quantity_at_home > 0 and needs_confirmation(inv_conf):
+        prompt = confirmation_prompt(
+            canonical_name=canonical_name,
+            display_name=display_name,
+            confidence=inv_conf,
+            purchase_date=last_purchase_date,
+            quantity=quantity_at_home,
+            unit=unit,
+        )
+        if prompt:
+            warnings.append(DecisionWarning(
+                code="inventory_unconfirmed",
+                message=prompt,
+                severity="warning",
+            ))
 
     if has_market:
         evidence.append(DecisionEvidence(
@@ -226,6 +258,8 @@ def should_skip(
     market_record=None,
     freshness: FreshnessReport | None = None,
     is_disliked: bool = False,
+    shelf_life_days: int = 0,
+    last_confirmed: date | None = None,
 ) -> DecisionResult | None:
     """Decide if an item should be skipped (not bought today).
 
@@ -243,11 +277,42 @@ def should_skip(
     warnings: list[DecisionWarning] = []
     confidence = 0.0
 
+    # ── Evidence ──
+    from shopstack.domain.market_freshness import (
+        inventory_confidence,
+        needs_confirmation,
+        confirmation_prompt,
+    )
+
+    inv_conf = 0.95
+    if quantity_at_home > 0:
+        inv_conf = inventory_confidence(
+            purchase_date=None,  # skip might not know purchase_date directly, but we pass what we have or None
+            shelf_life_days=shelf_life_days,
+            last_confirmed=last_confirmed,
+        )
+
     evidence.append(DecisionEvidence(
         source="inventory",
         value=f"{quantity_at_home} {unit}",
-        confidence=0.95,
+        confidence=inv_conf,
     ))
+
+    if quantity_at_home > 0 and needs_confirmation(inv_conf):
+        prompt = confirmation_prompt(
+            canonical_name=canonical_name,
+            display_name=display_name,
+            confidence=inv_conf,
+            purchase_date=None,
+            quantity=quantity_at_home,
+            unit=unit,
+        )
+        if prompt:
+            warnings.append(DecisionWarning(
+                code="inventory_unconfirmed",
+                message=prompt,
+                severity="warning",
+            ))
 
     if is_disliked:
         reasons.append("Disliked/avoided by household")

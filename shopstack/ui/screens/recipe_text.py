@@ -40,7 +40,7 @@ from shopstack.repos.inventory import InventoryRepo
 from shopstack.services.ocr_pipeline import run_ocr_pipeline
 from shopstack.services.recipe_text_parser import parse_recipe_text, text_to_shopping_items
 from shopstack.services.recipes import missing_to_shopping_items
-from shopstack.ui.components.primitives import toast
+from shopstack.ui.components.primitives import toast, home_card
 from shopstack.persistence.database import Database as _Database
 from shopstack.schemas.models import ShoppingListItem
 
@@ -56,12 +56,14 @@ def recipe_text_to_shopping_list(raw_text: str) -> str:
     one-click "Add missing to list" button.
     """
     if not raw_text or not raw_text.strip():
-        return (
-            "home_card(body='"
-            "Paste a recipe's ingredients section. Example:<br>"
-            "<code style='font-size: 0.75rem;'>"
-            "- 2 cups rice<br>- 1 cup chickpea<br>- 1 tsp turmeric"
-            "</code>', style='text-align:center;padding:16px;color:var(--text-dim);')"
+        return home_card(
+            body=(
+                "Paste a recipe's ingredients section. Example:<br>"
+                "<code style='font-size: 0.75rem;'>"
+                "- 2 cups rice<br>- 1 cup chickpea<br>- 1 tsp turmeric"
+                "</code>"
+            ),
+            style="text-align:center;padding:16px;color:var(--text-dim);",
         )
 
     parsed = parse_recipe_text(raw_text)
@@ -98,16 +100,15 @@ def recipe_text_to_shopping_list(raw_text: str) -> str:
             f"</tr>"
         )
 
-    return (
-        f"home_card(body='<h3 style='margin:0 0 8px 0;'>📋 Recipe → Shopping List</h3>"
-            f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>Parsed {len(parsed)} ingredient(s). {have_count} at home, "
-            f"<strong style='color:var(--red);'>{missing_count} to buy</strong>.')"
+    body = (
+        f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:6px;'>Parsed {len(parsed)} ingredient(s). {have_count} at home, "
+        f"<strong style='color:var(--red);'>{missing_count} to buy</strong>.</div>"
         f"<table style='width:100%;font-size: 0.75rem;border-collapse:collapse;'><thead><tr style='border-bottom:2px solid var(--border);'>"
         f"<th style='text-align:left;padding:4px 8px;'>Item</th><th style='text-align:right;padding:4px 8px;'>Qty</th>"
         f"<th style='text-align:right;padding:4px 8px;'>Status</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table>"
-        f"</div>"
     )
+    return home_card(title="📋 Recipe → Shopping List", body=body)
 
 
 def _active_household_id() -> str:

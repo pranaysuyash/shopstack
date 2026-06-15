@@ -22,7 +22,7 @@ from shopstack.services.condition import (
     record_condition_event,
 )
 from shopstack.ui.components.decorators import aria_live_screen
-from shopstack.ui.components.primitives import home_card
+from shopstack.ui.components.primitives import home_card, stat_card
 from shopstack.ui.screens._utils import safe_render
 
 logger = logging.getLogger(__name__)
@@ -104,18 +104,20 @@ def repair_inbox_view(severity: str = "") -> str:
             else f"<span style='font-size:0.625rem;background:var(--amber);color:#fff;"
             f"padding:2px 6px;border-radius:8px;margin-left:6px;'>{item.pending_user_confirmation} pending</span>"
         )
-        parts.append(
-            f"<div class='stat-card' style='text-align:left;margin-bottom:8px;'><div style='display:flex;justify-content:space-between;align-items:center;'>"
-            f"<div style='font-weight:600;color:var(--text);'>{escape(item.canonical_name)}{confirm_badge}</div><span style='background:{sev_color};color:#fff;padding:2px 8px;"
-            f"border-radius:10px;font-size:0.625rem;font-weight:600;'>{escape(item.severity.value.upper())}</span>"
-            f"</div><div style='font-size:0.75rem;color:var(--text-dim);margin-top:4px;'>"
-            f"{escape(item.dominant_kind.value)} · {occ}x · last {escape(last_seen)} · first {escape(first_seen)}</div>"
-            f"<div style='font-size:0.75rem;margin-top:4px;'>📍 {escape(item.location_name or 'unknown')} · "
-            f"<strong>Action:</strong> {escape(action_label)}</div>"
-            f"{('<div style=\"font-size:0.6875rem;color:var(--text-dim);margin-top:4px;font-style:italic;\">'
-              f'\"' + escape(item.latest_description) + '\"</div>') if item.latest_description else ''}"
-            f"</div>"
-        )
+        parts.append(stat_card(
+            style="text-align:left;margin-bottom:8px;",
+            body_html=(
+                f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
+                f"<div style='font-weight:600;color:var(--text);'>{escape(item.canonical_name)}{confirm_badge}</div><span style='background:{sev_color};color:#fff;padding:2px 8px;"
+                f"border-radius:10px;font-size:0.625rem;font-weight:600;'>{escape(item.severity.value.upper())}</span>"
+                f"</div><div style='font-size:0.75rem;color:var(--text-dim);margin-top:4px;'>"
+                f"{escape(item.dominant_kind.value)} · {occ}x · last {escape(last_seen)} · first {escape(first_seen)}</div>"
+                f"<div style='font-size:0.75rem;margin-top:4px;'>📍 {escape(item.location_name or 'unknown')} · "
+                f"<strong>Action:</strong> {escape(action_label)}</div>"
+                f"{('<div style=\"font-size:0.6875rem;color:var(--text-dim);margin-top:4px;font-style:italic;\">'
+                  f'\"' + escape(item.latest_description) + '\"</div>') if item.latest_description else ''}"
+            ),
+        ))
     return "".join(parts)
 
 

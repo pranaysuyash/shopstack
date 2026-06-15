@@ -177,3 +177,13 @@ def test_confirm_receipt_scopes_to_user_id(db):
     assert len(db.get_inventory(canonical_name="milk", user_id="house_b")) == 0
     assert len(db.get_purchase_events(user_id="house_a")) == 1
     assert len(db.get_purchase_events(user_id="house_b")) == 0
+
+
+def test_parse_receipt_regional_and_brand_prefixes():
+    # "Aloo" (Hindi for potato), "Amul Milk" (Amul is a brand prefix)
+    text = "Store\nAloo 2 kg 60\nAmul Milk 1 L 65"
+    result = parse_receipt_text(text)
+    assert len(result.lines) == 2
+    assert result.lines[0].canonical_name == "potato"
+    assert result.lines[1].canonical_name == "milk"
+

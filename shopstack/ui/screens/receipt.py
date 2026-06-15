@@ -14,7 +14,7 @@ from shopstack.services.receipt import (
     confirm_receipt,
     parse_receipt_text,
 )
-from shopstack.ui.components.primitives import data_table
+from shopstack.ui.components.primitives import data_table, home_card
 from shopstack.ui.screens._utils import safe_render
 
 logger = logging.getLogger(__name__)
@@ -205,9 +205,8 @@ def receipt_confirm(df_data: Any, merchant: str, date_str: str, raw_text: str) -
     # after the receipt summary so the user knows what to do after scanning.
     summary = ir.summary_html or ""
     items_added = ir.items_added or len(lines)
-    guidance = (
-        f"home_card(body='<h3>What's next?</h3>"
-            f"<div class='muted' style='margin-bottom:8px;'>{items_added} item{'s' if items_added != 1 else ''} added to your pantry.', style='margin-top:12px;text-align:left;border:2px solid var(--green, #176B49);')"
+    body = (
+        f"<div class='muted' style='margin-bottom:8px;'>{items_added} item{'s' if items_added != 1 else ''} added to your pantry.</div>"
         f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:8px;'><div style='padding:10px;border:1px solid var(--border);border-radius:8px;text-align:center;cursor:pointer;'>"
         f"<div style='font-size:1.25rem;margin-bottom:4px;'>🏠</div><div style='font-weight:600;font-size:0.8125rem;'>Put groceries away</div>"
         f"<div style='font-size:0.75rem;color:var(--text-dim);'>Move items to the right shelf</div></div>"
@@ -216,7 +215,12 @@ def receipt_confirm(df_data: Any, merchant: str, date_str: str, raw_text: str) -
         f"</div><div style='padding:10px;border:1px solid var(--border);border-radius:8px;text-align:center;cursor:pointer;'>"
         f"<div style='font-size:1.25rem;margin-bottom:4px;'>🍳</div><div style='font-weight:600;font-size:0.8125rem;'>See what to cook</div>"
         f"<div style='font-size:0.75rem;color:var(--text-dim);'>Recipes from what you just bought</div></div>"
-        f"</div></div>"
+        f"</div>"
+    )
+    guidance = home_card(
+        title="What's next?",
+        body=body,
+        style="margin-top:12px;text-align:left;border:2px solid var(--green, #176B49);",
     )
     return summary + guidance
 

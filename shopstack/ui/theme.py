@@ -1918,5 +1918,28 @@ details.home-details > *:not(summary),
   color: var(--text-muted, #5F5144);
   font-size: 0.875rem;
 }
+
+/* Inline refresh control — replaces full-width grey "Refresh" bars
+   (motto_v3 Home screen review, 2026-06-15). Renders as a small,
+   unobtrusive text-style action instead of a full-width button row. */
+.inline-refresh, .inline-refresh.gr-button, button.inline-refresh {
+  display: inline-flex !important;
+  width: auto !important;
+  min-width: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 2px 0 !important;
+  margin: -4px 0 8px 0 !important;
+  font-size: 0.75rem !important;
+  color: var(--text-dim) !important;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+.inline-refresh:hover {
+  color: var(--accent) !important;
+  background: transparent !important;
+  transform: none !important;
+}
 """
 

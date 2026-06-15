@@ -9,7 +9,7 @@ from typing import Any, Callable
 
 from shopstack.domain import normalize_item_name
 from shopstack.ui.components.cards import card as ui_card
-from shopstack.ui.components.primitives import home_card
+from shopstack.ui.components.primitives import home_card, stat_card
 from shopstack.ui.components.workflow import (
     WORKFLOW_ACTION_STEPS,
     WORKFLOW_STEPS,
@@ -154,10 +154,16 @@ def render_home_advice(active_inv: list, low_items: list, use_soon_items: list[d
 
 def render_list_summary(sl) -> str:
     if not sl:
-        return '<div class="stat-card" style="text-align:left;margin-bottom:12px;"><h3>Shopping List</h3><div style="color:var(--text-dim);">No active list.</div></div>'
+        return stat_card(
+            style="text-align:left;margin-bottom:12px;",
+            body_html='<h3>Shopping List</h3><div style="color:var(--text-dim);">No active list.</div>',
+        )
     items = sl.items or []
     if not items:
-        return '<div class="stat-card" style="text-align:left;margin-bottom:12px;"><h3>Shopping List</h3><div style="color:var(--text-dim);">List is empty.</div></div>'
+        return stat_card(
+            style="text-align:left;margin-bottom:12px;",
+            body_html='<h3>Shopping List</h3><div style="color:var(--text-dim);">List is empty.</div>',
+        )
     rows_str = "".join(
         f'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);">'
         f'<span>{escape(str(i.canonical_name))}</span>'
@@ -165,7 +171,10 @@ def render_list_summary(sl) -> str:
         f'</div>'
         for i in items[:8]
     )
-    return f'<div class="stat-card" style="text-align:left;margin-bottom:12px;"><h3>Shopping List ({len(items)} items)</h3>{rows_str}</div>'
+    return stat_card(
+        style="text-align:left;margin-bottom:12px;",
+        body_html=f"<h3>Shopping List ({len(items)} items)</h3>{rows_str}",
+    )
 
 
 def render_low_stock(items) -> str:

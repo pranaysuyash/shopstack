@@ -31,6 +31,7 @@ class DashboardState:
     best_store: dict[str, Any] = field(default_factory=dict)
     optimized_basket: Any | None = None
     restock_predictions: list[dict[str, Any]] = field(default_factory=list)
+    items_needing_confirmation: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def use_soon_count(self) -> int:
@@ -227,6 +228,57 @@ def _build_dashboard_state_uncached(
     except Exception as exc:
         logger.debug("Seasonal recommendation failed: %s", exc)
 
+    # Calculate items needing confirmation from active inventory lots
+    items_needing_confirmation: list[dict[str, Any]] = []
+    try:
+        from datetime import date as d_date
+        from shopstack.domain.market_freshness import (
+            inventory_confidence,
+            needs_confirmation,
+            confirmation_prompt,
+        )
+        from shopstack.market.metadata import get_produce_metadata
+        for lot in active_inventory:
+            meta = get_produce_metadata(lot.canonical_name)
+            shelf_life = meta.shelf_life_days if meta else 0
+            
+            last_confirmed = None
+            if lot.updated_at:
+                if hasattr(lot.updated_at, "date"):
+                    last_confirmed = lot.updated_at.date()
+                elif isinstance(lot.updated_at, d_date):
+                    last_confirmed = lot.updated_at
+                elif isinstance(lot.updated_at, str):
+                    try:
+                        last_confirmed = d_date.fromisoformat(lot.updated_at[:10])
+                    except Exception:
+                        pass
+
+            conf = inventory_confidence(
+                purchase_date=lot.purchase_date,
+                shelf_life_days=shelf_life,
+                last_confirmed=last_confirmed,
+            )
+            if needs_confirmation(conf):
+                prompt = confirmation_prompt(
+                    canonical_name=lot.canonical_name,
+                    display_name=lot.display_name,
+                    confidence=conf,
+                    purchase_date=lot.purchase_date,
+                    quantity=lot.quantity,
+                    unit=lot.unit,
+                )
+                if prompt:
+                    items_needing_confirmation.append({
+                        "lot_id": lot.lot_id,
+                        "canonical_name": lot.canonical_name,
+                        "display_name": lot.display_name,
+                        "confidence": round(conf, 2),
+                        "prompt": prompt,
+                    })
+    except Exception as exc:
+        logger.debug("Failed computing items needing confirmation for dashboard: %s", exc)
+
     return DashboardState(
         decision_set=decision_set,
         market_snapshot=market_snapshot,
@@ -246,6 +298,7 @@ def _build_dashboard_state_uncached(
         best_store=best_store,
         optimized_basket=optimized_basket,
         restock_predictions=restock_predictions,
+        items_needing_confirmation=items_needing_confirmation,
     )
 
 

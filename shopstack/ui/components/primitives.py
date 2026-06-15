@@ -222,25 +222,32 @@ def item_row(
 # ═══════════════════════════════════════════════════════════════════════
 
 def stat_card(
-    value: str,
-    label: str,
+    value: str = "",
+    label: str = "",
     icon: str = "",
     trend: str = "",
     trend_value: str = "",
     variant: str = "default",
     on_click_tab: str = "",
     body_html: str = "",
+    style: str = "",
 ) -> str:
-    """Render a stat/metric card.
+    """Render a stat/metric card, or a generic ``.stat-card``-styled container.
 
     Args:
-        value: Large display value (e.g. ``"12"``, ``"₹340"``)
+        value: Large display value (e.g. ``"12"``, ``"₹340"``). Leave empty
+            along with ``label`` for a generic content card (``body_html``
+            is then required) — no ``role``/``aria-label`` is added in
+            that case, since there is no value/label pair to describe.
         label: Label below the value
         icon: Emoji or text icon (placed above value)
         trend: ``up``, ``down``, or ``stable``
         trend_value: Secondary trend text (e.g. ``"+12%"``)
         variant: ``default``, ``success``, ``warning``, ``danger``
         on_click_tab: Gradio tab id to navigate to on click
+        body_html: Custom HTML body. Required for generic content cards
+            (when ``value`` and ``label`` are both empty).
+        style: Extra inline CSS appended after the variant-derived style.
     """
     safe_value = escape(str(value))
     safe_label = escape(str(label))
@@ -275,12 +282,15 @@ def stat_card(
         import re
         safe_tab = re.sub(r"[^a-z0-9_-]", "-", str(on_click_tab).lower())
         click_attr = (
-            f" style='cursor:pointer;' onclick=\"var el=document.querySelector('[data-testid=tab-{safe_tab}]');"
+            f" onclick=\"var el=document.querySelector('[data-testid=tab-{safe_tab}]');"
             f"if(el)el.click();\""
         )
 
+    aria_attr = f" role='region' aria-label='{safe_label}: {safe_value}'" if (value or label) else ""
+    combined_style = f"{variant_style}{'cursor:pointer;' if on_click_tab else ''}{style}"
+
     return (
-        f"<div class='stat-card' role='region' aria-label='{safe_label}: {safe_value}'{click_attr} style='{variant_style}'>{icon_html}"
+        f"<div class='stat-card'{aria_attr}{click_attr} style='{combined_style}'>{icon_html}"
         + (body_html if body_html else (
             f"<div class='stat-value'>{safe_value}</div><div class='stat-label'>{safe_label}</div>"
             + (f"<div style='margin-top:6px;'>{trend_html}</div>" if trend_html else "")

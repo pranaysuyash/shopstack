@@ -29,7 +29,11 @@ def build_analytics_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> N
             an_refresh = gr.Button("Refresh", elem_classes="secondary", scale=0)
         an_output = gr.HTML(loading_skeleton("card"))
 
-        an_refresh.click(analytics_screen, an_days, an_output,
-                         api_name="analytics_refresh",
-                         api_description="Refresh household usage analytics over the specified time window")
-        app.load(analytics_screen, inputs=an_days, outputs=an_output)
+        an_refresh.click(
+            analytics_screen,
+            inputs=[an_days],
+            outputs=[an_output],
+            api_name="analytics_refresh",
+            api_description="Refresh household usage analytics over the specified time window",
+        )
+        app.load(analytics_screen, inputs=[an_days], outputs=[an_output])

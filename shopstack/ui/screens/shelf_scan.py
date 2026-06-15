@@ -9,7 +9,7 @@ from shopstack.app_context import db, providers, tools, current_user_id
 from shopstack.schemas.shelf import ProposedInventoryAction, ShelfIntelligenceResult
 from shopstack.services.shelf_intelligence import analyze_shelf_scene
 from shopstack.traces.export import create_trace, update_trace_confirmation
-from shopstack.ui.components.primitives import home_card
+from shopstack.ui.components.primitives import home_card, stat_card
 
 logger = logging.getLogger(__name__)
 
@@ -331,49 +331,52 @@ def _render_instance_card(instance: Any) -> str:
     expiry = ""
     if getattr(instance, "expiry_date", None):
         expiry = f" · expiry {instance.expiry_date.isoformat()}"
-    return (
-        "<div class='stat-card' style='text-align:left;'>"
-        f"<div style='font-weight:600;'>{escape(instance.display_name)}</div><div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>"
-        f"{escape(instance.recognition_source)} · {instance.quantity_estimate.value:g} {escape(instance.quantity_estimate.unit)}{freshness}{expiry}</div>"
-        f"<div style='margin-top:6px;font-size: 0.6875rem;color:var(--text-dim);'>{escape(instance.zone_guess or 'unknown zone')}</div>"
-        f"</div>"
+    return stat_card(
+        style="text-align:left;",
+        body_html=(
+            f"<div style='font-weight:600;'>{escape(instance.display_name)}</div><div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>"
+            f"{escape(instance.recognition_source)} · {instance.quantity_estimate.value:g} {escape(instance.quantity_estimate.unit)}{freshness}{expiry}</div>"
+            f"<div style='margin-top:6px;font-size: 0.6875rem;color:var(--text-dim);'>{escape(instance.zone_guess or 'unknown zone')}</div>"
+        ),
     )
 
 
 def _render_aggregate_card(aggregate: Any) -> str:
-    return (
-        f"<div class='stat-card' style='text-align:left;'><div style='display:flex;justify-content:space-between;align-items:center;'>"
-        f"<strong>{escape(aggregate.display_name)}</strong><span class='badge badge-blue'>{escape(aggregate.recommendation)}</span></div>"
-        f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{aggregate.count} instance(s) · {aggregate.estimated_quantity:g} {escape(aggregate.unit)}"
-        f" · home {aggregate.matched_home_quantity:g}</div><div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:4px;'>"
-        f"delta {aggregate.delta_from_inventory:+g} · confidence {aggregate.confidence:.0%}</div>"
-        + (
-            f"<div style='font-size: 0.6875rem;color:var(--green);margin-top:6px;'>Why: {escape('; '.join(aggregate.reasons[:2]))}</div>"
-            if aggregate.reasons else ""
-        )
-        + (
-            f"<div style='font-size: 0.6875rem;color:var(--amber);margin-top:4px;'>Warnings: {escape('; '.join(aggregate.warnings[:2]))}</div>"
-            if aggregate.warnings else ""
-        )
-        + "</div>"
+    return stat_card(
+        style="text-align:left;",
+        body_html=(
+            f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
+            f"<strong>{escape(aggregate.display_name)}</strong><span class='badge badge-blue'>{escape(aggregate.recommendation)}</span></div>"
+            f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{aggregate.count} instance(s) · {aggregate.estimated_quantity:g} {escape(aggregate.unit)}"
+            f" · home {aggregate.matched_home_quantity:g}</div><div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:4px;'>"
+            f"delta {aggregate.delta_from_inventory:+g} · confidence {aggregate.confidence:.0%}</div>"
+            + (
+                f"<div style='font-size: 0.6875rem;color:var(--green);margin-top:6px;'>Why: {escape('; '.join(aggregate.reasons[:2]))}</div>"
+                if aggregate.reasons else ""
+            )
+            + (
+                f"<div style='font-size: 0.6875rem;color:var(--amber);margin-top:4px;'>Warnings: {escape('; '.join(aggregate.warnings[:2]))}</div>"
+                if aggregate.warnings else ""
+            )
+        ),
     )
 
 
 def _render_action_card(action: ProposedInventoryAction) -> str:
-    return (
-        "<div class='stat-card' style='text-align:left;'>"
-        f"<div style='display:flex;justify-content:space-between;align-items:center;'><strong>{escape(action.display_name)}</strong>"
-        f"<span class='badge badge-blue'>{escape(action.action)}</span></div><div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>"
-        f"{action.quantity:g} {escape(action.unit)} · confidence {action.confidence:.0%}</div><div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:4px;'>"
-        f"Location: {escape(action.target_location_id or 'n/a')} · Lot: {escape(action.lot_id or 'new')}</div><div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:4px;'>"
-        f"{escape(action.reason)}</div>"
-        "</div>"
+    return stat_card(
+        style="text-align:left;",
+        body_html=(
+            f"<div style='display:flex;justify-content:space-between;align-items:center;'><strong>{escape(action.display_name)}</strong>"
+            f"<span class='badge badge-blue'>{escape(action.action)}</span></div><div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>"
+            f"{action.quantity:g} {escape(action.unit)} · confidence {action.confidence:.0%}</div><div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:4px;'>"
+            f"Location: {escape(action.target_location_id or 'n/a')} · Lot: {escape(action.lot_id or 'new')}</div><div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:4px;'>"
+            f"{escape(action.reason)}</div>"
+        ),
     )
 
 
 def _render_review_card(text: str) -> str:
-    return (
-        "<div class='stat-card' style='text-align:left;border-left:3px solid var(--amber);'>"
-        f"<div style='font-size: 0.75rem;color:var(--text-dim);'>{escape(text)}</div>"
-        "</div>"
+    return stat_card(
+        style="text-align:left;border-left:3px solid var(--amber);",
+        body_html=f"<div style='font-size: 0.75rem;color:var(--text-dim);'>{escape(text)}</div>",
     )

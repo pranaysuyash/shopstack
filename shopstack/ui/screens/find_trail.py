@@ -12,6 +12,7 @@ from html import escape
 from shopstack.app_context import db, tools, current_user_id
 from shopstack.schemas.models import FindFeedback, HouseholdObject, ObjectNote, ObjectSighting
 from shopstack.ui.components.decorators import aria_live_screen
+from shopstack.ui.components.primitives import stat_card
 from shopstack.ui.screens._utils import safe_render
 
 logger = logging.getLogger(__name__)
@@ -170,31 +171,39 @@ def record_find_feedback(query: str, object_or_lot_id: str, actual_location_id: 
 
 
 def _empty_state() -> str:
-    return (
-        "<div class='stat-card' style='text-align:center;padding:30px;'>"
-        "<div style='font-size:1.5rem;margin-bottom:8px;'>🔍</div>"
-        "<div style='font-weight:600;'>Search for any item</div>"
-        "<div style='font-size:0.75rem;color:var(--text-dim);margin-top:4px;'>"
-        "Enter an item name to see its trail — where it is, where it's been, and where to look next."
-        "</div></div>"
+    return stat_card(
+        style="text-align:center;padding:30px;",
+        body_html=(
+            "<div style='font-size:1.5rem;margin-bottom:8px;'>🔍</div>"
+            "<div style='font-weight:600;'>Search for any item</div>"
+            "<div style='font-size:0.75rem;color:var(--text-dim);margin-top:4px;'>"
+            "Enter an item name to see its trail — where it is, where it's been, and where to look next."
+            "</div>"
+        ),
     )
 
 
 def _no_results(query: str) -> str:
-    return (
-        f"<div class='stat-card' style='text-align:center;padding:20px;'><div style='font-weight:600;'>No results for '{escape(query)}'</div>"
-        f"<div style='font-size:0.75rem;color:var(--text-dim);margin-top:4px;'>Try a different search term or add this item to inventory."
-        f"</div></div>"
+    return stat_card(
+        style="text-align:center;padding:20px;",
+        body_html=(
+            f"<div style='font-weight:600;'>No results for '{escape(query)}'</div>"
+            f"<div style='font-size:0.75rem;color:var(--text-dim);margin-top:4px;'>Try a different search term or add this item to inventory."
+            f"</div>"
+        ),
     )
 
 
 def _render_header(result_set) -> str:
     count = result_set.count
     label = "result" if count == 1 else "results"
-    return (
-        f"<div class='stat-card' style='{_CARD_STYLE}'><div style='display:flex;justify-content:space-between;align-items:center;'>"
-        f"<div><span style='font-weight:600;'>'{escape(result_set.query)}'</span><span style='font-size:0.75rem;color:var(--text-dim);margin-left:8px;'>"
-        f"{count} {label}</span></div></div></div>"
+    return stat_card(
+        style=_CARD_STYLE,
+        body_html=(
+            "<div style='display:flex;justify-content:space-between;align-items:center;'>"
+            f"<div><span style='font-weight:600;'>'{escape(result_set.query)}'</span><span style='font-size:0.75rem;color:var(--text-dim);margin-left:8px;'>"
+            f"{count} {label}</span></div></div>"
+        ),
     )
 
 
@@ -220,11 +229,14 @@ def _render_trail_card(result) -> str:
     sections.append(_render_actions(result))
 
     body = "".join(s for s in sections if s)
-    return (
-        f"<div class='stat-card' style='{_CARD_STYLE}'><div style='display:flex;justify-content:space-between;align-items:center;'>"
-        f"<div><div style='font-weight:600;font-size:1rem;'>{title}</div><div style='font-size:0.625rem;color:var(--text-dim);'>{escape(str(result.entity_type))} · {escape(str(entity_id))}</div></div>"
-        f"<span style='{_BADGE_STYLE}background:{badge_color};color:#fff;'>{confidence_label}</span></div>"
-        f"{body}</div>"
+    return stat_card(
+        style=_CARD_STYLE,
+        body_html=(
+            "<div style='display:flex;justify-content:space-between;align-items:center;'>"
+            f"<div><div style='font-weight:600;font-size:1rem;'>{title}</div><div style='font-size:0.625rem;color:var(--text-dim);'>{escape(str(result.entity_type))} · {escape(str(entity_id))}</div></div>"
+            f"<span style='{_BADGE_STYLE}background:{badge_color};color:#fff;'>{confidence_label}</span></div>"
+            f"{body}"
+        ),
     )
 
 

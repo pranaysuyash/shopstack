@@ -504,14 +504,59 @@ class PriceMemoryService:
     # ── Internal ────────────────────────────────────────────────────
 
     def _query_observations(self, canonical_name: str, days: int) -> list[Any]:
-        """Query price observations from the database."""
+        """Query price observations from both receipts and market records."""
         try:
+            from shopstack.schemas.models import PriceObservation
+
             cutoff = date.today() - timedelta(days=days)
-            all_obs = self._db.get_price_history(canonical_name)
-            return [
-                o for o in all_obs
-                if o.observation_date and o.observation_date >= cutoff
-            ]
+            all_obs = []
+
+            # 1. Pull receipt observations
+            try:
+                receipt_obs = self._db.get_price_history(canonical_name)
+                all_obs.extend([
+                    o for o in receipt_obs
+                    if o.observation_date and o.observation_date >= cutoff
+                ])
+            except Exception as exc:
+                logger.debug("Receipt price query failed for %s: %s", canonical_name, exc)
+
+            # 2. Pull market snapshot records as observations
+            if hasattr(self._db, "get_records_by_canonical"):
+                try:
+                    records = self._db.get_records_by_canonical(canonical_name)
+                    for r in records:
+                        # Parse date safely
+                        obs_date = date.today()
+                        if r.captured_at:
+                            try:
+                                obs_date = date.fromisoformat(r.captured_at[:10])
+                            except Exception:
+                                pass
+
+                        if obs_date >= cutoff:
+                            # Skip ads
+                            if getattr(r, "is_ad", False):
+                                continue
+
+                            all_obs.append(PriceObservation(
+                                canonical_name=r.canonical_name,
+                                quantity=r.normalized_quantity or 1.0,
+                                unit=r.normalized_unit or "unit",
+                                price=r.price_inr,
+                                currency="INR",
+                                store_name=r.source,
+                                store_id=r.source,
+                                observation_date=obs_date,
+                                source_event_id=r.snapshot_id,
+                                notes="Market snapshot record",
+                            ))
+                except Exception as exc:
+                    logger.debug("Failed querying market records for %s: %s", canonical_name, exc)
+
+            # Sort combined observations by date ascending
+            all_obs.sort(key=lambda o: o.observation_date or date.min)
+            return all_obs
         except Exception as exc:
             logger.debug("Price observation query failed for %s: %s", canonical_name, exc)
             return []

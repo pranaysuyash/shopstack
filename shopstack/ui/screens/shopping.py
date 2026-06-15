@@ -26,6 +26,7 @@ from shopstack.ui.components.decorators import aria_live_screen
 from shopstack.ui.components.primitives import (
     empty_state_enhanced,
     item_row,
+    stat_card,
     toast,
     toast_floating,
     home_card,
@@ -381,7 +382,10 @@ def _shopping_list_payload() -> tuple[str, list[list[str]], str, str, str, str]:
         table_rows,
         ["item", "qty", "unit", "priority", "swiggy", "reason"],
     )
-    goal_html = f"<div class='stat-card' style='text-align:left;margin-bottom:8px;'><strong>Goal:</strong> {escape(str(sl.goal))}</div>" if sl.goal else ""
+    goal_html = stat_card(
+        style="text-align:left;margin-bottom:8px;",
+        body_html=f"<strong>Goal:</strong> {escape(str(sl.goal))}",
+    ) if sl.goal else ""
     share_text = _shopping_list_share_text(rows)
     share_html = _shopping_list_share_html(share_text)
     return goal_html, tbl, sl.list_id, sl.goal or "", cards, share_html
@@ -449,7 +453,7 @@ def _shopping_list_view_with_cards() -> tuple[str, str, list[list[str]], str, st
     goal_html, tbl, list_id, list_goal, cards, share = _shopping_list_payload()
     from shopstack.services.empty_states import render as _es_render
     empty_cards = _es_render("groceries.basket")
-    card_wrap = "home_card(body='<h3>Shopping List</h3>" + (cards or empty_cards) + "', style='text-align:left;')"
+    card_wrap = home_card(title="Shopping List", body=(cards or empty_cards), style="text-align:left;")
     return card_wrap, goal_html, tbl, list_id, list_goal, share
 
 
@@ -594,7 +598,7 @@ def confirm_reconciliation(df_data: Any, list_id: str) -> str:
             user_id=uid,
         )
         db.mark_list_complete(list_id)
-        return f"home_card(body='Reconciliation complete. {result.message}', style='color:var(--green);font-weight:600;')"
+        return home_card(body=f"Reconciliation complete. {escape(result.message)}", style="color:var(--green);font-weight:600;")
     except Exception as e:
         logger.warning("Failed to reconcile shopping trip: %s", e)
 

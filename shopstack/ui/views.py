@@ -51,7 +51,7 @@ ERROR_HTML = (
 # user sees a consistent ShopStack face instead of a raw error
 # string. Kept as a module-level callable so call sites can pass
 # the actual exception detail for the operator-facing <details> block.
-from shopstack.ui.components.primitives import branded_error_shell  # noqa: E402
+from shopstack.ui.components.primitives import branded_error_shell, stat_card  # noqa: E402
 
 
 def _recovery_shell(message: str, exc: Exception | None = None) -> str:
@@ -244,19 +244,23 @@ def build_price_memory_view(database: Database, item_name: str | None, user_id: 
     if recommendation:
         rec_colors = {"Buy now": "var(--green)", "Wait": "var(--red)", "Monitor": "var(--amber)", "Good time to buy": "var(--green)"}
         rec_color = rec_colors.get(recommendation, "var(--text)")
-        rec_html = (
-            f"<div class='stat-card' style='margin-top:8px;border-left:4px solid {rec_color};'><div style='font-weight:600;color:{rec_color};'>{escape(recommendation)}</div>"
-            f"<div style='font-size: 0.75rem;color:var(--text-dim);'>{escape(recommendation_detail)}</div></div>"
+        rec_html = stat_card(
+            style=f"margin-top:8px;border-left:4px solid {rec_color};",
+            body_html=(
+                f"<div style='font-weight:600;color:{rec_color};'>{escape(recommendation)}</div>"
+                f"<div style='font-size: 0.75rem;color:var(--text-dim);'>{escape(recommendation_detail)}</div>"
+            ),
         )
 
-    summary = (
-        "<div class='stat-card' style='text-align:left;margin-bottom:12px;'>"
-        f"<h3>Price Memory for {safe_name}</h3><div><strong>{len(rows)}</strong> observations across <strong>{df['store'].nunique()}</strong> stores.</div>"
-        f"<div>Latest: <strong>{history_sorted[0].currency} {latest_price:.2f}</strong> ({direction} than first recorded by {history_sorted[0].currency} {abs(change):.2f}).</div>"
-        f"{unit_price_info}{best_info}"
-        f"<div>Range: {history_sorted[0].currency} {min_price:.2f} to {history_sorted[0].currency} {max_price:.2f}</div><div>Last observed: {last_observed}</div>"
-        f"{rec_html}"
-        "</div>"
+    summary = stat_card(
+        style="text-align:left;margin-bottom:12px;",
+        body_html=(
+            f"<h3>Price Memory for {safe_name}</h3><div><strong>{len(rows)}</strong> observations across <strong>{df['store'].nunique()}</strong> stores.</div>"
+            f"<div>Latest: <strong>{history_sorted[0].currency} {latest_price:.2f}</strong> ({direction} than first recorded by {history_sorted[0].currency} {abs(change):.2f}).</div>"
+            f"{unit_price_info}{best_info}"
+            f"<div>Range: {history_sorted[0].currency} {min_price:.2f} to {history_sorted[0].currency} {max_price:.2f}</div><div>Last observed: {last_observed}</div>"
+            f"{rec_html}"
+        ),
     )
 
     table = [
