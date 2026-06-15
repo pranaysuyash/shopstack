@@ -51,9 +51,12 @@ def build_consumption_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) ->
         cn_batch_result = gr.HTML("")
 
         cn_refresh.click(consumption_dashboard, outputs=[cn_grid, cn_history, cn_rates],
-                         api_name="consumption_dashboard_refresh")
+                         api_name="consumption_dashboard_refresh",
+                         api_description="Refresh the consumption dashboard with usage grid, history, and rate stats")
         cn_go.click(quick_consume, [cn_lot, cn_qty], cn_result,
-                    api_name="consumption_tab_quick_consume")
+                    api_name="consumption_tab_quick_consume",
+                    api_description="Quick-consume a quantity from an inventory lot")
         cn_batch_go.click(batch_consume_with_context, [cn_batch, cn_meal, cn_waste],
-                          cn_batch_result, api_name="consumption_tab_batch_consume_context")
+                          cn_batch_result, api_name="consumption_tab_batch_consume_context",
+                          api_description="Log a batch of consumed items with meal context and waste flag")
         app.load(consumption_dashboard, outputs=[cn_grid, cn_history, cn_rates])

@@ -113,10 +113,112 @@ def test_shelf_scan_skip_and_save_trace(app, monkeypatch):
         },
     )
 
-    _, scan_state, trace_id, _ = shelf_scan_process("fake-soap-scan.jpg", None, "bathroom_cabinet")
+    _, scan_state, trace_id, _ = shelf_scan_process("fake-soap-scan.jpg", None, None, "bathroom_cabinet")
     skip = shelf_scan_skip(scan_state, trace_id)
     save = shelf_scan_save_trace(scan_state, trace_id)
 
     assert "Saved this shelf scan" in skip
     assert "saved" in save.lower()
+
+
+def test_shelf_scan_process_with_video(app, monkeypatch):
+    """Test shelf scan with video input (frame sweep)."""
+    monkeypatch.setattr(
+        app_providers.object_detection,
+        "detect",
+        lambda _path: [{"label": "milk", "confidence": 0.95, "bbox": [0.1, 0.1, 0.3, 0.4], "class_id": 0}],
+    )
+    monkeypatch.setattr(
+        app_providers.segmentation,
+        "segment",
+        lambda _path: [{"label": "milk", "score": 0.92, "mask": "mask_c", "bbox": [0.1, 0.1, 0.3, 0.4]}],
+    )
+    monkeypatch.setattr(
+        app_providers.ocr,
+        "extract",
+        lambda _path: {
+            "product_name": "Milk",
+            "weight": "1 L",
+            "confidence": 0.93,
+            "raw_text": "Milk 1L",
+        },
+    )
+    # Mock frame extraction from video
+    monkeypatch.setattr(
+        "shopstack.services.shelf_intelligence._collect_frame_paths",
+        lambda image_path, video_path, max_frames=6: ["/tmp/test_frame_01.jpg", "/tmp/test_frame_02.jpg"],
+    )
+    monkeypatch.setattr(
+        "shopstack.services.shelf_intelligence._first_frame_from_video",
+        lambda _path: "/tmp/test_frame_01.jpg",
+    )
+
+    # Test with video input (no image)
+    html, scan_state, trace_id, annotated = shelf_scan_process(None, "fake-fridge-sweep.mp4", None, "fridge")
+
+    assert "Home Scan" in html
+    assert trace_id
+    assert annotated
+
+    parsed = json.loads(scan_state)
+    assert parsed["scene_type"] == "fridge"
+    assert parsed["frame_count"] > 0
+    assert parsed["video_path"] is not None
+    # With detections available, the mock's promptable_segmentation
+    # capability kicks in, so perception_mode becomes "promptable_segmentation"
+    assert parsed["perception_mode"] == "promptable_segmentation"
+
+
+def test_shelf_scan_process_with_video_and_audio(app, monkeypatch):
+    """Test shelf scan with video + audio (multimodal)."""
+    monkeypatch.setattr(
+        app_providers.object_detection,
+        "detect",
+        lambda _path: [{"label": "orange juice", "confidence": 0.91, "bbox": [0.2, 0.2, 0.4, 0.5], "class_id": 0}],
+    )
+    monkeypatch.setattr(
+        app_providers.segmentation,
+        "segment",
+        lambda _path: [{"label": "orange juice", "score": 0.88, "mask": "mask_d", "bbox": [0.2, 0.2, 0.4, 0.5]}],
+    )
+    monkeypatch.setattr(
+        app_providers.ocr,
+        "extract",
+        lambda _path: {
+            "product_name": "Orange Juice",
+            "weight": "1 L",
+            "confidence": 0.87,
+            "raw_text": "Orange Juice 1L",
+        },
+    )
+    monkeypatch.setattr(
+        app_providers.stt,
+        "transcribe",
+        lambda _path: {"text": "orange juice in fridge", "confidence": 0.88},
+    )
+    # Mock frame extraction from video
+    monkeypatch.setattr(
+        "shopstack.services.shelf_intelligence._first_frame_from_video",
+        lambda _path: "/tmp/test_frame_oj.jpg",
+    )
+    monkeypatch.setattr(
+        "shopstack.services.shelf_intelligence._collect_frame_paths",
+        lambda image_path, video_path, max_frames=6: ["/tmp/test_frame_01.jpg", "/tmp/test_frame_02.jpg"],
+    )
+
+    html, scan_state, trace_id, annotated = shelf_scan_process(
+        None, "fake-fridge-sweep.mp4", "fake-voice-note.wav", "fridge"
+    )
+
+    assert "Home Scan" in html
+    assert trace_id
+    assert annotated
+
+    parsed = json.loads(scan_state)
+    assert parsed["scene_type"] == "fridge"
+    assert parsed["frame_count"] > 0
+    # With detections available, the mock's promptable_segmentation
+    # capability kicks in, so perception_mode becomes "promptable_segmentation"
+    # even with video+audio input.
+    assert parsed["perception_mode"] == "promptable_segmentation"
 

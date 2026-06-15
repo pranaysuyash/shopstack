@@ -401,7 +401,14 @@ def consume_item(lot_id: str, qty: float) -> str:
     if "error" in result:
         return toast(f"Error: {result['error']}", kind="error")
     clear_dashboard_cache(uid)
-    return f"<div style='color:var(--green);'>Consumed {escape(str(qty))}. Remaining: {escape(str(result.get('remaining', 0)))}</div>" + toast_floating(f"Consumed {qty} — {result.get('remaining', 0)} left", kind="success")
+    return f"<div style='color:var(--green);'>Consumed {escape(str(qty))}. Remaining: {escape(str(result.get('remaining', 0)))}</div>" + toast_floating(
+        f"Consumed {qty} — {result.get('remaining', 0)} left",
+        kind="success",
+        action_label="Undo",
+        action_target_elem_id="tl_undo_btn",
+        action_value=lot_id,
+        action_value_target_elem_id="tl_undo_lot_id",
+    )
 
 
 @aria_live_screen()

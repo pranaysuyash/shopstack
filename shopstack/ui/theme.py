@@ -147,12 +147,12 @@ CSS = """\
     --bg-card-strong: #2A2521;
     --bg-warm: #2D2823;
     --bg-input: #231F1C;
-    --border: #3C3630;
-    --border-strong: #4E4740;
+    --border: #7D7467;
+    --border-strong: #8E8576;
     --text: #EDE6DB;
     --text-muted: #B5AB9E;
     --text-dim: #9B9183;
-    --text-faint: #7D7467;
+    --text-faint: #A89B8C;
     --accent: #2ECC71;
     --accent-hover: #27AE60;
     --accent-soft: rgba(46, 204, 113, 0.12);
@@ -176,12 +176,30 @@ CSS = """\
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .gradio-container {
+  /* Re-declare text color tokens at the Gradio container scope to override
+     Gradio's own CSS variables with the same names (--text, --text-dim,
+     --text-muted).  Gradio declares these at :root with lighter values that
+     fail WCAG AA contrast (e.g. #e2dace instead of our #6F6254 for --text-dim).
+     Scoping to .gradio-container gives higher specificity than Gradio's :root.
+     We also set them on *all descendants* via the universal selector because
+     Gradio's Svelte components redeclare these variables at a closer scope
+     (inside .block.svelte-xxxxx), which overrides the .gradio-container level. */
+  --text: #1F1812;
+  --text-muted: #5F5144;
+  --text-dim: #6F6254;
+  --text-faint: #7A6B5C;
   background: var(--bg) !important;
   color: var(--text) !important;
   font-family: var(--font-body);
   max-width: 1280px !important;
   margin: 0 auto;
   line-height: 1.45;
+}
+.gradio-container * {
+  --text: #1F1812;
+  --text-muted: #5F5144;
+  --text-dim: #6F6254;
+  --text-faint: #7A6B5C;
 }
 
 /* ── Header ──────────────────────────────────────────────────────── */
@@ -300,6 +318,46 @@ a:focus-visible, button:focus-visible, [role="button"]:focus-visible, [tabindex]
   color: #1F1812;  /* Fallback for CSS variable; var(--text) on light bg has ~9:1 contrast */
 }
 
+/* WCAG color contrast: Gradio's built-in utility elements use very light text
+   (#bbbbc2 — ~1.8:1) that fails WCAG AA.  Override with our muted/medium tones
+   that pass 4.5:1 contrast against the warm background. */
+button.show-api, button.settings, a.built-with {
+  color: var(--text-muted) !important;
+}
+span.or {
+  color: var(--text-muted) !important;
+}
+
+/* WCAG color contrast: Gradio's stat-value and stat-label fall back to very
+   light text inside some component contexts.  Direct hex values to bypass
+   CSS variable scoping issues with Gradio's Svelte component trees. */
+.stat-value {
+  color: #1F1812 !important;
+}
+.stat-label {
+  color: #5F5144 !important;
+}
+
+
+/* WCAG color contrast: action-tile-label inside action-tile-primary needs
+   explicit white with !important because Gradio's scoped ``button { color }
+   rules apply to descendant <span> elements. */
+.action-tile-primary .action-tile-label {
+  color: #fff !important;
+}
+
+/* WCAG color contrast: Smart Planner secondary text elements may have very
+   light computed colors from Gradio component context.  Force our token
+   values that pass 4.5:1 AA.  Direct hex values to bypass CSS variable
+   scoping issues with Gradio's Svelte component trees. */
+.sp-store, .sp-reason {
+  color: #5F5144 !important;
+}
+.sp-name {
+  color: #1F1812 !important;
+}
+
+
 /* Screen-reader only utility (WCAG 1.1.1 Non-text Content) */
 .sr-only {
   position: absolute;
@@ -331,6 +389,14 @@ a:focus-visible, button:focus-visible, [role="button"]:focus-visible, [tabindex]
 /* Ensure tab panels are keyboard-accessible (WCAG 2.1.1 Keyboard) */
 [role="tabpanel"]:focus {
   outline: none;
+}
+
+/* WCAG aria-hidden-focus: hidden tab panels must not contain focusable elements.
+   Gradio renders inactive tabs with .visually-hidden + aria-hidden="true", but
+   the elements inside remain keyboard-focusable.  We add display:none and inert
+   via CSS so the accessibility tree is correct and Tab navigation skips them. */
+.tab-container[aria-hidden="true"] {
+  display: none !important;
 }
 
 /* Touch targets: minimum 44x44px for mobile (WCAG 2.5.8 Target Size) */
@@ -423,6 +489,18 @@ button[role="tab"]:hover {
   color: var(--text) !important;
 }
 .gr-button.secondary:hover { background: var(--border) !important; }
+
+/* WCAG color contrast: Gradio's default primary button (#3B82F6 on white)
+   yields ~3.5:1 with white text — below the 4.5:1 AA threshold.  Override
+   to our accent color (#176B49, ~6.6:1 with white text) via a higher-
+   specificity selector.  Target the most common Gradio button patterns. */
+button.primary, button.lg.primary, .gr-button.primary {
+  background: var(--accent) !important;
+  color: #fff !important;
+}
+button.primary:hover, button.lg.primary:hover, .gr-button.primary:hover {
+  background: var(--accent-hover) !important;
+}
 
 /* Data tables */
 .gr-dataframe {
@@ -735,7 +813,10 @@ details.home-details > *:not(summary),
 .action-tile-primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  /* WCAG color contrast: ensure white text overrides Gradio's default button
+     color (#27272a, ~2.3:1 on green — fails AA).  !important is needed here
+     because Gradio uses a high-specificity ``button { color: #27272a }``. */
+  color: #fff !important;
 }
 .action-tile-primary .action-tile-subtitle { color: rgba(255, 255, 255, 0.78); }
 .action-tile-primary:hover {

@@ -67,8 +67,12 @@ def build_timeline_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> No
             "</div>"
         )
         with gr.Row():
-            tl_undo_lot_id = gr.Textbox(label="Lot id", placeholder="lot id or prefix", scale=2)
-            tl_undo_btn = gr.Button("Undo last change", elem_classes="secondary", scale=0)
+            tl_undo_lot_id = gr.Textbox(
+                label="Lot id", placeholder="lot id or prefix", scale=2, elem_id="tl_undo_lot_id"
+            )
+            tl_undo_btn = gr.Button(
+                "Undo last change", elem_classes="secondary", scale=0, elem_id="tl_undo_btn"
+            )
         tl_undo_output = gr.HTML("")
         tl_undo_btn.click(
             undo_last_change,

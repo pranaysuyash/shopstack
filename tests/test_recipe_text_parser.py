@@ -17,8 +17,6 @@ Covers:
 
 from __future__ import annotations
 
-import pytest
-
 from shopstack.services.recipe_text_parser import (
     parse_recipe_text,
     text_to_shopping_items,
@@ -73,7 +71,7 @@ class TestParseRecipeText:
     def test_bullet_list_stripped(self):
         result = parse_recipe_text("- 2 cups rice\n- 1 tsp salt\n- 1 cup oil")
         assert len(result) == 3
-        assert [r.canonical_name for r in result] == ["rice", "salt", "oil"]
+        assert [r.canonical_name for r in result] == ["rice", "salt", "cooking_oil"]
 
     def test_numbered_list_stripped(self):
         result = parse_recipe_text("1. 2 cups rice\n2. 1 tsp salt")

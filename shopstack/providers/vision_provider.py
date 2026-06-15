@@ -35,24 +35,11 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-# ── Canonical ShopStack prompts ──────────────────────────────────────────────
-# These prompts are the contract between the VLM and the Market Lens pipeline.
-# If you change them, re-run the Modal bench to confirm the 99% accuracy holds.
-
-UNDERSTAND_PRODUCT_SHELF_PROMPT = (
-    "You are looking at a household product photo (shelf, packet, jar, or receipt).\n"
-    "Identify the visible product(s) and return STRICT JSON only — no prose, no markdown:\n"
-    '{\n'
-    '  "products": [\n'
-    '    {"name": "<product canonical name>", "brand": "<brand>", "quantity": <number>, "unit": "<kg|g|ml|packets|pieces|liters>", "price_rupees": <number|null>, "expiry_date": "<YYYY-MM-DD|null>"}\n'
-    "  ]\n"
-    "}\n"
-    "If the image is unreadable, return {\"products\": []}. One product per visible item. No duplicates."
-)
-
-
-GENERAL_UNDERSTAND_PROMPT = (
-    "Describe what you see in this image. List any food items, products, or text visible."
+# Import versioned prompts (motto_v3 §0.9)
+from shopstack.prompts.vision import (  # noqa: E402
+    UNDERSTAND_PRODUCT_SHELF_PROMPT,
+    GENERAL_UNDERSTAND_PROMPT,
+    MINICPM_DETECT_PROMPT,
 )
 
 
@@ -485,7 +472,7 @@ class MiniCPMVProvider:
             t0 = time.monotonic()
 
             image = Image.open(image_path).convert("RGB")
-            msgs = [{"role": "user", "content": [image, prompt or "Describe what you see in this image. List any food items, products, or text visible."]}]
+            msgs = [{"role": "user", "content": [image, prompt or GENERAL_UNDERSTAND_PROMPT]}]
 
             result = self._model.chat(
                 image=image,
@@ -510,7 +497,7 @@ class MiniCPMVProvider:
         """Detect objects in an image. Uses the VLM's chat capability."""
         result = self.understand(
             image_path,
-            prompt="List every food item, product, or object you can see in this image. Format: one item per line with confidence."
+            prompt=MINICPM_DETECT_PROMPT
         )
         if "error" in result:
             return [result]

@@ -65,13 +65,18 @@ def build_repair_inbox_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -
         ri_action_result = gr.HTML("")
 
         ri_refresh.click(repair_inbox_view, ri_severity, ri_view,
-                         api_name="repair_inbox_refresh")
+                         api_name="repair_inbox_refresh",
+                         api_description="Refresh the repair inbox view filtered by severity")
         ri_report.click(report_damage, [ri_lot, ri_kind, ri_sev, ri_desc], ri_result,
-                        api_name="report_damage")
+                        api_name="report_damage",
+                        api_description="Report a new damage or condition issue for an inventory lot")
         ri_confirm_btn.click(confirm_condition_event, ri_confirm, ri_action_result,
-                             api_name="confirm_condition_event")
+                             api_name="confirm_condition_event",
+                             api_description="Confirm a condition event, marking it as verified by the user")
         ri_close_btn.click(close_condition_event, ri_close, ri_action_result,
-                           api_name="close_condition_event")
+                           api_name="close_condition_event",
+                           api_description="Close a condition event, marking the issue as resolved")
         ri_delete_btn.click(delete_condition_event, ri_delete, ri_action_result,
-                            api_name="delete_condition_event")
+                            api_name="delete_condition_event",
+                            api_description="Delete a condition event permanently from the inbox")
         app.load(repair_inbox_view, inputs=ri_severity, outputs=ri_view)

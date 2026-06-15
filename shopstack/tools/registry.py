@@ -86,6 +86,18 @@ class ToolRegistry:
         self._register("export_anonymized_trace", self._export_anonymized_trace,
                        "Export an anonymized agent trace",
                        ["trace_id"])
+        self._register("calculate_nutrition", self._calculate_nutrition,
+                       "Look up nutrition info (calories, protein, carbs, fat) for a food item by name",
+                       ["name"])
+        self._register("check_price_drop", self._check_price_drop,
+                       "Check which items have dropped in price vs historical median",
+                       ["min_drop_pct"])
+        self._register("find_substitute", self._find_substitute,
+                       "Find substitute suggestions for a sold-out or unavailable item",
+                       ["canonical_name"])
+        self._register("get_weather_recommendation", self._get_weather_recommendation,
+                       "Get a shopping trip recommendation based on current weather",
+                       ["city", "active_list_size"])
 
     def list_tools(self) -> list[dict[str, Any]]:
         return [
@@ -370,6 +382,62 @@ class ToolRegistry:
             if t.trace_id == trace_id:
                 return {"trace": _redact_trace(t.model_dump())}
         return {"success": False, "error": f"Trace {trace_id} not found"}
+
+    def _calculate_nutrition(self, name: str) -> dict[str, Any]:
+        from shopstack.services.nutrition import get_nutrition_info
+        info = get_nutrition_info(name)
+        if info is None:
+            return {"success": False, "error": f"No nutrition data for '{name}'"}
+        return {"success": True, "result": {
+            "canonical_name": info.canonical_name,
+            "calories_kcal": info.calories_kcal,
+            "protein_g": info.protein_g,
+            "carbs_g": info.carbs_g,
+            "fat_g": info.fat_g,
+            "fiber_g": info.fiber_g,
+            "serving_amount": info.common_serving_amount,
+            "serving_unit": info.common_serving_unit,
+        }}
+
+    def _check_price_drop(self, min_drop_pct: float = 15.0) -> dict[str, Any]:
+        from shopstack.services.price_alerts import list_price_drops
+        alerts = list_price_drops(self.db)
+        filtered = [a for a in alerts if a.drop_pct >= min_drop_pct][:10]
+        return {"success": True, "result": [{
+            "canonical_name": a.canonical_name,
+            "display_name": a.display_name,
+            "current_price": a.current_price,
+            "median_price": a.median_price,
+            "drop_pct": a.drop_pct,
+            "source": a.source,
+        } for a in filtered]}
+
+    def _find_substitute(self, canonical_name: str) -> dict[str, Any]:
+        from shopstack.market.sources.swiggy import load_snapshot
+        from shopstack.services.substitution import find_substitutions
+        snapshot = load_snapshot()
+        if snapshot is None:
+            return {"success": False, "error": "No market snapshot available"}
+        result = find_substitutions(canonical_name, snapshot)
+        return {"success": True, "result": [{
+            "substitute": s.substitute_canonical,
+            "display": s.substitute_display,
+            "type": s.substitution_type,
+            "reason": s.reason,
+            "price": s.price_inr,
+        } for s in result.available_suggestions]}
+
+    def _get_weather_recommendation(self, city: str = "mumbai", active_list_size: int = 0) -> dict[str, Any]:
+        from shopstack.services.trip_advisor import advise_trip
+        advice = advise_trip(city=city, active_list_size=active_list_size)
+        return {"success": True, "result": {
+            "recommendation": advice.recommendation,
+            "label": advice.label,
+            "reason": advice.reason,
+            "severity": advice.severity,
+            "icon": advice.icon,
+            "trip_friendly": advice.trip_friendly,
+        }}
 
     # ── Backward-compatible delegation methods ─────────────────────
     # These one-liners keep existing callers working during migration.

@@ -37,8 +37,9 @@ class TestSettings:
         assert s.tts_backend == "kokoro"
         assert s.vision_backend == "qwen3vl"
         assert s.segmentation_backend == "birefnet"
+        assert s.promptable_segmentation_backend == "mobile_sam"
         assert s.planner_backend == "local"
-        assert s.ocr_backend == "tesseract"
+        assert s.ocr_backend == "glm_ocr"
 
     def test_openbmb_model_stack_preset(self, monkeypatch):
         # Clear env vars that could interfere with preset application
@@ -47,6 +48,7 @@ class TestSettings:
         monkeypatch.delenv("SHOPSTACK_SEGMENTATION_BACKEND", raising=False)
         monkeypatch.delenv("SHOPSTACK_OCR_BACKEND", raising=False)
         monkeypatch.delenv("SHOPSTACK_EMBEDDINGS_BACKEND", raising=False)
+        monkeypatch.delenv("SHOPSTACK_PROMPTABLE_SEGMENTATION_BACKEND", raising=False)
         monkeypatch.delenv("SHOPSTACK_STT_BACKEND", raising=False)
         monkeypatch.delenv("SHOPSTACK_TTS_BACKEND", raising=False)
         monkeypatch.delenv("SHOPSTACK_GROUNDING_BACKEND", raising=False)

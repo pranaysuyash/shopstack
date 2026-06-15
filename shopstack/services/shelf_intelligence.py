@@ -78,6 +78,92 @@ def _first_frame_from_video(video_path: str) -> str | None:
         logger.info("ffmpeg frame extraction failed: %s", exc)
         return None
 
+
+def _collect_frame_paths(image_path: str | None, video_path: str | None, max_frames: int = 6) -> list[str]:
+    """Collect frame paths from an image and/or video.
+
+    If ``image_path`` is provided, it is included as the first frame.
+    If ``video_path`` is provided, up to ``max_frames`` frames are
+    extracted at regular intervals using ``_extract_video_frames``.
+
+    Returns a list of frame file paths (may be empty).
+    """
+    frames: list[str] = []
+    if image_path:
+        frames.append(image_path)
+    if video_path:
+        frames.extend(_extract_video_frames(video_path, max_frames=max_frames))
+    return frames
+
+
+def _extract_video_frames(video_path: str, max_frames: int = 6) -> list[str]:
+    """Extract up to ``max_frames`` frames from a video at regular intervals.
+
+    Uses ``cv2`` (OpenCV) when available, otherwise falls back to ``ffmpeg``
+    or ``imageio``. Returns a list of temporary PNG file paths.
+    """
+    if not video_path:
+        return []
+    # Try OpenCV first
+    try:
+        import cv2  # type: ignore[import-not-found]
+    except ImportError:
+        cv2 = None
+    frames: list[str] = []
+    if cv2 is not None:
+        try:
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                return []
+            frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            step = max(1, int(round(fps))) if fps > 0 else max(1, frame_count // max_frames if frame_count else 1)
+            frame_index = 0
+            captured = 0
+            while captured < max_frames:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+                ok, frame = cap.read()
+                if not ok:
+                    break
+                fd, out_path = tempfile.mkstemp(suffix=".png", prefix="shelf_frame_")
+                Path(out_path).unlink(missing_ok=True)
+                cv2.imwrite(out_path, frame)
+                frames.append(out_path)
+                captured += 1
+                frame_index += step
+                if frame_count and frame_index >= frame_count:
+                    break
+            cap.release()
+            if frames:
+                return frames
+        except Exception as exc:
+            logger.info("cv2 frame extraction failed: %s", exc)
+            # fall through to ffmpeg fallback
+        finally:
+            try:
+                cap.release()
+            except Exception:
+                pass
+    # ffmpeg fallback
+    import shutil
+    import subprocess
+    if not shutil.which("ffmpeg"):
+        return []
+    try:
+        frames.clear()
+        for idx, frame in enumerate(iio.imiter(video_path)):
+            if idx >= max_frames:
+                break
+            fd, out_path = tempfile.mkstemp(suffix=".png", prefix="shelf_frame_")
+            Path(out_path).unlink(missing_ok=True)
+            Image.fromarray(frame).save(out_path)
+            frames.append(out_path)
+        return frames
+    except Exception as exc:
+        logger.info("imageio frame extraction failed: %s", exc)
+        return []
+
+
 _SCENE_LABELS: dict[ShelfSceneType, str] = {
     ShelfSceneType.AUTO: "Auto",
     ShelfSceneType.FRIDGE: "Fridge",
@@ -153,6 +239,7 @@ def analyze_shelf_scene(
         scene_type=scene,
         scene_label=_SCENE_LABELS.get(scene, "Other"),
         image_path=image_path,
+        video_path=video_path,
         audio_path=audio_path,
     )
 
@@ -164,10 +251,20 @@ def analyze_shelf_scene(
     # source image so downstream detection/segmentation/OCR all run on
     # the same scene. If extraction fails, fall back to no-image mode.
     source_image = image_path
+    frame_paths: list[str] = []
     if not source_image and video_path:
         source_image = _first_frame_from_video(video_path)
         if source_image:
             result.image_path = source_image
+            frame_paths.append(source_image)
+    elif image_path:
+        frame_paths.append(image_path)
+
+    if video_path:
+        result.video_path = video_path
+        extracted_frames = _collect_frame_paths(None, video_path)
+        result.frame_paths = extracted_frames
+        result.frame_count = len(extracted_frames)
 
     detections: list[dict[str, Any]] = []
     segments: list[dict[str, Any]] = []
@@ -178,8 +275,6 @@ def analyze_shelf_scene(
         detections = _safe_detection(providers, source_image)
         segments = _safe_segmentation(providers, source_image)
         ocr_payload = _safe_ocr(providers, source_image)
-        if detections:
-            result.annotated_image_path = _annotate_home_scan(source_image, detections, providers)
 
     if audio_path and hasattr(providers, "stt"):
         try:
@@ -194,6 +289,8 @@ def analyze_shelf_scene(
     else:
         result.perception_mode = "speech"
 
+    speech_intent = _build_speech_intent(transcript, scene)
+
     if detections and segments:
         result.perception_mode = "detection_segmentation"
     elif detections:
@@ -201,7 +298,22 @@ def analyze_shelf_scene(
     elif source_image and ocr_payload:
         result.perception_mode = "ocr_only"
 
-    speech_intent = _build_speech_intent(transcript, scene)
+    promptable_segments = _safe_promptable_segmentation(providers, source_image or "", detections, speech_intent)
+    if promptable_segments:
+        segments = promptable_segments
+        result.perception_mode = "promptable_segmentation"
+    elif source_image and not detections and speech_intent.canonical_items:
+        grounded_detections = _safe_grounding(providers, source_image, speech_intent.canonical_items)
+        if grounded_detections:
+            detections = grounded_detections
+            promptable_segments = _safe_promptable_segmentation(providers, source_image, detections, speech_intent)
+            if promptable_segments:
+                segments = promptable_segments
+                result.perception_mode = "promptable_segmentation"
+
+    if source_image and detections and not result.annotated_image_path:
+        result.annotated_image_path = _annotate_home_scan(source_image, detections, providers)
+
     scene = _infer_scene_type(scene, speech_intent, detections, ocr_payload)
     result.scene_type = scene
     result.scene_label = _SCENE_LABELS.get(scene, "Other")
@@ -357,6 +469,54 @@ def _safe_segmentation(providers: Any, image_path: str) -> list[dict[str, Any]]:
             return []
         segments = segmentation_provider.segment(image_path)
         return [s for s in segments if isinstance(s, dict)]
+    except Exception:
+        return []
+
+
+def _safe_promptable_segmentation(
+    providers: Any,
+    image_path: str,
+    detections: list[dict[str, Any]],
+    speech_intent: SpeechIntent,
+) -> list[dict[str, Any]]:
+    try:
+        provider = getattr(providers, "promptable_segmentation", None)
+        if provider is None or not image_path:
+            return []
+        segment_with_prompts = getattr(provider, "segment_with_prompts", None)
+        if not callable(segment_with_prompts):
+            return []
+        boxes = [list(d.get("bbox") or []) for d in detections if d.get("bbox")]
+        labels = [str(d.get("label", "")) for d in detections if d.get("bbox")]
+        texts = speech_intent.canonical_items or []
+        segments = segment_with_prompts(image_path, bboxes=boxes or None, labels=labels or None, texts=texts or None)
+        if isinstance(segments, list):
+            return [seg for seg in segments if isinstance(seg, dict)]
+        return []
+    except Exception:
+        return []
+
+
+def _safe_grounding(providers: Any, image_path: str, prompts: list[str]) -> list[dict[str, Any]]:
+    try:
+        grounding_provider = getattr(providers, "grounding", None)
+        if grounding_provider is None:
+            return []
+        grounded: list[dict[str, Any]] = []
+        for prompt in prompts:
+            if not prompt:
+                continue
+            result = grounding_provider.ground(image_path, prompt)
+            if isinstance(result, dict) and result.get("found"):
+                grounded.append(
+                    {
+                        "label": result.get("label") or prompt,
+                        "confidence": float(result.get("confidence", 0.0) or 0.0),
+                        "bbox": list(result.get("bbox") or []),
+                        "class_id": len(grounded),
+                    }
+                )
+        return grounded
     except Exception:
         return []
 

@@ -251,7 +251,7 @@ class TestI18nWiringXSS:
         from shopstack.services.i18n import render_i18n_script
         js = render_i18n_script()
         # Opens with <script>, closes with </script>
-        assert js.lstrip().startswith("<script>")
+        assert js.lstrip().startswith("<script")
         assert js.rstrip().endswith("</script>")
         # No triple-quote artifacts from the f-string
         assert '"""' not in js

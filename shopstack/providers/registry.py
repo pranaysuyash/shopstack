@@ -232,6 +232,14 @@ def _load_grounding_dino():
         return None
 
 
+def _load_promptable_segmentation():
+    try:
+        from shopstack.providers.promptable_segmentation_provider import UltralyticsPromptableSegmentationProvider
+        return UltralyticsPromptableSegmentationProvider
+    except ImportError:
+        return None
+
+
 # ── Provider specification table ───────────────────────────────────────
 # Adding a new provider = one entry here + a _load_* function above.
 
@@ -381,6 +389,26 @@ _PROVIDER_SPECS: dict[str, _ProviderSpec] = {
         kwargs_fn=lambda _s: {},
         unavailable_msg="GroundingDINO provider not available (transformers/torch missing), falling back to mock",
     ),
+    "sam2": _ProviderSpec(
+        loader=_load_promptable_segmentation,
+        kwargs_fn=lambda _s: {"model_name": "sam2.1_b.pt", "family": "sam"},
+        unavailable_msg="SAM2 promptable segmentation provider not available (ultralytics missing), falling back to mock",
+    ),
+    "mobile_sam": _ProviderSpec(
+        loader=_load_promptable_segmentation,
+        kwargs_fn=lambda _s: {"model_name": "mobile_sam.pt", "family": "sam"},
+        unavailable_msg="MobileSAM promptable segmentation provider not available (ultralytics missing), falling back to mock",
+    ),
+    "fastsam": _ProviderSpec(
+        loader=_load_promptable_segmentation,
+        kwargs_fn=lambda _s: {"model_name": "FastSAM-s.pt", "family": "fastsam"},
+        unavailable_msg="FastSAM promptable segmentation provider not available (ultralytics missing), falling back to mock",
+    ),
+    "sam3": _ProviderSpec(
+        loader=_load_promptable_segmentation,
+        kwargs_fn=lambda _s: {"model_name": "sam3.pt", "family": "sam"},
+        unavailable_msg="SAM3 promptable segmentation provider not available (ultralytics missing), falling back to mock",
+    ),
     "svg": _ProviderSpec(
         loader=lambda: FluxImageProvider,
         kwargs_fn=lambda _s: {},
@@ -418,7 +446,7 @@ class ProviderRegistry:
     def _init_lazy(self) -> None:
         backends = self._settings.provider_backends
         for name in ["stt", "tts", "vision", "object_detection", "grounding",
-                     "segmentation", "ocr", "planner", "tool_call_parser",
+                     "segmentation", "promptable_segmentation", "ocr", "planner", "tool_call_parser",
                      "embeddings", "image_edit", "image_gen"]:
             self._pending[name] = backends.get(name, "mock")
             self._backend_requests[name] = self._pending[name]
@@ -456,6 +484,7 @@ class ProviderRegistry:
             "stt": MockSTTProvider, "tts": MockTTSProvider,
             "vision": MockVisionProvider, "object_detection": MockDetectionProvider,
             "grounding": MockGroundingProvider, "segmentation": MockSegmentationProvider,
+            "promptable_segmentation": MockSegmentationProvider,
             "ocr": MockOCRProvider, "planner": MockPlannerProvider,
             "tool_call_parser": MockToolCallParser, "embeddings": MockEmbeddingsProvider,
             "image_edit": FluxImageProvider, "image_gen": FluxImageProvider,
@@ -516,6 +545,10 @@ class ProviderRegistry:
     @property
     def segmentation(self) -> SegmentationProvider:
         return self.get("segmentation")
+
+    @property
+    def promptable_segmentation(self) -> Any:
+        return self.get("promptable_segmentation")
 
     @property
     def ocr(self) -> OCRProvider:

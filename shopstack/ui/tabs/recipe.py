@@ -46,8 +46,11 @@ def build_recipe_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
         ))
 
         rc_snap.click(recipe_image_to_text, rc_upload, [rc_ocr_text, rc_ocr_status],
-                      api_name="recipe_snap")
+                      api_name="recipe_snap",
+                      api_description="Extract text from an uploaded recipe image using OCR")
         rc_parse.click(recipe_text_to_shopping_list, rc_input, rc_output,
-                       api_name="recipe_parse_diff")
+                       api_name="recipe_parse_diff",
+                       api_description="Parse pasted recipe ingredients and compare against current inventory")
         rc_add.click(recipe_text_add_missing_to_list, rc_input, rc_output,
-                     api_name="recipe_tab_add_missing")
+                     api_name="recipe_tab_add_missing",
+                     api_description="Add all missing recipe ingredients to the active shopping list")

@@ -24,7 +24,7 @@ from typing import Any, Callable
 
 import gradio as gr
 
-from shopstack.module_registry import tab_order
+from shopstack.module_registry import group_order, group_tab_ids
 from shopstack.ui.tabs.context import TabContext
 from shopstack.ui.tabs.today import build_today_tab
 from shopstack.ui.tabs.cookbook import build_cookbook_tab
@@ -95,21 +95,30 @@ def build_all_tabs(
     app: gr.Blocks,
     ctx: TabContext,
 ) -> dict[str, Any]:
-    """Build all tabs in the canonical order defined by ``TAB_ORDER``.
+    """Build all tabs in the grouped structure defined by ``TAB_GROUPS``.
+
+    Top-level tabs correspond to module groups (Home, Groceries, Shopping,
+    At Home, Memory). Each group contains its screen tabs as nested
+    ``gr.Tabs`` sub-tabs.
 
     Returns a dict mapping ``tab_id`` to whatever the builder returned.
     Most builders return ``None``. Tabs in ``HANDLES_TABS`` return
     dataclass handles (e.g. ``TodayTabHandles``, ``ReconcileTabHandles``)
     that ``app.py`` uses for cross-tab event wiring.
 
-    If a tab_id is in ``TAB_ORDER`` but has no registered builder, it is
-    silently skipped (allows tabs to be declared in the registry before
-    their builder exists, though a test enforces full coverage).
+    If a tab_id is in a group but has no registered builder, it is
+    silently skipped.
     """
     handles: dict[str, Any] = {}
-    for tab_id, _label in tab_order():
-        builder = _TAB_BUILDERS.get(tab_id)
-        if builder is None:
+    for group_id, _group_label in group_order():
+        screen_ids = group_tab_ids(group_id)
+        if not screen_ids:
             continue
-        handles[tab_id] = builder(blocks=blocks, app=app, ctx=ctx)
+        with gr.Tab(_group_label, id=group_id):
+            with gr.Tabs():
+                for tab_id in screen_ids:
+                    builder = _TAB_BUILDERS.get(tab_id)
+                    if builder is None:
+                        continue
+                    handles[tab_id] = builder(blocks=blocks, app=app, ctx=ctx)
     return handles

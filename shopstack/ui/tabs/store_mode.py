@@ -29,5 +29,6 @@ def build_store_mode_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> 
         ))
         sm_refresh = gr.Button("Refresh", elem_classes="secondary")
         sm_refresh.click(store_mode_view, outputs=sm_output,
-                         api_name="store_mode_refresh")
+                         api_name="store_mode_refresh",
+                         api_description="Refresh the large-touch shopping list for in-store use")
         app.load(store_mode_view, outputs=sm_output)

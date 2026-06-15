@@ -6,15 +6,31 @@ package cannot import from UI without creating circular imports.
 
 New code should call renderers directly with pre-fetched data rather than
 using these wrappers.
+
+.. deprecated:: 2026-06-14
+    Per motto_v3 §7 (Supersession / Canonical Replacement Rule), this
+    module is a compatibility shim. The canonical path is
+    :mod:`shopstack.ui.renderers.decision_cards`. A DeprecationWarning
+    is emitted on import so callers know to migrate. Scheduled removal:
+    one release cycle after the dashboard migration lands.
 """
 
 from __future__ import annotations
 
 import logging
+import warnings
 from datetime import date
 from typing import Any
 
 from shopstack.persistence.database import Database
+
+warnings.warn(
+    "shopstack._legacy_decisions is deprecated; import from "
+    "shopstack.ui.renderers.decision_cards instead. "
+    "(motto_v3 §7 supersession protocol)",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 logger = logging.getLogger(__name__)
 

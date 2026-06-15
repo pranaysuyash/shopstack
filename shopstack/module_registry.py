@@ -69,9 +69,15 @@ __all__ = [
     "get_by_tab_id",
     "TAB_ORDER",
     "TAB_LABELS",
+    "TAB_GROUPS",
+    "GROUP_LABELS",
+    "GROUP_ORDER",
     "get_tab_ids",
     "tab_order",
     "tab_label",
+    "group_order",
+    "group_tab_ids",
+    "group_label",
     "navigation",
     "module_dependencies",
     "summary_table",
@@ -89,9 +95,47 @@ def _register(m: ModuleMetadata) -> ModuleMetadata:
     return m
 
 
+# ── Tab groups ──────────────────────────────────────────────────────
+#
+# The Gradio tab bar uses a nested structure: 5 top-level module-group tabs
+# each containing their respective screen tabs as sub-tabs. This grouping
+# is module-aligned and avoids single-screen groups that would add
+# unnecessary clicks (motto_v3 §11, §12).
+#
+# Each group maps to a list of screen tab_ids that appear inside it.
+# Order within each group follows TAB_ORDER.
+
+TAB_GROUPS: dict[str, list[str]] = {
+    "home":       ["today", "cookbook", "trip_advisor"],
+    "groceries": ["basket", "smart_basket", "store_mode"],
+    "shopping":  ["market", "scanner", "recipe", "market_intel"],
+    "at_home":   ["reconcile", "timeline", "find_trail", "photo_map",
+                    "repair_inbox", "consumption", "nutrition"],
+    "memory":    ["memory", "community", "parser", "analytics"],
+}
+
+# Display labels for each group tab.
+GROUP_LABELS: dict[str, str] = {
+    "home":       "Home",
+    "groceries": "Groceries",
+    "shopping":  "Shopping",
+    "at_home":   "At Home",
+    "memory":    "Memory",
+}
+
+# Display order for each group (lower = earlier in the tab bar).
+GROUP_ORDER: dict[str, int] = {
+    "home":       10,
+    "groceries":  20,
+    "shopping":   30,
+    "at_home":    40,
+    "memory":     50,
+}
+
+
 # ── Tab order map ──────────────────────────────────────────────────
 
-# This is the canonical ordering for the Gradio tab bar.
+# This is the canonical ordering for the Gradio tab bar within each group.
 # Every tab that appears in the UI must have an entry here.
 # Order = explicit integer; lower values appear first.
 #
@@ -127,19 +171,19 @@ TAB_ORDER: dict[str, int] = {
 # Canonical display names for every UI tab.
 # A module's `tab_labels` dict overrides these for module-specific labels.
 TAB_LABELS: dict[str, str] = {
-    "today":         "Home",
+    "today":         "Today",
     "cookbook":      "Recipes",
-    "basket":        "Groceries",
+    "basket":        "Shopping List",
     "market_intel":  "Market Intel",
     "trip_advisor":  "Trip Plans",
     "market":        "While Shopping",
     "scanner":       "Shelf Scan",
     "photo_map":     "Photo Map",
-    "reconcile":     "At Home",
+    "reconcile":     "Overview",
     "timeline":      "Timeline",
     "find_trail":    "Find",
     "store_mode":    "Store Mode",
-    "memory":        "Memory",
+    "memory":        "System",
     "nutrition":     "Nutrition",
     "smart_basket":  "Smart Basket",
     "analytics":     "Analytics",
@@ -414,6 +458,28 @@ def tab_label(tab_id: str) -> str:
         if tab_id in m.tab_labels:
             return m.tab_labels[tab_id]
     return TAB_LABELS.get(tab_id, tab_id)
+
+
+def group_order() -> list[tuple[str, str]]:
+    """Return (group_id, display_label) pairs in UI navigation order.
+
+    This is the canonical source for building the top-level grouped
+    tab bar in app.py. Groups are sorted by ``GROUP_ORDER``.
+    """
+    known = [(GROUP_ORDER[gid], gid, GROUP_LABELS.get(gid, gid)) for gid in GROUP_ORDER]
+    known.sort(key=lambda x: x[0])
+    return [(gid, label) for _, gid, label in known]
+
+
+def group_tab_ids(group_id: str) -> list[str]:
+    """Return the screen tab IDs for a given group, sorted by TAB_ORDER."""
+    tids = TAB_GROUPS.get(group_id, [])
+    return sorted(tids, key=lambda tid: TAB_ORDER.get(tid, 999))
+
+
+def group_label(group_id: str) -> str:
+    """Return the display label for a group tab ID."""
+    return GROUP_LABELS.get(group_id, group_id)
 
 
 def get_by_slug(slug: str) -> ModuleMetadata | None:

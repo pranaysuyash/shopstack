@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     vision_backend: str = "qwen3vl"
     ocr_backend: str = "glm_ocr"  # Primary OCR (GLM-OCR). Falls back to Tesseract via ocr_pipeline.py when GLM-OCR fails (e.g. on real-world photos).
     segmentation_backend: str = "birefnet"
+    promptable_segmentation_backend: str = "mobile_sam"
     grounding_backend: str = "grounding_dino"
     image_gen_backend: str = "svg"
     embeddings_backend: str = "nomic"
@@ -94,6 +95,7 @@ class Settings(BaseSettings):
             "object_detection": self.vision_backend,
             "grounding": self.grounding_backend,
             "segmentation": self.segmentation_backend,
+            "promptable_segmentation": self.promptable_segmentation_backend,
             "ocr": self.ocr_backend,
             "planner": self.planner_backend,
             "tool_call_parser": self.tool_call_parser_backend,

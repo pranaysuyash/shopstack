@@ -8,6 +8,8 @@ from typing import Any
 from shopstack.cost_tracker import estimate_cost_usd, estimate_model_tier
 logger = logging.getLogger(__name__)
 
+from shopstack.prompts.vision import OPENAI_DESCRIBE_PROMPT  # noqa: E402
+
 
 def _check_deps() -> tuple[bool, str]:
     try:
@@ -120,7 +122,7 @@ class OpenAIProvider:
                 messages: list[dict[str, Any]] = [{
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": prompt or "Describe what you see in this image in detail. List any food items, products, or text you can identify."},
+                        {"type": "text", "text": prompt or OPENAI_DESCRIBE_PROMPT},
                         {"type": "image_url", "image_url": {"url": data_url}},
                     ],
                 }]

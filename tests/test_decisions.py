@@ -129,8 +129,21 @@ class TestDecisionClassification:
 
         sl_a = ctx.db.create_shopping_list(name="plan_a", goal="A", user_id="house_a")
         sl_b = ctx.db.create_shopping_list(name="plan_b", goal="B", user_id="house_b")
-        ctx.db.add_list_item(sl_a.list_id, ShoppingListItem(canonical_name="tomato", status="pending"))
-        ctx.db.add_list_item(sl_b.list_id, ShoppingListItem(canonical_name="rice", status="pending"))
+        # Pass user_id explicitly: add_list_item now correctly scopes the
+        # permission check to the list's household (motto_v3 §6 blast-radius
+        # fix in Database.add_list_item, 2026-06-14). Calling without
+        # user_id would default to active_household_id="default_household"
+        # which is not a member of house_a/house_b.
+        ctx.db.add_list_item(
+            sl_a.list_id,
+            ShoppingListItem(canonical_name="tomato", status="pending"),
+            user_id="house_a",
+        )
+        ctx.db.add_list_item(
+            sl_b.list_id,
+            ShoppingListItem(canonical_name="rice", status="pending"),
+            user_id="house_b",
+        )
 
         ds_a = classify_all(ctx.db, ctx.tools, user_id="house_a")
         ds_b = classify_all(ctx.db, ctx.tools, user_id="house_b")

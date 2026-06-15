@@ -231,7 +231,7 @@ function announceToScreenReader(message) {
 /* Show a toast notification and announce to screen readers.
    Reuses the existing .toast / .toast-{kind} CSS classes from theme.py.
    The container is appended to body and positioned via the fixed toast CSS. */
-function showToast(msg, kind) {
+function showToast(msg, kind, action) {
   kind = kind || 'info';
   var icons = { success: '\u2713', error: '\u2717', info: '\u2139', warning: '\u26A0' };
   var container = document.getElementById('ss-toast-container');
@@ -246,15 +246,85 @@ function showToast(msg, kind) {
   el.setAttribute('role', 'status');
   el.setAttribute('aria-live', 'polite');
   el.innerHTML = '<span aria-hidden="true">' + (icons[kind] || icons.info) + '</span><span>' + msg + '</span>';
+  var dismissTimer = null;
+  if (action && action.label && action.targetId) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toast-action';
+    btn.textContent = action.label;
+    btn.style.cssText = 'margin-left:10px;background:transparent;border:1px solid currentColor;border-radius:4px;padding:2px 8px;cursor:pointer;color:inherit;font:inherit;font-size:0.8em;';
+    btn.addEventListener('click', function() {
+      if (action.valueTargetId && action.value !== undefined && action.value !== null) {
+        var holder = document.getElementById(action.valueTargetId);
+        var input = holder && (holder.querySelector('input, textarea') || holder);
+        if (input) {
+          input.value = action.value;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+      var target = document.getElementById(action.targetId);
+      if (target) target.click();
+      if (dismissTimer) clearTimeout(dismissTimer);
+      el.remove();
+    });
+    el.appendChild(btn);
+  }
   container.appendChild(el);
   announceToScreenReader((kind === 'success' ? 'Success: ' : kind === 'error' ? 'Error: ' : '') + msg);
-  setTimeout(function() {
+  dismissTimer = setTimeout(function() {
     el.style.opacity = '0';
     el.style.transform = 'translateY(12px)';
     el.style.transition = 'opacity 200ms, transform 200ms';
     setTimeout(function() { el.remove(); }, 220);
-  }, 3000);
+  }, action ? 6000 : 3000);
 }
+
+/* Item #99b: toast_floating() emits an inert <script> when rendered via
+   gr.HTML(...) dynamic output updates (same "already started script" rule
+   as item #99, but for the post-load injection path that the one-shot
+   bootstrap re-exec in js_helpers.py doesn't cover). Instead it emits a
+   hidden `.ss-toast-trigger` marker element; this observer watches for
+   those markers anywhere in the DOM and fires showToast() directly. */
+(function() {
+  function processTriggers(root) {
+    var triggers = root.querySelectorAll ? root.querySelectorAll('.ss-toast-trigger') : [];
+    for (var i = 0; i < triggers.length; i++) {
+      var trigger = triggers[i];
+      if (trigger.hasAttribute('data-ss-toast-shown')) continue;
+      trigger.setAttribute('data-ss-toast-shown', 'true');
+      var msg = trigger.getAttribute('data-toast-msg') || '';
+      var kind = trigger.getAttribute('data-toast-kind') || 'info';
+      var action = null;
+      var actionLabel = trigger.getAttribute('data-toast-action-label');
+      if (actionLabel) {
+        action = {
+          label: actionLabel,
+          targetId: trigger.getAttribute('data-toast-action-target'),
+          valueTargetId: trigger.getAttribute('data-toast-action-value-target'),
+          value: trigger.getAttribute('data-toast-action-value'),
+        };
+      }
+      showToast(msg, kind, action);
+    }
+  }
+  processTriggers(document);
+  var toastObserver = new MutationObserver(function(mutations) {
+    for (var i = 0; i < mutations.length; i++) {
+      for (var j = 0; j < (mutations[i].addedNodes || []).length; j++) {
+        var node = mutations[i].addedNodes[j];
+        if (node.nodeType === 1) {
+          if (node.matches && node.matches('.ss-toast-trigger')) {
+            processTriggers(node.parentNode || document);
+          } else {
+            processTriggers(node);
+          }
+        }
+      }
+    }
+  });
+  toastObserver.observe(document.body, { childList: true, subtree: true });
+})();
 
 document.addEventListener('keydown', function(e) {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -270,6 +340,56 @@ document.addEventListener('keydown', function(e) {
     tabs[prev] && tabs[prev].click();
   }
 });
+
+/* WCAG color contrast: force explicit colors on elements where Gradio's
+   component-scoped CSS variables override our :root declarations.  This
+   MutationObserver catches both the initial page render and any dynamic
+   content Gradio inserts via tab switches or component updates. */
+(function() {
+  var FIX_COLORS = {
+    '--text-dim': '#6F6254',
+    '--text-muted': '#5F5144',
+    '--text': '#1F1812',
+    '--text-faint': '#7A6B5C',
+  };
+  function fixInlineColorVars(root) {
+    var els = root.querySelectorAll('[style*="var(--text"]');
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      var s = el.getAttribute('style') || '';
+      var changed = false;
+      for (var varName in FIX_COLORS) {
+        var regex = new RegExp('var\\(' + varName.replace('--', '\\-\\-') + '\\)', 'g');
+        if (regex.test(s)) {
+          s = s.replace(regex, FIX_COLORS[varName]);
+          changed = true;
+        }
+      }
+      if (changed) {
+        el.setAttribute('style', s);
+      }
+    }
+  }
+  /* Run once on page load */
+  fixInlineColorVars(document);
+  /* Re-check after Gradio hydration settles (2000ms) and again later
+     (5000ms) to catch post-hydration style applications that bypass the
+     MutationObserver (e.g. Svelte's element.style.color = '...'). */
+  setTimeout(function() { fixInlineColorVars(document); }, 2000);
+  setTimeout(function() { fixInlineColorVars(document); }, 5000);
+  /* Watch for dynamically inserted content (tab switches, Gradio updates) */
+  var observer = new MutationObserver(function(mutations) {
+    for (var i = 0; i < mutations.length; i++) {
+      for (var j = 0; j < (mutations[i].addedNodes || []).length; j++) {
+        var node = mutations[i].addedNodes[j];
+        if (node.nodeType === 1) {  /* ELEMENT_NODE */
+          fixInlineColorVars(node);
+        }
+      }
+    }
+  });
+  observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+})();
 </script>"""
 
 

@@ -95,10 +95,16 @@ class TestCheckers:
 
 
 def _build_app_with_health(db=None):
-    """Build a minimal gr.Blocks with the health route mounted."""
+    """Build a minimal gr.Blocks with the health route mounted.
+
+    The mount MUST happen AFTER the ``with gr.Blocks()`` block exits —
+    inside the context Gradio is in "set" mode and silently no-ops
+    ``add_route`` calls (this is the same reason build_app() in app.py
+    mounts /health/ui after the with block, not inside it).
+    """
     with gr.Blocks() as app:
         gr.Markdown("# test")
-        mount_health_endpoint(app, db)
+    mount_health_endpoint(app, db)
     return app
 
 

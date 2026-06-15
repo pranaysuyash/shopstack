@@ -32,4 +32,5 @@ def build_parser_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
         ))
 
         pr_parse.click(parser_preview_screen, pr_input, pr_output,
-                       api_name="parser_preview")
+                       api_name="parser_preview",
+                       api_description="Parse a natural-language command and display intent classification results")

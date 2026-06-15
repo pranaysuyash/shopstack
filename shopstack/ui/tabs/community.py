@@ -38,11 +38,14 @@ def build_community_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> N
 
         cm_refresh.click(lambda: (community_status_screen(), community_pool_stats_screen()),
                          outputs=[cm_status, cm_pool],
-                         api_name="community_refresh")
+                         api_name="community_refresh",
+                         api_description="Refresh community price map status and pool statistics")
         cm_opt_in.click(lambda: set_opt_in_screen(True), outputs=[cm_status, cm_result],
-                        api_name="community_tab_opt_in")
+                        api_name="community_tab_opt_in",
+                        api_description="Opt in to anonymous community price sharing")
         cm_opt_out.click(lambda: set_opt_in_screen(False), outputs=[cm_status, cm_result],
-                         api_name="community_tab_opt_out")
+                         api_name="community_tab_opt_out",
+                         api_description="Opt out of anonymous community price sharing")
         app.load(lambda: (community_status_screen(), community_pool_stats_screen()),
                  outputs=[cm_status, cm_pool])
 

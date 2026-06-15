@@ -124,8 +124,11 @@ class ShelfIntelligenceResult(BaseModel):
     scene_label: str = "Auto"
     perception_mode: str = "none"
     image_path: str | None = None
+    video_path: str | None = None
     audio_path: str | None = None
     annotated_image_path: str | None = None
+    frame_paths: list[str] = Field(default_factory=list)
+    frame_count: int = 0
     instances: list[VisibleItemInstance] = Field(default_factory=list)
     aggregates: list[AggregatedVisibleItem] = Field(default_factory=list)
     ocr_findings: list[OCRFinding] = Field(default_factory=list)

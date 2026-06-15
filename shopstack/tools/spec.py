@@ -238,6 +238,37 @@ def build_tool_specs() -> list[ToolSpec]:
             mutability="read",
             category="observability",
         ),
+        ToolSpec(
+            name="calculate_nutrition",
+            description="Look up nutrition information (calories, protein, carbs, fat) for a food item by name. Works for common Indian household items like rice, dal, vegetables, and milk.",
+            args=[ArgSpec("name", "Item name to look up (e.g., 'rice', 'tomato', 'milk'). Required.", type_name="string")],
+            mutability="read",
+            category="nutrition",
+        ),
+        ToolSpec(
+            name="check_price_drop",
+            description="Check which items in the current market have prices significantly below their historical median. Returns items with drops of 15%% or more.",
+            args=[ArgSpec("min_drop_pct", "Minimum drop percentage to report. Optional, defaults to 15.", type_name="number", required=False, default=15.0)],
+            mutability="read",
+            category="price_memory",
+        ),
+        ToolSpec(
+            name="find_substitute",
+            description="Find substitute suggestions for a sold-out or unavailable item. Returns category alternatives (e.g., broccoli → cauliflower) and ingredient swaps.",
+            args=[ArgSpec("canonical_name", "Item name to find substitutes for. Required.", type_name="string")],
+            mutability="read",
+            category="shopping",
+        ),
+        ToolSpec(
+            name="get_weather_recommendation",
+            description="Get a shopping trip recommendation based on current weather conditions. Tells you whether to go in-store, order delivery, or delay.",
+            args=[
+                ArgSpec("city", "City name (defaults to 'mumbai'). Optional.", type_name="string", required=False, default="mumbai"),
+                ArgSpec("active_list_size", "Number of items on the shopping list. Optional.", type_name="number", required=False, default=0),
+            ],
+            mutability="read",
+            category="planning",
+        ),
     ]
 
 

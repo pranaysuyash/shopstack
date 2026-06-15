@@ -49,4 +49,5 @@ def build_smart_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -
             return smart_basket_screen(items=items, city=city)
 
         sb_build.click(_build_from_text, [sb_input, sb_city], sb_result,
-                       api_name="smart_basket_build")
+                       api_name="smart_basket_build",
+                       api_description="Build an optimized shopping basket from a JSON item list, comparing prices across sources")

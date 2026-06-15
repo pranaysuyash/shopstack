@@ -80,7 +80,7 @@ _SIZE_BUDGETS: list[tuple[str, int, str]] = [
     ("shopstack/ui/tabs/market.py", 235, "Market tab — was 193 in Pass 8."),
     ("shopstack/ui/tabs/cookbook.py", 200, "Cookbook tab composition — was 164 in Pass 8."),
     ("shopstack/ui/household_settings.py", 410, "Household settings accordion — was 343 at Pass 8 test (drift from Pass 7's 237). If it grows past 410, split into household_switch + community_optin + sms_phone sub-modules (Pass 9 deferred)."),
-    ("shopstack/ui/header.py", 355, "Header + state readouts — was 295 in Pass 8."),
+    ("shopstack/ui/header.py", 590, "Header + state readouts — was 295 in Pass 8, 355 before item #36/#99 hydration recovery + bootstrap re-exec additions, 470 before item #99b's toast-trigger MutationObserver + action-button support in showToast() (2026-06-14)."),
     ("shopstack/ui/state/household.py", 165, "Household state machine — was 135 in Pass 8."),
     ("shopstack/services/sms_webhook.py", 225, "SMS webhook — was 186 in Pass 8."),
     ("shopstack/ui/pwa_mount.py", 225, "PWA mount helper — was 184 in Pass 8."),

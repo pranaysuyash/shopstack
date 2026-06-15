@@ -7,6 +7,11 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+from shopstack.prompts.ocr import (  # noqa: E402
+    GLM_OCR_TEXT_EXTRACTION_PROMPT,
+    GLM_OCR_STRUCTURED_EXTRACTION_PROMPT,
+)
+
 
 class GlmOCRProvider:
     """OCR / receipt text extraction provider using GLM-OCR via transformers.
@@ -119,7 +124,7 @@ class GlmOCRProvider:
                     "role": "user",
                     "content": [
                         {"type": "image"},
-                        {"type": "text", "text": "Extract all text from this receipt or document image. Return exactly what is written, preserving the original formatting."},
+                        {"type": "text", "text": GLM_OCR_TEXT_EXTRACTION_PROMPT},
                     ],
                 },
             ]
@@ -330,16 +335,7 @@ class NuExtract3OCRProvider:
         if self._model is None and not self._load_model():
             return {}
 
-        extraction_template = """{
-    "brand": "",
-    "product_name": "",
-    "weight": "",
-    "mrp": "",
-    "price_paid": "",
-    "expiry_date": "",
-    "manufacturing_date": "",
-    "batch_number": ""
-}"""
+        extraction_template = GLM_OCR_STRUCTURED_EXTRACTION_PROMPT
 
         prompt = (
             f"<|input|>\n"

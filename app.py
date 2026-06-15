@@ -65,9 +65,6 @@ def build_app() -> gr.Blocks:
     with gr.Blocks(title=APP_NAME) as app:
         mount_pwa_static(app)
         mount_sms_webhook(app)
-        # /health/ui — operator liveness probe (motto_v3 §0.10 Observability
-        # Is Delivery). Reports database + gradio_blocks + pwa_assets status.
-        mount_health_endpoint(app, db)
 
         initial_locale = load_locale_preference(current_user_id() or "default_household")
         gr.HTML(
@@ -155,6 +152,12 @@ def build_app() -> gr.Blocks:
             api_description="Create a new household, switch to it, and refresh the dashboard",
         )
 
+    # /health/ui — operator liveness probe (motto_v3 §0.10 Observability Is
+    # Delivery). Reports database + gradio_blocks + pwa_assets status.
+    # Must be mounted AFTER the ``with gr.Blocks()`` block exits: inside the
+    # context, Gradio is in "set" mode and silently no-ops ``add_route`` calls.
+    mount_health_endpoint(app, db)
+
     return app
 
 
@@ -169,5 +172,11 @@ if __name__ == "__main__":
 
     app = build_app()
     app.launch(server_port=args.port, share=args.share, theme=gr.themes.Base(), css=CSS, head=pwa_head_html(), prevent_thread_lock=True)
+    # Post-launch re-mounts: launch() discards the FastAPI app constructed
+    # during build_app() and creates a new one, so any custom routes we
+    # registered in build_app() are lost. Re-mount PWA + health here so
+    # they're attached to the live FastAPI app. (See motto_v3 §0.10:
+    # observability endpoints must actually be reachable after launch.)
     mount_pwa_static(app)
+    mount_health_endpoint(app, db)
     app.block_thread()

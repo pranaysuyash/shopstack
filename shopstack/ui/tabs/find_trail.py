@@ -57,8 +57,11 @@ def build_find_trail_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> 
         ft_person_result = gr.HTML("")
 
         ft_search.click(find_trail_view, ft_query, ft_result,
-                        api_name="find_trail_search")
+                        api_name="find_trail_search",
+                        api_description="Search for an item and display its object trail (locations, movement history, search plan)")
         ft_neg_btn.click(add_negative_memory, [ft_neg_lot, ft_neg_loc], ft_neg_result,
-                         api_name="add_negative_memory")
+                         api_name="add_negative_memory",
+                         api_description="Mark a location where an item is NOT, creating a negative memory to exclude it from future searches")
         ft_person_btn.click(add_person_association, [ft_person_lot, ft_person_name, ft_person_rel],
-                           ft_person_result, api_name="add_person_association")
+                           ft_person_result, api_name="add_person_association",
+                           api_description="Associate a person with an inventory lot (owner, shared, or guest relationship)")

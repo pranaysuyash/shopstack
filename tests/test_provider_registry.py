@@ -113,6 +113,7 @@ def test_all_property_accessors_return_providers():
     assert registry.object_detection is not None
     assert registry.grounding is not None
     assert registry.segmentation is not None
+    assert registry.promptable_segmentation is not None
     assert registry.tool_call_parser is not None
     assert registry.embeddings is not None
     assert registry.image_edit is not None

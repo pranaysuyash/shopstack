@@ -638,28 +638,63 @@ def toast(
     )
 
 
-def toast_floating(message: str, kind: str = "success") -> str:
+def toast_floating(
+    message: str,
+    kind: str = "success",
+    action_label: str | None = None,
+    action_target_elem_id: str | None = None,
+    action_value: str | None = None,
+    action_value_target_elem_id: str | None = None,
+) -> str:
     """Render a floating auto-dismiss toast notification.
 
     Like :func:`toast`, but triggers the global ``showToast()`` JS
     function defined in the header.  The notification floats in the
-    bottom-right corner and auto-dismisses after 3 seconds.
+    bottom-right corner and auto-dismisses after 3 seconds (6 seconds
+    if an action button is present).
 
     Use this in handlers where the output component is a small status
     panel and you want a more prominent, temporary notification.
 
+    Implementation note (item #99b): an inline ``<script>`` tag injected
+    via ``gr.HTML(...)`` dynamic output updates never executes (per the
+    HTML "already started" script rule — same root cause as item #99,
+    but for the post-page-load injection path that item #99's one-shot
+    bootstrap re-exec doesn't cover). Instead, this renders a hidden
+    ``.ss-toast-trigger`` marker element that a persistent
+    ``MutationObserver`` in ``header_script()`` picks up and turns into
+    a real toast via ``showToast()``.
+
     Args:
         message: The notification text
         kind: ``success``, ``error``, ``info``, ``warning``
+        action_label: Optional label for an inline action button (e.g. "Undo")
+        action_target_elem_id: ``elem_id`` of a hidden Gradio component to
+            ``.click()`` when the action button is pressed
+        action_value: Optional value to write into ``action_value_target_elem_id``
+            before clicking the target
+        action_value_target_elem_id: ``elem_id`` of a hidden Gradio textbox to
+            populate with ``action_value`` before clicking the target
     """
-    js_msg = _json.dumps(str(message))
-    js_kind = _json.dumps(str(kind))
+    safe_msg = escape(str(message))
+    safe_kind = escape(str(kind))
+    attrs = f"data-toast-msg='{safe_msg}' data-toast-kind='{safe_kind}'"
+    if action_label and action_target_elem_id:
+        attrs += (
+            f" data-toast-action-label='{escape(action_label)}'"
+            f" data-toast-action-target='{escape(action_target_elem_id)}'"
+        )
+        if action_value is not None and action_value_target_elem_id:
+            attrs += (
+                f" data-toast-action-value='{escape(str(action_value))}'"
+                f" data-toast-action-value-target='{escape(action_value_target_elem_id)}'"
+            )
     # Screen-reader-only fallback (sr-only) so AT announces the result
     # even if the floating toast is not visible.
     return (
-        f"<script>if(window.showToast)showToast({js_msg},{js_kind});</script>"
+        f"<div class='ss-toast-trigger' style='display:none;' {attrs}></div>"
         f"<span class='sr-only' role='status' aria-live='polite'>"
-        f"{escape(kind.title())}: {escape(str(message))}"
+        f"{escape(kind.title())}: {safe_msg}"
         "</span>"
     )
 

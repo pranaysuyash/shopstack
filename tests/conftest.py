@@ -11,17 +11,27 @@ from typing import Generator
 # ``shopstack.config`` instantiates ``settings = Settings()`` at module
 # import time (line 112), so the env vars must be set first or the
 # module-level ``settings.db_path`` is locked to ``data/shopstack.db``.
-# This previously sat after the shopstack imports below, which meant
-# any test that constructed ``Database()`` without an explicit
-# ``db_path`` (and therefore fell back to the module-level settings)
-# wrote into a shared on-disk file — the source of every
-# ``UNIQUE constraint failed`` cascade in the permission tests.
 #
-# Per motto_v3 §6, all backends are pinned to "mock" in the settings fixture
-# below so every unit test exercises the mock contract with known outputs.
-# LOCAL_AUTO_DOWNLOAD=False prevents test-time model downloads as defense-in-depth.
+# Per motto_v3 §6, all backends are pinned to "mock" via env vars so the
+# module-level Settings singleton (used by session-scoped _app_session
+# fixture) also gets mock backends. The function-scoped ``settings``
+# fixture below reinforces this. LOCAL_AUTO_DOWNLOAD=False prevents
+# test-time model downloads as defense-in-depth.
 os.environ.setdefault("SHOPSTACK_DB_PATH", ":memory:")
 os.environ.setdefault("SHOPSTACK_LOCAL_AUTO_DOWNLOAD", "false")
+os.environ.setdefault("SHOPSTACK_OFF_THE_GRID", "true")
+os.environ.setdefault("SHOPSTACK_PLANNER_BACKEND", "mock")
+os.environ.setdefault("SHOPSTACK_STT_BACKEND", "mock")
+os.environ.setdefault("SHOPSTACK_TTS_BACKEND", "mock")
+os.environ.setdefault("SHOPSTACK_VISION_BACKEND", "mock")
+os.environ.setdefault("SHOPSTACK_OBJECT_DETECTION_BACKEND", "mock")
+os.environ.setdefault("SHOPSTACK_GROUNDING_BACKEND", "mock")
+os.environ.setdefault("SHOPSTACK_SEGMENTATION_BACKEND", "mock")
+os.environ.setdefault("SHOPSTACK_OCR_BACKEND", "mock")
+os.environ.setdefault("SHOPSTACK_TOOL_CALL_PARSER_BACKEND", "mock")
+os.environ.setdefault("SHOPSTACK_EMBEDDINGS_BACKEND", "mock")
+os.environ.setdefault("SHOPSTACK_IMAGE_EDIT_BACKEND", "mock")
+os.environ.setdefault("SHOPSTACK_IMAGE_GEN_BACKEND", "mock")
 
 import pytest
 from unittest.mock import patch
@@ -151,7 +161,11 @@ def db_path() -> Generator[str, None, None]:
         yield path
     finally:
         if path:
-            Path(path).unlink(missing_ok=True)
+            base = Path(path)
+            # SQLite WAL mode creates sidecar files (.db-wal, .db-shm);
+            # remove them all to prevent disk pressure from orphan files.
+            for suffix in ("", "-wal", "-shm"):
+                base.with_suffix(base.suffix + suffix).unlink(missing_ok=True)
 
 
 @pytest.fixture()

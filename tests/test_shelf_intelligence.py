@@ -52,6 +52,14 @@ def test_analyze_shelf_scene_returns_structured_home_scan(providers, tool_regist
         ],
     )
     monkeypatch.setattr(
+        providers.promptable_segmentation,
+        "segment_with_prompts",
+        lambda _path, **kwargs: [
+            {"label": "toothpaste", "score": 0.95, "mask": "prompt_mask_a", "bbox": [0.1, 0.2, 0.3, 0.4]},
+            {"label": "toothpaste", "score": 0.94, "mask": "prompt_mask_b", "bbox": [0.4, 0.2, 0.5, 0.4]},
+        ],
+    )
+    monkeypatch.setattr(
         providers.ocr,
         "extract",
         lambda _path: {
@@ -84,7 +92,7 @@ def test_analyze_shelf_scene_returns_structured_home_scan(providers, tool_regist
     )
 
     assert result.scene_type.value == "bathroom_cabinet"
-    assert result.perception_mode == "detection_segmentation"
+    assert result.perception_mode == "promptable_segmentation"
     assert result.annotated_image_path
     assert len(result.instances) == 2
     assert result.aggregates[0].count == 2

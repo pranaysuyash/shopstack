@@ -154,6 +154,7 @@ class MockSegmentationProvider(SegmentationProvider):
     name = "mock_segmentation"
     model_id = "mock-seg-v1"
     parameter_count = 0.0
+    capabilities: set[str] = {"segmentation", "promptable_segmentation"}
 
     def load(self) -> None:
         pass
@@ -165,6 +166,17 @@ class MockSegmentationProvider(SegmentationProvider):
         return [
             {"label": "item", "score": 0.9, "mask": "base64_mock_data", "bbox": [0.1, 0.1, 0.5, 0.5]},
         ]
+
+    def segment_with_prompts(
+        self,
+        image_path: str,
+        *,
+        bboxes: list[list[float]] | None = None,
+        points: list[list[float]] | None = None,
+        labels: list[str] | None = None,
+        texts: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        return self.segment(image_path)
 
 
 class MockOCRProvider(OCRProvider):
