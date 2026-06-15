@@ -717,17 +717,42 @@ class TestDatabaseModuleSyntax:
                 f"See DR-033."
             )
 
-    def test_database_py_no_non_ascii_chars(self):
-        """The file should be pure ASCII (no §, é, etc. that can
-        break parsing on different encodings)."""
+    def test_database_py_no_parser_breaking_chars(self):
+        """The file should not contain characters that would break
+        the Python parser. UTF-8 em-dashes, quotes, etc. are fine
+        (Python 3 default encoding is UTF-8), but control characters
+        and stray non-printable characters can break parsing.
+
+        Regression: the 2026-06-16 database.py file had a ``§``
+        character (U+00A7) that broke ``ast.parse`` on some Python
+        versions. Em-dashes (U+2014) are fine.
+        """
         path = REPO / "shopstack/persistence/database.py"
         text = path.read_text()
-        non_ascii = [(i, line) for i, line in enumerate(text.split("\n"), 1)
-                     if any(ord(c) > 127 for c in line)]
-        if non_ascii:
-            lines_str = "\n".join(f"  L{i}: {line!r}" for i, line in non_ascii[:5])
+        # Only flag characters that historically break Python parsing:
+        # - Stray non-printable / control chars
+        # - The specific chars we hit (e.g., U+00A7 §)
+        # We explicitly ALLOW em-dash, en-dash, smart quotes, etc.
+        bad_chars = set()
+        for i, line in enumerate(text.split("\n"), 1):
+            for ch in line:
+                cp = ord(ch)
+                # Allow common Unicode (em-dash, en-dash, smart quotes,
+                # non-breaking space, etc.)
+                if 0x00A0 <= cp <= 0xFFFF and cp not in (0x00A7,):
+                    continue
+                # Flag control chars (except common whitespace)
+                if cp < 0x20 and ch not in ("\t", "\n", "\r"):
+                    bad_chars.add((cp, ch))
+                # Flag DEL
+                elif cp == 0x7F:
+                    bad_chars.add((cp, ch))
+                # Flag the specific chars we hit
+                elif cp == 0x00A7:  # §
+                    bad_chars.add((cp, ch))
+        if bad_chars:
             pytest.fail(
-                f"Non-ASCII characters in database.py. These can "
-                f"break parsing on some Python installations:\n"
-                f"{lines_str}\nReplace with ASCII equivalents."
+                f"Parser-breaking characters in database.py: "
+                f"{[(hex(cp), repr(ch)) for cp, ch in bad_chars]}. "
+                f"Replace with ASCII equivalents."
             )

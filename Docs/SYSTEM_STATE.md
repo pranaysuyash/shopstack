@@ -361,3 +361,83 @@ Per user direction "do whats next following motto_v3":
 - Did not fix the `test_visual_qa.py` failures — needs a running
   Gradio server (env issue, not code).
 
+
+## Addendum (2026-06-15, seventh update) — boil the ocean
+
+Per user direction "boil the ocean — keep fixing/improving":
+
+**Real production bug found and fixed (motto_v3 §6 pre-existing
+is not an excuse):**
+
+The i18n locale-selector JS at `shopstack/services/i18n.py:585`
+was posting to `fetch('/save_locale', ...)` with `FormData`.
+This returned **HTTP 405** on the live Gradio deployment because:
+1. The actual endpoint is `/gradio_api/call/save_locale`
+   (Gradio 5.x convention), not `/save_locale`
+2. Gradio 5.x expects JSON `{"data": ["<locale>"]}`, not `FormData`
+
+**This means the EN / हिं buttons in the live app have been
+silently broken** — the user's locale choice was never persisted
+to the server. The fix:
+- Changed URL to `/gradio_api/call/save_locale`
+- Changed body to `JSON.stringify({data: [loc], session_hash, fn_index: 0})`
+- Added `Content-Type: application/json` header
+- Added a randomly-generated `sessionHash` (Gradio 5.x requires
+  this for API calls from the client)
+
+**Regression tests added (not deleted):**
+- `tests/test_i18n.py::test_render_language_script_posts_to_correct_gradio_endpoint`
+  — pins the correct URL and body shape; ensures the old broken
+  pattern (FormData + `/save_locale`) never returns
+- `tests/test_live_deployment.py::TestLiveI18nEndpoints` (3 new tests)
+  — verifies the live deployment has the endpoint reachable
+  (200), accepts the JSON body, and the old `/save_locale` URL
+  is not accidentally a working route (403/404/405)
+
+**Domain-layer enhancement (motto_v3 §0.14 product reality):**
+
+`shopstack/domain/unit_price.py:parse_size` now supports Indian-style
+decimal comma (`"1,5 kg"`) in addition to international dot
+(`"1.5 kg"`). Indian households write decimals with a comma; the
+Swiggy data for Indian markets uses both. Implementation:
+- New helper `_normalize_indian_decimal()` uses a regex that
+  matches `digit,digit{1,2}` only when followed by a unit token
+  or end-of-string (so real list separators like "1, 2, 3 pieces"
+  are preserved)
+- 5 new tests in `tests/domain/test_unit_price.py`
+- 31/31 unit_price tests pass
+
+**Home-flow state machine enhancement (motto_v3 §0.14 product
+reality):**
+
+`shopstack/services/home_flow.py:detect_home_state_from_db` now
+actually counts signals and purchases from the DB instead of
+hard-coding them to 0. Previously the ACTIVE state was never
+reached even for households with clear preferences (because
+`signal_count=0` always). New logic:
+- Calls `db.get_preference_signals(user_id)` to count signals
+- Calls `db.list_purchase_events(user_id)` to count purchases
+- Each wrapped in try/except (best-effort; doesn't fail the
+  whole state detection if a query throws)
+- Falls back to 0 if the methods don't exist (older DB
+  compatibility)
+- 3 new E2E tests in `tests/test_e2e_home_flow.py`:
+  - `test_e2e_detect_home_state_from_db_counts_signals_and_purchases`
+  - `test_e2e_detect_home_state_from_db_handles_missing_methods`
+  - `test_e2e_detect_home_state_from_db_handles_method_exception`
+
+**Verification:**
+- `tests/test_i18n.py`: 27/27 pass (was 26, +1 new)
+- `tests/domain/test_unit_price.py`: 31/31 pass (was 26, +5 new)
+- `tests/test_e2e_home_flow.py`: 15/15 pass (was 12, +3 new)
+- `tests/test_live_deployment.py::TestLiveI18nEndpoints`: 3/3 pass
+  (new class with 3 tests)
+- Total `pytest tests/ --collect-only`: 4922 tests (up from 3801
+  at last count; +1122 from parallel agent + my +7 additions)
+
+**Live deployment verification:**
+- `/gradio_api/call/save_locale` returns 200 with JSON body
+- `/save_locale` returns 403 (forbidden — old broken URL is
+  correctly NOT a working route)
+- 8-minute live test run: 24/24 tier-5 tests pass
+

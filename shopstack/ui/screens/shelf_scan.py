@@ -7,7 +7,7 @@ from typing import Any
 
 from shopstack.app_context import db, providers, tools, current_user_id
 from shopstack.schemas.shelf import ProposedInventoryAction, ShelfIntelligenceResult
-from shopstack.services.shelf_intelligence import analyze_shelf_scene
+from shopstack.services.shelf_intelligence import _frame_tag, analyze_shelf_scene
 from shopstack.traces.export import create_trace, update_trace_confirmation
 from shopstack.ui.components.primitives import home_card, stat_card
 
@@ -19,6 +19,7 @@ def shelf_scan_process(
     video_path: str | None,
     audio_path: str | None,
     scene_type: str = "auto",
+    max_frames: int = 6,
 ) -> tuple[str, str, str, str]:
     if not image_path and not video_path and not audio_path:
         return (
@@ -28,7 +29,10 @@ def shelf_scan_process(
             "",
         )
 
-    result = analyze_shelf_scene(image_path, video_path, audio_path, scene_type, providers, tools.inventory, user_id=current_user_id())
+    result = analyze_shelf_scene(
+        image_path, video_path, audio_path, scene_type, providers,
+        tools.inventory, user_id=current_user_id(), max_frames=max_frames,
+    )
     html = _render_shelf_scan(result)
     scan_state = result.model_dump_json()
     trace_id = ""
@@ -274,6 +278,34 @@ def _render_shelf_scan(result: ShelfIntelligenceResult) -> str:
             f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:8px;'>{instance_cards}</div>"
         ),
     )
+
+    # Surface the video frame sweep transparently so the user knows how
+    # many frames the system actually analyzed (and so they can sanity-
+    # check the result against the source). When no video was supplied
+    # ``frame_count`` is 0 and the gallery is omitted.
+    frame_gallery_html = ""
+    if result.frame_count > 0 and result.frame_paths:
+        thumbs = "".join(
+            f"<div style='text-align:center;'>"
+            f"<img src='/gradio_api/file={escape(p)}' "
+            f"alt='frame {escape(_frame_tag(p, idx))}' "
+            f"loading='lazy' "
+            f"style='width:100%;max-width:160px;height:auto;border-radius:8px;border:1px solid var(--border);display:block;'/>"
+            f"<div style='font-size: 0.625rem;color:var(--text-dim);margin-top:2px;'>{escape(_frame_tag(p, idx))}</div>"
+            f"</div>"
+            for idx, p in enumerate(result.frame_paths[:12])
+        )
+        frame_gallery_html = home_card(
+            style="margin-top:10px;",
+            body=(
+                f"<h4>Video frame sweep · {result.frame_count} frame(s)</h4>"
+                f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:4px;'>"
+                f"First frame was used for detection, segmentation, and OCR. "
+                f"Other frames were sampled at regular intervals to catch items you may have panned past."
+                f"</div>"
+                f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:8px;'>{thumbs}</div>"
+            ),
+        )
     grouped_card = home_card(
         style="margin-top:10px;",
         body=(
@@ -301,10 +333,11 @@ def _render_shelf_scan(result: ShelfIntelligenceResult) -> str:
             f"{_badge(result.perception_mode, 'var(--blue)')}{_badge(f'{summary.items_seen} seen', 'var(--text-dim)')}"
             f"{_badge(f'{summary.items_grouped} grouped', 'var(--text-dim)')}{_badge(f'{summary.needs_review_count} review', 'var(--amber)')}"
             f"{_badge(f'{summary.overall_confidence:.0%} overall', 'var(--green)')}"
+            f"{_badge(f'{result.frame_count} frames', 'var(--blue)') if result.frame_count > 0 else ''}"
             "</div>"
             f"<div style='margin-top:8px;color:var(--text-dim);font-size: 0.75rem;'>Scene: {escape(result.scene_type.value)} · Image confidence {summary.image_confidence:.0%} · Speech confidence {summary.speech_confidence:.0%}</div>"
             f"{warning_html}{speech_html}"
-            f"{detected_card}{grouped_card}{actions_card}{review_card}"
+            f"{frame_gallery_html}{detected_card}{grouped_card}{actions_card}{review_card}"
         ),
     )
 

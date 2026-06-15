@@ -162,10 +162,12 @@ class TestI18nScript:
         # The setLocale function should POST to the save_locale endpoint
         assert "setLocale" in js
         assert "save_locale" in js
-        # Implementation uses /api/save_locale (not the legacy
-        # /gradio_api/call/ path which is Gradio-4-only). The endpoint
-        # is wired in `app.py` via ``gr.routes(path="/api/save_locale")``.
-        assert "/api/save_locale" in js
+        # As of 2026-06-15, the implementation uses the Gradio 5.x
+        # custom API endpoint shape: /gradio_api/call/save_locale with
+        # JSON body {data: [loc], session_hash, fn_index}. This is
+        # what Gradio 5.x expects for a ``gr.routes(path="/api/save_locale")``
+        # endpoint. The previous FormData pattern returned 405 in production.
+        assert "/gradio_api/call/save_locale" in js
         # And also write to localStorage for client-side use
         assert "localStorage" in js
         assert "shopstack-locale" in js
@@ -175,11 +177,13 @@ class TestI18nScript:
         js = render_language_script()
         # Should POST to the endpoint
         assert "method: 'POST'" in js or 'method:"POST"' in js
-        # The implementation uses FormData (multipart) rather than
-        # JSON.stringify — this matches the Gradio custom route
-        # signature for /api/save_locale.
-        assert "FormData" in js
-        assert "'locale'" in js or '"locale"' in js
+        # The implementation uses JSON.stringify (not FormData) per
+        # the Gradio 5.x custom API body shape. The body must contain
+        # ``data: [loc]`` (positional array) plus session_hash and fn_index.
+        assert "JSON.stringify" in js
+        assert "data: [loc]" in js
+        assert "session_hash" in js
+        assert "fn_index" in js
 
     def test_set_locale_reloads_after_save(self):
         from shopstack.services.i18n import render_language_script

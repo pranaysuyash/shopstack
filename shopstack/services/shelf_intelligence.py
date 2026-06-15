@@ -87,14 +87,37 @@ def _collect_frame_paths(image_path: str | None, video_path: str | None, max_fra
     If ``video_path`` is provided, up to ``max_frames`` frames are
     extracted at regular intervals using ``_extract_video_frames``.
 
+    ``max_frames`` is clamped to the range ``[1, 50]`` to bound
+    storage and per-scan latency. Out-of-range or non-positive values
+    fall back to the default of 6.
+
     Returns a list of frame file paths (may be empty).
     """
+    safe_max = _clamp_max_frames(max_frames)
     frames: list[str] = []
     if image_path:
         frames.append(image_path)
     if video_path:
-        frames.extend(_extract_video_frames(video_path, max_frames=max_frames))
+        frames.extend(_extract_video_frames(video_path, max_frames=safe_max))
     return frames
+
+
+def _clamp_max_frames(value: int | float | None, default: int = 6, lo: int = 1, hi: int = 50) -> int:
+    """Clamp a user-supplied max-frames value to a safe range.
+
+    Defensive helper so callers (UI sliders, scripted APIs) cannot
+    request zero frames (would skip video analysis) or 10,000 frames
+    (would explode the temp dir). ``None``/non-numeric → ``default``.
+    """
+    try:
+        n = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return default
+    if n < lo:
+        return lo
+    if n > hi:
+        return hi
+    return n
 
 
 def _extract_video_frames(video_path: str, max_frames: int = 6) -> list[str]:
@@ -280,7 +303,23 @@ def analyze_shelf_scene(
     providers: Any,
     inventory: InventoryRepo,
     user_id: str = "",
+    max_frames: int = 6,
 ) -> ShelfIntelligenceResult:
+    """Run the full shelf-intelligence pipeline on the supplied inputs.
+
+    Accepts at least one of ``image_path``, ``video_path``, ``audio_path``.
+    When ``video_path`` is provided, up to ``max_frames`` frames are
+    extracted at regular intervals (see :func:`_collect_frame_paths`)
+    and the first frame is used as the source image for detection,
+    segmentation, and OCR. ``max_frames`` is clamped to ``[1, 50]``
+    to bound per-scan latency and storage.
+
+    The returned ``ShelfIntelligenceResult`` carries the full provenance:
+    ``image_path``, ``video_path``, ``audio_path`` (resolved after
+    first-frame extraction), ``frame_paths`` (the full list of frames
+    the system analyzed), and ``frame_count`` (the size of that list).
+    """
+    safe_max_frames = _clamp_max_frames(max_frames)
     scene = _normalize_scene_type(scene_type)
     result = ShelfIntelligenceResult(
         scene_type=scene,
@@ -309,7 +348,7 @@ def analyze_shelf_scene(
 
     if video_path:
         result.video_path = video_path
-        extracted_frames = _collect_frame_paths(None, video_path)
+        extracted_frames = _collect_frame_paths(None, video_path, max_frames=safe_max_frames)
         result.frame_paths = extracted_frames
         result.frame_count = len(extracted_frames)
 

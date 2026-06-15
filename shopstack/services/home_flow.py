@@ -164,11 +164,21 @@ def detect_home_state(
     auditable in one read:
 
         first_run       → onboarding incomplete (any data state)
-        starting_out    → onboarding complete, but < 5 items
-        quiet           → 5+ items, 0 signals
-        active          → 5+ items, 1+ signals
+        starting_out    → onboarding complete, but < 5 items AND < N purchases
+        quiet           → 5+ items (or N+ purchases), 0 signals
+        active          → 5+ items (or N+ purchases), 1+ signals
 
     The order of checks matters: the *first* matching rule wins.
+
+    2026-06-15 enhancement (motto_v3 §0.14 product reality):
+    a household with 0 active items but 10+ purchase history
+    rows is NOT "starting out" — they're an established user
+    who just deleted items (or hasn't restocked). The state
+    machine now treats ``purchase_count >= min_purchases_for_active``
+    as an alternative "established" signal alongside item count.
+    Without this, a long-time user who cleared their inventory
+    would see "Add a few staples to unlock intelligence!" which
+    is wrong.
     """
     if not onboarding_complete:
         return HomeFlowState(
@@ -184,7 +194,15 @@ def detect_home_state(
             signal_count=signal_count,
         )
 
-    if item_count < STATE_THRESHOLDS["min_items_for_starting_out_exit"]["items"]:
+    # The household is "established" if they have either enough
+    # items OR enough purchase history. This protects long-time
+    # users from the "add staples" prompt when their inventory
+    # is temporarily empty.
+    min_items = STATE_THRESHOLDS["min_items_for_starting_out_exit"]["items"]
+    min_purchases = STATE_THRESHOLDS["min_purchases_for_active"]["purchases"]
+    is_established = item_count >= min_items or purchase_count >= min_purchases
+
+    if not is_established:
         return HomeFlowState(
             state=HomeState.STARTING_OUT,
             headline="Add a few staples to unlock intelligence",

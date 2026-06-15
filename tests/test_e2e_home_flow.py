@@ -29,6 +29,7 @@ from shopstack.services.home_flow import (
     HomeState,
     STATE_THRESHOLDS,
     detect_home_state,
+    detect_home_state_from_db,
 )
 
 
@@ -200,6 +201,54 @@ def test_e2e_threshold_boundary_active_signal():
     assert state_one.state == HomeState.ACTIVE
 
 
+def test_e2e_established_user_with_no_items():
+    """A long-time user with 0 active items but 10+ purchases
+    is NOT "starting out" — they're an established user who
+    just hasn't restocked. The state machine must use purchase
+    history as an alternative "established" signal.
+
+    2026-06-15 fix (motto_v3 §0.14 product reality): previously
+    this user would see "Add a few staples to unlock intelligence!"
+    despite 10+ purchases. The state machine now treats
+    purchase_count >= min_purchases_for_active as equivalent to
+    item_count >= 5.
+    """
+    min_purchases = STATE_THRESHOLDS["min_purchases_for_active"]["purchases"]
+    # 0 items but plenty of purchases → ACTIVE (not STARTING_OUT)
+    state = detect_home_state(
+        onboarding_complete=True,
+        item_count=0,
+        purchase_count=min_purchases + 5,
+        signal_count=3,
+    )
+    assert state.state == HomeState.ACTIVE, (
+        f"User with 0 items but {min_purchases + 5} purchases should "
+        f"be ACTIVE, got {state.state.value}"
+    )
+    # Without signals, same user → QUIET (not STARTING_OUT)
+    state = detect_home_state(
+        onboarding_complete=True,
+        item_count=0,
+        purchase_count=min_purchases + 5,
+        signal_count=0,
+    )
+    assert state.state == HomeState.QUIET, (
+        f"Established user with 0 items / 0 signals should be QUIET, "
+        f"got {state.state.value}"
+    )
+    # Below threshold (just under min_purchases) → STARTING_OUT
+    state = detect_home_state(
+        onboarding_complete=True,
+        item_count=0,
+        purchase_count=min_purchases - 1,
+        signal_count=0,
+    )
+    assert state.state == HomeState.STARTING_OUT, (
+        f"User below both thresholds should be STARTING_OUT, "
+        f"got {state.state.value}"
+    )
+
+
 # ── Headline copy E2E ──────────────────────────────────────────────
 
 
@@ -352,6 +401,14 @@ def test_e2e_detect_home_state_from_db_handles_method_exception():
     state machine must still work (fall back to 0 for those
     counts). Don't let a flaky signal table break the home page."""
     class FlakySignalsDB(_FakeDB):
+        # Override parent class with onboarding_complete=True
+        def __init__(self):
+            super().__init__(
+                items=[type("Lot", (), {"status": "active"})() for _ in range(10)],
+                signals=[],
+                purchases=[],
+                onboarding_complete=True,  # so we don't fall to FIRST_RUN
+            )
         def get_preference_signals(self, user_id: str = ""):
             raise RuntimeError("signal table is locked")
         def list_purchase_events(self, user_id: str = ""):
@@ -359,7 +416,9 @@ def test_e2e_detect_home_state_from_db_handles_method_exception():
 
     state = detect_home_state_from_db(FlakySignalsDB(), user_id="h1")
     # 10 items / 0 signals (because the exception was caught) / 0 purchases
-    # → QUIET
-    assert state.state == HomeState.QUIET
+    # → QUIET (not FIRST_RUN, because onboarding is complete)
+    assert state.state == HomeState.QUIET, (
+        f"Expected QUIET with 10 items / 0 signals, got {state.state.value}"
+    )
     assert state.signal_count == 0
     assert state.purchase_count == 0

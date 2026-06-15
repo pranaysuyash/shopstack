@@ -836,3 +836,95 @@ class TestRealBackendLazyLoading:
         assert embeddings.backend in ("mlx", "local", "mock"), (
             f"Unexpected embeddings backend: {embeddings.backend}"
         )
+
+
+# ─────────────────────────────────────────────────────────────────
+# E2E click-through wiring verification
+# ─────────────────────────────────────────────────────────────────
+
+
+class TestE2EClickThroughWiring:
+    """Per motto_v3 §0.10 (observability is delivery) and §0.14
+    (operator workflow), the 2-step confirm pattern and the loading
+    skeleton wiring must produce a complete Gradio event chain when
+    the user clicks through. This test class statically verifies
+    the Gradio ``.click()`` event chains are wired correctly so the
+    runtime behavior will work as designed.
+
+    These tests are static (no live browser). They verify the
+    shape of the Gradio event chain, not its runtime behavior. For
+    a true E2E click-through test, see the gstack `browse` skill
+    (which requires a live Gradio app + browser).
+
+    What we verify:
+    1. Every confirm-pattern button is followed by ``.then(...)``
+       that re-hides the primary button via ``confirm_hide_updates``.
+    2. The ``cancel`` button in the confirm group also calls
+       ``confirm_hide_updates`` (the user can back out).
+    3. The result of the action is wired to a Gradio component
+       (not just thrown away).
+    """
+
+    def test_regression_pass14_confirm_chain_completeness(self):
+        """For every tab that uses confirm_toggle_updates, verify
+        the full click chain is wired: primary → toggle, yes → fire
+        + hide, no → hide."""
+        # The four tabs that use confirm_toggle_updates
+        tabs = [
+            "shopstack/ui/household_settings.py",  # remove_member
+            "shopstack/ui/tabs/repair_inbox.py",   # delete_condition_event
+            "shopstack/ui/tabs/photo_map.py",      # clear_location_photo
+            "shopstack/ui/tabs/memory_intelligence.py",  # delete_preference
+        ]
+        for tab_path in tabs:
+            from pathlib import Path
+            src = Path(tab_path).read_text()
+            tab_name = Path(tab_path).name
+            # Count occurrences of each helper
+            toggle_count = src.count("confirm_toggle_updates")
+            hide_count = src.count("confirm_hide_updates")
+            assert toggle_count >= 1, (
+                f"{tab_name}: confirm_toggle_updates must be called at least once "
+                f"(to show the confirm group on first click)"
+            )
+            # hide_count should be >= 2: one after the action, one for cancel
+            assert hide_count >= 2, (
+                f"{tab_name}: confirm_hide_updates must be called at least twice "
+                f"(once after the action fires, once on cancel). Found {hide_count}."
+            )
+
+    def test_regression_pass14_loading_skeleton_completeness(self):
+        """For every tab that uses with_loading_state, verify the
+        result panel is in the outputs list (not just the button)."""
+        # The 6 async operations
+        operations = [
+            ("shopstack/ui/tabs/market.py", "ml_results"),
+            ("shopstack/ui/tabs/market.py", "hs_results"),
+            ("shopstack/ui/tabs/basket_compare.py", "bc_results"),
+            ("shopstack/ui/tabs/basket_plan.py", "summary_html"),
+            ("shopstack/ui/tabs/basket_add_items.py", "receipt_df"),
+            ("shopstack/ui/tabs/basket_add_items.py", "recipe_result"),
+            ("shopstack/ui/tabs/basket_add_items.py", "recipe_status"),
+        ]
+        for tab_path, panel_var in operations:
+            from pathlib import Path
+            src = Path(tab_path).read_text()
+            tab_name = Path(tab_path).name
+            # Find the corresponding .then(...) line
+            # Look for the pattern: .then( ... [panel_var] )
+            # The line should have outputs=[..., panel_var, ...]
+            import re
+            pattern = rf"outputs=\[[^\]]*\b{re.escape(panel_var)}\b[^\]]*\]"
+            if not re.search(pattern, src):
+                # Try the multi-panel case (basket_plan wires 2)
+                if panel_var in ("summary_html",):
+                    pattern = rf"outputs=\[[^\]]*\b{re.escape(panel_var)}\b.*\bdetail_html\b[^\]]*\]"
+                else:
+                    assert False, (
+                        f"{tab_name}: panel {panel_var} must be in some "
+                        f"outputs=[...] list. Otherwise the loading skeleton "
+                        f"has no place to render."
+                    )
+            assert re.search(pattern, src), (
+                f"{tab_name}: panel {panel_var} not in any outputs=[...] list"
+            )

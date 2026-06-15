@@ -9,6 +9,10 @@ from __future__ import annotations
 import gradio as gr
 
 from shopstack.module_registry import tab_label as _tab_label
+from shopstack.services.empty_states import (
+    build_household_context,
+    render,
+)
 from shopstack.ui.components.primitives import empty_state_enhanced
 from shopstack.ui.screens.recipe_text import (
     recipe_image_to_text,
@@ -20,6 +24,15 @@ from shopstack.ui.tabs.context import TabContext
 
 def build_recipe_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None:
     """Build the Recipe Scan tab."""
+    # Pass 18 §2.5: rich empty-state for the "Paste ingredients or
+    # upload a recipe image" placeholder. The previous generic
+    # one-liner (line 44 before Pass 18) was a static "no input
+    # yet" state. The rich service + i18n keys turn it into a
+    # 3-line card with an icon and an example format.
+    household_ctx = build_household_context(ctx.db)
+    recipe_empty_state = render(
+        "recipe.no_input", household=household_ctx
+    )
     with gr.Tab(_tab_label("recipe"), id="recipe"):
         gr.Markdown("### Recipe to Shopping List")
         gr.HTML(
@@ -41,9 +54,7 @@ def build_recipe_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
         with gr.Row():
             rc_parse = gr.Button("Parse & diff", scale=1)
             rc_add = gr.Button("Add missing to my list", variant="primary", scale=1)
-        rc_output = gr.HTML(empty_state_enhanced(
-            "Paste ingredients above or upload a recipe image.", icon="\U0001f4d6"
-        ))
+        rc_output = gr.HTML(recipe_empty_state)
 
         rc_snap.click(recipe_image_to_text, rc_upload, [rc_ocr_text, rc_ocr_status],
                       api_name="recipe_snap",

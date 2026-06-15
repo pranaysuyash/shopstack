@@ -43,7 +43,7 @@ def _wait_for_server(url, timeout=90.0):
     return False
 
 def _dismiss(page):
-    page.execute_script("""() => {
+    page.evaluate("""() => {
         var t = document.getElementById('tour-overlay');
         if (t) { t.style.display = 'none'; t.removeAttribute('data-active'); }
         try { localStorage.setItem('shopstack.tour.shown', '1'); } catch(e) {}

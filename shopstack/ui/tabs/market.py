@@ -130,22 +130,30 @@ def build_market_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                     hs_image_input = gr.Image(type="filepath", label="Shelf / Drawer Photo")
                     hs_video_input = gr.Video(label="Short Video Sweep")
                     hs_audio_input = gr.Audio(type="filepath", label="Voice Correction")
-                hs_scene_type = gr.Dropdown(
-                    choices=[
-                        "auto",
-                        "fridge",
-                        "pantry",
-                        "shopping_bag",
-                        "bathroom_cabinet",
-                        "medicine_drawer",
-                        "cleaning_cupboard",
-                        "bedroom",
-                        "documents",
-                        "utility",
-                    ],
-                    value="auto",
-                    label=f"Image type {tooltip_icon('scene_type')}",
-                )
+                with gr.Row():
+                    hs_scene_type = gr.Dropdown(
+                        choices=[
+                            "auto",
+                            "fridge",
+                            "pantry",
+                            "shopping_bag",
+                            "bathroom_cabinet",
+                            "medicine_drawer",
+                            "cleaning_cupboard",
+                            "bedroom",
+                            "documents",
+                            "utility",
+                        ],
+                        value="auto",
+                        label=f"Image type {tooltip_icon('scene_type')}",
+                        scale=2,
+                    )
+                    hs_max_frames = gr.Slider(
+                        2, 12, value=6, step=1,
+                        label="Frames to extract from video",
+                        info="Only used when a video is uploaded. More frames = more thorough but slower.",
+                        scale=1,
+                    )
                 with gr.Row():
                     hs_scan_btn = gr.Button("Scan home area", variant="primary", elem_id="home-scan-btn")
                 hs_results = gr.HTML(
@@ -162,7 +170,7 @@ def build_market_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                 )
                 hs_scan_btn.click(
                     shelf_scan_process,
-                    [hs_image_input, hs_video_input, hs_audio_input, hs_scene_type],
+                    [hs_image_input, hs_video_input, hs_audio_input, hs_scene_type, hs_max_frames],
                     [hs_results, hs_state, hs_trace_id, hs_annotated],
                     js=busy_js("home-scan-btn", original_label="Scan home area"),
                     api_name="home_scan",
@@ -170,7 +178,8 @@ def build_market_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                         "Scan a shelf or household scene and return household memory updates. "
                         "File-type parameters (image_input, audio_input) require the "
                         "{\"meta\": {\"_type\": \"gradio.FileData\"}} envelope for programmatic "
-                        "consumers (per gradio.Client protocol)."
+                        "consumers (per gradio.Client protocol). "
+                        "max_frames controls video sweep density (2-12 frames, default 6)."
                     ),
                 ).then(
                     with_loading_state(hs_scan_btn, [hs_results])[1],

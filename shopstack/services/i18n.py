@@ -232,6 +232,15 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "privacy.delete_data": "Delete my data",
         "privacy.delete_warning": "This deletes your action history, community pool, voice memos, phone numbers, and backups. Your inventory and lists are kept.",
         "error.generic": "Something went wrong. Please try again.",
+        # Buttons added in the i18n new-buttons sweep (2026-06-13)
+        # Per motto_v3 §6 (pre-existing is not an excuse), all
+        # user-facing button labels must be in the catalog so Hindi
+        # users see the localized version.
+        "button.save_as_txt": "💾 Save as .txt",
+        "button.share_list": "📤 Share list",
+        "button.snap_and_parse": "📸 Snap & parse recipe",
+        "button.share_list_whatsapp": "Open in WhatsApp",
+        "button.share_list_copy": "Copy to clipboard",
     },
     # ── Hindi (हिन्दी) ──────────────────────────────────────────────
     "hi": {
@@ -405,6 +414,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "privacy.delete_data": "मेरा डेटा हटाएँ",
         "privacy.delete_warning": "यह ट्रेस, कम्युनिटी पूल, वॉइस मेमो, SMS रजिस्ट्री, बैकअप हटा देगा। इन्वेंटरी और लिस्ट रहेंगी।",
         "error.generic": "कुछ गड़बड़ हो गई। फिर से कोशिश करें।",
+        # Buttons added in the i18n new-buttons sweep (2026-06-13)
+        # Hindi translations of the new button labels.
+        "button.save_as_txt": "💾 .txt के रूप में सहेजें",
+        "button.share_list": "📤 सूची साझा करें",
+        "button.snap_and_parse": "📸 रेसिपी स्नैप और पार्स करें",
+        "button.share_list_whatsapp": "व्हाट्सऐप में खोलें",
+        "button.share_list_copy": "क्लिपबोर्ड पर कॉपी करें",
     },
 }
 

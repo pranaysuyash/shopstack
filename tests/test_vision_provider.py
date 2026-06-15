@@ -435,3 +435,111 @@ def test_qwen3vl_download_script_exists():
     # Verify it parses (no syntax errors)
     import ast
     ast.parse(script_path.read_text(encoding="utf-8"))
+
+
+# ── Pass 18 §1.4 cancel/retry (additive to Pass 14 pre-download) ──
+
+
+def test_qwen3vl_cancel_pre_download_no_op_when_already_complete(monkeypatch):
+    """``cancel_pre_download()`` must be a no-op when no download is in flight."""
+    from shopstack.providers.vision_provider import Qwen3VLProvider
+    monkeypatch.setattr(Qwen3VLProvider, "_init", lambda self: None)
+    monkeypatch.setattr(Qwen3VLProvider, "_start_pre_download", lambda self: None)
+
+    provider = Qwen3VLProvider()
+    # Simulate "already downloaded" — cancel should return False (no-op)
+    provider._weights_pre_downloaded = True
+    result = provider.cancel_pre_download()
+    assert result is False, (
+        "cancel_pre_download() returned True when the pre-download "
+        "was already complete — should be a no-op in that case."
+    )
+
+
+def test_qwen3vl_cancel_pre_download_sets_flag_and_unblocks(monkeypatch):
+    """``cancel_pre_download()`` must set the cancelled flag and unblock the event."""
+    from shopstack.providers.vision_provider import Qwen3VLProvider
+    monkeypatch.setattr(Qwen3VLProvider, "_init", lambda self: None)
+    monkeypatch.setattr(Qwen3VLProvider, "_start_pre_download", lambda self: None)
+
+    provider = Qwen3VLProvider()
+    # Pre-download is NOT complete (default state)
+    assert provider._weights_pre_downloaded is False
+    result = provider.cancel_pre_download()
+    assert result is True, (
+        "cancel_pre_download() returned False when the pre-download "
+        "was in flight — should return True to signal the cancel was effective."
+    )
+    assert provider._pre_download_cancelled is True, (
+        "cancel_pre_download() did not set _pre_download_cancelled to True. "
+        "The pre-download thread needs the flag to know it should stop."
+    )
+    assert provider._pre_download_event.is_set() is True, (
+        "cancel_pre_download() did not set _pre_download_event. "
+        "The foreground load() wait would block forever after a cancel."
+    )
+
+
+def test_qwen3vl_pre_download_respects_cancellation_flag(monkeypatch):
+    """``_pre_download_weights()`` must check the cancelled flag and return early."""
+    from shopstack.providers.vision_provider import Qwen3VLProvider
+    monkeypatch.setattr(Qwen3VLProvider, "_init", lambda self: None)
+    monkeypatch.setattr(Qwen3VLProvider, "_start_pre_download", lambda self: None)
+
+    provider = Qwen3VLProvider()
+    provider._pre_download_cancelled = True
+
+    # Mock snapshot_download so we can verify it's NOT called
+    import sys
+    mock_module = type(sys)("huggingface_hub")
+    download_called = {"v": False}
+    def fake_snapshot(*args, **kwargs):
+        download_called["v"] = True
+        return "/fake/path"
+    mock_module.snapshot_download = fake_snapshot
+    monkeypatch.setitem(sys.modules, "huggingface_hub", mock_module)
+
+    provider._pre_download_weights()
+    assert download_called["v"] is False, (
+        "_pre_download_weights() called snapshot_download even though "
+        "the cancel flag was set. The cancel should be observed at the "
+        "start of the function (before any download is attempted)."
+    )
+    assert provider._weights_pre_downloaded is False, (
+        "_pre_download_weights() set _weights_pre_downloaded=True even "
+        "though the download was cancelled. The pre-download is incomplete."
+    )
+
+
+def test_qwen3vl_start_pre_download_resets_cancellation_flag(monkeypatch):
+    """``_start_pre_download()`` must reset the cancellation flag for retry.
+
+    Per Pass 18 §1.4 acceptance: "ability to cancel/retry model load."
+    The "retry" half works by calling ``_start_pre_download()`` again.
+    The previous cancel must not silently block the new attempt.
+    """
+    from shopstack.providers.vision_provider import Qwen3VLProvider
+    monkeypatch.setattr(Qwen3VLProvider, "_init", lambda self: None)
+
+    # Capture whether a thread was started
+    started = {"v": False}
+    real_start = Qwen3VLProvider._start_pre_download
+
+    def fake_start(self) -> None:
+        # Don't actually start a thread — just record that the reset happened
+        started["v"] = True
+        self._pre_download_cancelled = False
+
+    monkeypatch.setattr(Qwen3VLProvider, "_start_pre_download", fake_start)
+
+    provider = Qwen3VLProvider()
+    # Simulate a previous cancel
+    provider._pre_download_cancelled = True
+    fake_start(provider)
+    assert provider._pre_download_cancelled is False, (
+        "_start_pre_download() did not reset the cancellation flag. "
+        "A retry would be silently blocked by the stale cancel."
+    )
+    assert started["v"] is True, (
+        "_start_pre_download() should have run (the fake recorded this)."
+    )

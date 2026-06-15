@@ -125,6 +125,11 @@ class Qwen3VLProvider:
         # Background pre-download (Pass 14 §1.4 — same pattern as BiRefNet §1.3)
         self._weights_pre_downloaded = False
         self._pre_download_event = threading.Event()
+        # Pass 18 §1.4 cancel/retry: cancellation flag for the
+        # background pre-download thread. Set by ``cancel_pre_download()``
+        # and honoured at the start of ``_pre_download_weights()`` and
+        # after the download completes.
+        self._pre_download_cancelled = False
         self._init()
         # Kick off background weight download so the first understand() call
         # is fast — weights are cached in huggingface_hub before use.
@@ -158,21 +163,74 @@ class Qwen3VLProvider:
         Uses ``snapshot_download`` to cache all repo files to the
         HuggingFace cache directory. The actual ``_load_model()``
         will then find files already cached and skip network I/O.
+
+        If a previous pre-download was cancelled, reset the
+        ``_pre_download_cancelled`` flag so the new attempt can run.
         """
         if not self._available:
             return
+        # Pass 18 §1.4 cancel/retry: allow the pre-download to be
+        # re-attempted after a previous cancellation. The flag is
+        # reset here (not in cancel_pre_download) so a stale cancel
+        # can never silently block a fresh attempt.
+        self._pre_download_cancelled = False
         t = threading.Thread(target=self._pre_download_weights, daemon=True)
         t.start()
 
+    def cancel_pre_download(self) -> bool:
+        """Signal the background pre-download thread to stop at the next checkpoint.
+
+        Returns True if a pre-download was actually running (and was
+        signalled to stop). Returns False if no pre-download is in
+        flight (no-op).
+
+        Per Pass 18 §1.4 acceptance: "ability to cancel/retry model
+        load." This implements the "cancel" half. The "retry" half is
+        supported by calling ``_start_pre_download()`` again (which
+        is the existing public init path; the reset happens there).
+
+        Implementation note: ``snapshot_download`` doesn't expose a
+        cancellation token, so the flag is checked at a coarse
+        granularity (after the download starts, before the event is
+        set). For models this large, the download takes minutes
+        and the user can simply close the app if the download is in
+        the middle of a multi-GB transfer — this method exists to
+        prevent NEW attempts from completing, not to abort a
+        download in progress.
+        """
+        if self._weights_pre_downloaded:
+            return False  # already done, nothing to cancel
+        self._pre_download_cancelled = True
+        # Unblock the load() wait so the foreground doesn't sit
+        # forever after a cancellation.
+        self._pre_download_event.set()
+        logger.info("Qwen3-VL pre-download cancellation requested")
+        return True
+
     def _pre_download_weights(self) -> None:
-        """Download all model files to HuggingFace cache (no model load)."""
+        """Download all model files to HuggingFace cache (no model load).
+
+        Honours the ``_pre_download_cancelled`` flag: if a cancel was
+        requested before the download finished, the loop returns
+        early without setting ``_weights_pre_downloaded``. The next
+        call to ``_start_pre_download()`` (or ``_load_model()``)
+        starts a fresh attempt.
+        """
         try:
+            if self._pre_download_cancelled:
+                logger.info("Qwen3-VL pre-download: cancellation observed, skipping")
+                return
             logger.info(
                 "Pre-downloading Qwen3-VL model weights (%s) ...",
                 self._model_name,
             )
             from huggingface_hub import snapshot_download
             snapshot_download(self._model_name)
+            if self._pre_download_cancelled:
+                # Cancelled during the download — don't mark as
+                # complete so a future load() will retry.
+                logger.info("Qwen3-VL pre-download: cancelled mid-download, will retry on next call")
+                return
             self._weights_pre_downloaded = True
             self._pre_download_event.set()
             logger.info("Qwen3-VL weights pre-download complete")
