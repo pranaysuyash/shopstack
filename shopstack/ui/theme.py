@@ -747,7 +747,7 @@ details.home-details > *:not(summary),
   position: absolute;
   right: -46px;
   top: -58px;
-  width: 170px;
+  width: min(170px, 50%);
   height: 170px;
   border-radius: var(--radius-full);
   background: rgba(23, 107, 73, 0.10);

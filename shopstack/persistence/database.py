@@ -942,6 +942,14 @@ class Database:
             user_id = self.active_household_id
         target_household = lot.user_id or user_id
         _rw(user_id, target_household, self)
+        # Capture pre-mutation state for undo (Phase 12 R2.6).
+        # The undo ledger is opt-in: handlers register after
+        # success. The pre-state is the lot's current quantity.
+        _undo_before = {
+            "lot_id": lot.lot_id,
+            "quantity": lot.quantity,
+            "user_id": user_id,
+        }
         new_qty = max(0.0, lot.quantity - quantity)
         status = lot.status
         if new_qty <= 0:
@@ -949,7 +957,21 @@ class Database:
             status = "used"
         elif new_qty < lot.quantity * 0.2:
             status = "low"
-        return self.update_inventory_lot(lot_id, {"quantity": new_qty, "status": status})
+        result = self.update_inventory_lot(lot_id, {"quantity": new_qty, "status": status})
+        # Register for undo (best-effort: never breaks the write).
+        if result is not None:
+            try:
+                from shopstack.services.undo_ledger import get_ledger
+                get_ledger().register(
+                    household_id=target_household,
+                    kind="consume_inventory",
+                    before=_undo_before,
+                    after={"lot_id": lot_id, "quantity": new_qty},
+                    description=f"Consumed {quantity:g} {lot.unit} of {lot.display_name}",
+                )
+            except Exception:
+                pass
+        return result
 
     def mark_list_complete(self, list_id: str) -> None:
         self.conn.execute(

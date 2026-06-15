@@ -37,6 +37,12 @@ from shopstack.services.shortcuts import (
     render_shortcuts_help_html,
     render_shortcuts_script,
 )
+from shopstack.services.tooltips import render_help_toggle_script
+from shopstack.services.global_search import (
+    render_palette_html,
+    render_palette_script,
+)
+from shopstack.services.undo_ledger import render_undo_click_handler
 from shopstack.services.walkthrough import (
     render_walkthrough_html,
     render_walkthrough_script,
@@ -215,6 +221,12 @@ function toggleTheme() {
   e.setAttribute('data-theme', n);
   localStorage.setItem('shopstack-theme', n);
 }
+// Explicitly bind to window so the function is globally accessible
+// even if the script is re-executed in a context where top-level
+// function declarations don't become implicit globals (e.g. some
+// module/eval contexts). The onclick="toggleTheme()" attribute on
+// the theme button requires window.toggleTheme to exist.
+window.toggleTheme = toggleTheme;
 
 /* WCAG 4.1.3 Status Messages — announce to screen readers */
 function announceToScreenReader(message) {
@@ -414,6 +426,10 @@ def header_block(brand_title: str, brand_subtitle: str, current_locale: str = DE
         + render_shortcuts_script()
         + render_walkthrough_html(current_locale)
         + render_walkthrough_script()
+        + render_help_toggle_script()
+        + render_palette_html(locale=current_locale)
+        + render_palette_script()
+        + render_undo_click_handler()
         + _pwa_css()
     )
 

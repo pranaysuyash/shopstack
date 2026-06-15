@@ -10,6 +10,7 @@ import pandas as pd
 from shopstack.app_context import db, current_user_id
 from shopstack.schemas.models import PriceObservation
 from shopstack.ui.views import build_price_memory_view  # noqa: E402 — deferred to avoid circular import via shopstack.ui.screens.__init__
+from shopstack.ui.components.primitives import home_card
 from shopstack.ui.screens._utils import safe_render
 
 
@@ -105,24 +106,24 @@ def price_intelligence_view() -> str:
 
     if deal_scores:
         html_parts.append(
-            "<div class='home-card' style='text-align:left;margin-bottom:12px;'>"
-            "<h3>Top Deals Right Now</h3>"
-            + "".join(deal_scores[:8])
-            + "</div>"
+            home_card(
+                style="text-align:left;margin-bottom:12px;",
+                body="<h3>Top Deals Right Now</h3>" + "".join(deal_scores[:8]),
+            )
         )
     if alerts:
         html_parts.append(
-            "<div class='home-card' style='text-align:left;margin-bottom:12px;'>"
-            "<h3>Price Drop Alerts</h3>"
-            + "".join(alerts[:8])
-            + "</div>"
+            home_card(
+                style="text-align:left;margin-bottom:12px;",
+                body="<h3>Price Drop Alerts</h3>" + "".join(alerts[:8]),
+            )
         )
     if comparisons:
         html_parts.append(
-            "<div class='home-card' style='text-align:left;margin-bottom:12px;'>"
-            "<h3>Best Price Across Stores</h3>"
-            + "".join(comparisons[:8])
-            + "</div>"
+            home_card(
+                style="text-align:left;margin-bottom:12px;",
+                body="<h3>Best Price Across Stores</h3>" + "".join(comparisons[:8]),
+            )
         )
 
     # Best store recommendation across all tracked items
@@ -132,10 +133,14 @@ def price_intelligence_view() -> str:
             coverage = f"{best_store.coverage_pct:.0f}%" if best_store.total_items_compared > 0 else "N/A"
             savings = f"&#8377;{best_store.estimated_savings_vs_worst:.0f}" if best_store.estimated_savings_vs_worst > 0 else "N/A"
             html_parts.append(
-                "<div class='home-card' style='text-align:left;margin-bottom:12px;'>"
-                f"<h3>Best Store Overall</h3><div style='padding:8px;font-size: 0.875rem;'>"
-                f"<strong>{escape(best_store.store)}</strong> has the best price for {best_store.items_with_best_price}/{best_store.total_items_compared} items "
-                f"({coverage} coverage). Estimated savings vs worst store: {savings}.</div></div>"
+                home_card(
+                    style="text-align:left;margin-bottom:12px;",
+                    body=(
+                        f"<h3>Best Store Overall</h3><div style='padding:8px;font-size: 0.875rem;'>"
+                        f"<strong>{escape(best_store.store)}</strong> has the best price for {best_store.items_with_best_price}/{best_store.total_items_compared} items "
+                        f"({coverage} coverage). Estimated savings vs worst store: {savings}.</div>"
+                    ),
+                )
             )
 
     # Cross-source comparison from market snapshots

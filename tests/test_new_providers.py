@@ -16,7 +16,40 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
+
+
+def _patch_modules(mapping: dict) -> "_ModulePatcher":
+    """Safely patch sys.modules — works around a Python 3.14 segfault
+    in unittest.mock.patch.dict(sys.modules, clear=False) on exit.
+
+    For mapping values that are ``None``, the module is set to ``None``
+    in ``sys.modules`` (the standard Python idiom for an unavailable
+    module — ``import x`` then raises ``ImportError``). We do NOT pop
+    the key, because popping causes a fresh import of any C-extension
+    module, which can segfault on Python 3.14.
+    """
+    import sys as _sys
+    saved = {k: _sys.modules.get(k) for k in mapping}
+    for k, v in mapping.items():
+        if v is None:
+            _sys.modules[k] = None
+        else:
+            _sys.modules[k] = v
+    return _ModulePatcher(saved)
+
+class _ModulePatcher:
+    def __init__(self, saved):
+        self.saved = saved
+    def __enter__(self):
+        return self
+    def __exit__(self, *args):
+        import sys as _sys
+        for k, v in self.saved.items():
+            if v is None:
+                _sys.modules.pop(k, None)
+            else:
+                _sys.modules[k] = v
+
 
 
 # ============================================================
@@ -34,7 +67,7 @@ def _mock_transformers_missing() -> None:
 class TestMiniCPMVProviderInit:
     def test_not_available_when_deps_missing(self):
         from shopstack.providers.vision_provider import MiniCPMVProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = MiniCPMVProvider()
             assert not provider.available
             assert provider.error is not None
@@ -42,7 +75,7 @@ class TestMiniCPMVProviderInit:
 
     def test_name_and_capabilities(self):
         from shopstack.providers.vision_provider import MiniCPMVProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = MiniCPMVProvider()
             assert provider.name == "minicpmv"
             assert provider.model_id == "minicpm-v-8b"
@@ -52,19 +85,19 @@ class TestMiniCPMVProviderInit:
 
     def test_healthcheck_false_when_not_available(self):
         from shopstack.providers.vision_provider import MiniCPMVProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = MiniCPMVProvider()
             assert not provider.healthcheck()
 
     def test_last_latency_default(self):
         from shopstack.providers.vision_provider import MiniCPMVProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = MiniCPMVProvider()
             assert provider.last_latency_ms is None
 
     def test_understand_unavailable(self):
         from shopstack.providers.vision_provider import MiniCPMVProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = MiniCPMVProvider()
             result = provider.understand("/fake.jpg")
             assert "error" in result
@@ -72,7 +105,7 @@ class TestMiniCPMVProviderInit:
 
     def test_detect_unavailable(self):
         from shopstack.providers.vision_provider import MiniCPMVProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = MiniCPMVProvider()
             result = provider.detect("/fake.jpg")
             assert len(result) == 1
@@ -80,7 +113,7 @@ class TestMiniCPMVProviderInit:
 
     def test_understand_missing_file(self):
         """Even if deps exist, missing image file returns error."""
-        with patch.dict("sys.modules", {"transformers": MagicMock(), "torch": MagicMock()}, clear=False):
+        with _patch_modules( {"transformers": MagicMock(), "torch": MagicMock()}):
             from shopstack.providers.vision_provider import MiniCPMVProvider
             provider = MiniCPMVProvider()
             provider._available = True
@@ -96,7 +129,7 @@ class TestMiniCPMVProviderInit:
 class TestMiniCPM5ProviderInit:
     def test_not_available_when_deps_missing(self):
         from shopstack.providers.planner_provider import MiniCPM5Provider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = MiniCPM5Provider()
             assert not provider.available
             assert provider.error is not None
@@ -104,7 +137,7 @@ class TestMiniCPM5ProviderInit:
 
     def test_name_and_capabilities(self):
         from shopstack.providers.planner_provider import MiniCPM5Provider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = MiniCPM5Provider()
             assert provider.name == "minicpm5"
             assert provider.model_id == "minicpm5-1b"
@@ -114,19 +147,19 @@ class TestMiniCPM5ProviderInit:
 
     def test_last_latency_default(self):
         from shopstack.providers.planner_provider import MiniCPM5Provider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = MiniCPM5Provider()
             assert provider.last_latency_ms is None
 
     def test_last_token_count_default(self):
         from shopstack.providers.planner_provider import MiniCPM5Provider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = MiniCPM5Provider()
             assert provider.last_token_count is None
 
     def test_complete_unavailable(self):
         from shopstack.providers.planner_provider import MiniCPM5Provider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = MiniCPM5Provider()
             result = provider.complete("Hello")
             assert "error" in result
@@ -134,7 +167,7 @@ class TestMiniCPM5ProviderInit:
 
     def test_plan_unavailable(self):
         from shopstack.providers.planner_provider import MiniCPM5Provider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = MiniCPM5Provider()
             result = provider.plan({"prompt": "What's in my fridge?"})
             assert isinstance(result, list)
@@ -144,7 +177,7 @@ class TestMiniCPM5ProviderInit:
 
     def test_plan_with_string_context(self):
         from shopstack.providers.planner_provider import MiniCPM5Provider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = MiniCPM5Provider()
             result = provider.plan("plain string")
             assert isinstance(result, list)
@@ -154,7 +187,7 @@ class TestMiniCPM5ProviderInit:
 
     def test_plan_with_empty_prompt(self):
         from shopstack.providers.planner_provider import MiniCPM5Provider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = MiniCPM5Provider()
             result = provider.plan({"prompt": ""})
             assert isinstance(result, list)
@@ -164,7 +197,7 @@ class TestMiniCPM5ProviderInit:
 
     def test_healthcheck_false_when_not_available(self):
         from shopstack.providers.planner_provider import MiniCPM5Provider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = MiniCPM5Provider()
             assert not provider.healthcheck()
 
@@ -177,7 +210,7 @@ class TestMiniCPM5ProviderInit:
 class TestQwen3TTSProviderInit:
     def test_not_available_when_deps_missing(self):
         from shopstack.providers.tts_provider import Qwen3TTSProvider
-        with patch.dict("sys.modules", {"qwen_tts": None}, clear=False):
+        with _patch_modules( {"qwen_tts": None}):
             provider = Qwen3TTSProvider(prefer_gtts_fallback=False)
             assert not provider.available
             assert provider.error is not None
@@ -185,7 +218,7 @@ class TestQwen3TTSProviderInit:
 
     def test_name_and_capabilities(self):
         from shopstack.providers.tts_provider import Qwen3TTSProvider
-        with patch.dict("sys.modules", {"qwen_tts": None}, clear=False):
+        with _patch_modules( {"qwen_tts": None}):
             provider = Qwen3TTSProvider(prefer_gtts_fallback=False)
             assert provider.name == "qwen3_tts"
             assert provider.model_id == "qwen3-tts-1.7b"
@@ -194,14 +227,14 @@ class TestQwen3TTSProviderInit:
 
     def test_synthesize_empty_text(self):
         from shopstack.providers.tts_provider import Qwen3TTSProvider
-        with patch.dict("sys.modules", {"qwen_tts": None}, clear=False):
+        with _patch_modules( {"qwen_tts": None}):
             provider = Qwen3TTSProvider(prefer_gtts_fallback=False)
             result = provider.synthesize("")
             assert result == b""
 
     def test_synthesize_returns_empty_when_not_available(self):
         from shopstack.providers.tts_provider import Qwen3TTSProvider
-        with patch.dict("sys.modules", {"qwen_tts": None}, clear=False):
+        with _patch_modules( {"qwen_tts": None}):
             provider = Qwen3TTSProvider(prefer_gtts_fallback=False)
             result = provider.synthesize("Hello")
             assert result == b""
@@ -209,7 +242,7 @@ class TestQwen3TTSProviderInit:
     def test_synthesize_falls_back_to_gtts(self):
         """When qwen_tts SDK missing but gTTS available, should return gTTS audio."""
         from shopstack.providers.tts_provider import Qwen3TTSProvider
-        with patch.dict("sys.modules", {"qwen_tts": None}, clear=False):
+        with _patch_modules( {"qwen_tts": None}):
             # gTTS is likely installed; synthesize should work
             provider = Qwen3TTSProvider(prefer_gtts_fallback=True)
             result = provider.synthesize("Hello")
@@ -221,7 +254,7 @@ class TestQwen3TTSProviderInit:
 
     def test_healthcheck_false_when_not_available(self):
         from shopstack.providers.tts_provider import Qwen3TTSProvider
-        with patch.dict("sys.modules", {"qwen_tts": None}, clear=False):
+        with _patch_modules( {"qwen_tts": None}):
             provider = Qwen3TTSProvider(prefer_gtts_fallback=False)
             assert not provider.healthcheck()
 
@@ -231,13 +264,13 @@ class TestQwen3TTSProviderInit:
 
     def test_voice_default(self):
         from shopstack.providers.tts_provider import Qwen3TTSProvider
-        with patch.dict("sys.modules", {"qwen_tts": None}, clear=False):
+        with _patch_modules( {"qwen_tts": None}):
             provider = Qwen3TTSProvider(prefer_gtts_fallback=False)
             assert provider._voice in provider.VOICES
 
     def test_voice_custom(self):
         from shopstack.providers.tts_provider import Qwen3TTSProvider
-        with patch.dict("sys.modules", {"qwen_tts": None}, clear=False):
+        with _patch_modules( {"qwen_tts": None}):
             provider = Qwen3TTSProvider(
                 voice="Emma", prefer_gtts_fallback=False
             )
@@ -245,7 +278,7 @@ class TestQwen3TTSProviderInit:
 
     def test_voice_invalid_falls_back_to_default(self):
         from shopstack.providers.tts_provider import Qwen3TTSProvider
-        with patch.dict("sys.modules", {"qwen_tts": None}, clear=False):
+        with _patch_modules( {"qwen_tts": None}):
             provider = Qwen3TTSProvider(
                 voice="NonExistent", prefer_gtts_fallback=False
             )
@@ -265,7 +298,7 @@ class TestQwen3TTSProviderInit:
 class TestNuExtract3OCRProviderInit:
     def test_not_available_when_deps_missing(self):
         from shopstack.providers.ocr_provider import NuExtract3OCRProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = NuExtract3OCRProvider()
             assert not provider.available
             assert provider.error is not None
@@ -273,7 +306,7 @@ class TestNuExtract3OCRProviderInit:
 
     def test_name_and_capabilities(self):
         from shopstack.providers.ocr_provider import NuExtract3OCRProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = NuExtract3OCRProvider()
             assert provider.name == "nuextract3"
             assert provider.model_id == "nuextract3-4b"
@@ -282,14 +315,14 @@ class TestNuExtract3OCRProviderInit:
 
     def test_extract_unavailable(self):
         from shopstack.providers.ocr_provider import NuExtract3OCRProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = NuExtract3OCRProvider()
             result = provider.extract("/fake.jpg")
             assert "error" in result
             assert result["model"] == "nuextract3"
 
     def test_extract_missing_file(self):
-        with patch.dict("sys.modules", {"transformers": MagicMock(), "torch": MagicMock()}, clear=False):
+        with _patch_modules( {"transformers": MagicMock(), "torch": MagicMock()}):
             from shopstack.providers.ocr_provider import NuExtract3OCRProvider
             provider = NuExtract3OCRProvider()
             provider._available = True
@@ -298,13 +331,13 @@ class TestNuExtract3OCRProviderInit:
 
     def test_healthcheck_false_when_not_available(self):
         from shopstack.providers.ocr_provider import NuExtract3OCRProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = NuExtract3OCRProvider()
             assert not provider.healthcheck()
 
     def test_last_latency_default(self):
         from shopstack.providers.ocr_provider import NuExtract3OCRProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = NuExtract3OCRProvider()
             assert provider.last_latency_ms is None
 
@@ -316,8 +349,8 @@ class TestNuExtract3OCRProviderInit:
         mock_pytesseract.image_to_string.return_value = ""
 
         with (
-            patch.dict("sys.modules", {"transformers": Mock(), "torch": Mock()}, clear=False),
-            patch.dict("sys.modules", {"pytesseract": mock_pytesseract}, clear=False),
+            _patch_modules({"transformers": Mock(), "torch": Mock()}),
+            _patch_modules({"pytesseract": mock_pytesseract}),
         ):
             # Re-import to pick up patched deps
             from shopstack.providers.ocr_provider import NuExtract3OCRProvider
@@ -342,8 +375,8 @@ class TestNuExtract3OCRProviderInit:
     def test_ocr_pytesseract_unavailable_returns_error(self):
         """When pytesseract is unavailable, returns error."""
         with (
-            patch.dict("sys.modules", {"transformers": MagicMock(), "torch": MagicMock()}, clear=False),
-            patch.dict("sys.modules", {"pytesseract": None}, clear=False),
+            _patch_modules({"transformers": MagicMock(), "torch": MagicMock()}),
+            _patch_modules({"pytesseract": None}),
         ):
             from shopstack.providers.ocr_provider import NuExtract3OCRProvider
             provider = NuExtract3OCRProvider()
@@ -351,19 +384,49 @@ class TestNuExtract3OCRProviderInit:
 
     def test_ocr_calls_tesseract(self):
         """Verify _ocr_image calls pytesseract.image_to_string."""
+        import sys
         from unittest.mock import MagicMock as Mock
+        from shopstack.providers.ocr_provider import NuExtract3OCRProvider
 
         mock_pytesseract = Mock()
         mock_pytesseract.image_to_string.return_value = "Milk 64 MRP 64"
+        # Mock torch + transformers too, so the constructor's
+        # ``import torch; from transformers import ...`` doesn't
+        # load the real C-extensions (sentencepiece segfaults on
+        # Python 3.14 in the test env — see addendum 2026-06-09).
+        mock_torch = Mock()
+        mock_transformers = Mock()
+        mock_transformers.AutoModelForCausalLM = Mock()
+        mock_transformers.AutoTokenizer = Mock()
 
-        with patch.dict("sys.modules", {"pytesseract": mock_pytesseract}, clear=False):
-            from shopstack.providers.ocr_provider import NuExtract3OCRProvider
+        # Save originals and patch in mocks directly to avoid a segfault
+        # in unittest.mock._clear_dict on Python 3.14 when using
+        # patch.dict("sys.modules", ...).
+        _saved = {}
+        for mod_name, mock_obj in [
+            ("pytesseract", mock_pytesseract),
+            ("torch", mock_torch),
+            ("transformers", mock_transformers),
+        ]:
+            _saved[mod_name] = sys.modules.get(mod_name)
+            sys.modules[mod_name] = mock_obj
+        try:
             provider = NuExtract3OCRProvider()
+            # Force _pytesseract_available True so we go down the
+            # `import pytesseract; pytesseract.image_to_string(...)`
+            # path. The mock above makes the import resolve to the
+            # MagicMock, so the real tesseract binary is never invoked.
             provider._pytesseract_available = True
 
             result = provider._ocr_image("/fake/path")
             assert result == "Milk 64 MRP 64"
             mock_pytesseract.image_to_string.assert_called_once()
+        finally:
+            for mod_name, original in _saved.items():
+                if original is None:
+                    sys.modules.pop(mod_name, None)
+                else:
+                    sys.modules[mod_name] = original
 
 
 # ============================================================
@@ -374,7 +437,7 @@ class TestNuExtract3OCRProviderInit:
 class TestRMBGSegmentationProviderInit:
     def test_not_available_when_deps_missing(self):
         from shopstack.providers.segmentation_provider import RMBGSegmentationProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = RMBGSegmentationProvider()
             assert not provider.available
             assert provider.error is not None
@@ -382,7 +445,7 @@ class TestRMBGSegmentationProviderInit:
 
     def test_name_and_capabilities(self):
         from shopstack.providers.segmentation_provider import RMBGSegmentationProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = RMBGSegmentationProvider()
             assert provider.name == "rmbg"
             assert provider.model_id == "rmbg-1.4"
@@ -391,7 +454,7 @@ class TestRMBGSegmentationProviderInit:
 
     def test_segment_unavailable(self):
         from shopstack.providers.segmentation_provider import RMBGSegmentationProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = RMBGSegmentationProvider()
             result = provider.segment("/fake.jpg")
             assert len(result) == 1
@@ -399,7 +462,7 @@ class TestRMBGSegmentationProviderInit:
             assert result[0]["error"] is not None
 
     def test_segment_missing_file(self):
-        with patch.dict("sys.modules", {"transformers": MagicMock(), "torch": MagicMock()}, clear=False):
+        with _patch_modules( {"transformers": MagicMock(), "torch": MagicMock()}):
             from shopstack.providers.segmentation_provider import RMBGSegmentationProvider
             provider = RMBGSegmentationProvider()
             provider._available = True
@@ -409,13 +472,13 @@ class TestRMBGSegmentationProviderInit:
 
     def test_healthcheck_false_when_not_available(self):
         from shopstack.providers.segmentation_provider import RMBGSegmentationProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = RMBGSegmentationProvider()
             assert not provider.healthcheck()
 
     def test_last_latency_default(self):
         from shopstack.providers.segmentation_provider import RMBGSegmentationProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = RMBGSegmentationProvider()
             assert provider.last_latency_ms is None
 
@@ -428,7 +491,7 @@ class TestRMBGSegmentationProviderInit:
 class TestParakeetSTTProviderInit:
     def test_not_available_when_deps_missing(self):
         from shopstack.providers.stt_provider import ParakeetSTTProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             # fallback_whisper=False to test Parakeet's own availability
             # without the Whisper fallback layer (LocalWhisperProvider may
             # be available even when Parakeet's deps are missing).
@@ -439,14 +502,14 @@ class TestParakeetSTTProviderInit:
 
     def test_name_and_capabilities(self):
         from shopstack.providers.stt_provider import ParakeetSTTProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = ParakeetSTTProvider()
             assert provider.name == "parakeet"
             assert "stt" in provider.capabilities
 
     def test_transcribe_missing_file(self):
         from shopstack.providers.stt_provider import ParakeetSTTProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = ParakeetSTTProvider()
             result = provider.transcribe("/tmp/nonexistent.wav")
             assert "error" in result
@@ -454,13 +517,13 @@ class TestParakeetSTTProviderInit:
 
     def test_healthcheck_false_when_not_available(self):
         from shopstack.providers.stt_provider import ParakeetSTTProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = ParakeetSTTProvider()
             assert not provider.healthcheck()
 
     def test_last_latency_default(self):
         from shopstack.providers.stt_provider import ParakeetSTTProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = ParakeetSTTProvider()
             assert provider.last_latency_ms is None
 
@@ -473,7 +536,7 @@ class TestParakeetSTTProviderInit:
 class TestSenseVoiceProviderInit:
     def test_not_available_when_deps_missing(self):
         from shopstack.providers.stt_provider import SenseVoiceSTTProvider
-        with patch.dict("sys.modules", {"funasr": None}, clear=False):
+        with _patch_modules( {"funasr": None}):
             # fallback_whisper=False to test SenseVoice's own availability
             # without the Whisper fallback layer.
             provider = SenseVoiceSTTProvider(fallback_whisper=False)
@@ -496,13 +559,13 @@ class TestSenseVoiceProviderInit:
 
     def test_healthcheck_false_when_not_available(self):
         from shopstack.providers.stt_provider import SenseVoiceSTTProvider
-        with patch.dict("sys.modules", {"funasr": None}, clear=False):
+        with _patch_modules( {"funasr": None}):
             provider = SenseVoiceSTTProvider(fallback_whisper=False)
             assert not provider.healthcheck()
 
     def test_last_latency_default(self):
         from shopstack.providers.stt_provider import SenseVoiceSTTProvider
-        with patch.dict("sys.modules", {"funasr": None}, clear=False):
+        with _patch_modules( {"funasr": None}):
             provider = SenseVoiceSTTProvider(fallback_whisper=False)
             assert provider.last_latency_ms is None
 
@@ -515,7 +578,7 @@ class TestSenseVoiceProviderInit:
 class TestQwen3ASRProviderInit:
     def test_not_available_when_deps_missing(self):
         from shopstack.providers.stt_provider import Qwen3ASRProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             # fallback_whisper=False to test Qwen3-ASR's own availability
             # without the Whisper fallback layer.
             provider = Qwen3ASRProvider(fallback_whisper=False)
@@ -538,13 +601,13 @@ class TestQwen3ASRProviderInit:
 
     def test_healthcheck_false_when_not_available(self):
         from shopstack.providers.stt_provider import Qwen3ASRProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = Qwen3ASRProvider(fallback_whisper=False)
             assert not provider.healthcheck()
 
     def test_last_latency_default(self):
         from shopstack.providers.stt_provider import Qwen3ASRProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = Qwen3ASRProvider(fallback_whisper=False)
             assert provider.last_latency_ms is None
 
@@ -598,7 +661,7 @@ class TestNewProviderRegistryWiring:
 class TestGroundingDINOProviderInit:
     def test_not_available_when_deps_missing(self):
         from shopstack.providers.grounding_provider import GroundingDINOProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = GroundingDINOProvider()
             assert not provider.available
             assert provider.error is not None
@@ -606,7 +669,7 @@ class TestGroundingDINOProviderInit:
 
     def test_name_and_capabilities(self):
         from shopstack.providers.grounding_provider import GroundingDINOProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = GroundingDINOProvider()
             assert provider.name == "grounding_dino"
             assert provider.model_id == "grounding-dino-tiny"
@@ -615,19 +678,19 @@ class TestGroundingDINOProviderInit:
 
     def test_healthcheck_false_when_not_available(self):
         from shopstack.providers.grounding_provider import GroundingDINOProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = GroundingDINOProvider()
             assert not provider.healthcheck()
 
     def test_last_latency_default(self):
         from shopstack.providers.grounding_provider import GroundingDINOProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = GroundingDINOProvider()
             assert provider.last_latency_ms is None
 
     def test_ground_unavailable(self):
         from shopstack.providers.grounding_provider import GroundingDINOProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = GroundingDINOProvider()
             result = provider.ground("/fake.jpg", "tomato")
             assert "error" in result
@@ -635,7 +698,7 @@ class TestGroundingDINOProviderInit:
             assert result["model"] == "grounding_dino"
 
     def test_ground_missing_file(self):
-        with patch.dict("sys.modules", {"transformers": MagicMock(), "torch": MagicMock()}, clear=False):
+        with _patch_modules( {"transformers": MagicMock(), "torch": MagicMock()}):
             from shopstack.providers.grounding_provider import GroundingDINOProvider
             provider = GroundingDINOProvider()
             provider._available = True
@@ -646,11 +709,63 @@ class TestGroundingDINOProviderInit:
 
     def test_ground_empty_prompt(self):
         from shopstack.providers.grounding_provider import GroundingDINOProvider
-        with patch.dict("sys.modules", {"transformers": None, "torch": None}, clear=False):
+        with _patch_modules( {"transformers": None, "torch": None}):
             provider = GroundingDINOProvider()
             result = provider.ground("/fake.jpg", "")
             assert "error" in result
             assert result["found"] is False
+
+    def test_ground_casts_pixel_values_to_model_dtype(self):
+        import torch
+
+        from shopstack.providers.grounding_provider import GroundingDINOProvider
+
+        provider = GroundingDINOProvider.__new__(GroundingDINOProvider)
+        provider._available = True
+        provider._error = None
+        provider._last_latency_ms = None
+        provider._model_name = "IDEA-Research/grounding-dino-tiny"
+        provider._device = "auto"
+        provider._box_threshold = 0.3
+        provider._text_threshold = 0.25
+
+        pixel_values = MagicMock()
+        pixel_values.to.return_value = pixel_values
+        input_ids = MagicMock()
+        pixel_mask = MagicMock()
+        inputs = {
+            "pixel_values": pixel_values,
+            "input_ids": input_ids,
+            "pixel_mask": pixel_mask,
+        }
+        provider._processor = MagicMock()
+        provider._processor.return_value = inputs
+        provider._processor.post_process_grounded_object_detection.return_value = [{
+            "boxes": [MagicMock(tolist=lambda: [11, 22, 33, 44])],
+            "labels": ["milk bottle"],
+            "scores": [0.91],
+        }]
+
+        model_param = MagicMock()
+        model_param.dtype = torch.bfloat16
+        provider._model = MagicMock()
+        provider._model.device = "cuda"
+        provider._model.parameters.return_value = iter([model_param])
+        provider._model.return_value = MagicMock()
+
+        mock_image = MagicMock()
+        mock_image.convert.return_value = mock_image
+        with _patch_modules({"torch": torch}), \
+             patch("PIL.Image.open", return_value=mock_image), \
+             patch("os.path.isfile", return_value=True), \
+             patch("torch.no_grad"):
+            result = provider.ground("/fake.jpg", "milk bottle")
+
+        pixel_values.to.assert_called_once_with(device="cuda", dtype=torch.bfloat16)
+        assert result["found"] is True
+        assert result["bbox"] == [11.0, 22.0, 33.0, 44.0]
+        assert result["confidence"] == 0.91
+        assert result["label"] == "milk bottle"
 
 
 # ============================================================
@@ -661,7 +776,7 @@ class TestGroundingDINOProviderInit:
 class TestCosyVoiceTTSProviderInit:
     def test_not_available_when_deps_missing(self):
         from shopstack.providers.cosyvoice_provider import CosyVoiceTTSProvider
-        with patch.dict("sys.modules", {"cosyvoice": None}, clear=False):
+        with _patch_modules( {"cosyvoice": None}):
             provider = CosyVoiceTTSProvider(prefer_gtts_fallback=False)
             assert not provider.available
             assert provider.error is not None
@@ -677,14 +792,14 @@ class TestCosyVoiceTTSProviderInit:
 
     def test_synthesize_empty_text(self):
         from shopstack.providers.cosyvoice_provider import CosyVoiceTTSProvider
-        with patch.dict("sys.modules", {"cosyvoice": None}, clear=False):
+        with _patch_modules( {"cosyvoice": None}):
             provider = CosyVoiceTTSProvider(prefer_gtts_fallback=False)
             result = provider.synthesize("")
             assert result == b""
 
     def test_synthesize_returns_empty_when_not_available(self):
         from shopstack.providers.cosyvoice_provider import CosyVoiceTTSProvider
-        with patch.dict("sys.modules", {"cosyvoice": None}, clear=False):
+        with _patch_modules( {"cosyvoice": None}):
             provider = CosyVoiceTTSProvider(prefer_gtts_fallback=False)
             result = provider.synthesize("Hello")
             assert result == b""
@@ -692,7 +807,7 @@ class TestCosyVoiceTTSProviderInit:
     def test_synthesize_falls_back_to_gtts(self):
         """When CosyVoice missing but gTTS available, should return gTTS audio."""
         from shopstack.providers.cosyvoice_provider import CosyVoiceTTSProvider
-        with patch.dict("sys.modules", {"cosyvoice": None}, clear=False):
+        with _patch_modules( {"cosyvoice": None}):
             provider = CosyVoiceTTSProvider(prefer_gtts_fallback=True)
             result = provider.synthesize("Hello")
             if provider._gtts_available:
@@ -703,14 +818,14 @@ class TestCosyVoiceTTSProviderInit:
 
     def test_healthcheck_false_when_not_available(self):
         from shopstack.providers.cosyvoice_provider import CosyVoiceTTSProvider
-        with patch.dict("sys.modules", {"cosyvoice": None}, clear=False):
+        with _patch_modules( {"cosyvoice": None}):
             provider = CosyVoiceTTSProvider(prefer_gtts_fallback=False)
             assert not provider.healthcheck()
 
     def test_healthcheck_true_with_gtts_fallback(self):
         """healthcheck returns True when gTTS fallback is available."""
         from shopstack.providers.cosyvoice_provider import CosyVoiceTTSProvider
-        with patch.dict("sys.modules", {"cosyvoice": None}, clear=False):
+        with _patch_modules( {"cosyvoice": None}):
             provider = CosyVoiceTTSProvider(prefer_gtts_fallback=True)
             if provider._gtts_available:
                 assert provider.healthcheck()

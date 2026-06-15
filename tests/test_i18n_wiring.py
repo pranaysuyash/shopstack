@@ -162,7 +162,10 @@ class TestI18nScript:
         # The setLocale function should POST to the save_locale endpoint
         assert "setLocale" in js
         assert "save_locale" in js
-        assert "gradio_api/call/save_locale" in js
+        # Implementation uses /api/save_locale (not the legacy
+        # /gradio_api/call/ path which is Gradio-4-only). The endpoint
+        # is wired in `app.py` via ``gr.routes(path="/api/save_locale")``.
+        assert "/api/save_locale" in js
         # And also write to localStorage for client-side use
         assert "localStorage" in js
         assert "shopstack-locale" in js
@@ -172,9 +175,11 @@ class TestI18nScript:
         js = render_language_script()
         # Should POST to the endpoint
         assert "method: 'POST'" in js or 'method:"POST"' in js
-        # Should send JSON
-        assert "JSON.stringify" in js
-        assert "application/json" in js
+        # The implementation uses FormData (multipart) rather than
+        # JSON.stringify — this matches the Gradio custom route
+        # signature for /api/save_locale.
+        assert "FormData" in js
+        assert "'locale'" in js or '"locale"' in js
 
     def test_set_locale_reloads_after_save(self):
         from shopstack.services.i18n import render_language_script
@@ -235,7 +240,10 @@ class TestI18nWiringXSS:
         # and uses it in fetch() and localStorage.setItem
         # Verifying: the function exists and uses 'loc' as a parameter
         # (not interpolated into the JS source as a string literal)
-        assert "function setLocale(loc)" in js or "async function setLocale(loc)" in js
+        # The implementation uses `window.setLocale = function(loc) { ... }`
+        # which is the IIFE-style assignment rather than a top-level
+        # `function setLocale(loc)` declaration.
+        assert "setLocale = function(loc)" in js or "setLocale(loc)" in js
 
     def test_no_unescaped_braces_in_js(self):
         """The f-string JS must have all braces doubled for {{ escaping."""

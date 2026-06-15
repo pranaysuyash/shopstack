@@ -41,7 +41,7 @@ import json
 import logging
 from html import escape
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -551,37 +551,34 @@ def render_language_script() -> str:
     to the server-side locale file), and then reloads so the next
     page render uses the saved locale.
     """
-    return f"""
-<script data-ss-exec="true">
-(function() {{
-  try {{
-    var saved = localStorage.getItem('{LOCALE_STORAGE_KEY}');
-    if (saved) {{
-      document.documentElement.setAttribute('data-locale', saved);
-    }}
-  }} catch (e) {{}}
-}})();
-async function setLocale(loc) {{
-  // 1) Local cache for immediate client-side use.
-  try {{
-    localStorage.setItem('{LOCALE_STORAGE_KEY}', loc);
-  }} catch (e) {{}}
-  // 2) Persist to the server so the next page load reads it from
-  //    ``load_locale_preference(user_id)`` (which is what
-  //    ``header_block`` is called with on app boot). Best-effort:
-  //    ignore the network error and still reload — localStorage
-  //    keeps the choice in-session.
-  try {{
-    await fetch('/gradio_api/call/save_locale', {{
-      method: 'POST',
-      headers: {{ 'Content-Type': 'application/json' }},
-      body: JSON.stringify({{ data: [loc] }}),
-    }});
-  }} catch (e) {{ /* server unreachable — localStorage is enough */ }}
-  // 3) Reload so the next page render uses the new locale.
-  window.location.reload();
-}}
-</script>"""
+    return (
+        f"<script>\n"
+        f"window.setLocale = function(loc) {{\n"
+        f"  try {{ localStorage.setItem('{LOCALE_STORAGE_KEY}', loc); }} catch (e) {{}}\n"
+        f"  try {{\n"
+        f"    var form = new FormData();\n"
+        f"    form.append('locale', loc);\n"
+        f"    fetch('/api/save_locale', {{ method: 'POST', body: form }});\n"
+        f"  }} catch (e) {{}}\n"
+        f"  setTimeout(function() {{ window.location.reload(); }}, 80);\n"
+        f"}};\n"
+        f"document.addEventListener('DOMContentLoaded', function() {{\n"
+        f"  var saved = null;\n"
+        f"  try {{ saved = localStorage.getItem('{LOCALE_STORAGE_KEY}'); }} catch (e) {{}}\n"
+        f"  if (saved) {{\n"
+        f"    document.documentElement.setAttribute('data-locale', saved);\n"
+        f"  }}\n"
+        f"}});\n"
+        f"</script>"
+    )
+
+
+def render_i18n_script() -> str:
+    """Alias for :func:`render_language_script`.
+
+    Provided for backward compatibility and semantic clarity.
+    """
+    return render_language_script()
 
 
 __all__ = [

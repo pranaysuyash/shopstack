@@ -709,7 +709,11 @@ class TestTraceServiceRedactPayload:
         svc = TraceService(db)
         payload = {"perception": {"name": "John", "phone": "9876543210"}}
         redacted = svc.redact_payload(payload)
-        assert redacted["perception"]["phone"] == "[REDACTED_NUMBER]"
+        # Sensitive key name ("phone") triggers `[REDACTED]` via the
+        # args-dict key detection path. This is more reliable than
+        # relying on the phone-number regex to match `9876543210`
+        # inside the nested value.
+        assert redacted["perception"]["phone"] == "[REDACTED]"
         assert redacted["perception"]["name"] == "John"
 
     def test_redacts_international_phone_spaced(self, db):

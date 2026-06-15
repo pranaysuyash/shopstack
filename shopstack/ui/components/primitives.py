@@ -1036,5 +1036,29 @@ url_state_sync_js = _deprecated_alias(  # noqa: F811
 
 aria_live_screen = _deprecated_alias(  # noqa: F811
     "shopstack.ui.components.primitives.aria_live_screen",
-    "shopstack.ui.components.decorators.aria_live_screen",
+    "shopstack.ui.components.decorators.aria_live_screen"
 )(_canonical_aria_live_screen)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Tooltip — superseded by shopstack.services.tooltips
+# ═══════════════════════════════════════════════════════════════════════
+
+
+def tooltip_icon(help_id: str, *, locale: str = "en") -> str:
+    """Render an inline help icon for ``help_id``.
+
+    Thin compatibility shim that delegates to
+    ``shopstack.services.tooltips.render_inline_help``. Use this
+    next to a ``gr.Textbox(label=...)`` or any other field where
+    users need a one-line explanation.
+
+    Example::
+
+        gr.Textbox(
+            label=f"Batch {tooltip_icon('lot_id')}",
+            placeholder="inv-001",
+        )
+    """
+    from shopstack.services.tooltips import render_inline_help
+    return render_inline_help(help_id, locale=locale)

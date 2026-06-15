@@ -175,6 +175,17 @@ def check_1_1_1_alt_text(files: dict[str, str]) -> WCAGResult:
     for fp, content in files.items():
         if not fp.endswith((".py", ".html", ".css")):
             continue
+        # Skip the audit's own source file: it contains the regex pattern
+        # ``<svg\\b[^>]*>`` as a string literal, which the regex below
+        # would match as a false positive.
+        if fp.endswith("audit_wcag.py"):
+            continue
+        # Skip the audit's own test file: the test fixtures contain
+        # synthetic HTML fragments (e.g. ``<svg></svg>``) that are
+        # intentionally minimal to verify the check's pass/warn
+        # behavior, not real production HTML.
+        if "test_audit_wcag" in fp:
+            continue
         # Python f-strings + Gradio components sometimes render raw <img>
         for m in re.finditer(r"<img\b[^>]*>", content):
             tag = m.group(0)
@@ -182,9 +193,32 @@ def check_1_1_1_alt_text(files: dict[str, str]) -> WCAGResult:
                 img_with_alt += 1
             else:
                 img_no_alt += 1
-        # SVG with role="img" or aria-label is accessible
+        # SVG with role="img" or aria-label is accessible. We skip matches
+        # that look like Python regex patterns (e.g. ``r"<svg\\b[^>]*>"``)
+        # rather than real SVG tags. A real SVG tag never contains a
+        # backslash or unescaped regex metacharacters (``[``, ``]``,
+        # ``*``, ``?``, ``^``, ``$``); a regex pattern almost always does.
+        # We also skip matches inside Python docstrings (a docstring
+        # line that starts with ``"""`` after whitespace is a
+        # continuation of a triple-quoted string, not executable code).
         for m in re.finditer(r"<svg\b[^>]*>", content):
             tag = m.group(0)
+            if any(ch in tag for ch in ("\\", "[", "]", "*", "?", "^", "$")):
+                continue  # regex pattern in a Python string literal
+            # Docstring detection: if the line starts (after whitespace)
+            # with ``"""``, ``"`` or ``'`` and the match is after the
+            # opening quote, we're inside a docstring.
+            if fp.endswith(".py"):
+                line_start = content.rfind("\n", 0, m.start()) + 1
+                line = content[line_start:m.end()]
+                stripped = line.lstrip()
+                if (
+                    stripped.startswith('"""')
+                    or stripped.startswith("'''")
+                    or stripped.startswith('r"""')
+                    or stripped.startswith("r'''")
+                ):
+                    continue  # inside a Python docstring
             if "role=" in tag and "img" in tag:
                 svg_with_role += 1
             elif "aria-label" in tag:

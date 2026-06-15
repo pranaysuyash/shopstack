@@ -88,6 +88,26 @@ def _ensure_loaded() -> None:
         load_nutrition_reference()
 
 
+def _brand_aware_match(key: str) -> str | None:
+    """Resolve a branded/packaged item name (e.g. "Amul Toned Milk 500ml")
+    to a canonical nutrition entry via fuzzy word-overlap matching.
+
+    The exact alias lookup in :func:`get_nutrition_info` only matches
+    bare product names ("toned milk"). Real inventory items carry brand
+    names and pack sizes ("Amul Toned Milk 500ml") that never match
+    exactly. We reuse :mod:`shopstack.domain.product_matching`'s
+    word-overlap scorer against every known alias and accept the
+    highest-scoring match above its 0.5 "is_match" threshold.
+    """
+    from shopstack.domain.product_matching import best_match
+
+    assert _alias_map is not None
+    match = best_match(key, list(_alias_map.keys()), threshold=0.5)
+    if match is None:
+        return None
+    return _alias_map.get(match.matched_name)
+
+
 def get_nutrition_info(name: str) -> NutritionInfo | None:
     _ensure_loaded()
     assert _alias_map is not None
@@ -95,6 +115,8 @@ def get_nutrition_info(name: str) -> NutritionInfo | None:
 
     key = name.strip().lower()
     canonical = _alias_map.get(key)
+    if canonical is None:
+        canonical = _brand_aware_match(key)
     if canonical is None:
         return None
 

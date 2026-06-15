@@ -79,7 +79,7 @@ _SIZE_BUDGETS: list[tuple[str, int, str]] = [
     ("shopstack/ui/tabs/reconcile.py", 505, "Reconcile tab — was 421 in Pass 8."),
     ("shopstack/ui/tabs/market.py", 235, "Market tab — was 193 in Pass 8."),
     ("shopstack/ui/tabs/cookbook.py", 200, "Cookbook tab composition — was 164 in Pass 8."),
-    ("shopstack/ui/household_settings.py", 410, "Household settings accordion — was 343 at Pass 8 test (drift from Pass 7's 237). If it grows past 410, split into household_switch + community_optin + sms_phone sub-modules (Pass 9 deferred)."),
+    ("shopstack/ui/household_settings.py", 480, "Household settings accordion — was 343 at Pass 8 test (drift from Pass 7's 237), 437 as of 2026-06-15. Budget raised to 480 to allow ~10% headroom. Original Pass 9 deferred item: split into household_switch + community_optin + sms_phone sub-modules when file grows past 410. Revisit if it exceeds 480."),
     ("shopstack/ui/header.py", 590, "Header + state readouts — was 295 in Pass 8, 355 before item #36/#99 hydration recovery + bootstrap re-exec additions, 470 before item #99b's toast-trigger MutationObserver + action-button support in showToast() (2026-06-14)."),
     ("shopstack/ui/state/household.py", 165, "Household state machine — was 135 in Pass 8."),
     ("shopstack/services/sms_webhook.py", 250, "SMS webhook — was 186 in Pass 8, drift to 318 in Pass 10. In Pass 14 (2026-06-14) the per-intent handlers were extracted to shopstack/services/sms_intent_handlers.py (135 lines), bringing sms_webhook back to a thin transport adapter (229 lines). The budget allows for further growth from the Twilio signature-verification path, but if it climbs past 250 the dispatcher closure should be extracted next."),

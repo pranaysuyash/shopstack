@@ -19,6 +19,7 @@ benchmarks/trends/*
 data/*.db
 data/*.db-shm
 data/*.db-wal
+data/receipts/
 data/*.png
 data/location_photos/
 data/receipt_benchmark_results.json

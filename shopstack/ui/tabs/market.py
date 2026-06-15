@@ -28,8 +28,6 @@ from shopstack.ui.screens import (
 from shopstack.ui.components.primitives import (
     empty_state_enhanced,
     loading_skeleton,
-    tooltip_icon,
-)
     with_loading_state,
 )
 from shopstack.ui.components.js_helpers import busy_js
@@ -85,8 +83,8 @@ def build_market_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                         "consumers (per gradio.Client protocol)."
                     ),
                 ).then(
-                    with_loading_state(scan_btn, [])[1],
-                    outputs=[scan_btn],
+                    with_loading_state(scan_btn, [ml_results])[1],
+                    outputs=[scan_btn, ml_results],
                 )
                 with gr.Row():
                     ml_confirm_btn = gr.Button("Confirm BUY \u2192 Add to List", variant="primary")
@@ -174,8 +172,8 @@ def build_market_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
                         "consumers (per gradio.Client protocol)."
                     ),
                 ).then(
-                    with_loading_state(hs_scan_btn, [])[1],
-                    outputs=[hs_scan_btn],
+                    with_loading_state(hs_scan_btn, [hs_results])[1],
+                    outputs=[hs_scan_btn, hs_results],
                 )
                 with gr.Row():
                     hs_confirm_btn = gr.Button("Confirm Updates", variant="primary")

@@ -177,8 +177,9 @@ def test_qwen3vl_detect_uses_canonical_prompt():
     # apply_chat_template returns a dict (or BatchEncoding); we then call .to()
     # on it to move to the model device. The dict's .to() is monkey-patched
     # below to return a fresh dict with the .shape attribute MagicMock.
-    template_return = {"input_ids": MagicMock(shape=[1, 5])}
-    template_return["to"] = MagicMock(return_value={"input_ids": MagicMock(shape=[1, 5])})
+    template_return = MagicMock()
+    template_return.__getitem__.return_value = MagicMock(shape=[1, 5])
+    template_return.to.return_value = template_return
     provider._processor.apply_chat_template = MagicMock(return_value=template_return)
 
     # generate returns a tensor-like; __getitem__ slices it.
@@ -221,8 +222,9 @@ def test_qwen3vl_ground_returns_bbox_payload():
     provider._model_name = "Qwen/Qwen3-VL-8B-Instruct"
     provider._device = "cpu"
 
-    template_return = {"input_ids": MagicMock(shape=[1, 5])}
-    template_return["to"] = MagicMock(return_value={"input_ids": MagicMock(shape=[1, 5])})
+    template_return = MagicMock()
+    template_return.__getitem__.return_value = MagicMock(shape=[1, 5])
+    template_return.to.return_value = template_return
     provider._processor.apply_chat_template = MagicMock(return_value=template_return)
 
     mock_generated_ids = MagicMock()

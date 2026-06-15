@@ -131,8 +131,8 @@ def build_basket_add_items(app: gr.Blocks, ctx: TabContext) -> None:
                     api_name="receipt_scan",
                     api_description="Extract receipt text from uploaded file",
                 ).then(
-                    with_loading_state(receipt_scan_btn, [])[1],
-                    outputs=[receipt_scan_btn],
+                    with_loading_state(receipt_scan_btn, [receipt_df])[1],
+                    outputs=[receipt_scan_btn, receipt_df],
                 )
                 receipt_raw_text.change(
                     receipt_parse_text,
@@ -219,8 +219,8 @@ def build_basket_add_items(app: gr.Blocks, ctx: TabContext) -> None:
                         "Parse pasted recipe text and diff against inventory"
                     ),
                 ).then(
-                    with_loading_state(recipe_btn, [])[1],
-                    outputs=[recipe_btn],
+                    with_loading_state(recipe_btn, [recipe_result])[1],
+                    outputs=[recipe_btn, recipe_result],
                 )
                 recipe_add_btn.click(
                     recipe_text_add_missing_to_list,
@@ -247,4 +247,7 @@ def build_basket_add_items(app: gr.Blocks, ctx: TabContext) -> None:
                         "Extract recipe text from an uploaded image (OCR) or "
                         ".txt file. Pre-fills the recipe textbox."
                     ),
+                ).then(
+                    with_loading_state(recipe_ocr_btn, [recipe_status])[1],
+                    outputs=[recipe_ocr_btn, recipe_status],
                 )

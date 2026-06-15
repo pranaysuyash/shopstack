@@ -19,6 +19,13 @@ from shopstack.ui.pwa_mount import mount_pwa_static
 from shopstack.ui.runtime_status import build_runtime_status
 from shopstack.services.sms_webhook import mount_sms_webhook
 from shopstack.services.health_mount import mount_health_endpoint
+from shopstack.services.global_search_mount import mount_global_search
+from shopstack.services.privacy_mount import mount_privacy_endpoints
+from shopstack.services.undo_mount import mount_undo_endpoint
+from shopstack.services.data_retention import (
+    render_privacy_panel_html,
+    render_privacy_panel_script,
+)
 
 from shopstack.app_context import (
     APP_DESCRIPTION,
@@ -96,6 +103,9 @@ def build_app() -> gr.Blocks:
     """
     with gr.Blocks(title=APP_NAME, css=CSS) as app:
         mount_sms_webhook(app)
+        mount_global_search(app)
+        mount_privacy_endpoints(app)
+        mount_undo_endpoint(app)
 
         initial_locale = load_locale_preference(current_user_id() or "default_household")
         gr.HTML(

@@ -4,7 +4,7 @@ emoji: 🛒
 colorFrom: green
 colorTo: blue
 sdk: gradio
-sdk_version: ">=5.0"
+sdk_version: "6.17.3"
 app_file: app.py
 pinned: false
 tags: [shopstack, gradio, inventory, shopping, offline-first, household]

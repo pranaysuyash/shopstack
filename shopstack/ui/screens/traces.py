@@ -13,6 +13,7 @@ from shopstack.config import settings
 # The service wraps shopstack.traces.export with a clean class interface
 # following the service boundary pattern.
 from shopstack.app_context import get_trace_service
+from shopstack.ui.components.primitives import home_card
 
 logger = logging.getLogger(__name__)
 
@@ -135,11 +136,9 @@ def _trace_timeline_html(trace) -> str:
         f"<span style='text-align:right;'>{escape(str(value))}</span></div>"
         for label, value in steps
     )
-    return (
-        "<div class='home-card' style='text-align:left;'>"
-        "<h3>Decision Trace Details</h3>"
-        f"{rows_html}"
-        "</div>"
+    return home_card(
+        body=f"<h3>Decision Trace Details</h3>{rows_html}",
+        style="text-align:left;",
     )
 
 
@@ -209,11 +208,12 @@ def agent_trace_detail(trace_id: str) -> str:
     timeline = _trace_timeline_html(trace)
     service = get_trace_service()
     raw = json.dumps(service.trace_payload(trace), indent=2, default=str)
-    return timeline + (
-        "<div class='home-card' style='text-align:left;margin-top:12px;'>"
-        "<h3>Raw activity record</h3>"
-        f"<pre style='font-size: 0.75rem;overflow:auto;max-height:400px;background:var(--bg-input);padding:12px;border-radius:var(--radius-sm);'>{raw}</pre>"
-        "</div>"
+    return timeline + home_card(
+        body=(
+            "<h3>Raw activity record</h3>"
+            f"<pre style='font-size: 0.75rem;overflow:auto;max-height:400px;background:var(--bg-input);padding:12px;border-radius:var(--radius-sm);'>{raw}</pre>"
+        ),
+        style="text-align:left;margin-top:12px;",
     )
 
 

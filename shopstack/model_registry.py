@@ -267,6 +267,29 @@ MODEL_REGISTRY: list[ModelEntry] = [
         badge_relevance="llama_champion",
         notes="Kimi-VL-A3B-Thinking (Apr 2025). MoE 16B/3B active, vision + reasoning. custom_code. VLM bench pending.",
     ),
+    # Grounding / open-vocabulary localization
+    ModelEntry(
+        provider_group="grounding",
+        model_id="grounding-dino-tiny",
+        hf_model="IDEA-Research/grounding-dino-tiny",
+        params_b=0.043,
+        license_note="Apache-2.0",
+        runtime="transformers",
+        status="active",
+        badge_relevance="off_the_grid",
+        notes="Open-vocabulary grounding backbone. Paired with ShopStack promptable segmentation for shelf / fridge / cupboard localization. Commercial-allowed and benchmarked in the grounding lane.",
+    ),
+    ModelEntry(
+        provider_group="grounding",
+        model_id="qwen3-vl-grounding",
+        hf_model="Qwen/Qwen3-VL-8B-Instruct",
+        params_b=8.0,
+        license_note="Apache-2.0",
+        runtime="transformers",
+        status="candidate",
+        badge_relevance="llama_champion",
+        notes="Qwen3-VL grounding helper. Not the primary mask generator, but useful for disambiguation and grounding prompts in household scenes. Benchmarked in the grounding lane alongside GroundingDINO.",
+    ),
     # Planner
     ModelEntry(
         provider_group="planner",

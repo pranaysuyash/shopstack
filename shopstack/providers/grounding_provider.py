@@ -89,7 +89,7 @@ class GroundingDINOProvider:
             self._processor = AutoProcessor.from_pretrained(self._model_name)
             self._model = AutoModelForZeroShotObjectDetection.from_pretrained(
                 self._model_name,
-                torch_dtype=torch.bfloat16,
+                torch_dtype=torch.float32,
             )
             if self._device == "auto":
                 if torch.cuda.is_available():
@@ -191,9 +191,27 @@ class GroundingDINOProvider:
             # Keep CPU copy of input_ids for post-processing
             input_ids = inputs["input_ids"]
 
-            # Move inputs to the correct device
-            if hasattr(self._model, "device") and str(self._model.device) != "cpu":
-                inputs = {k: v.to(self._model.device) for k, v in inputs.items()}
+            # Move inputs to the correct device, and keep floating point tensors
+            # aligned with the model dtype. GroundingDINO loads in bf16 on our
+            # Modal path, while processors default to float32 pixel values.
+            if hasattr(self._model, "device"):
+                model_device = self._model.device
+                model_dtype = None
+                try:
+                    model_dtype = next(self._model.parameters()).dtype
+                except Exception:
+                    model_dtype = None
+
+                moved_inputs = {}
+                for key, value in inputs.items():
+                    if not hasattr(value, "to"):
+                        moved_inputs[key] = value
+                        continue
+                    if key == "pixel_values" and model_dtype is not None:
+                        moved_inputs[key] = value.to(device=model_device, dtype=model_dtype)
+                    else:
+                        moved_inputs[key] = value.to(model_device)
+                inputs = moved_inputs
 
             with torch.no_grad():
                 outputs = self._model(**inputs)
@@ -201,7 +219,7 @@ class GroundingDINOProvider:
             results = self._processor.post_process_grounded_object_detection(
                 outputs,
                 input_ids,
-                box_threshold=self._box_threshold,
+                threshold=self._box_threshold,
                 text_threshold=self._text_threshold,
                 target_sizes=[(image.height, image.width)],
             )

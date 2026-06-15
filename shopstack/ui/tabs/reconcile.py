@@ -37,6 +37,7 @@ from shopstack.ui.components.primitives import (
     empty_state_enhanced,
     help_text,
     loading_skeleton,
+    tooltip_icon,
 )
 from shopstack.ui.screens import (
     add_purchase_batch,
@@ -284,7 +285,7 @@ def build_reconcile_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> R
                 gr.Markdown("### Quick use")
                 with gr.Row():
                     cons_lot_input = gr.Textbox(
-                        label="Batch",
+                        label=f"Batch {tooltip_icon('lot_id')}",
                         placeholder="e.g. abc123",
                         scale=2,
                     )

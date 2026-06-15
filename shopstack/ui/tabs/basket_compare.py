@@ -170,8 +170,8 @@ def build_basket_compare(app: gr.Blocks, ctx: TabContext) -> None:
                         "Compare a multi-item basket total across all market sources"
                     ),
                 ).then(
-                    with_loading_state(bc_button, [])[1],
-                    outputs=[bc_button],
+                    with_loading_state(bc_button, [bc_results])[1],
+                    outputs=[bc_button, bc_results],
                 )
                 bc_example_btn.click(
                     lambda: (

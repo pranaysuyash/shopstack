@@ -37,7 +37,7 @@ from html import escape
 
 import gradio as gr
 
-from shopstack.app_context import current_user_id
+from shopstack.app_context import current_user_id, db
 from shopstack.ui.components.primitives import (
     confirm_dialog,
     confirm_hide_updates,
@@ -104,6 +104,19 @@ def build_household_settings(app: gr.Blocks) -> HouseholdSettingsHandles:
         tab's dashboard refresh.
     """
     with gr.Accordion("Household settings", open=False, elem_classes="workspace-admin"):
+        # Privacy panel — mounted in the settings tab so the user
+        # can see all retention knobs and delete their data from
+        # one place. The panel reads /api/retention_summary on
+        # load and POSTs to /api/purge_user_data on click.
+        from shopstack.app_context import current_user_id as _uid
+        from shopstack.services.data_retention import (
+            retention_summary as _rs,
+            render_privacy_panel_html as _rpp,
+            render_privacy_panel_script as _rps,
+        )
+        _summary = _rs(db, user_id=_uid() or "")
+        gr.HTML(value=_rpp(_summary), padding=True)
+        gr.HTML(value=_rps(), visible=False)
         gr.HTML(
             f"""
 <div style=\"display:flex;flex-direction:column;gap:8px;margin-bottom:10px;\">

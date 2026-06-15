@@ -113,8 +113,8 @@ def build_basket_plan(app: gr.Blocks, ctx: TabContext) -> BasketPlanHandles:
                 "Run unified shopping plan: classify, price, substitute, score deals"
             ),
         ).then(
-            with_loading_state(run_btn, [])[1],
-            outputs=[run_btn],
+            with_loading_state(run_btn, [summary_html, detail_html])[1],
+            outputs=[run_btn, summary_html, detail_html],
         )
         app.load(unified_plan_summary, outputs=summary_html)
 

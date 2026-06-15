@@ -26,6 +26,7 @@ from shopstack.services.photo_search import (
     store_photo,
 )
 from shopstack.ui.components.decorators import aria_live_screen
+from shopstack.ui.components.primitives import home_card
 from shopstack.ui.screens._utils import safe_render
 
 logger = logging.getLogger(__name__)
@@ -117,26 +118,25 @@ def find_location_by_photo(image_path: str, top_k: int = 5) -> str:
     Returns HTML with the top matches (name + similarity %).
     """
     if not (image_path or "").strip():
-        return (
-            "<div class='home-card' style='text-align:center;padding:16px;color:var(--text-dim);'>"
-            "Upload a photo to find similar locations."
-            "</div>"
+        return home_card(
+            style="text-align:center;padding:16px;color:var(--text-dim);",
+            body="Upload a photo to find similar locations.",
         )
     try:
         matches = find_similar_locations(image_path.strip(), db, top_k=top_k)
     except Exception as exc:
         logger.exception("find_location_by_photo failed")
-        return (
-            "<div class='home-card' style='text-align:center;padding:16px;'>"
-            "<div style='color:var(--red);font-weight:600;'>Photo search failed</div>"
-            f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{escape(str(exc)[:120])}</div>"
-            "</div>"
+        return home_card(
+            style="text-align:center;padding:16px;",
+            body=(
+                "<div style='color:var(--red);font-weight:600;'>Photo search failed</div>"
+                f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{escape(str(exc)[:120])}</div>"
+            ),
         )
     if not matches:
-        return (
-            "<div class='home-card' style='text-align:center;padding:16px;color:var(--text-dim);'>"
-            "No matching locations. Attach photos first."
-            "</div>"
+        return home_card(
+            style="text-align:center;padding:16px;color:var(--text-dim);",
+            body="No matching locations. Attach photos first."
         )
 
     parts: list[str] = []
