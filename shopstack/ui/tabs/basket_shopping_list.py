@@ -37,6 +37,8 @@ from shopstack.services.empty_states import (
     build_household_context,
     render,
 )
+from shopstack.services.i18n import load_locale_preference, t
+from shopstack.app_context import current_user_id
 from shopstack.ui.components.primitives import (
     confirm_hide_updates,
     confirm_toggle_updates,
@@ -108,8 +110,9 @@ def build_basket_shopping_list(app: gr.Blocks, ctx: TabContext) -> None:
                 lines=3,
             )
         with gr.Row():
+            _bsl_locale = load_locale_preference(current_user_id() or "")
             share_btn = gr.Button(
-                "📤 Share list",
+                t("button.share_list", _bsl_locale),
                 variant="primary",
                 scale=1,
                 elem_id="sl-share-btn",

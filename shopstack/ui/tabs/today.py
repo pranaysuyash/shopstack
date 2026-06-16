@@ -99,17 +99,23 @@ _MAX_UNDO_ENTRIES_SHOWN = 3  # keep the bar compact
 
 
 def _format_undo_entry_html(entry) -> str:  # noqa: ANN001 — UndoEntry
-    """Render one UndoEntry as a compact card row."""
+    """Render one UndoEntry as a compact card row.
+
+    Prefers the user-facing ``description`` (e.g. "Consumed 2 L of
+    milk") over the raw ``kind`` so the bar reads naturally.
+    Falls back to ``kind`` when description is empty.
+    """
     from html import escape
 
     kind = escape(str(getattr(entry, "kind", "") or "change"))
+    description = escape(str(getattr(entry, "description", "") or ""))
+    summary = description or kind
     when = getattr(entry, "registered_at", None)
     if hasattr(when, "isoformat"):
         when_str = escape(str(when)[:19])
     else:
         when_str = escape(str(when) or "")
     entry_id = escape(str(getattr(entry, "entry_id", "") or ""))
-    summary = escape(str(getattr(entry, "summary", "") or kind))
     return (
         f"<div class='undo-row' data-entry-id='{entry_id}' "
         f"style='display:flex;justify-content:space-between;"

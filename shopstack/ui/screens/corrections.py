@@ -29,7 +29,15 @@ logger = logging.getLogger(__name__)
 
 
 def _format_correction_row(row: Any) -> str:
-    """Render one correction event as a card row."""
+    """Render one correction event as a card row with inline Accept/Reject buttons.
+
+    Per motto_v3 §7 supersession: the per-row buttons are a thin UI
+    wrapper that delegates to the canonical
+    :func:`accept_correction_event` and :func:`reject_correction_event`
+    handlers (via :func:`render_corrections_click_handler`). They do
+    not introduce a new API surface, do not fork the canonical
+    handlers, and do not duplicate any existing route.
+    """
     canonical = escape(str(getattr(row, "canonical_name", "") or "(unnamed)"))
     correction_type = escape(str(getattr(row, "correction_type", "") or ""))
     old_value = escape(str(getattr(row, "old_value", "") or "—"))
@@ -55,6 +63,21 @@ def _format_correction_row(row: Any) -> str:
         f"</div>"
         f"<div style='font-size:0.7rem;color:var(--text-faint);margin-top:4px;'>"
         f"source: {source}"
+        f"</div>"
+        f"<div class='correction-row-actions' "
+        f"style='display:flex;gap:6px;margin-top:8px;'>"
+        f"<button class='correction-row-accept' type='button' "
+        f"data-action='accept-correction' data-event-id='{event_id}' "
+        f"aria-label='Accept this correction' "
+        f"style='background:var(--green,#1f9d55);color:#fff;border:none;"
+        f"border-radius:4px;padding:4px 10px;cursor:pointer;"
+        f"font-size:0.8125rem;min-height:28px;'>✓ Accept</button>"
+        f"<button class='correction-row-reject' type='button' "
+        f"data-action='reject-correction' data-event-id='{event_id}' "
+        f"aria-label='Reject this correction' "
+        f"style='background:var(--red,#c0392b);color:#fff;border:none;"
+        f"border-radius:4px;padding:4px 10px;cursor:pointer;"
+        f"font-size:0.8125rem;min-height:28px;'>✗ Reject</button>"
         f"</div>"
         f"</div>"
     )
@@ -122,8 +145,110 @@ def reject_correction_event(event_id: str) -> str:
     return render_recent_corrections_html()
 
 
+# ── Per-row click handler (D-04 follow-up, closes the deferred "JS hook" ──
+#
+# The :func:`build_memory_corrections` builder exposes a hidden
+# ``corrections_event_id`` textbox that the canonical global
+# Accept/Reject Gradio buttons read as input. The per-row
+# Accept/Reject HTML buttons (rendered by
+# :func:`_format_correction_row`) are a thin UI shortcut: they fill
+# that textbox and programmatically click the matching global
+# button, so the user gets the canonical handler in one click
+# instead of copy-pasting an id then clicking.
+#
+# Per motto_v3 §7 (Supersession / Canonical Replacement Rule): this
+# handler does NOT call the canonical Python functions directly. It
+# only routes through the existing Gradio buttons, which already
+# call :func:`accept_correction_event` / :func:`reject_correction_event`.
+# This preserves a single canonical entry point per action and
+# means any future change to the handler (e.g. audit logging,
+# idempotency, undo) is automatically picked up.
+
+
+def render_corrections_click_handler() -> str:
+    """Return JS that wires per-row Accept/Reject buttons to the global handlers.
+
+    The script is loaded once at app load (injected via
+    :func:`shopstack.ui.header.pwa_head_html`) and:
+
+    1. Exposes ``window.ssCorrectionClick(eventId, action)`` for
+       direct invocation.
+    2. Attaches a delegated ``click`` listener on ``document`` for
+       any element with ``data-action="accept-correction"`` or
+       ``data-action="reject-correction"`` and a
+       ``data-event-id`` attribute — this is the backstop that
+       wires the per-row buttons in
+       :func:`_format_correction_row` without requiring each
+       button to carry inline JS.
+    3. On click, fills the hidden ``corrections_event_id``
+       textbox and programmatically clicks the matching global
+       Gradio button (``.corrections-accept-btn`` /
+       ``.corrections-reject-btn``) — the canonical
+       Gradio handlers then run and re-render the panel.
+    """
+    return """
+<script data-ss-exec="true">
+(function() {
+  function findGlobalButton(action) {
+    var cls = action === 'accept' ? 'corrections-accept-btn' : 'corrections-reject-btn';
+    var el = document.querySelector('.' + cls);
+    if (!el) return null;
+    return el.tagName === 'BUTTON' ? el : (el.querySelector('button') || el);
+  }
+  function fillEventId(eventId) {
+    var tb = document.querySelector(
+      'input[data-testid="corrections_event_id"], textarea[data-testid="corrections_event_id"]'
+    );
+    if (!tb) {
+      var inputs = document.querySelectorAll('input[type="text"]');
+      for (var i = 0; i < inputs.length; i++) {
+        if (inputs[i].name && inputs[i].name.toLowerCase().indexOf('corrections') !== -1) {
+          tb = inputs[i];
+          break;
+        }
+      }
+    }
+    if (!tb) return;
+    var proto = tb.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+    var setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
+    setter.call(tb, eventId);
+    tb.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  function ssCorrectionClick(eventId, action) {
+    if (!eventId || !action) return;
+    fillEventId(eventId);
+    var btn = findGlobalButton(action);
+    if (btn) {
+      btn.click();
+    } else {
+      console.warn('ssCorrectionClick: global button not found for action=' + action);
+    }
+  }
+  window.ssCorrectionClick = ssCorrectionClick;
+  document.addEventListener('click', function(e) {
+    var t = e.target;
+    if (!t || !t.closest) return;
+    var target = t.closest('[data-action][data-event-id]');
+    if (!target) return;
+    var eventId = target.getAttribute('data-event-id');
+    var action = target.getAttribute('data-action');
+    if (!eventId || !action) return;
+    if (action === 'accept-correction') {
+      e.preventDefault();
+      ssCorrectionClick(eventId, 'accept');
+    } else if (action === 'reject-correction') {
+      e.preventDefault();
+      ssCorrectionClick(eventId, 'reject');
+    }
+  });
+})();
+</script>
+"""
+
+
 __all__ = [
     "render_recent_corrections_html",
     "accept_correction_event",
     "reject_correction_event",
+    "render_corrections_click_handler",
 ]

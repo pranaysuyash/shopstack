@@ -129,6 +129,41 @@ _APP_DATA_TABLES = [
 
 
 @pytest.fixture(autouse=True)
+def _patch_community_paths(tmp_path, monkeypatch):
+    """Redirect community price-map storage to a temp dir for every test.
+
+    The module ``shopstack.services.community_price_map`` hardcodes its
+    storage paths to ``Path.home() / ".shopstack" / "community"``. Without
+    this fixture, tests that touch community functions (e.g.
+    ``export_bundle``, ``submit_observation``) would read/write the real
+    user data directory at ``~/.shopstack/community/``, polluting it
+    across test runs and leaking test artifacts outside the project.
+
+    Per motto_v3 §0.6 reliability, test isolation must not depend on
+    filesystem state. This fixture replaces the module-level path
+    constants with temp paths so every test gets a clean community
+    directory and the real user data is never touched.
+
+    Also cleans up any real-dir artifacts that may have been left by
+    earlier sessions (pre-fixture runs) so the user's data directory
+    stays pristine.
+    """
+    from shopstack.services import community_price_map as cpm
+    monkeypatch.setattr(cpm, "_COMMUNITY_DIR", tmp_path / "community")
+    monkeypatch.setattr(cpm, "_POOL_FILE", tmp_path / "community" / "prices.jsonl")
+    monkeypatch.setattr(cpm, "_SALT_FILE", tmp_path / "community" / "salt")
+    monkeypatch.setattr(cpm, "_OPTED_IN_FILE", tmp_path / "community" / "opted_in.json")
+    yield
+    # Post-test cleanup: remove any real-dir artifacts that may have
+    # leaked (e.g. from a test that ran before this fixture was added,
+    # or from a code path that bypasses the module-level monkeypatch).
+    real_dir = Path.home() / ".shopstack" / "community"
+    if real_dir.exists():
+        for name in ("opted_in.json", "salt", "prices.jsonl"):
+            (real_dir / name).unlink(missing_ok=True)
+
+
+@pytest.fixture(autouse=True)
 def _clear_dashboard_cache():
     """Clear the dashboard state cache before every test.
 

@@ -263,6 +263,44 @@ PRESETS: dict[str, EmptyStatePreset] = {
         body_key="empty.search.body",
         icon="🔎",
     ),
+    # ── Added 2026-06-13: analytics, consumption, activity_log ──
+    # Per motto_v3 §6 (pre-existing is not an excuse), every major
+    # tab should have a first-class empty state. These three close
+    # the most-visited gaps in the analytics / consumption / activity
+    # log screens.
+    "memory.analytics": EmptyStatePreset(
+        preset_id="memory.analytics",
+        tier="transient",
+        title_key="empty.analytics.title",
+        body_key="empty.analytics.body",
+        primary_cta=EmptyStateCTA(
+            label="empty.cta.add_items",
+            target_id="add-items-btn",
+        ),
+        icon="📊",
+    ),
+    "memory.consumption": EmptyStatePreset(
+        preset_id="memory.consumption",
+        tier="transient",
+        title_key="empty.consumption.title",
+        body_key="empty.consumption.body",
+        primary_cta=EmptyStateCTA(
+            label="empty.cta.add_items",
+            target_id="add-items-btn",
+        ),
+        icon="📈",
+    ),
+    "memory.activity_log": EmptyStatePreset(
+        preset_id="memory.activity_log",
+        tier="transient",
+        title_key="empty.activity.title",
+        body_key="empty.activity.body",
+        primary_cta=EmptyStateCTA(
+            label="empty.cta.add_items",
+            target_id="add-items-btn",
+        ),
+        icon="📓",
+    ),
     # Generic catch-all for legacy call sites. The renderer
     # accepts overrides for title/body/icon so the old
     # `empty_state_enhanced(message, icon=...)` pattern maps

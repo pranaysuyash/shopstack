@@ -27,6 +27,14 @@ from shopstack.ui.renderers.decision_cards import (
     render_price_deals,
     render_best_store,
     render_optimized_basket_summary,
+    # 2026-06-15 (Pass 17+18): Migrated from the legacy
+    # `shopstack.decisions.render_what_changed` /
+    # `render_needs_confirmation` shims (which took ``db`` and
+    # pre-fetched internally). The canonical versions take
+    # pre-fetched data; we fetch here. Pass 18 DELETED the legacy
+    # shim entirely, so the canonical path is the only path.
+    render_what_changed,
+    render_needs_confirmation,
 )
 from shopstack.ui.renderers.image_cards import (
     cards_to_grid,
@@ -90,8 +98,11 @@ def today_dashboard():
         render_inventory_overview,
         render_my_list_panel,
         render_compare_panel,
-        render_what_changed,
-        render_needs_confirmation,
+        # 2026-06-15 (Pass 17+18): render_what_changed and
+        # render_needs_confirmation are now imported from the
+        # canonical decision_cards module at the top of the file.
+        # Pass 18 DELETED the legacy shim, so the only path
+        # forward is the canonical signatures.
     )
 
     state = build_dashboard_state(db, tools.inventory, user_id=uid)
@@ -147,8 +158,26 @@ def today_dashboard():
 
     alert_html = inventory_alerts(days_since_purchase=3)
     fridge_html = what_is_in_fridge_now()
-    what_changed = render_what_changed(db)
-    needs_confirm = render_needs_confirmation(db)
+    # 2026-06-15 (Pass 17 + 18): pre-fetch the data the canonical
+    # renderers need, then call them directly. The legacy
+    # `shopstack.decisions.render_what_changed(db)` shim did
+    # this internally but also emitted a DeprecationWarning.
+    # Pass 18 DELETED the legacy shim entirely (per §7 supersession
+    # discipline + user approval for bold long-term cleanup), so
+    # the canonical signatures are the only path forward.
+    from datetime import date
+    _recent_purchases = db.get_purchase_events(limit=5, user_id=uid)
+    _recent_traces = db.get_traces(limit=5, user_id=uid)
+    what_changed = render_what_changed(_recent_purchases, _recent_traces)
+    _all_inv_for_confirm = db.get_inventory(user_id=uid)
+    _uncertain = [
+        lot for lot in _all_inv_for_confirm
+        if lot.status == "active" and lot.quantity > 0 and (
+            not lot.purchase_date
+            or (date.today() - lot.purchase_date).days > 14
+        )
+    ]
+    needs_confirm = render_needs_confirmation(_uncertain)
     cadence_html = render_cadence_insights(state.cadence_data)
     waste_html = render_waste_warnings(state.waste_data)
     waste_coach_html = render_waste_coach_html(state.waste_data)

@@ -10,6 +10,7 @@ from urllib.parse import quote
 
 from shopstack.app_context import APP_NAME, current_user_id, db, providers, tools
 from shopstack.services.dashboard import clear_dashboard_cache
+from shopstack.services.i18n import load_locale_preference, t
 from shopstack.services.shopping import (
     classify_shopping_items,
     enrich_items_with_swiggy,
@@ -311,13 +312,17 @@ def _shopping_list_share_text(items: list[dict[str, Any]]) -> str:
     return "\n".join(sections)
 
 
-def _shopping_list_share_html(share_text: str) -> str:
+def _shopping_list_share_html(share_text: str, locale: str = "en") -> str:
     safe_text = escape(share_text)
     encoded = quote(share_text)
     whatsapp_url = f"https://wa.me/?text={encoded}"
+    title = t("button.share_list_title", locale)
+    copy_label = t("button.share_list_copy", locale)
+    copy_done = t("button.share_list_copy_done", locale)
+    whatsapp_label = t("button.share_list_whatsapp", locale)
     return (
         "<div style='margin-top:8px;'>"
-        "<strong>Copy for WhatsApp</strong>"
+        f"<strong>{title}</strong>"
         "<div style='display:flex;gap:8px;margin-top:6px;'>"
         "<textarea readonly rows='6' id='sl-share-text' "
         "style='flex:1;background:var(--bg-input);border:1px solid var(--border);"
@@ -325,11 +330,11 @@ def _shopping_list_share_html(share_text: str) -> str:
         "resize:none;'"
         f">{safe_text}</textarea>"
         "</div>"
-        "<button onclick=\"var t=document.getElementById('sl-share-text');"
-        "t.select();navigator.clipboard.writeText(t.value);"
-        "this.textContent='Copied!';setTimeout(function(){this.textContent='Copy'}.bind(this),1500);"
-        "\" class='gr-button' style='margin-top:6px;font-size: 0.75rem;'>Copy</button>"
-        f"<a class='gr-button' style='margin-top:6px;display:inline-block;text-decoration:none;' href='{whatsapp_url}' target='_blank'>Open WhatsApp</a>"
+        f"<button onclick=\"var t=document.getElementById('sl-share-text');"
+        f"t.select();navigator.clipboard.writeText(t.value);"
+        f"this.textContent='{copy_done}';setTimeout(function(){{this.textContent='{copy_label}'}}.bind(this),1500);"
+        f"\" class='gr-button' style='margin-top:6px;font-size: 0.75rem;'>{copy_label}</button>"
+        f"<a class='gr-button' style='margin-top:6px;display:inline-block;text-decoration:none;' href='{whatsapp_url}' target='_blank'>{whatsapp_label}</a>"
         "</div>"
     )
 
@@ -343,7 +348,7 @@ def _shopping_list_payload() -> tuple[str, list[list[str]], str, str, str, str]:
             "",
             "",
             "",
-            _shopping_list_share_html(_shopping_list_share_text([])),
+            _shopping_list_share_html(_shopping_list_share_text([]), load_locale_preference()),
         )
 
     rows = [
@@ -394,7 +399,7 @@ def _shopping_list_payload() -> tuple[str, list[list[str]], str, str, str, str]:
         body_html=f"<strong>Goal:</strong> {escape(str(sl.goal))}",
     ) if sl.goal else ""
     share_text = _shopping_list_share_text(rows)
-    share_html = _shopping_list_share_html(share_text)
+    share_html = _shopping_list_share_html(share_text, load_locale_preference())
     return goal_html, tbl, sl.list_id, sl.goal or "", cards, share_html
 
 
@@ -726,7 +731,7 @@ def shopping_list_share() -> str:
         return ""
     try:
         share_text = _shopping_list_share_text(rows)
-        return _shopping_list_share_html(share_text)
+        return _shopping_list_share_html(share_text, load_locale_preference())
     except Exception as exc:  # pragma: no cover — defensive
         logger.warning("shopping_list_share: render failed: %s", exc)
         return ""

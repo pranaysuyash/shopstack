@@ -31,19 +31,31 @@ CSS = """\
   --accent-soft: #E8F3EC;
   --green: #176B49;
   --red: #A63F31;
-  --amber: #A76012;
+  /* Darkened from #A76012 → #8B5A0B so badge-amber text passes AA (4.5:1+)
+     on the 16%-alpha amber tinted background composite (#F0E3D2). */
+  --amber: #8B5A0B;
   --blue: #315F9B;
+  /* Same value as --green/--red/--amber/--blue in light mode — the bright
+     variants are only used in dark mode for text on dark cards. Kept here
+     so the var() reference resolves in both modes. */
+  --green-text: var(--green);
+  --red-text: var(--red);
+  --amber-text: var(--amber);
+  --blue-text: var(--blue);
   --focus: #1A5CD9;
 
   /* ── Decision colors (synced with DECISION_COLORS in shopstack/decisions/types.py) ──
        WCAG 2.1 AA: minimum 4.5:1 contrast against white background for normal text.
-       Values below are tested against #FFFFFF using APCA/WCAG contrast calculation. */
-  --decision-buy: #1A9E4A;
+       Values below are tested against #FFFFFF using APCA/WCAG contrast calculation.
+       Mid-2026 audit tightened --decision-buy, --decision-use-soon, --decision-optional
+       so they pass AA on the rgba-tinted badge backgrounds (alpha 0.14–0.16) that
+       composite onto --bg-card. */
+  --decision-buy: #117A3A;
   --decision-skip: #595E66;
-  --decision-use-soon: #C47D0A;
-  --decision-optional: #2A6BC4;
-  --decision-compare: #7345D0;
-  --decision-confirm: #C53030;
+  --decision-use-soon: #92590A;
+  --decision-optional: #1E4D8C;
+  --decision-compare: #5A30B0;
+  --decision-confirm: #B91C1C;
   --decision-watch: #7F8C8D;
 
   /* ── Spacing scale ─────────────────────────────────────────────── */
@@ -108,35 +120,42 @@ CSS = """\
   --transition-glacial: 400ms;
 }
 
-/* ── Dark mode (system preference or explicit toggle) ─────────────── */
+  /* ── Dark mode (system preference or explicit toggle) ───────────────
+     Contrast note: --accent is a DARK green in both light and dark mode
+     so white button text passes WCAG AA (4.5:1+) in either mode. The
+     original dark-mode design used bright #2ECC71 for vibrancy, but
+     bright green cannot carry white text at AA. We keep the brand color
+     stable and adjust the surrounding chrome (backgrounds, accent-soft)
+     for the dark-mode look. See Docs/audits/2026-06-16/contrast_fix_*.md
+     for the full contrast analysis. */
 
-[data-theme="dark"] {
   --bg: #1A1614;
   --bg-card: #231F1C;
   --bg-card-strong: #2A2521;
   --bg-warm: #2D2823;
   --bg-input: #231F1C;
-  --border: #7D7467;
-  --border-strong: #8E8576;
-  --text: #EDE6DB;
-  --text-muted: #B5AB9E;
-  --text-dim: #9B9183;
+  --border: #5C544A;
+  --border-strong: #7A7165;
+  --text: #F2EBDF;
+  --text-muted: #C8BDAE;
+  --text-dim: #B5AB9E;
   /* WCAG 2.1 AA: #A89B8C yields ~4.7:1 contrast against --bg (#1A1614) */
   --text-faint: #A89B8C;
-  --accent: #2ECC71;
-  --accent-hover: #27AE60;
-  --accent-soft: rgba(46, 204, 113, 0.12);
-  --green: #2ECC71;
-  --red: #E74C3C;
-  --amber: #F39C12;
-  --blue: #5DADE2;
+  --accent: #1F7A52;
+  --accent-hover: #176B49;
+  /* Darker accent-soft so the (dark) --accent text remains readable. */
+  --accent-soft: rgba(31, 122, 82, 0.20);
+  --green: #1F7A52;
+  --red: #C0392B;
+  --amber: #A06012;
+  --blue: #2A6BC4;
   --focus: #5B9EF4;
-  --decision-buy: #2ECC71;
+  --decision-buy: #1F7A52;
   --decision-skip: #95A5A6;
-  --decision-use-soon: #F1C40F;
-  --decision-optional: #5DADE2;
-  --decision-compare: #9B59B6;
-  --decision-confirm: #E74C3C;
+  --decision-use-soon: #E0A030;
+  --decision-optional: #2A6BC4;
+  --decision-compare: #B07CE0;
+  --decision-confirm: #C0392B;
   --decision-watch: #95A5A6;
 }
 
@@ -147,26 +166,26 @@ CSS = """\
     --bg-card-strong: #2A2521;
     --bg-warm: #2D2823;
     --bg-input: #231F1C;
-    --border: #7D7467;
-    --border-strong: #8E8576;
-    --text: #EDE6DB;
-    --text-muted: #B5AB9E;
-    --text-dim: #9B9183;
+    --border: #5C544A;
+    --border-strong: #7A7165;
+    --text: #F2EBDF;
+    --text-muted: #C8BDAE;
+    --text-dim: #B5AB9E;
     --text-faint: #A89B8C;
-    --accent: #2ECC71;
-    --accent-hover: #27AE60;
-    --accent-soft: rgba(46, 204, 113, 0.12);
-    --green: #2ECC71;
-    --red: #E74C3C;
-    --amber: #F39C12;
-    --blue: #5DADE2;
+    --accent: #1F7A52;
+    --accent-hover: #176B49;
+    --accent-soft: rgba(31, 122, 82, 0.20);
+    --green: #1F7A52;
+    --red: #C0392B;
+    --amber: #A06012;
+    --blue: #2A6BC4;
     --focus: #5B9EF4;
-    --decision-buy: #2ECC71;
+    --decision-buy: #1F7A52;
     --decision-skip: #7F8C8D;
-    --decision-use-soon: #F39C12;
-    --decision-optional: #5DADE2;
-    --decision-compare: #9B59B6;
-    --decision-confirm: #E74C3C;
+    --decision-use-soon: #E0A030;
+    --decision-optional: #2A6BC4;
+    --decision-compare: #B07CE0;
+    --decision-confirm: #C0392B;
     --decision-watch: #95A5A6;
   }
 }
@@ -232,12 +251,16 @@ CSS = """\
   align-items: center;
   border-radius: var(--radius-full);
   padding: 4px 11px;
-  background: #F7E5C7;
-  color: #9B5C14;
+  /* Use --bg-warm + --text so contrast is preserved in both light and
+     dark mode. The badge is decorative; readability wins over brand
+     colour here. */
+  background: var(--bg-warm);
+  color: var(--text);
   font-size: var(--text-sm);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  border: 1px solid var(--border);
 }
 .version-label {
   color: var(--text-faint);
@@ -315,7 +338,7 @@ a:focus-visible, button:focus-visible, [role="button"]:focus-visible, [tabindex]
 
 /* Ensure sufficient contrast for all text (WCAG 1.4.3 Contrast Minimum) */
 .gradio-container {
-  color: #1F1812;  /* Fallback for CSS variable; var(--text) on light bg has ~9:1 contrast */
+  color: var(--text);  /* Token-based so light + dark modes both pass AA. */
 }
 
 /* WCAG color contrast: Gradio's built-in utility elements use very light text
@@ -329,32 +352,35 @@ span.or {
 }
 
 /* WCAG color contrast: Gradio's stat-value and stat-label fall back to very
-   light text inside some component contexts.  Direct hex values to bypass
-   CSS variable scoping issues with Gradio's Svelte component trees. */
+   light text inside some component contexts.  We use !important on the
+   CSS-variable reference so we beat Gradio's Svelte-scoped `color` rules
+   while still respecting light + dark mode. */
 .stat-value {
-  color: #1F1812 !important;
+  color: var(--text) !important;
 }
 .stat-label {
-  color: #5F5144 !important;
+  color: var(--text-muted) !important;
 }
 
 
 /* WCAG color contrast: action-tile-label inside action-tile-primary needs
    explicit white with !important because Gradio's scoped ``button { color }
-   rules apply to descendant <span> elements. */
+   rules apply to descendant <span> elements.  White is the correct choice
+   in both light and dark mode because the action-tile-primary background
+   is the dark --accent color (which now passes AA in both modes). */
 .action-tile-primary .action-tile-label {
   color: #fff !important;
 }
 
 /* WCAG color contrast: Smart Planner secondary text elements may have very
-   light computed colors from Gradio component context.  Force our token
-   values that pass 4.5:1 AA.  Direct hex values to bypass CSS variable
-   scoping issues with Gradio's Svelte component trees. */
+   light computed colors from Gradio component context.  We use !important
+   on the CSS-variable reference so we beat Gradio's Svelte-scoped `color`
+   rules while still respecting light + dark mode. */
 .sp-store, .sp-reason {
-  color: #5F5144 !important;
+  color: var(--text-muted) !important;
 }
 .sp-name {
-  color: #1F1812 !important;
+  color: var(--text) !important;
 }
 
 
@@ -562,6 +588,148 @@ button.primary:hover, button.lg.primary:hover, .gr-button.primary:hover {
 .badge-optional  { background: rgba(59, 130, 246, 0.14); color: var(--decision-optional); }
 .badge-compare   { background: rgba(139, 92, 246, 0.14); color: var(--decision-compare); }
 
+/* Dark mode badge text colors. The --green/--red/--amber/--blue tokens
+   in dark mode are intentionally dark so they can carry white button
+   text at AA. For BADGE text (which paints on a tinted dark patch, not
+   on the brand color directly), we need a brighter version of the same
+   hue. We define --*-bright here for the badge role only. */
+[data-theme="dark"] {
+  --badge-green-bright: #4ADE80;
+  --badge-red-bright:   #F87171;
+  --badge-amber-bright: #F5B945;
+  --badge-blue-bright:  #5DADE2;
+  --badge-gray-bright:  #B5AB9E;
+  --badge-buy-bright:   #4ADE80;
+  --badge-skip-bright:  #B0B7BD;
+  --badge-use-soon-bright: #F5B945;
+  --badge-optional-bright: #5DADE2;
+  --badge-compare-bright:  #B07CE0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --badge-green-bright: #4ADE80;
+    --badge-red-bright:   #F87171;
+    --badge-amber-bright: #F5B945;
+    --badge-blue-bright:  #5DADE2;
+    --badge-gray-bright:  #B5AB9E;
+    --badge-buy-bright:   #4ADE80;
+    --badge-skip-bright:  #B0B7BD;
+    --badge-use-soon-bright: #F5B945;
+    --badge-optional-bright: #5DADE2;
+    --badge-compare-bright:  #B07CE0;
+  }
+}
+
+/* Dark mode: swap badge text to the bright variants. We can't override
+   the existing .badge-* rules (they use var() that already resolves to
+   the dark token in dark mode) without a separate selector, so we
+   re-target with higher specificity using [data-theme="dark"] /
+   @media (prefers-color-scheme: dark). */
+[data-theme="dark"] .badge-green,
+[data-theme="dark"] .badge-red,
+[data-theme="dark"] .badge-amber,
+[data-theme="dark"] .badge-blue,
+[data-theme="dark"] .badge-gray,
+[data-theme="dark"] .badge-buy,
+[data-theme="dark"] .badge-skip,
+[data-theme="dark"] .badge-use-soon,
+[data-theme="dark"] .badge-optional,
+[data-theme="dark"] .badge-compare {
+  color: var(--badge-text);
+}
+[data-theme="dark"] .badge-green  { --badge-text: var(--badge-green-bright); }
+[data-theme="dark"] .badge-red    { --badge-text: var(--badge-red-bright); }
+[data-theme="dark"] .badge-amber  { --badge-text: var(--badge-amber-bright); }
+[data-theme="dark"] .badge-blue   { --badge-text: var(--badge-blue-bright); }
+[data-theme="dark"] .badge-gray   { --badge-text: var(--badge-gray-bright); }
+[data-theme="dark"] .badge-buy    { --badge-text: var(--badge-buy-bright); }
+[data-theme="dark"] .badge-skip   { --badge-text: var(--badge-skip-bright); }
+[data-theme="dark"] .badge-use-soon { --badge-text: var(--badge-use-soon-bright); }
+[data-theme="dark"] .badge-optional { --badge-text: var(--badge-optional-bright); }
+[data-theme="dark"] .badge-compare  { --badge-text: var(--badge-compare-bright); }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .badge-green,
+  :root:not([data-theme="light"]) .badge-red,
+  :root:not([data-theme="light"]) .badge-amber,
+  :root:not([data-theme="light"]) .badge-blue,
+  :root:not([data-theme="light"]) .badge-gray,
+  :root:not([data-theme="light"]) .badge-buy,
+  :root:not([data-theme="light"]) .badge-skip,
+  :root:not([data-theme="light"]) .badge-use-soon,
+  :root:not([data-theme="light"]) .badge-optional,
+  :root:not([data-theme="light"]) .badge-compare {
+    color: var(--badge-text);
+  }
+  :root:not([data-theme="light"]) .badge-green  { --badge-text: var(--badge-green-bright); }
+  :root:not([data-theme="light"]) .badge-red    { --badge-text: var(--badge-red-bright); }
+  :root:not([data-theme="light"]) .badge-amber  { --badge-text: var(--badge-amber-bright); }
+  :root:not([data-theme="light"]) .badge-blue   { --badge-text: var(--badge-blue-bright); }
+  :root:not([data-theme="light"]) .badge-gray   { --badge-text: var(--badge-gray-bright); }
+  :root:not([data-theme="light"]) .badge-buy    { --badge-text: var(--badge-buy-bright); }
+  :root:not([data-theme="light"]) .badge-skip   { --badge-text: var(--badge-skip-bright); }
+  :root:not([data-theme="light"]) .badge-use-soon { --badge-text: var(--badge-use-soon-bright); }
+  :root:not([data-theme="light"]) .badge-optional { --badge-text: var(--badge-optional-bright); }
+  :root:not([data-theme="light"]) .badge-compare  { --badge-text: var(--badge-compare-bright); }
+}
+
+/* Dark mode: status-coloured TEXT classes (e.g. price-delta, confidence
+   labels, cookbook missing-item). The dark --green/--red/--amber tokens
+   are intentionally dark so they carry white button text at AA, but as
+   inline text on --bg-card they fail. We swap them to bright variants in
+   dark mode using the same --badge-*-bright tokens. */
+[data-theme="dark"] {
+  --green-text:  var(--badge-green-bright);
+  --red-text:    var(--badge-red-bright);
+  --amber-text:  var(--badge-amber-bright);
+  --blue-text:   var(--badge-blue-bright);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --green-text:  var(--badge-green-bright);
+    --red-text:    var(--badge-red-bright);
+    --amber-text:  var(--badge-amber-bright);
+    --blue-text:   var(--badge-blue-bright);
+  }
+}
+[data-theme="dark"] .sp-delta-up,
+[data-theme="dark"] .ic-confidence--unscored,
+[data-theme="dark"] .cb-missing,
+[data-theme="dark"] .cb-ing-miss,
+[data-theme="dark"] .ic-confidence--low,
+[data-theme="dark"] .ic-confidence--high,
+[data-theme="dark"] .sp-delta-down {
+  /* In dark mode use the bright variants of these status colors. */
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .sp-delta-up,
+  :root:not([data-theme="light"]) .ic-confidence--unscored,
+  :root:not([data-theme="light"]) .cb-missing,
+  :root:not([data-theme="light"]) .cb-ing-miss {
+    color: var(--red-text) !important;
+  }
+  :root:not([data-theme="light"]) .ic-confidence--low {
+    color: var(--amber-text) !important;
+  }
+  :root:not([data-theme="light"]) .sp-delta-down,
+  :root:not([data-theme="light"]) .ic-confidence--high {
+    color: var(--green-text) !important;
+  }
+}
+[data-theme="dark"] .sp-delta-up,
+[data-theme="dark"] .ic-confidence--unscored,
+[data-theme="dark"] .cb-missing,
+[data-theme="dark"] .cb-ing-miss {
+  color: var(--red-text) !important;
+}
+[data-theme="dark"] .ic-confidence--low {
+  color: var(--amber-text) !important;
+}
+[data-theme="dark"] .sp-delta-down,
+[data-theme="dark"] .ic-confidence--high {
+  color: var(--green-text) !important;
+}
+
 /* ── Cards ───────────────────────────────────────────────────────── */
 
 .home-card {
@@ -643,7 +811,8 @@ details.home-details summary .home-details-count {
   align-items: center;
   padding: 4px 10px;
   border-radius: var(--radius-full);
-  background: rgba(23, 107, 73, 0.10);
+  /* Brighter green for dark mode readability on the dark-tinted badge. */
+  background: rgba(23, 107, 73, 0.18);
   color: var(--green);
   font-size: var(--text-xs);
   font-weight: 800;
@@ -658,7 +827,7 @@ details.home-details summary .home-details-chip {
   padding: 4px 10px;
   border-radius: var(--radius-full);
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.65);
+  background: var(--bg-card-strong);
   color: var(--text-muted);
   font-size: var(--text-xs);
   font-weight: 800;
@@ -830,7 +999,7 @@ details.home-details > *:not(summary),
      because Gradio uses a high-specificity ``button { color: #27272a }``. */
   color: #fff !important;
 }
-.action-tile-primary .action-tile-subtitle { color: rgba(255, 255, 255, 0.78); }
+.action-tile-primary .action-tile-subtitle { color: rgba(255, 255, 255, 0.92); }
 .action-tile-primary:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
@@ -856,7 +1025,7 @@ details.home-details > *:not(summary),
   border-radius: var(--radius-full);
   padding: 5px 10px;
   font-size: var(--text-xs);
-  background: #fff;
+  background: var(--bg-card-strong);
   color: var(--text);
 }
 
@@ -906,7 +1075,7 @@ details.home-details > *:not(summary),
 .workflow-step.is-complete { color: var(--green); }
 .workflow-step.is-complete::before { background: currentColor; }
 .workflow-step.is-pending { color: var(--text-muted); }
-.workflow-arrow { color: var(--border-strong); font-weight: 800; }
+.workflow-arrow { color: var(--text-faint); font-weight: 800; }
 
 /* ── Toast / notification (P1-C5) ────────────────────────────────── */
 

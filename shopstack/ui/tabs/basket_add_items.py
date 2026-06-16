@@ -30,6 +30,8 @@ from __future__ import annotations
 
 import gradio as gr
 
+from shopstack.app_context import current_user_id
+from shopstack.services.i18n import load_locale_preference, t
 from shopstack.ui.components.primitives import (
     empty_state_enhanced,
     loading_skeleton,
@@ -121,11 +123,12 @@ def build_basket_add_items(app: gr.Blocks, ctx: TabContext) -> None:
                     )
 
                 with gr.Row():
+                    _bai_locale = load_locale_preference(current_user_id() or "")
                     receipt_confirm_btn = gr.Button(
                         "Confirm & Add to Inventory", variant="primary"
                     )
                     receipt_export_btn = gr.Button(
-                        "💾 Save as .txt", elem_id="receipt-export-btn"
+                        t("button.save_as_txt", _bai_locale), elem_id="receipt-export-btn"
                     )
                 receipt_export_out = gr.Textbox(
                     label="Receipt .txt (copy or paste into a notes app)",
@@ -219,7 +222,7 @@ def build_basket_add_items(app: gr.Blocks, ctx: TabContext) -> None:
                         ],
                     )
                     recipe_ocr_btn = gr.Button(
-                        "Snap & parse recipe",
+                        t("button.snap_and_parse", _bai_locale),
                         variant="primary",
                         elem_id="recipe-ocr-btn",
                     )

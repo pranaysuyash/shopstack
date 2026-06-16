@@ -206,9 +206,22 @@ class TestHandoffDocInventory:
         # Audit hardening handoff
         ("Docs/HANDOFF_AUDIT_HEALTH_HARDENING_2026-06-13.md",
          "Audit health hardening (percentage tolerance + 120s timeout + 2 regression checks)"),
-        # Database seed-locations regression lock handoff
-        ("Docs/HANDOFF_DATABASE_SEED_LOCATIONS_LOCK_2026-06-13.md",
-         "Database seed-locations regression lock (Pass 15/17 trap + canonical 18 locations)"),
+         # Database seed-locations regression lock handoff
+         ("Docs/HANDOFF_DATABASE_SEED_LOCATIONS_LOCK_2026-06-13.md",
+          "Database seed-locations regression lock (Pass 15/17 trap + canonical 18 locations)"),
+        # Sprint handoffs (2026-06-13 all-pending-items pass)
+        ("Docs/HANDOFF_I18N_NEW_BUTTONS_2026-06-13.md",
+         "i18n the 3 new buttons (Save as .txt, Share list, Snap & parse)"),
+        ("Docs/HANDOFF_HF_TOKEN_AUTO_LOADING_2026-06-13.md",
+         "HF_TOKEN auto-loading via load_dotenv() in config.py"),
+        ("Docs/HANDOFF_MODULE_PARSE_GUARD_2026-06-13.md",
+         "Per-file module-parse smoke test (7 tests, <4s budget)"),
+        ("Docs/HANDOFF_EMPTY_STATE_COVERAGE_2026-06-13.md",
+         "Empty-state preset coverage (3 new presets + 29 tests)"),
+        ("Docs/HANDOFF_PWA_CUSTOM_SHELL_2026-06-13.md",
+         "PWA custom shell — two-layer middleware + routes defense"),
+        ("Docs/HANDOFF_ALL_PENDING_ITEMS_SPRINT_2026-06-13.md",
+         "All 7 pending items shipped in one sprint (umbrella handoff)"),
     ]
 
     def test_all_handoff_docs_exist(self):
@@ -279,7 +292,11 @@ class TestHandoffDocInventory:
             "tests/test_receipt_txt_export.py",
             "tests/test_2026_06_13_regression_audit.py",
             "tests/test_env_and_handoff_lock.py",  # this file
-            # (no new test file this turn — modifications only to existing audit)
+            # New test files added in the all-pending-items sprint
+            "tests/test_i18n_new_buttons.py",
+            "tests/test_module_parse_guard.py",
+            "tests/test_empty_state_coverage.py",
+            "tests/test_pwa_shell.py",
         ]
         missing = [f for f in expected if not (REPO / f).exists()]
         assert not missing, (

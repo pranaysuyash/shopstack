@@ -172,9 +172,9 @@ def render_walkthrough_html(locale: str = DEFAULT_LOCALE) -> str:
 }}
 .tour-buttons button:hover {{ background: var(--bg, #f8fafc); }}
 .tour-buttons .tour-primary {{
-  background: var(--accent, #3b82f6); color: #fff; border-color: var(--accent, #3b82f6);
+  background: var(--accent, #176B49); color: #fff; border-color: var(--accent, #176B49);
 }}
-.tour-buttons .tour-primary:hover {{ background: #2563eb; }}
+.tour-buttons .tour-primary:hover {{ background: #10563A; }}
 .tour-buttons .tour-skip {{
   color: var(--text-dim, #94a3b8); border: none; background: transparent;
 }}

@@ -8,6 +8,15 @@ from typing import Any
 
 from shopstack.config import settings
 from shopstack.cost_tracker import CostRecord, CostTracker, estimate_cost_usd, estimate_model_tier
+from shopstack.eval.recorder import (
+    CAP_PLANNER_TOOL_CALLING,
+    OUTCOME_EMPTY,
+    OUTCOME_EXCEPTION,
+    OUTCOME_PARSE_ERROR,
+    OUTCOME_SUCCESS,
+    SHAPE_TOOL_CALLS,
+    record_model_call,
+)
 from shopstack.persistence.database import Database
 from shopstack.planner.parser import parse_tool_calls_with_diagnostics
 from shopstack.providers.registry import ProviderRegistry
@@ -78,6 +87,15 @@ class PlannerEngine:
         provider_meta: dict[str, Any] = {}
         parser_meta: dict[str, Any] = {}
 
+        # ── o/p eval: open the per-call record before the provider call.
+        # The recorder is best-effort; it never raises into the hot path.
+        rec = record_model_call(
+            domain_route="planner",
+            capability=CAP_PLANNER_TOOL_CALLING,
+            capability_expected_shape=SHAPE_TOOL_CALLS,
+        )
+        rec.set_prompt(prompt)
+
         try:
             started = time.monotonic()
             if hasattr(provider, "plan"):
@@ -111,9 +129,31 @@ class PlannerEngine:
                         prompt=prompt,
                     )
                     if self._cost_guarded():
+                        rec.set_outcome("blocked", "cost_budget_exceeded")
+                        rec.set_output(raw_text)
+                        rec.set_usage(
+                            input_tokens=provider_meta.get("input_tokens", 0),
+                            output_tokens=provider_meta.get("output_tokens", 0),
+                            cost_usd=provider_meta.get("cost_usd", 0.0),
+                            model=provider_meta.get("model", ""),
+                            backend=provider_meta.get("backend", ""),
+                            provider_name=provider_meta.get("provider", ""),
+                        )
+                        rec.finish()
                         return self._budget_blocked_html()
                     if not raw_text:
                         provider_meta["outcome"] = "empty_llm_text"
+                        rec.set_outcome(OUTCOME_EMPTY, "empty_llm_text")
+                        rec.set_output(raw_text)
+                        rec.set_usage(
+                            input_tokens=provider_meta.get("input_tokens", 0),
+                            output_tokens=provider_meta.get("output_tokens", 0),
+                            cost_usd=provider_meta.get("cost_usd", 0.0),
+                            model=provider_meta.get("model", ""),
+                            backend=provider_meta.get("backend", ""),
+                            provider_name=provider_meta.get("provider", ""),
+                        )
+                        rec.finish()
                         return _stat_card(body_html="Planner returned an empty response.")
                     tool_calls, parser_meta = self._parse_tool_calls_from_result(raw_text)
                 else:
@@ -130,7 +170,25 @@ class PlannerEngine:
 
         except Exception as e:
             logger.warning("Planner call failed", exc_info=True)
+            rec.set_outcome(OUTCOME_EXCEPTION, str(e))
+            rec.finish()
             return _stat_card(body_html=f"<div style='color:var(--red);'>Planner error: {escape(str(e))}</div>")
+
+        # Feed provider metadata into the o/p eval record.
+        rec.set_output(result if "result" in locals() else plan_result)
+        rec.set_usage(
+            input_tokens=provider_meta.get("input_tokens", 0),
+            output_tokens=provider_meta.get("output_tokens", 0),
+            cost_usd=provider_meta.get("cost_usd", 0.0),
+            model=provider_meta.get("model", ""),
+            backend=provider_meta.get("backend", ""),
+            provider_name=provider_meta.get("provider", ""),
+        )
+        if not tool_calls:
+            rec.set_outcome(OUTCOME_PARSE_ERROR, "no tool calls parsed")
+        else:
+            rec.set_outcome(OUTCOME_SUCCESS)
+        rec.finish()
 
         provider_meta["parser"] = parser_meta
         outcomes, execution_meta = self._execute_tool_calls(tool_calls)
@@ -153,7 +211,17 @@ class PlannerEngine:
         parser_meta: dict[str, Any] = {}
         provider_meta: dict[str, Any] = {}
 
+        # ── o/p eval: open the per-call record
+        rec = record_model_call(
+            domain_route="planner",
+            capability=CAP_PLANNER_TOOL_CALLING,
+            capability_expected_shape=SHAPE_TOOL_CALLS,
+        )
+        rec.set_prompt(prompt)
+
         if self._cost_guarded():
+            rec.set_outcome("blocked", "cost_budget_exceeded")
+            rec.finish()
             return {"error": "Budget limit reached", "type": "error"}
 
         try:
@@ -188,8 +256,30 @@ class PlannerEngine:
                         prompt=prompt,
                     )
                     if self._cost_guarded():
+                        rec.set_outcome("blocked", "cost_budget_exceeded")
+                        rec.set_output(raw_text)
+                        rec.set_usage(
+                            input_tokens=provider_meta.get("input_tokens", 0),
+                            output_tokens=provider_meta.get("output_tokens", 0),
+                            cost_usd=provider_meta.get("cost_usd", 0.0),
+                            model=provider_meta.get("model", ""),
+                            backend=provider_meta.get("backend", ""),
+                            provider_name=provider_meta.get("provider", ""),
+                        )
+                        rec.finish()
                         return {"error": "Budget limit reached", "type": "error"}
                     if not raw_text:
+                        rec.set_outcome(OUTCOME_EMPTY, "empty_llm_text")
+                        rec.set_output(raw_text)
+                        rec.set_usage(
+                            input_tokens=provider_meta.get("input_tokens", 0),
+                            output_tokens=provider_meta.get("output_tokens", 0),
+                            cost_usd=provider_meta.get("cost_usd", 0.0),
+                            model=provider_meta.get("model", ""),
+                            backend=provider_meta.get("backend", ""),
+                            provider_name=provider_meta.get("provider", ""),
+                        )
+                        rec.finish()
                         return {"error": "Planner returned an empty response.", "type": "error"}
                     tool_calls, parser_meta = self._parse_tool_calls_from_result(raw_text)
                 else:
@@ -206,7 +296,25 @@ class PlannerEngine:
 
         except Exception as e:
             logger.warning("Planner call failed", exc_info=True)
+            rec.set_outcome(OUTCOME_EXCEPTION, str(e))
+            rec.finish()
             return {"error": f"Planner error: {str(e)}", "type": "error"}
+
+        # Feed provider metadata into the o/p eval record.
+        rec.set_output(result if "result" in locals() else plan_result)
+        rec.set_usage(
+            input_tokens=provider_meta.get("input_tokens", 0),
+            output_tokens=provider_meta.get("output_tokens", 0),
+            cost_usd=provider_meta.get("cost_usd", 0.0),
+            model=provider_meta.get("model", ""),
+            backend=provider_meta.get("backend", ""),
+            provider_name=provider_meta.get("provider", ""),
+        )
+        if not tool_calls:
+            rec.set_outcome(OUTCOME_PARSE_ERROR, "no tool calls parsed")
+        else:
+            rec.set_outcome(OUTCOME_SUCCESS)
+        rec.finish()
 
         if not tool_calls:
             return {"error": "Planner returned an empty response.", "type": "error"}

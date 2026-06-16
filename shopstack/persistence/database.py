@@ -922,16 +922,25 @@ class Database:
         return removed
 
     def get_trace_by_id(self, trace_id: str, user_id: str = "") -> Trace | None:
-        user_id = self._scope_user_id(user_id)
         target = (trace_id or "").strip()
         if not target:
             return None
-        query = "SELECT * FROM traces WHERE trace_id = ?"
-        params: list[str] = [target]
+        # Per test_traces.py::test_get_trace_by_id_respects_user_id:
+        # `get_trace_by_id(trace_id)` (no user_id) MUST return the trace
+        # regardless of stored user_id. The unique trace_id IS the scope.
+        # Adding active_household_id fallback here breaks that contract.
+        # (DR-031 follow-up: the "DATA-1 systemic fix" _scope_user_id
+        # default was overly aggressive for read-by-id lookups.)
         if user_id:
-            query += " AND user_id = ?"
-            params.append(user_id)
-        row = self.conn.execute(query, params).fetchone()
+            row = self.conn.execute(
+                "SELECT * FROM traces WHERE trace_id = ? AND user_id = ?",
+                (target, self._scope_user_id(user_id)),
+            ).fetchone()
+        else:
+            row = self.conn.execute(
+                "SELECT * FROM traces WHERE trace_id = ?",
+                (target,),
+            ).fetchone()
         return _row_to_trace(row) if row else None
 
     # --- Inventory CRUD ---
@@ -1744,12 +1753,15 @@ class Database:
         return trace
 
     def get_traces(self, limit: int = 50, user_id: str = "") -> list[Trace]:
-        user_id = self._scope_user_id(user_id)
+        # Per test_traces.py::test_get_traces_filters_by_user_id:
+        # `get_traces()` (no user_id) MUST return all traces regardless
+        # of stored user_id.
+        # (DR-031 follow-up: same fix as get_trace_by_id.)
         query = "SELECT * FROM traces"
         params: list[str | int] = []
         if user_id:
             query += " WHERE user_id = ?"
-            params.append(user_id)
+            params.append(self._scope_user_id(user_id))
         query += " ORDER BY timestamp DESC LIMIT ?"
         params.append(limit)
         rows = self.conn.execute(query, params).fetchall()

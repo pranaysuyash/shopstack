@@ -60,8 +60,8 @@ def build_memory_corrections(app: gr.Blocks, ctx: TabContext) -> None:
             label="Selected correction event id",
         )
         with gr.Row():
-            accept_btn = gr.Button("Accept", variant="primary", scale=1)
-            reject_btn = gr.Button("Reject", elem_classes="secondary", scale=1)
+            accept_btn = gr.Button("Accept", variant="primary", elem_classes="corrections-accept-btn", scale=1)
+            reject_btn = gr.Button("Reject", elem_classes="corrections-reject-btn secondary", scale=1)
             refresh_btn = gr.Button("Refresh", scale=1)
 
         # The inline Accept/Reject buttons need the event id of the

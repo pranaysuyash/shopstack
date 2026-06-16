@@ -219,10 +219,11 @@ def render_unified_decision_card(d: DecisionResult) -> str:
         
     stale_html = ""
     if d.data_freshness == "stale":
-        # Brand-aligned stale warning (rgba against --red token at 10% alpha,
-        # not the bright Tailwind rgba(255,0,0,0.1) that broke dark mode).
+        # Brand-aligned stale warning.  Use the bright red text variant in
+        # dark mode (--red-text token) because the dark --red is too dim
+        # against the 10%-alpha red tinted background.
         stale_html = (
-            f"<div style='font-size: 0.75rem;color:var(--red);font-weight:bold;margin-top:6px;padding:4px;background-color:rgba(166,63,49,0.10);border-radius:4px;'>"
+            f"<div style='font-size: 0.75rem;color:var(--red-text, var(--red));font-weight:bold;margin-top:6px;padding:4px;background-color:rgba(166,63,49,0.10);border-radius:4px;'>"
             f"&#9888; WARNING: {escape(d.data_freshness_label or 'Stale Market Data (Older than 24h)')}</div>"
         )
         

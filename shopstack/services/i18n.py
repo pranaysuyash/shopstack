@@ -171,9 +171,16 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # English one-liner that was at parser.py:30 before the adoption.
         "empty.parser.no_input.title": "Type a command to see the parser in action",
         "empty.parser.no_input.body": "Try a natural-language command like 'add 2 kg atta to my shopping list' or 'find the milk'. ShopStack will show the parsed intent, slots, and any entities it extracted.",
-        "empty.search.title": "No results",
-        "empty.search.body": "Try a different word, or scan a receipt to add the item to your pantry first.",
-        # Empty-state CTAs
+         "empty.search.title": "No results",
+         "empty.search.body": "Try a different word, or scan a receipt to add the item to your pantry first.",
+         # Added 2026-06-13: analytics, consumption, activity log
+         "empty.analytics.title": "Patterns emerge with use",
+         "empty.analytics.body": "After a few weeks of adding items, scanning receipts, and recording purchases, you'll see trends here. ShopStack will suggest what to buy more of, what's about to expire, and where to find savings.",
+         "empty.consumption.title": "Predictions build with use",
+         "empty.consumption.body": "ShopStack learns what you use and when. After a couple of weeks of adds, consumes, and reconciliations, you'll see forecasts here for what's about to run out.",
+         "empty.activity.title": "Activity log is empty",
+         "empty.activity.body": "Every add, consume, move, scan, and parse appears here. Start with one item and watch the log fill in.",
+         # Empty-state CTAs
         "empty.cta.add_items": "Add your first items",
         "empty.cta.add_first_items": "Add your first 5 staples",
         "empty.cta.import_receipt": "Import a receipt",
@@ -239,8 +246,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "button.save_as_txt": "💾 Save as .txt",
         "button.share_list": "📤 Share list",
         "button.snap_and_parse": "📸 Snap & parse recipe",
-        "button.share_list_whatsapp": "Open in WhatsApp",
+        "button.share_list_title": "Copy for WhatsApp",
         "button.share_list_copy": "Copy to clipboard",
+        "button.share_list_copy_done": "Copied!",
+        "button.share_list_whatsapp": "Open in WhatsApp",
     },
     # ── Hindi (हिन्दी) ──────────────────────────────────────────────
     "hi": {
@@ -353,9 +362,16 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # Pass 17 §2.5: Hindi for the new parser preset
         "empty.parser.no_input.title": "पार्सर देखने के लिए कोई कमांड टाइप करें",
         "empty.parser.no_input.body": "कुछ आज़माएँ — '2 किलो आटा मेरी लिस्ट में डालो' या 'दूध कहाँ है'। ShopStack intent और entities दिखाएगा।",
-        "empty.search.title": "कुछ नहीं मिला",
-        "empty.search.body": "कोई दूसरा शब्द आज़माएँ या पहले रसीद स्कैन करें।",
-        # Empty-state CTAs
+         "empty.search.title": "कुछ नहीं मिला",
+         "empty.search.body": "कोई दूसरा शब्द आज़माएँ या पहले रसीद स्कैन करें।",
+         # Added 2026-06-13: analytics, consumption, activity log (Hindi)
+         "empty.analytics.title": "पैटर्न इस्तेमाल से बनते हैं",
+         "empty.analytics.body": "कुछ हफ़्तों के इस्तेमाल के बाद — आइटम जोड़ना, रसीद स्कैन करना — आपको यहाँ रुझान दिखेंगे: क्या खरीदना है, क्या ख़त्म होने वाला है, कहाँ बचत है।",
+         "empty.consumption.title": "भविष्यवाणी इस्तेमाल से बनती है",
+         "empty.consumption.body": "ShopStack सीखता है कि आप क्या और कब इस्तेमाल करते हैं। कुछ हफ़्तों के बाद आपको यहाँ अनुमान दिखेंगे कि क्या जल्दी ख़त्म होने वाला है।",
+         "empty.activity.title": "एक्टिविटी लॉग खाली है",
+         "empty.activity.body": "हर add, consume, move, scan, parse यहाँ दिखेगा। एक आइटम जोड़कर शुरू करें।",
+         # Empty-state CTAs
         "empty.cta.add_items": "पहले आइटम जोड़ें",
         "empty.cta.add_first_items": "पहले 5 स्टेपल जोड़ें",
         "empty.cta.import_receipt": "रसीद इम्पोर्ट करें",
@@ -419,8 +435,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "button.save_as_txt": "💾 .txt के रूप में सहेजें",
         "button.share_list": "📤 सूची साझा करें",
         "button.snap_and_parse": "📸 रेसिपी स्नैप और पार्स करें",
-        "button.share_list_whatsapp": "व्हाट्सऐप में खोलें",
+        "button.share_list_title": "व्हाट्सऐप के लिए कॉपी करें",
         "button.share_list_copy": "क्लिपबोर्ड पर कॉपी करें",
+        "button.share_list_copy_done": "कॉपी हो गया!",
+        "button.share_list_whatsapp": "व्हाट्सऐप में खोलें",
     },
 }
 

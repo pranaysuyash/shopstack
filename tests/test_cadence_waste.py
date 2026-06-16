@@ -61,12 +61,15 @@ class TestPurchaseCadence:
         assert info["purchase_count"] >= 3
 
     def test_render_cadence_empty(self, ctx):
-        from shopstack.decisions import render_cadence_insights
-        html = render_cadence_insights(ctx.db)
+        from shopstack.ui.renderers.decision_cards import render_cadence_insights
+        from shopstack.decisions import detect_purchase_cadence
+        cadence = detect_purchase_cadence(ctx.db)
+        html = render_cadence_insights(cadence)
         assert html == ""
 
     def test_render_cadence_with_data(self, ctx):
-        from shopstack.decisions import render_cadence_insights
+        from shopstack.ui.renderers.decision_cards import render_cadence_insights
+        from shopstack.decisions import detect_purchase_cadence
         from shopstack.schemas.models import PurchaseEvent
         today = datetime.now()
         for days_ago in [0, 2, 4]:
@@ -74,7 +77,8 @@ class TestPurchaseCadence:
                 canonical_name="milk", quantity=1, unit="L", total_price=60,
                 timestamp=today - timedelta(days=days_ago),
             ))
-        html = render_cadence_insights(ctx.db)
+        cadence = detect_purchase_cadence(ctx.db)
+        html = render_cadence_insights(cadence)
         assert "Purchase Rhythm" in html
         assert "Milk" in html
 
@@ -106,8 +110,10 @@ class TestWasteDetection:
         assert any(r["canonical_name"] == "coriander" for r in result)
 
     def test_render_waste_empty(self, ctx):
-        from shopstack.decisions import render_waste_warnings
-        html = render_waste_warnings(ctx.db)
+        from shopstack.ui.renderers.decision_cards import render_waste_warnings
+        from shopstack.decisions import detect_waste_patterns
+        signals = detect_waste_patterns(ctx.db)
+        html = render_waste_warnings(signals)
         assert html == ""
 
 
@@ -131,13 +137,17 @@ class TestSwiggyAvailability:
             assert "available" in result["capsicum"]
 
     def test_render_soldout_warning_empty(self):
-        from shopstack.decisions import render_swiggy_soldout_warning
-        html = render_swiggy_soldout_warning([])
+        from shopstack.ui.renderers.decision_cards import render_swiggy_soldout_warning
+        from shopstack.decisions import check_swiggy_availability
+        avail = check_swiggy_availability([])
+        html = render_swiggy_soldout_warning(avail)
         assert html == ""
 
     def test_render_soldout_warning_with_items(self):
-        from shopstack.decisions import render_swiggy_soldout_warning
-        html = render_swiggy_soldout_warning(["tomato", "unknown_item"])
+        from shopstack.ui.renderers.decision_cards import render_swiggy_soldout_warning
+        from shopstack.decisions import check_swiggy_availability
+        avail = check_swiggy_availability(["tomato", "unknown_item"])
+        html = render_swiggy_soldout_warning(avail)
         if "Sold out" in html:
             assert "Swiggy" in html
 

@@ -28,7 +28,7 @@ __all__ = [
 _DECISION_STYLES: dict[str, str] = {
     "buy": "background:var(--green);color:#fff;",
     "skip": "background:var(--text-dim);color:#fff;",
-    "use_soon": "background:var(--amber);color:#000;",
+    "use_soon": "background:var(--amber);color:#fff;",
     "optional": "background:var(--blue);color:#fff;",
     "compare": "background:var(--blue);color:#fff;",
 }

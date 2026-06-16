@@ -515,6 +515,7 @@ def header_block(brand_title: str, brand_subtitle: str, current_locale: str = DE
 
     Convenience for `gr.HTML(header_block(...))` in the app composition.
     """
+    from shopstack.ui.screens.corrections import render_corrections_click_handler
     return (
         header_html(brand_title, brand_subtitle, current_locale)
         + header_script()
@@ -527,6 +528,7 @@ def header_block(brand_title: str, brand_subtitle: str, current_locale: str = DE
         + render_palette_html(locale=current_locale)
         + render_palette_script()
         + render_undo_click_handler()
+        + render_corrections_click_handler()
         + _pwa_css()
     )
 

@@ -2,6 +2,17 @@
 
 Every function in this module takes typed data and returns an HTML string.
 No decision logic, no database calls, no provider invocations.
+
+**Freshness stamps (2026-06-15):** per motto_v3 §0.10
+Observability Is Delivery, every recommendation card now carries
+a "Last updated" stamp so the user can trust the data. The stamp
+is rendered by :func:`shopstack.ui.components.primitives.last_updated_stamp`
+and accepts ``None`` for "data not yet loaded" (degrades to
+"Last updated: unknown" rather than crashing).
+
+Additive per motto_v3 §11: the rest of the card content is
+unchanged. The new stamp is appended to the card body, not
+mixed into the per-row content, so the rows stay scannable.
 """
 
 from __future__ import annotations
@@ -12,17 +23,30 @@ from typing import Any
 
 from shopstack.schemas.models import DecisionSet, _ACTION_COLORS as DECISION_COLORS
 from shopstack.ui.components.cards import render_action_grid, render_unified_decision_card
-from shopstack.ui.components.primitives import stat_card
+from shopstack.ui.components.primitives import last_updated_stamp, stat_card
 
 _LOW_STOCK_THRESHOLD = 0.5
 _USE_SOON_DAYS = 3
 
 
-def _card(body_html: str, *, alert: bool = False) -> str:
+def _card(body_html: str, *, alert: bool = False, captured_at: Any = None) -> str:
+    """Render a decision card with an optional freshness stamp.
+
+    The stamp is appended to the body, right-aligned and small.
+    When ``captured_at`` is None, the stamp degrades to
+    "Last updated: unknown" (per the primitive's contract).
+    """
     style = "text-align:left;margin-bottom:12px;"
     if alert:
         style += "border-left:3px solid var(--red);"
-    return stat_card(style=style, body_html=body_html)
+    stamp = last_updated_stamp(captured_at, label="Last updated")
+    full_body = (
+        f"<div style='display:flex;justify-content:space-between;align-items:flex-end;'>"
+        f"<div style='flex:1;min-width:0;'>{body_html}</div>"
+        f"<div style='flex-shrink:0;margin-left:8px;'>{stamp}</div>"
+        f"</div>"
+    )
+    return stat_card(style=style, body_html=full_body)
 
 
 def render_market_basket(ds: DecisionSet) -> str:
@@ -342,7 +366,16 @@ def render_restock_predictions(predictions: list[dict[str, Any]]) -> str:
             f"<span style='font-size: 0.6875rem;color:var(--text-dim);'>{reason}{on_hand_str} &middot; {qty}</span></div>"
         )
 
-    return _card(f"<h3>Restock Predictions</h3>{''.join(rows)}", alert=True)
+    # Freshness stamp (2026-06-15) — sourced from the prediction's
+    # ``generated_at`` if present, else falls back to None
+    # (degrades to "Last updated: unknown" per the primitive's
+    # contract).
+    captured_at = predictions[0].get("generated_at") if predictions else None
+    return _card(
+        f"<h3>Restock Predictions</h3>{''.join(rows)}",
+        alert=True,
+        captured_at=captured_at,
+    )
 
 
 def render_price_deals(deals: list[dict[str, Any]]) -> str:
@@ -363,7 +396,11 @@ def render_price_deals(deals: list[dict[str, Any]]) -> str:
             f"<span style='font-size: 0.6875rem;color:var(--text-dim);'>{reason}</span></div>"
         )
 
-    return _card(f"<h3>Price Deals</h3>{''.join(rows)}")
+    captured_at = deals[0].get("generated_at") if deals else None
+    return _card(
+        f"<h3>Price Deals</h3>{''.join(rows)}",
+        captured_at=captured_at,
+    )
 
 
 def render_price_drops(alerts: list[dict[str, Any]]) -> str:
@@ -390,10 +427,12 @@ def render_price_drops(alerts: list[dict[str, Any]]) -> str:
             f"</div>"
         )
 
+    captured_at = alerts[0].get("generated_at") if alerts else None
     return _card(
         f"<h3>📉 Price Drops</h3><div style='font-size: 0.6875rem;color:var(--text-dim);margin-bottom:4px;'>"
         f"Items currently below your historical median.</div>"
-        f"{''.join(rows)}"
+        f"{''.join(rows)}",
+        captured_at=captured_at,
     )
 
 

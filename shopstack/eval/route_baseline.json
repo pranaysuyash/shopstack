@@ -1,0 +1,95 @@
+{
+  "_meta": {
+    "version": 1,
+    "purpose": "Per-route (domain_route) live baseline for the o/p eval layer. Compared against the latest rolling window in aggregator.route_regression_report. Tweak tolerances per-route when you know a route is naturally slow or volatile.",
+    "metric_directions": {
+      "success_rate": "higher is better",
+      "p95_latency_ms": "lower is better",
+      "mean_cost_usd": "lower is better"
+    }
+  },
+  "planner": {
+    "success_rate": 0.90,
+    "p95_latency_ms": 8000.0,
+    "mean_cost_usd": 0.01,
+    "tolerance": {
+      "success_rate": 0.10,
+      "p95_latency_ms": 0.30,
+      "mean_cost_usd": 0.50
+    },
+    "evidence": "calibrated from mock provider runs during shopstack development; real production numbers will be re-baselined after first 100 live calls",
+    "notes": "Planner is the primary route. Tolerances are loose while we collect real numbers."
+  },
+  "market_lens": {
+    "success_rate": 0.85,
+    "p95_latency_ms": 12000.0,
+    "mean_cost_usd": 0.01,
+    "tolerance": {
+      "success_rate": 0.15,
+      "p95_latency_ms": 0.40,
+      "mean_cost_usd": 0.50
+    },
+    "evidence": "mock provider runs; vision is inherently more variable than text",
+    "notes": "Vision routes get looser latency tolerance (videos / images can be large)."
+  },
+  "ocr_receipt": {
+    "success_rate": 0.70,
+    "p95_latency_ms": 6000.0,
+    "mean_cost_usd": 0.005,
+    "tolerance": {
+      "success_rate": 0.20,
+      "p95_latency_ms": 0.50,
+      "mean_cost_usd": 0.50
+    },
+    "evidence": "Tesseract+hin: 0/15 Devanagari accuracy (from bench_baseline.json); GLM-OCR primary",
+    "notes": "OCR success rate baseline reflects real-world photo variability. Expect frequent false positives that the pipeline self-corrects via fallback."
+  },
+  "voice_add": {
+    "success_rate": 0.80,
+    "p95_latency_ms": 4000.0,
+    "mean_cost_usd": 0.001,
+    "tolerance": {
+      "success_rate": 0.15,
+      "p95_latency_ms": 0.30,
+      "mean_cost_usd": 0.50
+    },
+    "evidence": "SenseVoice baseline 0.248 WER on Hindi+English (from bench_baseline.json)",
+    "notes": "STT-driven. Success = transcribed text parsed into at least one inventory item."
+  },
+  "shopping_list": {
+    "success_rate": 0.90,
+    "p95_latency_ms": 6000.0,
+    "mean_cost_usd": 0.005,
+    "tolerance": {
+      "success_rate": 0.10,
+      "p95_latency_ms": 0.30,
+      "mean_cost_usd": 0.50
+    },
+    "evidence": "planner tool calling baseline from bench_baseline.json",
+    "notes": "Planner path with simpler prompt (create_or_update_shopping_list only)."
+  },
+  "add_purchase": {
+    "success_rate": 0.92,
+    "p95_latency_ms": 6000.0,
+    "mean_cost_usd": 0.005,
+    "tolerance": {
+      "success_rate": 0.10,
+      "p95_latency_ms": 0.30,
+      "mean_cost_usd": 0.50
+    },
+    "evidence": "planner tool calling baseline; single-tool invocation is easier than multi-tool",
+    "notes": "Form-driven add purchase; rarely uses planner at all."
+  },
+  "reconcile": {
+    "success_rate": 0.85,
+    "p95_latency_ms": 10000.0,
+    "mean_cost_usd": 0.01,
+    "tolerance": {
+      "success_rate": 0.15,
+      "p95_latency_ms": 0.40,
+      "mean_cost_usd": 0.50
+    },
+    "evidence": "planner tool calling baseline; reconciliation may chain multiple tools",
+    "notes": "Multi-tool chain. Higher failure tolerance."
+  }
+}

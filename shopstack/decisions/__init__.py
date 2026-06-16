@@ -27,30 +27,37 @@ _RENDER_NAMES = {
     "render_compare_panel",
     "render_decision_panel",
 }
-_LEGACY_NAMES = {
-    "render_what_changed",
-    "render_cadence_insights",
-    "render_waste_warnings",
-    "render_swiggy_soldout_warning",
-    "render_needs_confirmation",
-}
+
+# 2026-06-15 (Pass 18): _LEGACY_NAMES routing REMOVED.
+# The legacy shim ``shopstack._legacy_decisions`` was deleted in
+# this pass. Any caller that imports the 5 legacy functions via
+# ``shopstack.decisions`` now raises AttributeError. This is
+# the durable first-principles fix: removing the shim eliminates
+# the dual-source-of-truth that the reversion pattern was
+# exploiting. Callers must use the canonical path:
+#   from shopstack.ui.renderers.decision_cards import render_*
+# (or from shopstack.ui.renderers for the 5 _RENDER_NAMES). See
+# tests/test_decisions_canonical_only.py for the regression test
+# that pins this contract.
 
 
 def __getattr__(name: str):
-    """Lazy re-exports for backward-compatible render wrappers.
+    """Lazy re-exports for the canonical renderers (decision_cards + ui.renderers).
 
-    New code should import directly from shopstack.ui.renderers.decision_cards
-    or shopstack._legacy_decisions.
+    New code should import directly from ``shopstack.ui.renderers``
+    or ``shopstack.ui.renderers.decision_cards``. This ``__getattr__``
+    exists for backward-compat with code that historically imported
+    from ``shopstack.decisions``. The legacy 5-function shim was
+    deleted in Pass 18 — see the regression test in
+    ``tests/test_decisions_canonical_only.py`` for the contract.
 
-    This __getattr__ avoids a circular import: decisions → renderers → decisions
-    that would otherwise crash when any code path triggers both packages.
+    The ``__getattr__`` avoids a circular import: decisions →
+    renderers → decisions that would otherwise crash when any
+    code path triggers both packages.
     """
     if name in _RENDER_NAMES:
         import shopstack.ui.renderers as _r
         return getattr(_r, name)
-    if name in _LEGACY_NAMES:
-        import shopstack._legacy_decisions as _l
-        return getattr(_l, name)
     msg = f"module {__name__!r} has no attribute {name!r}"
     raise AttributeError(msg)
 
@@ -76,9 +83,4 @@ __all__ = [
     "render_my_list_panel",
     "render_compare_panel",
     "render_decision_panel",
-    "render_what_changed",
-    "render_cadence_insights",
-    "render_waste_warnings",
-    "render_swiggy_soldout_warning",
-    "render_needs_confirmation",
 ]

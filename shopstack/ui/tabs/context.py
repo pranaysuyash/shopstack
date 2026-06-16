@@ -50,6 +50,7 @@ class TabContext:
         "planner",
         "model_registry",
         "settings",
+        "home_flow_state",
     )
 
     def __init__(self) -> None:
@@ -61,4 +62,10 @@ class TabContext:
         self.planner = planner
         self.model_registry = model_registry
         self.settings = settings
+        # Home-flow state (Group G, 2026-06-15). Set by app.build_app()
+        # after the household context is established. Tabs that
+        # care about onboarding state read this field; tabs that
+        # don't (the default) ignore it. None means "not yet
+        # computed" — callers should fall back to detect-on-demand.
+        self.home_flow_state: object | None = None
 

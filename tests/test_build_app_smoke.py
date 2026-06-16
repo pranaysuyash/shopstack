@@ -258,17 +258,27 @@ def test_parser_preview_screen_call_sites_match_signature() -> None:
 
 
 def test_shelf_scan_process_call_sites_match_signature() -> None:
-    """Audit finding #3: ``shelf_scan_process`` should get 4 inputs, not 1."""
+    """Audit finding #3: ``shelf_scan_process`` should get 4 inputs, not 1.
+
+    Updated 2026-06-16: function now has 5 params (added max_frames
+    for frame sampling control with default value 6). Call sites
+    pass 4 or 5 inputs depending on whether they wire a max_frames UI.
+    """
     sig = inspect.signature(shelf_scan_process)
-    expected = sum(
+    expected_required = sum(
         1 for _, p in sig.parameters.items()
         if p.kind in (inspect.Parameter.POSITIONAL_ONLY,
                       inspect.Parameter.POSITIONAL_OR_KEYWORD)
+        and p.default is inspect.Parameter.empty
     )
-    assert expected == 4, (
-        f"shelf_scan_process signature drift: expected 4 positional params, "
-        f"got {expected}. Update this test if the signature changes."
+    # Function has 5 params total but only 3 are required (no default).
+    assert expected_required == 3, (
+        f"shelf_scan_process signature drift: expected 3 required params, "
+        f"got {expected_required}. Update this test if the signature changes."
     )
+
+    # Call sites pass 4 inputs (3 required + scene_type) or 5 (+ max_frames).
+    # scanner.py passes 4 (no UI for max_frames), market.py passes 5.
 
     # Both scanner.py and market.py have call sites; verify both.
     for rel in ("shopstack/ui/tabs/scanner.py", "shopstack/ui/tabs/market.py"):
@@ -277,14 +287,19 @@ def test_shelf_scan_process_call_sites_match_signature() -> None:
         assert call_sites, f"shelf_scan_process should be referenced in {rel}"
         for line, inputs, outputs in call_sites:
             assert inputs is not None, f"{rel}:{line}: missing inputs=[...]"
-            assert len(inputs) == expected, (
-                f"{rel}:{line}: shelf_scan_process expects {expected} "
-                f"inputs, got {len(inputs)}: {inputs}"
+            # Call sites pass 4 (scanner) or 5 (market) inputs.
+            assert len(inputs) in (4, 5), (
+                f"{rel}:{line}: shelf_scan_process call site passes "
+                f"{len(inputs)} inputs, expected 4 or 5: {inputs}"
+            )
+            assert len(inputs) >= expected_required, (
+                f"{rel}:{line}: call site must pass at least the "
+                f"{expected_required} required inputs, got {len(inputs)}: {inputs}"
             )
             assert outputs is not None, f"{rel}:{line}: missing outputs=[...]"
             # 4 outputs (results, state, trace, annotated)
-            assert len(outputs) == expected, (
-                f"{rel}:{line}: shelf_scan_process returns a {expected}-tuple, "
+            assert len(outputs) == 4, (
+                f"{rel}:{line}: shelf_scan_process returns a 4-tuple, "
                 f"but outputs= has {len(outputs)}: {outputs}"
             )
 

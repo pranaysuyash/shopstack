@@ -20,6 +20,8 @@ from shopstack.ui.screens.recipe_text import (
     recipe_text_to_shopping_list,
 )
 from shopstack.ui.tabs.context import TabContext
+from shopstack.services.i18n import load_locale_preference, t
+from shopstack.app_context import current_user_id
 
 
 def build_recipe_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None:
@@ -44,7 +46,7 @@ def build_recipe_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
         )
 
         rc_upload = gr.File(label="Upload recipe image or .txt", file_types=[".png", ".jpg", ".jpeg", ".webp", ".txt"])
-        rc_snap = gr.Button("Snap & parse recipe", variant="primary")
+        rc_snap = gr.Button(t("button.snap_and_parse", load_locale_preference(current_user_id() or "")), variant="primary")
         rc_ocr_text = gr.Textbox(label="Extracted text", lines=4, placeholder="OCR result will appear here...")
         rc_ocr_status = gr.HTML("")
 

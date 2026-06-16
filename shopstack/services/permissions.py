@@ -267,13 +267,17 @@ def change_role(
 
 
 def _role_badge(role: str) -> str:
-    color = {
-        OWNER:  "var(--accent, #176B49)",
-        MEMBER: "var(--text-muted, #5F5144)",
-        GUEST:  "var(--text-dim, #6F6254)",
-    }.get(role, "var(--text-dim, #6F6254)")
+    # Each role has a bg color and a text color that pass WCAG AA in both
+    # light and dark mode. We previously used `color:#fff` on every bg
+    # (which fails for the muted/grey roles) — switch to per-role text
+    # colors that always contrast with their bg.
+    bg_color, text_color = {
+        OWNER:  ("var(--accent, #176B49)",         "#fff"),
+        MEMBER: ("var(--bg-warm, #FFF1D6)",         "var(--text, #1F1812)"),
+        GUEST:  ("var(--bg-input, #FFF7EA)",        "var(--text-muted, #5F5144)"),
+    }.get(role, ("var(--bg-input, #FFF7EA)", "var(--text-muted, #5F5144)"))
     return (
-        f"<span class='perm-role-badge' style='background:{color};color:#fff;'>{escape(role.title())}</span>"
+        f"<span class='perm-role-badge' style='background:{bg_color};color:{text_color};'>{escape(role.title())}</span>"
     )
 
 

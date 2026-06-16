@@ -217,12 +217,14 @@ class TestDecisionPanelRender:
 
 class TestWhatChangedRender:
     def test_empty(self, ctx):
-        from shopstack.decisions import render_what_changed
-        html = render_what_changed(ctx.db)
+        from shopstack.ui.renderers.decision_cards import render_what_changed
+        purchases = ctx.db.get_purchase_events(limit=5)
+        traces = ctx.db.get_traces(limit=5)
+        html = render_what_changed(purchases, traces)
         assert html == ""
 
     def test_with_purchase(self, ctx):
-        from shopstack.decisions import render_what_changed
+        from shopstack.ui.renderers.decision_cards import render_what_changed
         from shopstack.schemas.models import PurchaseEvent
         pe = PurchaseEvent(
             canonical_name="milk",
@@ -232,20 +234,31 @@ class TestWhatChangedRender:
             store_name="Local",
         )
         ctx.db.add_purchase_event(pe)
-        html = render_what_changed(ctx.db)
+        purchases = ctx.db.get_purchase_events(limit=5)
+        traces = ctx.db.get_traces(limit=5)
+        html = render_what_changed(purchases, traces)
         assert "What Changed" in html
         assert "Milk" in html
 
 
 class TestNeedsConfirmationRender:
     def test_empty(self, ctx):
-        from shopstack.decisions import render_needs_confirmation
-        html = render_needs_confirmation(ctx.db)
+        from shopstack.ui.renderers.decision_cards import render_needs_confirmation
+        from datetime import date
+        all_inv = ctx.db.get_inventory()
+        uncertain = [
+            lot for lot in all_inv
+            if lot.status == "active" and lot.quantity > 0 and (
+                not lot.purchase_date
+                or (date.today() - lot.purchase_date).days > 14
+            )
+        ]
+        html = render_needs_confirmation(uncertain)
         assert html == ""
 
     def test_old_item_shows(self, ctx):
-        from shopstack.decisions import render_needs_confirmation
-        from datetime import timedelta
+        from shopstack.ui.renderers.decision_cards import render_needs_confirmation
+        from datetime import date, timedelta
         old_date = date.today() - timedelta(days=20)
         ctx.tools.add_inventory_item(
             canonical_name="spice",
@@ -262,7 +275,15 @@ class TestNeedsConfirmationRender:
         )
         ctx.db.conn.commit()
 
-        html = render_needs_confirmation(ctx.db)
+        all_inv = ctx.db.get_inventory()
+        uncertain = [
+            lot for lot in all_inv
+            if lot.status == "active" and lot.quantity > 0 and (
+                not lot.purchase_date
+                or (date.today() - lot.purchase_date).days > 14
+            )
+        ]
+        html = render_needs_confirmation(uncertain)
         assert html != ""
         assert "Old Spice" in html
 
