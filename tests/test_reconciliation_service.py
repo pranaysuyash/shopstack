@@ -115,6 +115,141 @@ def test_reconciliation_result_defaults():
     assert result.count == 0
 
 
+class TestReconciliationUndoRegistrations:
+    """Verify undo ledger entries are created during reconciliation when
+    tools+database are provided, and suppressed when they aren"t."""
+
+    def test_undo_registered_for_bought_item_inventory_and_price(self, db, tool_registry):
+        """A bought item should register both add_inventory_lot and
+        record_price undo entries."""
+        from shopstack.services.undo_ledger import reset_ledger, get_ledger
+        reset_ledger()
+        ledger = get_ledger()
+
+        for hid in ("house_a",):
+            db.add_household(hid, f"Test {hid}")
+            db.add_household_member(hid, hid, role="owner")
+
+        reconcile_shopping_trip(
+            planned_items=[{"canonical_name": "bread", "action": "buy"}],
+            actual_items=[{
+                "canonical_name": "bread", "action": "bought",
+                "quantity": 2.0, "unit": "loaf", "price_paid": 50.0,
+            }],
+            tools=tool_registry,
+            database=db,
+            user_id="house_a",
+        )
+
+        recent = ledger.recent("house_a", limit=10)
+        kinds = [e.kind for e in recent]
+        assert "add_inventory_lot" in kinds, (
+            f"Expected add_inventory_lot undo entry, got {kinds}"
+        )
+        assert "record_price" in kinds, (
+            f"Expected record_price undo entry, got {kinds}"
+        )
+
+        # Check the add_inventory_lot entry carries the right metadata
+        inv_entries = [e for e in recent if e.kind == "add_inventory_lot"]
+        assert any(
+            e.before.get("canonical_name") == "bread"
+            and e.after.get("quantity") == 2.0
+            and "after trip" in e.description
+            for e in inv_entries
+        ), "add_inventory_lot entry missing expected fields"
+
+        # Check the record_price entry carries the right metadata
+        price_entries = [e for e in recent if e.kind == "record_price"]
+        assert any(
+            e.before.get("canonical_name") == "bread"
+            and e.after.get("price") == 50.0
+            and e.after.get("quantity") == 2.0
+            and "50.00" in e.description
+            for e in price_entries
+        ), "record_price entry missing expected fields"
+
+    def test_undo_registered_for_substitution(self, db, tool_registry):
+        """A substituted item should register an add_inventory_lot undo
+        entry for the substituted-with item."""
+        from shopstack.services.undo_ledger import reset_ledger, get_ledger
+        reset_ledger()
+        ledger = get_ledger()
+
+        for hid in ("house_b",):
+            db.add_household(hid, f"Test {hid}")
+            db.add_household_member(hid, hid, role="owner")
+
+        reconcile_shopping_trip(
+            planned_items=[{"canonical_name": "onion", "action": "buy"}],
+            actual_items=[{
+                "canonical_name": "onion", "action": "substituted",
+                "substituted_with": "red_onion", "quantity": 1.0,
+            }],
+            tools=tool_registry,
+            database=db,
+            user_id="house_b",
+        )
+
+        recent = ledger.recent("house_b", limit=10)
+        assert any(
+            e.kind == "add_inventory_lot"
+            and e.before.get("canonical_name") == "red_onion"
+            and "substitution" in e.description
+            for e in recent
+        ), "Substitution undo entry missing or has wrong fields"
+
+    def test_no_undo_entries_when_tools_not_provided(self):
+        """When tools+database are None (no persistence), no undo
+        entries should be created."""
+        from shopstack.services.undo_ledger import reset_ledger, get_ledger
+        reset_ledger()
+        ledger = get_ledger()
+
+        reconcile_shopping_trip(
+            planned_items=[{"canonical_name": "milk", "action": "buy"}],
+            actual_items=[{
+                "canonical_name": "milk", "action": "bought",
+                "quantity": 1.0, "price_paid": 30.0,
+            }],
+        )
+
+        assert ledger.recent("house_missing", limit=10) == []
+        assert ledger.recent("", limit=10) == []
+
+    def test_undo_registered_for_price_without_explicit_price(self, db, tool_registry):
+        """Even when no price_paid is provided, a record_price undo
+        entry is still created (price defaults to 0 or planned_price)."""
+        from shopstack.services.undo_ledger import reset_ledger, get_ledger
+        reset_ledger()
+        ledger = get_ledger()
+
+        for hid in ("house_c",):
+            db.add_household(hid, f"Test {hid}")
+            db.add_household_member(hid, hid, role="owner")
+
+        reconcile_shopping_trip(
+            planned_items=[{"canonical_name": "rice", "action": "buy", "market_price": 60.0}],
+            actual_items=[{
+                "canonical_name": "rice", "action": "bought",
+                "quantity": 5.0,
+                # no price_paid — falls back to planned_price
+            }],
+            tools=tool_registry,
+            database=db,
+            user_id="house_c",
+        )
+
+        recent = ledger.recent("house_c", limit=10)
+        price_entries = [e for e in recent if e.kind == "record_price"]
+        assert len(price_entries) >= 1
+        # price should be the planned_price (60.0) since no price_paid
+        assert price_entries[0].after.get("price") == 60.0, (
+            f"Expected 60.0 (planned_price fallback), got {price_entries[0].after.get('price')}"
+        )
+        assert price_entries[0].after.get("quantity") == 5.0
+
+
 def test_build_correction_event():
     event = build_correction_event(
         canonical_name="tomato",

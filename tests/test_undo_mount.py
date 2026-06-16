@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from unittest.mock import MagicMock
 
 from shopstack.services.undo_ledger import UndoEntry
 from shopstack.services.undo_mount import (
@@ -151,6 +152,136 @@ class _StubLedger:
     def undo_by_id(self, household_id, entry_id, db, **kw):
         self.undo_by_id_calls.append(entry_id)
         return self._by_id
+
+
+# ── Store Mode Toggle endpoint ───────────────────────────────────
+
+
+class TestStoreModeToggleEndpoint:
+    """Tests for ``_store_mode_toggle_endpoint`` in ``undo_mount``.
+
+    The endpoint toggles a shopping list item's status between
+    ``"pending"`` and ``"bought"`` via a POST with ``{"item_id": ...}``.
+    """
+
+    def test_toggle_requires_item_id(self, monkeypatch):
+        """Missing item_id in the request body returns failure."""
+        from shopstack.services.undo_mount import _store_mode_toggle_endpoint
+
+        monkeypatch.setattr(
+            "shopstack.app_context.current_user_id", lambda: "hh1",
+        )
+        req = _FakeRequest(body=b"{}")
+        result = _store_mode_toggle_endpoint(req)
+        assert result["success"] is False
+        assert "item_id" in result["error"].lower()
+
+    def test_toggle_no_active_list(self, monkeypatch):
+        """When no active shopping list exists, the endpoint returns failure."""
+        from shopstack.services.undo_mount import _store_mode_toggle_endpoint
+
+        mock_db = MagicMock()
+        mock_db.get_active_shopping_list.return_value = None
+        monkeypatch.setattr(
+            "shopstack.app_context.current_user_id", lambda: "hh1",
+        )
+        monkeypatch.setattr("shopstack.app_context.db", mock_db)
+        req = _FakeRequest(body=json.dumps({"item_id": "item-1"}).encode())
+        result = _store_mode_toggle_endpoint(req)
+        assert result["success"] is False
+        assert "active shopping list" in result["error"].lower()
+
+    def test_toggle_item_not_found(self, monkeypatch):
+        """Item ID not in the active list returns failure."""
+        from shopstack.services.undo_mount import _store_mode_toggle_endpoint
+
+        # List has items, but none matching the requested item_id
+        mock_item = MagicMock()
+        mock_item.item_id = "item-other"
+        mock_item.status = "pending"
+        mock_sl = MagicMock()
+        mock_sl.items = [mock_item]
+        mock_db = MagicMock()
+        mock_db.get_active_shopping_list.return_value = mock_sl
+        monkeypatch.setattr(
+            "shopstack.app_context.current_user_id", lambda: "hh1",
+        )
+        monkeypatch.setattr("shopstack.app_context.db", mock_db)
+        req = _FakeRequest(body=json.dumps({"item_id": "item-1"}).encode())
+        result = _store_mode_toggle_endpoint(req)
+        assert result["success"] is False
+        assert "not found" in result["error"].lower()
+
+    def test_toggle_marks_item_as_bought(self, monkeypatch):
+        """Toggling a pending item sets status to 'bought'."""
+        from shopstack.services.undo_mount import _store_mode_toggle_endpoint
+
+        mock_item = MagicMock()
+        mock_item.item_id = "item-1"
+        mock_item.status = "pending"
+        mock_sl = MagicMock()
+        mock_sl.items = [mock_item]
+        mock_db = MagicMock()
+        mock_db.get_active_shopping_list.return_value = mock_sl
+        monkeypatch.setattr(
+            "shopstack.app_context.current_user_id", lambda: "hh1",
+        )
+        monkeypatch.setattr("shopstack.app_context.db", mock_db)
+        req = _FakeRequest(body=json.dumps({"item_id": "item-1"}).encode())
+        result = _store_mode_toggle_endpoint(req)
+        assert result["success"] is True
+        assert result["new_status"] == "bought"
+        mock_db.update_list_item.assert_called_once_with(
+            "item-1", {"status": "bought"},
+        )
+
+    def test_toggle_marks_bought_as_pending(self, monkeypatch):
+        """Toggling a bought item reverts status to 'pending'."""
+        from shopstack.services.undo_mount import _store_mode_toggle_endpoint
+
+        mock_item = MagicMock()
+        mock_item.item_id = "item-2"
+        mock_item.status = "bought"
+        mock_sl = MagicMock()
+        mock_sl.items = [mock_item]
+        mock_db = MagicMock()
+        mock_db.get_active_shopping_list.return_value = mock_sl
+        monkeypatch.setattr(
+            "shopstack.app_context.current_user_id", lambda: "hh1",
+        )
+        monkeypatch.setattr("shopstack.app_context.db", mock_db)
+        req = _FakeRequest(body=json.dumps({"item_id": "item-2"}).encode())
+        result = _store_mode_toggle_endpoint(req)
+        assert result["success"] is True
+        assert result["new_status"] == "pending"
+        mock_db.update_list_item.assert_called_once_with(
+            "item-2", {"status": "pending"},
+        )
+
+    def test_toggle_malformed_json_handled_gracefully(self, monkeypatch):
+        """Malformed JSON body does not crash the handler."""
+        from shopstack.services.undo_mount import _store_mode_toggle_endpoint
+
+        monkeypatch.setattr(
+            "shopstack.app_context.current_user_id", lambda: "hh1",
+        )
+        req = _FakeRequest(body=b"{bad json}")
+        result = _store_mode_toggle_endpoint(req)
+        # Malformed JSON means empty body, so item_id is missing
+        assert result["success"] is False
+
+    def test_toggle_exception_returns_error(self, monkeypatch):
+        """Any exception in the handler returns a failure response."""
+        from shopstack.services.undo_mount import _store_mode_toggle_endpoint
+
+        monkeypatch.setattr(
+            "shopstack.app_context.current_user_id",
+            MagicMock(side_effect=RuntimeError("boom")),
+        )
+        req = _FakeRequest(body=json.dumps({"item_id": "item-1"}).encode())
+        result = _store_mode_toggle_endpoint(req)
+        assert result["success"] is False
+        assert "error" in result
 
 
 # ── Mount is best-effort ─────────────────────────────────────────

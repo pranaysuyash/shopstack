@@ -360,6 +360,88 @@ class TestConsumptionLogging:
             result = batch_consume_with_context("abc123", "breakfast", "")
             assert "breakfast" in result.lower()
 
+    # ── Undo registration in quick_consume ────────────────────────────
+
+    def test_quick_consume_registers_undo_entry(self):
+        """After a successful consumption, undo_ledger.register is called
+        with kind='consume_inventory' and the pre-mutation before state."""
+        mock_ledger = MagicMock()
+        with (
+            patch("shopstack.services.undo_ledger.get_ledger", return_value=mock_ledger),
+            patch("shopstack.ui.screens.consumption.tools") as mock_tools,
+            patch("shopstack.ui.screens.consumption.db") as mock_db,
+        ):
+            mock_tools.consume_inventory_item.return_value = {
+                "remaining": 1.0,
+                "canonical_name": "milk",
+            }
+            mock_lot = MagicMock()
+            mock_lot.lot_id = "lot-1"
+            mock_lot.canonical_name = "milk"
+            mock_lot.display_name = "Milk"
+            mock_lot.quantity = 2.0
+            mock_lot.unit = "litre"
+            mock_lot.storage_location_id = "fridge"
+            mock_lot.status = "active"
+            mock_db.get_inventory_lot.return_value = mock_lot
+
+            from shopstack.ui.screens.consumption import quick_consume
+            result = quick_consume("lot-1", 1.0)
+
+        assert "Consumed" in result
+        mock_ledger.register.assert_called_once()
+        _, kwargs = mock_ledger.register.call_args  # *args, **kwargs
+        assert kwargs["kind"] == "consume_inventory"
+        assert kwargs["before"]["lot_id"] == "lot-1"
+        assert kwargs["before"]["quantity"] == 2.0
+        assert kwargs["before"]["canonical_name"] == "milk"
+        assert kwargs["before"]["unit"] == "litre"
+        assert kwargs["before"]["storage_location_id"] == "fridge"
+        assert kwargs["description"] == "Consumed 1.0 of Milk"
+
+    def test_quick_consume_undo_skipped_on_failure(self):
+        """When consumption fails, undo_ledger.register is NOT called."""
+        mock_ledger = MagicMock()
+        with (
+            patch("shopstack.services.undo_ledger.get_ledger", return_value=mock_ledger),
+            patch("shopstack.ui.screens.consumption.tools") as mock_tools,
+        ):
+            mock_tools.consume_inventory_item.return_value = {
+                "error": "Lot not found",
+            }
+
+            from shopstack.ui.screens.consumption import quick_consume
+            result = quick_consume("lot-1", 1.0)
+
+        # Inner error HTML is wrapped by aria_live_screen, so check
+        # for the error message content rather than the literal "error"
+        assert "not found" in result.lower()
+        mock_ledger.register.assert_not_called()
+
+    def test_quick_consume_undo_handles_missing_lot(self):
+        """When the lot is not found in DB, undo registers with
+        an empty before_state (graceful degradation)."""
+        mock_ledger = MagicMock()
+        with (
+            patch("shopstack.services.undo_ledger.get_ledger", return_value=mock_ledger),
+            patch("shopstack.ui.screens.consumption.tools") as mock_tools,
+            patch("shopstack.ui.screens.consumption.db") as mock_db,
+        ):
+            mock_tools.consume_inventory_item.return_value = {
+                "remaining": 0.0,
+                "canonical_name": "unknown",
+            }
+            mock_db.get_inventory_lot.return_value = None  # lot not found
+
+            from shopstack.ui.screens.consumption import quick_consume
+            result = quick_consume("lot-missing", 1.0)
+
+        assert "Consumed" in result
+        mock_ledger.register.assert_called_once()
+        _, kwargs = mock_ledger.register.call_args
+        assert kwargs["kind"] == "consume_inventory"
+        assert kwargs["before"] == {}  # empty before state
+
 
 class TestConsumptionRates:
     def test_compute_rates_insufficient_data(self):

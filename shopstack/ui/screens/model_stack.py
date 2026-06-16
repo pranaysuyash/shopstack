@@ -398,7 +398,7 @@ def model_eval_view() -> str:
         + ui_card("Regression Verdicts vs Baseline", reg_table_html)
         + ui_card("Recent Records (latest 20)", recent_html)
         + "<div style='font-size:0.6875rem;color:var(--text-dim);margin-top:8px;'>"
-        "Records are persisted to <code>shopstack.db</code> (table <code>model_call_records</code>) "
-        "and <code>.model_call_records.jsonl</code>. Prompts and outputs are redacted at capture time."
+        "Records are stored in the system database and exported as log files. "
+        "Prompts and outputs are redacted at capture time."
         "</div>"
     )

@@ -108,6 +108,12 @@ def reconcile_shopping_trip(
     """
     trip_id = new_id()
     result = ReconciliationResult(trip_id=trip_id)
+    _undo_ledger = None
+    try:
+        from shopstack.services.undo_ledger import get_ledger as _get_ledger
+        _undo_ledger = _get_ledger()
+    except Exception:
+        pass  # undo is best-effort
 
     planned_map: dict[str, dict[str, Any]] = {}
     for item in planned_items:
@@ -163,6 +169,27 @@ def reconcile_shopping_trip(
                     user_id=user_id,
                 )
                 lot_id = add_result.get("lot_id", "")
+                # Register undo entry so the user can undo this inventory addition
+                if _undo_ledger is not None and lot_id:
+                    try:
+                        _undo_ledger.register(
+                            household_id=user_id,
+                            kind="add_inventory_lot",
+                            before={
+                                "lot_id": lot_id,
+                                "user_id": user_id,
+                                "canonical_name": name,
+                            },
+                            after={
+                                "canonical_name": name,
+                                "quantity": qty,
+                                "unit": unit,
+                                "action": "bought",
+                            },
+                            description=f"Reconciled {name} after trip",
+                        )
+                    except Exception:
+                        pass  # undo is best-effort
                 result.inventory_updates.append({
                     "action": "added",
                     "canonical_name": name,
@@ -194,6 +221,28 @@ def reconcile_shopping_trip(
                         user_id=user_id,
                     )
                     lot_id = add_result.get("lot_id", "")
+                    # Register undo entry for the substituted item addition
+                    if _undo_ledger is not None and lot_id:
+                        try:
+                            _undo_ledger.register(
+                                household_id=user_id,
+                                kind="add_inventory_lot",
+                                before={
+                                    "lot_id": lot_id,
+                                    "user_id": user_id,
+                                    "canonical_name": sub_name,
+                                },
+                                after={
+                                    "original": name,
+                                    "substituted_with": sub_name,
+                                    "quantity": qty,
+                                    "unit": unit,
+                                    "action": "substituted",
+                                },
+                                description=f"Reconciled substitution {name}→{sub_name} after trip",
+                            )
+                        except Exception:
+                            pass  # undo is best-effort
                     result.inventory_updates.append({
                         "action": "substituted",
                         "original": name,
@@ -234,6 +283,28 @@ def reconcile_shopping_trip(
                     ),
                 )
                 database.record_price(observation, user_id=user_id)
+
+                # Register undo entry so the user can undo this price observation
+                if _undo_ledger is not None:
+                    try:
+                        _undo_ledger.register(
+                            household_id=user_id,
+                            kind="record_price",
+                            before={
+                                "price_id": observation.price_id,
+                                "canonical_name": name,
+                            },
+                            after={
+                                "canonical_name": name,
+                                "price": price_value,
+                                "quantity": qty,
+                                "unit": unit,
+                            },
+                            description=f"Recorded price \u20b9{price_value:.2f} for {name} after trip",
+                        )
+                    except Exception:
+                        pass  # undo is best-effort
+
                 result.price_observations.append({
                     "canonical_name": name,
                     "price": observation.price,

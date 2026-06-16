@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import functools
 import logging
 import re
-import traceback
 from html import escape
-from typing import Any, Callable
+from typing import Any
 
 from shopstack.domain import normalize_item_name
 from shopstack.ui.components.cards import card as ui_card
@@ -42,30 +40,6 @@ def source_freshness_html(source_id: str = "swiggy") -> str:
         f"<div style='font-size: 0.6875rem;color:{color};margin-top:6px;'>{escape(prefix)}: {escape(label)}. Prices and availability are point-in-time signals."
         f"</div>"
     )
-
-
-def safe_render(fn: Callable) -> Callable:
-    """Decorator that catches exceptions from UI render functions and returns a friendly error card.
-
-    Works for functions that return a single HTML string or a tuple of values
-    (the first element is assumed to be HTML if it's a string).
-    """
-    @functools.wraps(fn)
-    def wrapper(*args, **kwargs):
-        try:
-            return fn(*args, **kwargs)
-        except Exception as exc:
-            logger.exception("UI render error in %s", fn.__name__)
-            tb_line = traceback.format_exc().strip().split("\n")[-1]
-            error_html = home_card(
-                style="border-left:3px solid var(--red);text-align:left;",
-                body=(
-                    f"<div style='color:var(--red);font-weight:600;'>&#9888; Something went wrong</div><div style='margin-top:6px;font-size: 0.75rem;'>{escape(str(exc))}</div>"
-                    f"<div style='margin-top:4px;font-size: 0.6875rem;color:var(--text-dim);'>{escape(tb_line)}</div>"
-                ),
-            )
-            return error_html
-    return wrapper
 
 from shopstack.module_registry import tab_order as _tab_order  # noqa: E402 — deferred to avoid circular import
 

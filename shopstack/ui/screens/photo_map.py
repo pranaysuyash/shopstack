@@ -27,7 +27,6 @@ from shopstack.services.photo_search import (
 )
 from shopstack.ui.components.decorators import aria_live_screen
 from shopstack.ui.components.primitives import home_card, stat_card
-from shopstack.ui.screens._utils import safe_render
 
 logger = logging.getLogger(__name__)
 

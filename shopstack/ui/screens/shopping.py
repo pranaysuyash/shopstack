@@ -35,6 +35,10 @@ from shopstack.ui.components.primitives import (
 from shopstack.ui.renderers import render_mark_purchased, render_shopping_completion
 from shopstack.traces.export import create_trace
 from shopstack.services.reconciliation import reconcile_shopping_trip
+from shopstack.services.undo_ledger import (
+    get_ledger as _get_undo_ledger,
+    render_undo_toast_trigger as _render_undo_toast,
+)
 from shopstack.ui.screens._utils import (
     parse_shopping_text,
     source_freshness_html,
@@ -616,7 +620,18 @@ def confirm_reconciliation(df_data: Any, list_id: str) -> str:
             user_id=uid,
         )
         db.mark_list_complete(list_id)
-        return home_card(body=f"Reconciliation complete. {escape(result.message)}", style="color:var(--green);font-weight:600;")
+        # Render undo toast trigger for the most recent undo entry
+        _undo_toast = ""
+        try:
+            _recent = _get_undo_ledger().recent(uid, limit=1)
+            if _recent:
+                _undo_toast = _render_undo_toast(uid, entry_id=_recent[0].entry_id)
+        except Exception:
+            pass  # undo toast is best-effort
+        return home_card(
+            body=f"Reconciliation complete. {escape(result.message)}",
+            style="color:var(--green);font-weight:600;",
+        ) + _undo_toast
     except Exception as e:
         logger.warning("Failed to reconcile shopping trip: %s", e)
 

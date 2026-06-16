@@ -14,7 +14,6 @@ from shopstack.ui.components.primitives import (
     stat_card,
     home_card,
 )
-from shopstack.ui.screens._utils import safe_render
 
 
 logger = logging.getLogger(__name__)

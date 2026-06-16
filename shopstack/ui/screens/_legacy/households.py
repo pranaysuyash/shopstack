@@ -38,6 +38,7 @@ Phase 8 UI scope focused.
 from __future__ import annotations
 
 import logging
+from html import escape
 from typing import Any
 
 from shopstack.app_context import current_user_id, db

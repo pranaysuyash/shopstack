@@ -13,7 +13,6 @@ from shopstack.app_context import db, tools, current_user_id
 from shopstack.schemas.models import FindFeedback, HouseholdObject, ObjectNote, ObjectSighting
 from shopstack.ui.components.decorators import aria_live_screen
 from shopstack.ui.components.primitives import stat_card
-from shopstack.ui.screens._utils import safe_render
 
 logger = logging.getLogger(__name__)
 

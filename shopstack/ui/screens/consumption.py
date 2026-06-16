@@ -276,6 +276,24 @@ def _quick_consume_inner(lot_id: str, qty: float) -> str:
         return "<div style='color:var(--red);'>Quantity must be positive.</div>"
 
     uid = current_user_id()
+    # Capture pre-mutation state for undo ledger
+    before_state = {}
+    try:
+        lot = db.get_inventory_lot(lot_id.strip())
+        if lot:
+            before_state = {
+                "lot_id": lot.lot_id,
+                "canonical_name": lot.canonical_name,
+                "display_name": lot.display_name,
+                "quantity": float(lot.quantity or 0),
+                "unit": lot.unit,
+                "storage_location_id": lot.storage_location_id,
+                "status": lot.status,
+                "user_id": uid,
+            }
+    except Exception:
+        pass
+
     result = tools.consume_inventory_item(lot_id.strip(), qty, user_id=uid)
     if "error" in result:
         return f"<div style='color:var(--red);'>{escape(str(result['error']))}</div>"
@@ -283,6 +301,21 @@ def _quick_consume_inner(lot_id: str, qty: float) -> str:
     clear_dashboard_cache(uid)
     remaining = result.get("remaining", 0)
     name = result.get("canonical_name", lot_id[:8]).replace("_", " ").title()
+
+    # Register undo entry
+    try:
+        from shopstack.services.undo_ledger import get_ledger
+        ledger = get_ledger()
+        ledger.register(
+            household_id=uid,
+            kind="consume_inventory",
+            before=before_state,
+            after={"lot_id": lot_id.strip(), "consumed": qty, "remaining": remaining},
+            description=f"Consumed {qty} of {name}",
+        )
+    except Exception:
+        pass  # undo is best-effort
+
     return (
         f"<div style='color:var(--green);'>Consumed {escape(str(qty))} of {escape(name)}. "
         f"Remaining: {escape(str(remaining))}</div>"

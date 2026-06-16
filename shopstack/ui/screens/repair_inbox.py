@@ -23,7 +23,6 @@ from shopstack.services.condition import (
 )
 from shopstack.ui.components.decorators import aria_live_screen
 from shopstack.ui.components.primitives import home_card, stat_card
-from shopstack.ui.screens._utils import safe_render
 
 logger = logging.getLogger(__name__)
 
@@ -139,21 +138,21 @@ def report_damage(
     """Record a user-reported condition issue.
 
     Args:
-        lot_id: The lot to attach the issue to.
-        kind: ConditionKind value (physical_damage, liquid_leak, etc.).
-        severity: ConditionSeverity value (cosmetic, worn, damaged, broken, spoiled).
+        lot_id: The item lot to attach the issue to.
+        kind: Type of issue (physical_damage, liquid_leak, etc.).
+        severity: Severity (cosmetic, worn, damaged, broken, spoiled).
         description: Optional free-text note.
     """
     if not (lot_id or "").strip():
-        return "<div style='color:var(--red);'>Lot ID required.</div>"
+        return "<div style='color:var(--red);'>Item reference required.</div>"
     if not (kind or "").strip():
-        return "<div style='color:var(--red);'>Kind required.</div>"
+        return "<div style='color:var(--red);'>Issue type required.</div>"
     if not (severity or "").strip():
         return "<div style='color:var(--red);'>Severity required.</div>"
     # Validate the lot exists
     lot = db.get_inventory_lot(lot_id.strip())
     if not lot:
-        return f"<div style='color:var(--red);'>Unknown lot: {escape(lot_id)}</div>"
+        return f"<div style='color:var(--red);'>Item not found: {escape(lot_id[:12])}</div>"
     try:
         event_id = record_condition_event(
             db,
@@ -175,33 +174,33 @@ def report_damage(
 def confirm_condition_event(event_id: str) -> str:
     """Mark a condition event as user-confirmed."""
     if not (event_id or "").strip():
-        return "<div style='color:var(--red);'>Event ID required.</div>"
+        return "<div style='color:var(--red);'>Event reference required.</div>"
     ok = db.confirm_condition_event(event_id.strip())
     if not ok:
-        return f"<div style='color:var(--red);'>Failed to confirm {escape(event_id)}.</div>"
-    return f"<div style='color:var(--green);'>Confirmed {escape(event_id)}.</div>"
+        return f"<div style='color:var(--red);'>Failed to confirm event {escape(event_id[:12])}.</div>"
+    return f"<div style='color:var(--green);'>Confirmed issue.</div>"
 
 
 @aria_live_screen()
 def close_condition_event(event_id: str) -> str:
     """Close (resolve/dismiss) a condition event."""
     if not (event_id or "").strip():
-        return "<div style='color:var(--red);'>Event ID required.</div>"
+        return "<div style='color:var(--red);'>Event reference required.</div>"
     ok = db.close_condition_event(event_id.strip())
     if not ok:
-        return f"<div style='color:var(--red);'>Failed to close {escape(event_id)}.</div>"
-    return f"<div style='color:var(--green);'>Closed {escape(event_id)}.</div>"
+        return f"<div style='color:var(--red);'>Failed to close event {escape(event_id[:12])}.</div>"
+    return f"<div style='color:var(--green);'>Issue resolved and closed.</div>"
 
 
 @aria_live_screen()
 def delete_condition_event(event_id: str) -> str:
     """Permanently delete a condition event."""
     if not (event_id or "").strip():
-        return "<div style='color:var(--red);'>Event ID required.</div>"
+        return "<div style='color:var(--red);'>Event reference required.</div>"
     ok = db.delete_condition_event(event_id.strip())
     if not ok:
-        return f"<div style='color:var(--red);'>Failed to delete {escape(event_id)}.</div>"
-    return f"<div style='color:var(--green);'>Deleted {escape(event_id)}.</div>"
+        return f"<div style='color:var(--red);'>Failed to delete event {escape(event_id[:12])}.</div>"
+    return f"<div style='color:var(--green);'>Issue removed.</div>"
 
 
 __all__ = [

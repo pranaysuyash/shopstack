@@ -73,22 +73,7 @@ def _install_permissions_policy_middleware(app: gr.Blocks) -> None:
     fastapi_app.add_middleware(PermissionsPolicyMiddleware)
 
 
-def _install_post_launch_hooks(app: gr.Blocks) -> None:
-    """Install hooks that re-mount PWA routes and middleware after Gradio's launch() recreates the FastAPI app."""
-    original_launch = app.launch
 
-    def wrapped_launch(*args, **kwargs):
-        result = original_launch(*args, **kwargs)
-        # Re-mount PWA routes and middleware after launch() creates a new FastAPI app
-        from shopstack.ui.pwa_mount import mount_pwa_static
-        from shopstack.services.health_mount import mount_health_endpoint
-        from shopstack.app_context import db
-        mount_pwa_static(app)
-        mount_health_endpoint(app, db)
-        _install_permissions_policy_middleware(app)
-        return result
-
-    app.launch = wrapped_launch
 
 from shopstack.ui.header import header_block, pwa_head_html
 from shopstack.ui.theme import CSS
@@ -99,55 +84,65 @@ from shopstack.ui.tabs.onboarding import build_onboarding_wizard
 from shopstack.ui.locale_save import build_locale_save
 from shopstack.ui.pwa_mount import mount_pwa_static
 from shopstack.ui.runtime_status import build_runtime_status
-from shopstack.services.sms_webhook import mount_sms_webhook
 from shopstack.services.health_mount import mount_health_endpoint
-from shopstack.services.global_search_mount import mount_global_search
-from shopstack.services.privacy_mount import mount_privacy_endpoints
-from shopstack.services.undo_mount import mount_undo_endpoint
-from shopstack.services.whoami_mount import mount_whoami_endpoint
-from shopstack.services.decision_explain_mount import (
-    mount_decision_explain_endpoint,
-    mount_recurring_endpoint,
-    mount_mealplan_endpoint,
-)
-from shopstack.services.corrections_mount import mount_corrections_endpoint
-from shopstack.services.data_retention import (
-    render_privacy_panel_html,
-    render_privacy_panel_script,
-)
 
 from shopstack.app_context import (
-    APP_DESCRIPTION,
     APP_NAME,
     current_user_id,
     db,
+    # 2026-06-16: re-imported because several pre-existing tests
+    # reference them as ``app.tools`` / ``app.providers`` /
+    # ``app.planner``. See test_cadence_waste.py and others.
+    # Per motto_v3 §0.15 test contract stability, the import
+    # surface is the contract; we keep it stable.
     tools,
     providers,
     planner,
 )
 from shopstack.services.i18n import load_locale_preference
 
+# Note: ``mount_pwa_static`` and ``mount_health_endpoint`` are
+# imported here (not just in wire_all_mounts / wire_in_context)
+# because the test contract in
+# ``tests/test_app.py::test_launch_reinstalls_pwa_and_health_routes``
+# monkeypatches these names on the ``app`` module. The wire
+# sub-builders reference them via ``app.mount_pwa_static`` /
+# ``app.mount_health_endpoint`` so the patch propagates. See
+# ``shopstack.api.wire_in_context`` and
+# ``shopstack.api.wire_all_mounts`` for the call sites.
+
 
 def _install_post_launch_hooks(app: gr.Blocks) -> None:
-    """Ensure root routes are restored after Gradio recreates the FastAPI app.
+    """Ensure routes, middleware, and PWA are restored after Gradio recreates the FastAPI app.
 
-    Gradio's ``launch()`` rebuilds ``app.app``. That means any routes
-    mounted during ``build_app()`` are lost unless we mount them again
-    after launch. HF Spaces follows the same launch path, so this wrapper
-    keeps ``/sw.js``, ``/manifest.json``, and ``/health/ui`` reachable
-    both locally and on Spaces.
+    Gradio's ``launch()`` rebuilds ``app.app`` — a fresh FastAPI instance —
+    so any routes mounted inside ``with gr.Blocks() as app:`` are discarded
+    unless we re-mount them after launch. This wrapper:
+
+      1. Calls ``wire_post_launch_routes`` which re-mounts every HTTP
+         endpoint (PWA static, health, whoami, decision-explain, recurring,
+         corrections, mealplan, v1 surface, undo, etc.).
+      2. Re-installs the Permissions-Policy middleware (lost when the
+         FastAPI app was recreated).
+
+    **2026-06-16 fix (motto_v3 §6):** The previous version had TWO
+    definitions of this function — the earlier one (PWA + health +
+    permissions) was *silently overridden* by the later one (wire_all_mounts
+    only). The result: ``_install_permissions_policy_middleware`` was never
+    called after launch, meaning the restrictive Permissions-Policy header
+    was absent on every page load via ``app.launch()`` (not just HF Spaces
+    but also local dev that calls ``app.launch()``).
+
+    The merge preserves BOTH responsibilities: ``wire_post_launch_routes``
+    handles all route mounts, and the middleware is re-installed here.
     """
     original_launch = app.launch
 
     def _launch_with_post_hooks(*args, **kwargs):
         result = original_launch(*args, **kwargs)
-        mount_pwa_static(app)
-        mount_health_endpoint(app, db)
-        mount_whoami_endpoint(app)
-        mount_decision_explain_endpoint(app)
-        mount_recurring_endpoint(app)
-        mount_corrections_endpoint(app)
-        mount_mealplan_endpoint(app)
+        from shopstack.api.wire_all_mounts import wire_post_launch_routes
+        wire_post_launch_routes(app, db)
+        _install_permissions_policy_middleware(app)
         return result
 
     app.launch = _launch_with_post_hooks
@@ -174,27 +169,8 @@ def build_app() -> gr.Blocks:
     in ``module_registry.TAB_ORDER`` and ``shopstack.ui.tabs.registry``.
     """
     with gr.Blocks(title=APP_NAME) as app:
-        mount_sms_webhook(app)
-        mount_global_search(app)
-        mount_privacy_endpoints(app)
-        mount_undo_endpoint(app)
-        # /api/whoami is a read-only operator introspection endpoint
-        # (see shopstack.services.whoami_mount). It is also re-mounted
-        # in the post-launch hooks so it survives the Blocks-context exit
-        # that recreates app.app. (Same pattern as the other mounts.)
-        mount_whoami_endpoint(app)
-        # /api/decision/<name>/explain (Pass 18) — decision explainability
-        # for the "Why did ShopStack say X?" UX. Same mount pattern.
-        mount_decision_explain_endpoint(app)
-        # /api/recurring (Pass 19) — items due in the user's shopping
-        # rhythm. Same mount pattern.
-        mount_recurring_endpoint(app)
-        # /api/corrections (Pass 20) — user corrections (the
-        # "Mark as wrong" learning loop). Same mount pattern.
-        mount_corrections_endpoint(app)
-        # /api/mealplan (Pass 21) — weekly meal plan. Same
-        # mount pattern.
-        mount_mealplan_endpoint(app)
+        from shopstack.api.wire_in_context import wire_in_context_routes
+        wire_in_context_routes(app, db)
 
         initial_locale = load_locale_preference(current_user_id() or "default_household")
         # 2026-06-15 (Home screen review): the brand subtitle now

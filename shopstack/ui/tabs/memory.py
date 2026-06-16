@@ -41,6 +41,7 @@ from shopstack.ui.tabs.memory_data import (
 )
 from shopstack.ui.tabs.memory_history import build_memory_history
 from shopstack.ui.tabs.memory_intelligence import build_memory_intelligence
+from shopstack.ui.tabs.memory_household import build_memory_household
 from shopstack.ui.tabs.memory_notes import build_memory_notes
 from shopstack.ui.tabs.memory_nutrition import build_memory_nutrition
 
@@ -111,3 +112,6 @@ def build_memory_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
 
             with gr.Tab("Backup"):
                 build_memory_backup(app=app, ctx=ctx)
+
+            with gr.Tab("Household"):
+                build_memory_household(app=app, ctx=ctx)

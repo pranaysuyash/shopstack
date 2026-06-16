@@ -206,6 +206,19 @@ def add_purchase_form(
         user_id=uid,
     )
     lot_id = add_result.get("lot_id", "")
+    # Register undo entry so the user can undo this purchase
+    if lot_id:
+        try:
+            from shopstack.services.undo_ledger import get_ledger as _undo_get
+            _undo_get().register(
+                household_id=uid,
+                kind="add_inventory_lot",
+                before={"lot_id": lot_id, "user_id": uid, "canonical_name": item_name.lower()},
+                after={"canonical_name": item_name.lower(), "quantity": qty, "unit": item_unit, "action": "purchased"},
+                description=f"Added {item_name} to pantry",
+            )
+        except Exception:
+            pass
     if price > 0 and store:
         tools.record_price_observation(
             canonical_name=item_name.lower(),
@@ -320,6 +333,19 @@ def add_purchase_batch(raw_batch: str) -> str:
                 unit=unit,
                 store_name=store,
             )
+        # Register undo entry for each successfully added item
+        if lot_id:
+            try:
+                from shopstack.services.undo_ledger import get_ledger as _undo_get
+                _undo_get().register(
+                    household_id=uid,
+                    kind="add_inventory_lot",
+                    before={"lot_id": lot_id, "user_id": uid, "canonical_name": name.lower().strip()},
+                    after={"canonical_name": name.lower().strip(), "quantity": qty, "unit": unit, "action": "batch_purchased"},
+                    description=f"Batch added {name.strip()}",
+                )
+            except Exception:
+                pass
         added.append(f"{escape(name)} ({escape(str(lot_id)[:8])})")
 
     if not added:
