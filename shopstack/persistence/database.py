@@ -2454,6 +2454,12 @@ def _row_to_correction(row: sqlite3.Row) -> CorrectionEvent:
         old_value=row["old_value"],
         new_value=row["new_value"],
         source=row["source"] or "user_correction",
+        # Phase 11 supersession: accepted + user_id added to the
+        # schema (lines 372-373) and the model (see CorrectionEvent).
+        # The row converter must populate them so the Memory panel
+        # can read the accept/reject state.
+        accepted=row["accepted"] if row["accepted"] is not None else 0,
+        user_id=row["user_id"] or "",
     )
 
 

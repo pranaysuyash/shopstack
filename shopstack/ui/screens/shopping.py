@@ -340,7 +340,8 @@ def _shopping_list_share_html(share_text: str, locale: str = "en") -> str:
 
 
 def _shopping_list_payload() -> tuple[str, list[list[str]], str, str, str, str]:
-    sl = db.get_active_shopping_list(user_id=current_user_id())
+    user_id = current_user_id()
+    sl = db.get_active_shopping_list(user_id=user_id)
     if not sl:
         return (
             empty_state_enhanced("No active shopping list. Create one with your goal or rough text.", icon="🛒", action_label="Create List", on_click_tab="shopping"),
@@ -348,7 +349,7 @@ def _shopping_list_payload() -> tuple[str, list[list[str]], str, str, str, str]:
             "",
             "",
             "",
-            _shopping_list_share_html(_shopping_list_share_text([]), load_locale_preference()),
+            _shopping_list_share_html(_shopping_list_share_text([]), load_locale_preference(user_id)),
         )
 
     rows = [
@@ -399,7 +400,7 @@ def _shopping_list_payload() -> tuple[str, list[list[str]], str, str, str, str]:
         body_html=f"<strong>Goal:</strong> {escape(str(sl.goal))}",
     ) if sl.goal else ""
     share_text = _shopping_list_share_text(rows)
-    share_html = _shopping_list_share_html(share_text, load_locale_preference())
+    share_html = _shopping_list_share_html(share_text, load_locale_preference(user_id))
     return goal_html, tbl, sl.list_id, sl.goal or "", cards, share_html
 
 
@@ -676,7 +677,7 @@ def build_shopping_list_and_refresh(
     return _build_shopping_list_and_refresh(goal, items_text)
 
 
-def shopping_list_share() -> str:
+def shopping_list_share(user_id: str = "") -> str:
     """Render the shareable shopping list as HTML (textarea + WhatsApp link).
 
     The returned HTML includes:
@@ -731,7 +732,7 @@ def shopping_list_share() -> str:
         return ""
     try:
         share_text = _shopping_list_share_text(rows)
-        return _shopping_list_share_html(share_text, load_locale_preference())
+        return _shopping_list_share_html(share_text, load_locale_preference(user_id))
     except Exception as exc:  # pragma: no cover — defensive
         logger.warning("shopping_list_share: render failed: %s", exc)
         return ""

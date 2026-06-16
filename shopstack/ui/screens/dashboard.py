@@ -123,6 +123,16 @@ def today_dashboard():
         "</div>"
     )
 
+    # 2026-06-15 (Pass 19): recurring shopping plan — items the
+    # user typically buys on a rhythm and that are due in the
+    # next 3 days. Surfaces the existing ``detect_purchase_cadence``
+    # data as a "Your shopping rhythm" card. Renders as decision
+    # cards with the Why? toggle (Pass 19's other deliverable).
+    from shopstack.services.recurring_shopping import build_recurring_shopping_plan
+    from shopstack.ui.renderers.recurring_plan import render_recurring_plan_html
+    _recurring_plan = build_recurring_shopping_plan(db, user_id=uid, window_days=3)
+    recurring_html = render_recurring_plan_html(_recurring_plan)
+
     loop_actions = render_action_grid([
         {
             "label": "Plan groceries",
@@ -212,12 +222,29 @@ def today_dashboard():
         f"{len(state.cook_tonight_matches)} recipe{'s' if len(state.cook_tonight_matches) != 1 else ''}",
         open=bool(state.cook_tonight_matches),  # open when there are matches
     )
+    # Per the home screen review: Plan section is INCLUDED in the
+    # dashboard section list ONLY when there's a trip recommendation
+    # (use_soon / buy / compare / substitute items). When included,
+    # the section is open by default so the user sees the action
+    # items immediately. (DR-031 follow-up: the previous version
+    # had open=bool(...) which made the section closed by default
+    # and the user had to click to expand — the review said this
+    # buried the most actionable content.)
+    has_trip_recommendation = bool(
+        ds.use_soon or ds.buy or ds.compare or ds.substitute
+    )
+    state.has_trip_recommendation = has_trip_recommendation
     plan_section = _details_section(
         "Plan the trip",
         f"{decision_panel}{market_basket}",
         "What to buy, compare, or substitute before you go.",
         f"{len(ds.use_soon) + len(ds.buy) + len(ds.compare) + len(ds.substitute)} item{'s' if (len(ds.use_soon) + len(ds.buy) + len(ds.compare) + len(ds.substitute)) != 1 else ''}",
-        open=bool(ds.use_soon or ds.buy or ds.compare or ds.substitute),
+        # Per the home screen review: open=True (the user wants the
+        # actionable plan visible by default). The section is
+        # CONDITIONALLY INCLUDED in the section list (only when
+        # has_trip is True) so the dashboard isn't noisy for users
+        # with no trip recommendation.
+        open=True,
     )
     list_snapshot = _details_section(
         "Shopping list",
@@ -240,13 +267,23 @@ def today_dashboard():
         f"{len(market_graph.buy) + len(market_graph.compare) + len(market_graph.substitute)} signal{'s' if (len(market_graph.buy) + len(market_graph.compare) + len(market_graph.substitute)) != 1 else ''}",
     )
 
-    return [
+    sections = [
         f"{hero}{market_chips}{onboarding}{quick_actions}{loop_actions}",
         tonight_section,
-        plan_section,
+    ]
+    if has_trip_recommendation:
+        sections.append(plan_section)
+    sections.extend([
         list_snapshot,
         household_state,
         market_signals,
+    ])
+    return sections + [
+        # 2026-06-15 (Pass 19): recurring shopping plan
+        # ("Your shopping rhythm" card) — only include the
+        # section wrapper if there's something to show, so
+        # the dashboard isn't noisy for users with no rhythm.
+        f"<section class='recurring-plan-section'>{recurring_html}</section>" if _recurring_plan else "",
     ]
 
 

@@ -113,8 +113,25 @@ def detect_barcodes(image_path: str) -> list[dict[str, Any]]:
 
 
 def analyze_visible_items(image_path: str, providers: Any, inventory: InventoryRepo) -> list[dict[str, Any]]:
-    detections = providers.object_detection.detect(image_path)
-    ocr_result = providers.ocr.extract(image_path)
+    from shopstack.eval.recorder import CAP_VISION_PRODUCT_RECOGNITION, CAP_OCR_RECEIPT, SHAPE_STRUCTURED, record_model_call
+
+    with record_model_call(
+        domain_route="market_lens",
+        capability=CAP_VISION_PRODUCT_RECOGNITION,
+        capability_expected_shape=SHAPE_STRUCTURED,
+    ) as rec:
+        rec.set_prompt(f"detect:{image_path}")
+        detections = providers.object_detection.detect(image_path)
+        rec.set_output(str(detections))
+
+    with record_model_call(
+        domain_route="market_lens",
+        capability=CAP_OCR_RECEIPT,
+        capability_expected_shape=SHAPE_STRUCTURED,
+    ) as rec:
+        rec.set_prompt(f"ocr:{image_path}")
+        ocr_result = providers.ocr.extract(image_path)
+        rec.set_output(str(ocr_result))
     raw_product = ""
     if isinstance(ocr_result, dict):
         raw_product = (
@@ -201,7 +218,24 @@ def enrich_market_prices(decisions: list[dict[str, Any]]) -> None:
 
 
 def transcribe_audio(audio_path: str, providers: Any) -> str:
-    transcript = providers.stt.transcribe(audio_path)
-    if isinstance(transcript, dict):
-        return str(transcript.get("text", ""))
-    return str(transcript)
+    from shopstack.eval.recorder import CAP_STT, SHAPE_TEXT, record_model_call
+
+    with record_model_call(
+        domain_route="market_lens",
+        capability=CAP_STT,
+        capability_expected_shape=SHAPE_TEXT,
+    ) as rec:
+        rec.set_prompt(f"transcribe:{audio_path}")
+        transcript = providers.stt.transcribe(audio_path)
+        if isinstance(transcript, dict):
+            text = str(transcript.get("text", ""))
+            rec.set_usage(
+                model=transcript.get("model", ""),
+                input_tokens=transcript.get("input_tokens", 0),
+                output_tokens=transcript.get("output_tokens", 0),
+                cost_usd=transcript.get("cost_usd", 0.0),
+            )
+        else:
+            text = str(transcript)
+        rec.set_output(text)
+    return text

@@ -305,6 +305,58 @@ def test_explain_subcommand_json_output_is_valid():
     assert isinstance(payload, dict)
 
 
+# ── recurring subcommand (Pass 19) ────────────────────────────────
+
+
+def test_recurring_subcommand_dispatches():
+    """The ``recurring`` subcommand is in SUBCOMMANDS."""
+    from shopstack.cli import SUBCOMMANDS, build_parser
+
+    parser = build_parser()
+    args = parser.parse_args(["recurring"])
+    assert args.cmd == "recurring"
+    assert "recurring" in SUBCOMMANDS
+
+
+def test_recurring_subcommand_default_window_is_3():
+    from shopstack.cli import build_parser
+    parser = build_parser()
+    args = parser.parse_args(["recurring"])
+    # Default window is 3 (matches DEFAULT_WINDOW_DAYS in the service).
+    assert args.window == 3
+
+
+def test_recurring_subcommand_custom_window():
+    from shopstack.cli import build_parser
+    parser = build_parser()
+    args = parser.parse_args(["recurring", "--window", "7"])
+    assert args.window == 7
+
+
+def test_recurring_subcommand_returns_plan_dict():
+    """The ``recurring`` subcommand returns a dict with the documented shape."""
+    from shopstack.cli import SUBCOMMANDS
+
+    args = type("Args", (), {"window": 3})()
+    payload = SUBCOMMANDS["recurring"](args)
+    for key in ("window_days", "summary", "count", "items"):
+        assert key in payload, f"missing key: {key}"
+
+
+def test_recurring_subcommand_json_output_is_valid():
+    """``cli recurring`` produces parseable JSON on stdout."""
+    from shopstack.cli import main
+
+    captured = io.StringIO()
+    with patch("sys.stdout", captured):
+        rc = main(["recurring"])
+    assert rc == 0
+    payload = json.loads(captured.getvalue())
+    assert "summary" in payload
+    assert "items" in payload
+    assert isinstance(payload["items"], list)
+
+
 # ── Mode-portability proof (Tier 3) ─────────────────────────────────
 
 

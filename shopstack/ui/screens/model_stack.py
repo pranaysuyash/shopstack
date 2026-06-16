@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from html import escape
 from typing import Any
 
@@ -14,6 +15,8 @@ from shopstack.model_registry import (
 from shopstack.providers.runtime import collect_runtime_diagnostics, diagnostics_to_rows
 from shopstack.ui.components.cards import badge_html, card as ui_card, render_metric
 from shopstack.ui.screens._utils import rows_to_html
+
+logger = logging.getLogger(__name__)
 
 
 def _active_model_rows() -> list[dict[str, Any]]:
@@ -254,4 +257,148 @@ def model_budget_view() -> str:
         )
         + ui_card("Candidate Models", candidate_html)
         + f"<div style='margin-top:12px;font-size: 0.6875rem;color:var(--text-dim);display:flex;gap:8px;align-items:center;'>{provider_badge} <span>Runtime status displayed above.</span></div>"
+    )
+
+
+# ── o/p eval (live per-call evaluation) ─────────────────────────────
+
+
+def _eval_table_rows() -> list[dict[str, Any]]:
+    """Read recent records from the SQLite sink and group by route.
+
+    Returns one row per (domain_route, capability) with the most
+    recent record's summary. Defensive: returns [] on any DB error.
+    """
+    try:
+        from shopstack.eval.aggregator import aggregate_by_route
+        from shopstack.eval.storage import SqliteSink
+        sink = SqliteSink()
+        stats_list = aggregate_by_route(sink, limit=500)
+    except Exception as exc:  # pragma: no cover - sink not ready
+        logger.debug("eval table read failed: %s", exc)
+        return []
+    return [
+        {
+            "Route": s.domain_route,
+            "Capability": s.capability,
+            "Calls": s.n_calls,
+            "Success": f"{s.success_rate:.1%}" if s.n_calls else "—",
+            "p50 ms": f"{s.p50_latency_ms:.0f}" if s.p50_latency_ms else "—",
+            "p95 ms": f"{s.p95_latency_ms:.0f}" if s.p95_latency_ms else "—",
+            "Cost $": f"{s.total_cost_usd:.4f}" if s.total_cost_usd else "0",
+            "Last": s.latest_at.split("T")[-1][:8] if s.latest_at else "—",
+        }
+        for s in stats_list
+    ]
+
+
+def _regression_rows() -> list[dict[str, Any]]:
+    """Compare each route's stats against the route baseline."""
+    try:
+        from shopstack.eval.aggregator import (
+            aggregate_by_route,
+            load_route_baseline,
+            route_regression_for_all,
+        )
+        from shopstack.eval.storage import SqliteSink
+        sink = SqliteSink()
+        stats_list = aggregate_by_route(sink, limit=500)
+        baseline = load_route_baseline()
+        reports = route_regression_for_all(stats_list, baseline=baseline)
+    except Exception as exc:  # pragma: no cover
+        logger.debug("regression check failed: %s", exc)
+        return []
+    rows: list[dict[str, Any]] = []
+    for rep in reports:
+        if rep.sample_size == 0:
+            continue
+        rows.append({
+            "Route": rep.domain_route,
+            "Verdict": "PASS" if rep.passed else "REGRESSION",
+            "Calls": rep.sample_size,
+            "Success": f"{rep.measured.get('success_rate', 0.0):.1%}",
+            "p95 ms": f"{rep.measured.get('p95_latency_ms', 0.0):.0f}",
+            "Cost $": f"{rep.measured.get('mean_cost_usd', 0.0):.4f}",
+            "Notes": "; ".join(rep.regressions) if rep.regressions else "within tolerance",
+        })
+    return rows
+
+
+def _recent_records_html(limit: int = 20) -> str:
+    """Read the latest N records and render as a small HTML table."""
+    try:
+        from shopstack.eval.storage import SqliteSink
+        sink = SqliteSink()
+        rows = sink.query(limit=limit)
+    except Exception as exc:  # pragma: no cover
+        logger.debug("recent records read failed: %s", exc)
+        return "<div style='color:var(--text-dim);'>No records available.</div>"
+    if not rows:
+        return "<div style='color:var(--text-dim);'>No model calls recorded yet. Trigger a planner call (e.g. ask ShopStack) to populate.</div>"
+    body = "".join(
+        f"<tr><td style='font-size:0.75rem;color:var(--text-dim);'>{escape(r.get('started_at', '').split('T')[-1][:12])}</td>"
+        f"<td>{escape(r.get('domain_route', ''))}</td>"
+        f"<td style='font-size:0.75rem;'>{escape(r.get('code_route', '').split('.')[-1])}</td>"
+        f"<td>{escape(r.get('capability', ''))}</td>"
+        f"<td>{escape(r.get('model', '') or '—')}</td>"
+        f"<td style='text-align:right;'>{r.get('latency_ms', 0):.0f}ms</td>"
+        f"<td><span class='badge {('badge-green' if r.get('outcome')=='success' else 'badge-amber' if r.get('outcome') in ('empty','parse_error') else 'badge-red' if r.get('outcome') in ('exception','timeout','blocked') else 'badge-blue')}'>{escape(r.get('outcome', ''))}</span></td>"
+        f"<td style='text-align:right;'>{'✓' if r.get('eval_passed') else '✗'} {r.get('eval_score', 0):.2f}</td></tr>"
+        for r in rows
+    )
+    return (
+        "<table style='width:100%;font-size:0.8125rem;border-collapse:collapse;'>"
+        "<thead><tr style='text-align:left;color:var(--text-dim);font-size:0.75rem;'>"
+        "<th>Time</th><th>Route</th><th>Code</th><th>Capability</th><th>Model</th>"
+        "<th style='text-align:right;'>Latency</th><th>Outcome</th><th style='text-align:right;'>Eval</th>"
+        "</tr></thead><tbody>"
+        + body
+        + "</tbody></table>"
+    )
+
+
+def model_eval_view() -> str:
+    """Per-route o/p eval panel: stats, regression verdicts, recent records.
+
+    Read-only. No mutations. Safe to call from any sub-tab. Returns
+    safe HTML even when the SQLite sink is empty or unavailable.
+    """
+    eval_rows = _eval_table_rows()
+    reg_rows = _regression_rows()
+    recent_html = _recent_records_html()
+
+    eval_table_html = (
+        rows_to_html(
+            eval_rows,
+            ["Route", "Capability", "Calls", "Success", "p50 ms", "p95 ms", "Cost $", "Last"],
+        )
+        if eval_rows
+        else "<div style='color:var(--text-dim);margin-top:8px;'>No eval records yet.</div>"
+    )
+    reg_table_html = (
+        rows_to_html(
+            reg_rows,
+            ["Route", "Verdict", "Calls", "Success", "p95 ms", "Cost $", "Notes"],
+        )
+        if reg_rows
+        else "<div style='color:var(--text-dim);margin-top:8px;'>No routes with enough samples to compare against baseline (need ≥ 1 call per route).</div>"
+    )
+
+    intro = (
+        "<div style='margin-bottom:10px;color:var(--text-dim);font-size:0.8125rem;'>"
+        "Live per-call evaluation. Every model interaction is recorded with route, capability, "
+        "model, prompt, output, latency, and an automated quality verdict (parse success, "
+        "latency budget, length sanity, cost cap, duplicate detection). Per-route stats are "
+        "compared against <code>route_baseline.json</code> to surface regressions."
+        "</div>"
+    )
+    return (
+        intro
+        + ui_card("Per-Route Stats (latest 500 records)", eval_table_html)
+        + ui_card("Regression Verdicts vs Baseline", reg_table_html)
+        + ui_card("Recent Records (latest 20)", recent_html)
+        + "<div style='font-size:0.6875rem;color:var(--text-dim);margin-top:8px;'>"
+        "Records are persisted to <code>shopstack.db</code> (table <code>model_call_records</code>) "
+        "and <code>.model_call_records.jsonl</code>. Prompts and outputs are redacted at capture time."
+        "</div>"
     )

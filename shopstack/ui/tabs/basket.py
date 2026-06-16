@@ -73,10 +73,12 @@ def build_basket_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
         from shopstack.ui.screens.trip_advisor import trip_advisor_screen
 
         def _trip_advisor() -> str:
-            try:
-                return trip_advisor_screen()
-            except Exception as exc:
-                return f"<div>Trip advisor unavailable: {exc}</div>"
+            from shopstack.ui.errors import safe_render_html
+            return safe_render_html(
+                trip_advisor_screen,
+                user_message="Could not load trip advisor.",
+                help_tab="basket",
+            )
 
         trip_advisor_html = gr.HTML(_trip_advisor())
         trip_advisor_refresh = gr.Button(

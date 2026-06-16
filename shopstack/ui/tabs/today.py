@@ -50,7 +50,6 @@ from shopstack.ui.components.primitives import (
 )
 from shopstack.ui.screens import today_dashboard
 from shopstack.ui.screens.home_flow_render import render_home_flow
-from shopstack.ui.tabs.ask_panel import build_ask_panel
 from shopstack.ui.tabs.command_surface import build_command_surface
 from shopstack.ui.tabs.context import TabContext
 
@@ -191,23 +190,21 @@ def _refresh_undo_bar() -> str:
 
 def _render_home_flow() -> str:
     """Render the unified home-flow panel (state-aware)."""
-    try:
-        uid = current_user_id() or ""
-        return render_home_flow(user_id=uid)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("home flow render failed: %s", exc)
-        return toast(f"Home panel unavailable: {exc}", kind="error")
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: render_home_flow(user_id=current_user_id() or ""),
+        user_message="Could not load home panel.",
+    )
 
 
 def _render_home_flow_with_state(state: HomeState | None) -> str:
     """Render the home flow panel with a pre-computed state (used by
     the Ask-via-state call site in ``app.py``)."""
-    try:
-        uid = current_user_id() or ""
-        return render_home_flow(user_id=uid, force_state=state)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("home flow render failed: %s", exc)
-        return toast(f"Home panel unavailable: {exc}", kind="error")
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: render_home_flow(user_id=current_user_id() or "", force_state=state),
+        user_message="Could not load home panel.",
+    )
 
 
 def build_today_tab(
@@ -300,8 +297,16 @@ def build_today_tab(
                 )
                 app.load(_render_home_flow, outputs=home_flow)
 
+                # ── Unified intro (replaces '### Quick action' and the
+                # side-column '### Ask ShopStack' header). Explains the
+                # merged input surface in one paragraph per the home
+                # screen review 2026-06-15 P1.
+                gr.Markdown(
+                    "**What would you like to do?** Type a shopping list add, "
+                    "bought items, we have, finished, a question, or use the "
+                    "voice button below."
+                )
                 # ── Command surface (the unified input) ────────────────
-                gr.Markdown("### Quick action")
                 cmd_handles = build_command_surface(blocks=app, app=app, ctx=ctx)
 
                 # ── Voice memo (secondary input, below command) ──────
@@ -327,9 +332,14 @@ def build_today_tab(
                     ],
                 )
 
-                # ── Ask ShopStack (full panel — voice memo below) ──────
-                gr.Markdown("### Ask ShopStack")
-                build_ask_panel(blocks=app, app=app, ctx=ctx)
+                # Per the home screen review (2026-06-15 P1): the
+                # Today tab no longer renders the standalone Ask
+                # panel. The merged command_surface (above) handles
+                # Ask as a fallthrough input. The canonical
+                # build_ask_panel function is preserved (still
+                # importable from shopstack.ui.tabs.ask_panel) per
+                # motto_v3 §7 supersession — only the Today-tab call
+                # site is removed.
 
         # Late-binding: now that home_flow is defined, re-wire
         # the Undo button with the correct outputs (undo_bar,

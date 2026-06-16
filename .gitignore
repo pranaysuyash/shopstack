@@ -10,6 +10,7 @@ build/
 *.bak
 benchmarks/.bench_results.json
 .bench_results.jsonl
+.model_call_records.jsonl
 benchmarks/RESULTS.md
 benchmarks/trends/*
 !benchmarks/trends/.gitkeep
@@ -46,6 +47,10 @@ docs/**
 AGENTS.md
 .playwright-mcp/
 .runtime/
+.benchmarks/
+.mypy_cache/
+.ruff_cache/
+.commit_msg*.txt
 benchmarks/modal/
 benchmarks/model_lab/
 shopstack/model_lab/

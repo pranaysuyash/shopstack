@@ -561,6 +561,15 @@ class CorrectionEvent(BaseModel):
     new_value: str
     source: str = "user_correction"
     timestamp: datetime = Field(default_factory=datetime.now)
+    # Household scoping (Phase 11 supersession): defaults to empty
+    # (unscoped) so admin/backup paths still work. The Memory →
+    # Recent corrections panel sets this on accept/reject.
+    user_id: str = ""
+    # Accept/reject flag (0 = pending, 1 = accepted, -1 = rejected).
+    # Default 0 means "needs user review". The Memory panel flips
+    # this; PreferenceService.record_correction does NOT modify it
+    # (the system-wide signal is separate from the per-event accept).
+    accepted: int = 0
 
     def __getitem__(self, key: str):
         return getattr(self, key)

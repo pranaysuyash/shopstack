@@ -64,7 +64,7 @@ from shopstack.ui.screens.traces import (
     record_workflow_trace,
     trace_bundle,
 )
-from shopstack.ui.screens.model_stack import model_budget_view, provider_status_badge, runtime_proof_view
+from shopstack.ui.screens.model_stack import model_budget_view, model_eval_view, provider_status_badge, runtime_proof_view
 from shopstack.ui.screens.price_memory import (
     price_memory_view,
     price_intelligence_view,
@@ -196,6 +196,7 @@ __all__ = [
     "record_workflow_trace",
     "trace_bundle",
     "model_budget_view",
+    "model_eval_view",
     "provider_status_badge",
     "runtime_proof_view",
     "price_memory_view",

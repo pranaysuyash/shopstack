@@ -157,7 +157,7 @@ def _render_active(state: HomeFlowState) -> str:
         )
         intel = build_today_intelligence(dashboard_state, max_top=5)
         return _render_intel(intel)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("active home flow render failed: %s", exc)
         return home_card(
             title="Today",

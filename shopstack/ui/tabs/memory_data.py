@@ -30,6 +30,7 @@ from shopstack.ui.screens import (
     export_data_json,
     import_data_file,
     model_budget_view,
+    model_eval_view,
     reject_correction_event,
     render_recent_corrections_html,
 )
@@ -137,9 +138,9 @@ def build_memory_facts(app: gr.Blocks, ctx: TabContext) -> None:
 def build_memory_advanced(app: gr.Blocks, ctx: TabContext) -> None:
     """Build the Advanced sub-tab (developer mode only) inside the Memory tab.
 
-    Renders the model stack / budget view. Only adds the sub-tab if
-    ``settings.ui_mode == "developer"`` is True; for non-developer modes
-    this function is a no-op.
+    Renders the model stack / budget view and the o/p eval panel. Only
+    adds the sub-tab if ``settings.ui_mode == "developer"`` is True; for
+    non-developer modes this function is a no-op.
 
     Args:
         app: The root gr.Blocks instance — needed for ``app.load(...)``.
@@ -151,8 +152,19 @@ def build_memory_advanced(app: gr.Blocks, ctx: TabContext) -> None:
     """
     if settings.ui_mode != "developer":
         return
-    model_stack_html = gr.HTML(loading_skeleton("card"))
-    app.load(model_budget_view, outputs=model_stack_html)
+    with gr.Tab("Model Stack"):
+        model_stack_html = gr.HTML(loading_skeleton("card"))
+        app.load(model_budget_view, outputs=model_stack_html)
+    with gr.Tab("Model Output Eval"):
+        model_eval_html = gr.HTML(loading_skeleton("card"))
+        app.load(model_eval_view, outputs=model_eval_html)
+        refresh_btn = gr.Button("Refresh eval", scale=1)
+        refresh_btn.click(
+            model_eval_view,
+            outputs=model_eval_html,
+            api_name="model_eval_refresh",
+            api_description="Re-render per-route o/p eval stats and recent records",
+        )
 
 
 def build_memory_backup(app: gr.Blocks, ctx: TabContext) -> None:

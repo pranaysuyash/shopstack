@@ -364,7 +364,16 @@ def analyze_shelf_scene(
 
     if audio_path and hasattr(providers, "stt"):
         try:
-            transcript = providers.stt.transcribe(audio_path)
+            from shopstack.eval.recorder import CAP_STT, SHAPE_TEXT, record_model_call
+
+            with record_model_call(
+                domain_route="shelf_intelligence",
+                capability=CAP_STT,
+                capability_expected_shape=SHAPE_TEXT,
+            ) as rec:
+                rec.set_prompt(f"transcribe:{audio_path}")
+                transcript = providers.stt.transcribe(audio_path)
+                rec.set_output(str(transcript))
         except Exception:
             transcript = None
 

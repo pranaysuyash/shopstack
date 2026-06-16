@@ -43,21 +43,25 @@ from shopstack.ui.screens.traces import agent_trace_detail
 
 
 class TestTodayDashboard:
-    def test_returns_five_or_six_strings(self, app):
-        """The dashboard returns 5-6 strings depending on whether the user
-        has any use-soon / buy / compare / substitute signals.
+    def test_returns_five_to_seven_strings(self, app):
+        """The dashboard returns 5-7 strings depending on data state and
+        whether the recurring shopping plan (Pass 19) has items.
 
         Per dashboard.py:251-252, ``has_trip_recommendation = bool(
         ds.use_soon or ds.buy or ds.compare or ds.substitute)`` — when
         True, an additional `plan_section` is appended (total 6). When
-        False, the section list is 5 strings (the test fixture clears
-        data tables so this is the default state).
+        False, the section list is 5 strings.
+
+        Per Pass 19, the recurring shopping plan adds a 7th
+        section ("Your shopping rhythm") when the user has any
+        items in their shopping rhythm that are due within 3 days.
+        The plan is omitted from the section list when empty.
         """
         results = today_dashboard()
-        assert 5 <= len(results) <= 6, (
-            f"Expected 5-6 sections, got {len(results)}. "
-            f"Per the dashboard contract, the plan section is conditional "
-            f"on has_trip_recommendation."
+        assert 5 <= len(results) <= 7, (
+            f"Expected 5-7 sections, got {len(results)}. "
+            f"Per the dashboard contract: 5 baseline + 1 trip_plan "
+            f"+ 1 recurring_shopping_plan (only when non-empty)."
         )
         for r in results:
             assert isinstance(r, str)

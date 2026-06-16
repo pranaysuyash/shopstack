@@ -245,12 +245,40 @@ def render_unified_decision_card(d: DecisionResult) -> str:
             f">{escape(action_label)} →</button></div>"
         )
 
+    # 2026-06-15 (Pass 19): "Why?" toggle using the existing
+    # decision-explainability infrastructure (Pass 18). The user
+    # can expand the <details> to see the full explanation
+    # (summary, key signal, confidence, evidence, override hint).
+    # The <details>/<summary> element is native HTML5 — works
+    # in Gradio (rendered in an iframe), in any mobile/web UI,
+    # and in the CLI's HTML export. The explanation is
+    # XSS-safe (render_explanation_html uses html.escape on
+    # every dynamic string). Per `motto_v3` first-principles:
+    # the explanation concept is the same; the renderer is
+    # just an adapter.
+    why_toggle = ""
+    if d.reasons or d.evidence or d.warnings:
+        # Deferred import to avoid the ui.components → ui.renderers
+        # cycle (cards.py is in ui.components; renderers/__init__
+        # imports components indirectly via ui/__init__).
+        from shopstack.services.explainability import explain_decision
+        from shopstack.ui.renderers.explainability import render_explanation_html
+        explanation = explain_decision(d)
+        why_html = render_explanation_html(explanation)
+        why_toggle = (
+            f"<details class='why-toggle' style='margin-top:8px;'>"
+            f"<summary style='cursor:pointer;font-size: 0.6875rem;color:var(--text-dim);'>"
+            f"Why?</summary>"
+            f"<div class='why-content' style='margin-top:6px;'>{why_html}</div>"
+            f"</details>"
+        )
+
     return home_card(
         style=f"margin-bottom:10px;border-left:4px solid {color};",
         body=(
             f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
             f"<strong style='font-size: 0.875rem;'>{escape(d.display_name)}</strong>{badge}</div><div style='font-size: 0.8125rem;margin-top:4px;'>{reason}{price_info}</div>"
-            f"{evidence_html}{warnings_html}{stale_html}{action_btn}"
+            f"{evidence_html}{warnings_html}{stale_html}{action_btn}{why_toggle}"
         ),
     )
 

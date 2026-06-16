@@ -86,110 +86,107 @@ class PlannerEngine:
         system_prompt = build_system_prompt(self._db, tool_registry=self._tools, compact_tools=compact_tools)
         provider_meta: dict[str, Any] = {}
         parser_meta: dict[str, Any] = {}
+        tool_calls: list[dict[str, Any]] = []
 
         # ── o/p eval: open the per-call record before the provider call.
         # The recorder is best-effort; it never raises into the hot path.
-        rec = record_model_call(
+        with record_model_call(
             domain_route="planner",
             capability=CAP_PLANNER_TOOL_CALLING,
             capability_expected_shape=SHAPE_TOOL_CALLS,
-        )
-        rec.set_prompt(prompt)
-
-        try:
-            started = time.monotonic()
-            if hasattr(provider, "plan"):
-                result = provider.plan({
-                    "prompt": prompt,
-                    "system": system_prompt,
-                    "question": question,
-                })
-                planner_call_ms = round((time.monotonic() - started) * 1000, 2)
-                tool_calls, parser_meta = self._parse_tool_calls_from_result(result)
-                provider_meta = self._provider_call_meta(
-                    provider,
-                    result=result,
-                    call_latency_ms=planner_call_ms,
-                    question=question,
-                    prompt=prompt,
-                )
-            else:
-                complete_fn = getattr(provider, "complete", None)
-                plan_result = complete_fn(prompt) if callable(complete_fn) else {"text": ""}
-                if isinstance(plan_result, dict):
-                    result = plan_result
+        ) as rec:
+            rec.set_prompt(prompt)
+            try:
+                started = time.monotonic()
+                if hasattr(provider, "plan"):
+                    result = provider.plan({
+                        "prompt": prompt,
+                        "system": system_prompt,
+                        "question": question,
+                    })
                     planner_call_ms = round((time.monotonic() - started) * 1000, 2)
-                    raw_text = str(plan_result.get("text", ""))
-                    self._record_provider_cost(plan_result)
+                    tool_calls, parser_meta = self._parse_tool_calls_from_result(result)
                     provider_meta = self._provider_call_meta(
                         provider,
-                        result=plan_result,
+                        result=result,
                         call_latency_ms=planner_call_ms,
                         question=question,
                         prompt=prompt,
                     )
-                    if self._cost_guarded():
-                        rec.set_outcome("blocked", "cost_budget_exceeded")
-                        rec.set_output(raw_text)
-                        rec.set_usage(
-                            input_tokens=provider_meta.get("input_tokens", 0),
-                            output_tokens=provider_meta.get("output_tokens", 0),
-                            cost_usd=provider_meta.get("cost_usd", 0.0),
-                            model=provider_meta.get("model", ""),
-                            backend=provider_meta.get("backend", ""),
-                            provider_name=provider_meta.get("provider", ""),
-                        )
-                        rec.finish()
-                        return self._budget_blocked_html()
-                    if not raw_text:
-                        provider_meta["outcome"] = "empty_llm_text"
-                        rec.set_outcome(OUTCOME_EMPTY, "empty_llm_text")
-                        rec.set_output(raw_text)
-                        rec.set_usage(
-                            input_tokens=provider_meta.get("input_tokens", 0),
-                            output_tokens=provider_meta.get("output_tokens", 0),
-                            cost_usd=provider_meta.get("cost_usd", 0.0),
-                            model=provider_meta.get("model", ""),
-                            backend=provider_meta.get("backend", ""),
-                            provider_name=provider_meta.get("provider", ""),
-                        )
-                        rec.finish()
-                        return _stat_card(body_html="Planner returned an empty response.")
-                    tool_calls, parser_meta = self._parse_tool_calls_from_result(raw_text)
                 else:
-                    planner_call_ms = round((time.monotonic() - started) * 1000, 2)
-                    tool_calls, parser_meta = self._parse_tool_calls_from_result(str(plan_result))
-                    provider_meta = self._provider_call_meta(
-                        provider,
-                        result=None,
-                        raw_output=plan_result,
-                        call_latency_ms=planner_call_ms,
-                        question=question,
-                        prompt=prompt,
-                    )
+                    complete_fn = getattr(provider, "complete", None)
+                    plan_result = complete_fn(prompt) if callable(complete_fn) else {"text": ""}
+                    if isinstance(plan_result, dict):
+                        result = plan_result
+                        planner_call_ms = round((time.monotonic() - started) * 1000, 2)
+                        raw_text = str(plan_result.get("text", ""))
+                        self._record_provider_cost(plan_result)
+                        provider_meta = self._provider_call_meta(
+                            provider,
+                            result=plan_result,
+                            call_latency_ms=planner_call_ms,
+                            question=question,
+                            prompt=prompt,
+                        )
+                        if self._cost_guarded():
+                            rec.set_outcome("blocked", "cost_budget_exceeded")
+                            rec.set_output(raw_text)
+                            rec.set_usage(
+                                input_tokens=provider_meta.get("input_tokens", 0),
+                                output_tokens=provider_meta.get("output_tokens", 0),
+                                cost_usd=provider_meta.get("cost_usd", 0.0),
+                                model=provider_meta.get("model", ""),
+                                backend=provider_meta.get("backend", ""),
+                                provider_name=provider_meta.get("provider", ""),
+                            )
+                            return self._budget_blocked_html()
+                        if not raw_text:
+                            provider_meta["outcome"] = "empty_llm_text"
+                            rec.set_outcome(OUTCOME_EMPTY, "empty_llm_text")
+                            rec.set_output(raw_text)
+                            rec.set_usage(
+                                input_tokens=provider_meta.get("input_tokens", 0),
+                                output_tokens=provider_meta.get("output_tokens", 0),
+                                cost_usd=provider_meta.get("cost_usd", 0.0),
+                                model=provider_meta.get("model", ""),
+                                backend=provider_meta.get("backend", ""),
+                                provider_name=provider_meta.get("provider", ""),
+                            )
+                            return _stat_card(body_html="Planner returned an empty response.")
+                        tool_calls, parser_meta = self._parse_tool_calls_from_result(raw_text)
+                    else:
+                        planner_call_ms = round((time.monotonic() - started) * 1000, 2)
+                        tool_calls, parser_meta = self._parse_tool_calls_from_result(str(plan_result))
+                        provider_meta = self._provider_call_meta(
+                            provider,
+                            result=None,
+                            raw_output=plan_result,
+                            call_latency_ms=planner_call_ms,
+                            question=question,
+                            prompt=prompt,
+                        )
 
-        except Exception as e:
-            logger.warning("Planner call failed", exc_info=True)
-            rec.set_outcome(OUTCOME_EXCEPTION, str(e))
-            rec.finish()
-            return _stat_card(body_html=f"<div style='color:var(--red);'>Planner error: {escape(str(e))}</div>")
+            except Exception as e:
+                logger.warning("Planner call failed", exc_info=True)
+                rec.set_outcome(OUTCOME_EXCEPTION, str(e))
+                return _stat_card(body_html=f"<div style='color:var(--red);'>Planner error: {escape(str(e))}</div>")
 
-        # Feed provider metadata into the o/p eval record.
-        rec.set_output(result if "result" in locals() else plan_result)
-        rec.set_usage(
-            input_tokens=provider_meta.get("input_tokens", 0),
-            output_tokens=provider_meta.get("output_tokens", 0),
-            cost_usd=provider_meta.get("cost_usd", 0.0),
-            model=provider_meta.get("model", ""),
-            backend=provider_meta.get("backend", ""),
-            provider_name=provider_meta.get("provider", ""),
-        )
-        if not tool_calls:
-            rec.set_outcome(OUTCOME_PARSE_ERROR, "no tool calls parsed")
-        else:
-            rec.set_outcome(OUTCOME_SUCCESS)
-        rec.finish()
+            # Feed provider metadata into the o/p eval record.
+            rec.set_output(result if "result" in locals() else plan_result)
+            rec.set_usage(
+                input_tokens=provider_meta.get("input_tokens", 0),
+                output_tokens=provider_meta.get("output_tokens", 0),
+                cost_usd=provider_meta.get("cost_usd", 0.0),
+                model=provider_meta.get("model", ""),
+                backend=provider_meta.get("backend", ""),
+                provider_name=provider_meta.get("provider", ""),
+            )
+            if not tool_calls:
+                rec.set_outcome(OUTCOME_PARSE_ERROR, "no tool calls parsed")
+            else:
+                rec.set_outcome(OUTCOME_SUCCESS)
 
+        # End of with block — __exit__ persists the record.
         provider_meta["parser"] = parser_meta
         outcomes, execution_meta = self._execute_tool_calls(tool_calls)
         provider_meta["execution"] = execution_meta
@@ -210,112 +207,109 @@ class PlannerEngine:
         system_prompt = build_system_prompt(self._db, tool_registry=self._tools, compact_tools=compact_tools)
         parser_meta: dict[str, Any] = {}
         provider_meta: dict[str, Any] = {}
+        tool_calls: list[dict[str, Any]] = []
 
         # ── o/p eval: open the per-call record
-        rec = record_model_call(
+        with record_model_call(
             domain_route="planner",
             capability=CAP_PLANNER_TOOL_CALLING,
             capability_expected_shape=SHAPE_TOOL_CALLS,
-        )
-        rec.set_prompt(prompt)
+        ) as rec:
+            rec.set_prompt(prompt)
 
-        if self._cost_guarded():
-            rec.set_outcome("blocked", "cost_budget_exceeded")
-            rec.finish()
-            return {"error": "Budget limit reached", "type": "error"}
+            if self._cost_guarded():
+                rec.set_outcome("blocked", "cost_budget_exceeded")
+                return {"error": "Budget limit reached", "type": "error"}
 
-        try:
-            started = time.monotonic()
-            if hasattr(provider, "plan"):
-                result = provider.plan({
-                    "prompt": prompt,
-                    "system": system_prompt,
-                    "question": question,
-                })
-                planner_call_ms = round((time.monotonic() - started) * 1000, 2)
-                tool_calls, parser_meta = self._parse_tool_calls_from_result(result)
-                provider_meta = self._provider_call_meta(
-                    provider,
-                    result=result,
-                    call_latency_ms=planner_call_ms,
-                    question=question,
-                    prompt=prompt,
-                )
-            else:
-                complete_fn = getattr(provider, "complete", None)
-                plan_result = complete_fn(prompt) if callable(complete_fn) else {"text": ""}
-                if isinstance(plan_result, dict):
+            try:
+                started = time.monotonic()
+                if hasattr(provider, "plan"):
+                    result = provider.plan({
+                        "prompt": prompt,
+                        "system": system_prompt,
+                        "question": question,
+                    })
                     planner_call_ms = round((time.monotonic() - started) * 1000, 2)
-                    raw_text = str(plan_result.get("text", ""))
-                    self._record_provider_cost(plan_result)
+                    tool_calls, parser_meta = self._parse_tool_calls_from_result(result)
                     provider_meta = self._provider_call_meta(
                         provider,
-                        result=plan_result,
+                        result=result,
                         call_latency_ms=planner_call_ms,
                         question=question,
                         prompt=prompt,
                     )
-                    if self._cost_guarded():
-                        rec.set_outcome("blocked", "cost_budget_exceeded")
-                        rec.set_output(raw_text)
-                        rec.set_usage(
-                            input_tokens=provider_meta.get("input_tokens", 0),
-                            output_tokens=provider_meta.get("output_tokens", 0),
-                            cost_usd=provider_meta.get("cost_usd", 0.0),
-                            model=provider_meta.get("model", ""),
-                            backend=provider_meta.get("backend", ""),
-                            provider_name=provider_meta.get("provider", ""),
-                        )
-                        rec.finish()
-                        return {"error": "Budget limit reached", "type": "error"}
-                    if not raw_text:
-                        rec.set_outcome(OUTCOME_EMPTY, "empty_llm_text")
-                        rec.set_output(raw_text)
-                        rec.set_usage(
-                            input_tokens=provider_meta.get("input_tokens", 0),
-                            output_tokens=provider_meta.get("output_tokens", 0),
-                            cost_usd=provider_meta.get("cost_usd", 0.0),
-                            model=provider_meta.get("model", ""),
-                            backend=provider_meta.get("backend", ""),
-                            provider_name=provider_meta.get("provider", ""),
-                        )
-                        rec.finish()
-                        return {"error": "Planner returned an empty response.", "type": "error"}
-                    tool_calls, parser_meta = self._parse_tool_calls_from_result(raw_text)
                 else:
-                    planner_call_ms = round((time.monotonic() - started) * 1000, 2)
-                    tool_calls, parser_meta = self._parse_tool_calls_from_result(str(plan_result))
-                    provider_meta = self._provider_call_meta(
-                        provider,
-                        result=None,
-                        raw_output=plan_result,
-                        call_latency_ms=planner_call_ms,
-                        question=question,
-                        prompt=prompt,
-                    )
+                    complete_fn = getattr(provider, "complete", None)
+                    plan_result = complete_fn(prompt) if callable(complete_fn) else {"text": ""}
+                    if isinstance(plan_result, dict):
+                        planner_call_ms = round((time.monotonic() - started) * 1000, 2)
+                        raw_text = str(plan_result.get("text", ""))
+                        self._record_provider_cost(plan_result)
+                        provider_meta = self._provider_call_meta(
+                            provider,
+                            result=plan_result,
+                            call_latency_ms=planner_call_ms,
+                            question=question,
+                            prompt=prompt,
+                        )
+                        if self._cost_guarded():
+                            rec.set_outcome("blocked", "cost_budget_exceeded")
+                            rec.set_output(raw_text)
+                            rec.set_usage(
+                                input_tokens=provider_meta.get("input_tokens", 0),
+                                output_tokens=provider_meta.get("output_tokens", 0),
+                                cost_usd=provider_meta.get("cost_usd", 0.0),
+                                model=provider_meta.get("model", ""),
+                                backend=provider_meta.get("backend", ""),
+                                provider_name=provider_meta.get("provider", ""),
+                            )
+                            return {"error": "Budget limit reached", "type": "error"}
+                        if not raw_text:
+                            rec.set_outcome(OUTCOME_EMPTY, "empty_llm_text")
+                            rec.set_output(raw_text)
+                            rec.set_usage(
+                                input_tokens=provider_meta.get("input_tokens", 0),
+                                output_tokens=provider_meta.get("output_tokens", 0),
+                                cost_usd=provider_meta.get("cost_usd", 0.0),
+                                model=provider_meta.get("model", ""),
+                                backend=provider_meta.get("backend", ""),
+                                provider_name=provider_meta.get("provider", ""),
+                            )
+                            return {"error": "Planner returned an empty response.", "type": "error"}
+                        tool_calls, parser_meta = self._parse_tool_calls_from_result(raw_text)
+                    else:
+                        planner_call_ms = round((time.monotonic() - started) * 1000, 2)
+                        tool_calls, parser_meta = self._parse_tool_calls_from_result(str(plan_result))
+                        provider_meta = self._provider_call_meta(
+                            provider,
+                            result=None,
+                            raw_output=plan_result,
+                            call_latency_ms=planner_call_ms,
+                            question=question,
+                            prompt=prompt,
+                        )
 
-        except Exception as e:
-            logger.warning("Planner call failed", exc_info=True)
-            rec.set_outcome(OUTCOME_EXCEPTION, str(e))
-            rec.finish()
-            return {"error": f"Planner error: {str(e)}", "type": "error"}
+            except Exception as e:
+                logger.warning("Planner call failed", exc_info=True)
+                rec.set_outcome(OUTCOME_EXCEPTION, str(e))
+                return {"error": f"Planner error: {str(e)}", "type": "error"}
 
-        # Feed provider metadata into the o/p eval record.
-        rec.set_output(result if "result" in locals() else plan_result)
-        rec.set_usage(
-            input_tokens=provider_meta.get("input_tokens", 0),
-            output_tokens=provider_meta.get("output_tokens", 0),
-            cost_usd=provider_meta.get("cost_usd", 0.0),
-            model=provider_meta.get("model", ""),
-            backend=provider_meta.get("backend", ""),
-            provider_name=provider_meta.get("provider", ""),
-        )
-        if not tool_calls:
-            rec.set_outcome(OUTCOME_PARSE_ERROR, "no tool calls parsed")
-        else:
-            rec.set_outcome(OUTCOME_SUCCESS)
-        rec.finish()
+            # Feed provider metadata into the o/p eval record.
+            rec.set_output(result if "result" in locals() else plan_result)
+            rec.set_usage(
+                input_tokens=provider_meta.get("input_tokens", 0),
+                output_tokens=provider_meta.get("output_tokens", 0),
+                cost_usd=provider_meta.get("cost_usd", 0.0),
+                model=provider_meta.get("model", ""),
+                backend=provider_meta.get("backend", ""),
+                provider_name=provider_meta.get("provider", ""),
+            )
+            if not tool_calls:
+                rec.set_outcome(OUTCOME_PARSE_ERROR, "no tool calls parsed")
+            else:
+                rec.set_outcome(OUTCOME_SUCCESS)
 
+        # End of with block — __exit__ persists the record.
         if not tool_calls:
             return {"error": "Planner returned an empty response.", "type": "error"}
 

@@ -105,7 +105,10 @@ from shopstack.services.global_search_mount import mount_global_search
 from shopstack.services.privacy_mount import mount_privacy_endpoints
 from shopstack.services.undo_mount import mount_undo_endpoint
 from shopstack.services.whoami_mount import mount_whoami_endpoint
-from shopstack.services.decision_explain_mount import mount_decision_explain_endpoint
+from shopstack.services.decision_explain_mount import (
+    mount_decision_explain_endpoint,
+    mount_recurring_endpoint,
+)
 from shopstack.services.data_retention import (
     render_privacy_panel_html,
     render_privacy_panel_script,
@@ -140,6 +143,7 @@ def _install_post_launch_hooks(app: gr.Blocks) -> None:
         mount_health_endpoint(app, db)
         mount_whoami_endpoint(app)
         mount_decision_explain_endpoint(app)
+        mount_recurring_endpoint(app)
         return result
 
     app.launch = _launch_with_post_hooks
@@ -178,6 +182,9 @@ def build_app() -> gr.Blocks:
         # /api/decision/<name>/explain (Pass 18) — decision explainability
         # for the "Why did ShopStack say X?" UX. Same mount pattern.
         mount_decision_explain_endpoint(app)
+        # /api/recurring (Pass 19) — items due in the user's shopping
+        # rhythm. Same mount pattern.
+        mount_recurring_endpoint(app)
 
         initial_locale = load_locale_preference(current_user_id() or "default_household")
         # 2026-06-15 (Home screen review): the brand subtitle now

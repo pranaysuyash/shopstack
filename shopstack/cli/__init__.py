@@ -49,6 +49,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from typing import Any
 
@@ -282,6 +283,81 @@ def cmd_explain(args: argparse.Namespace) -> dict[str, Any]:
     return explanation_to_dict(explanation)
 
 
+def cmd_recurring(args: argparse.Namespace) -> dict[str, Any]:
+    """Show items due in the user's shopping rhythm.
+
+    Per Pass 19, the recurring shopping plan surfaces the
+    items the user typically buys on a regular cadence and
+    that are due within ``--window`` days (default 3). The
+    output is the same data the dashboard's "shopping
+    rhythm" card shows.
+
+    The result is a JSON-serializable dict. With ``--human``,
+    it's a plain-text summary.
+    """
+    from shopstack.services.recurring_shopping import (
+        build_recurring_shopping_plan,
+        summarize_plan,
+    )
+    from shopstack.services.explainability import (
+        explain_decision,
+        explanation_to_dict,
+    )
+
+    window = args.window or 3
+    plan = build_recurring_shopping_plan(db, user_id="", window_days=window)
+    return {
+        "window_days": window,
+        "summary": summarize_plan(plan),
+        "count": len(plan),
+        "items": [
+            {
+                **explanation_to_dict(explain_decision(d)),
+                "days_until_next": _extract_days_until_next(d),
+                "typical_interval_days": _extract_interval(d),
+            }
+            for d in plan
+        ],
+    }
+
+
+def _extract_days_until_next(d) -> int | None:
+    """Pull the days-until-next number from a DecisionResult's reasons.
+
+    The recurring-shopping plan embeds the days-until-next
+    in a reason like "is due in 2 days" or "is due today" or
+    "was due 1 day ago". This helper extracts the number.
+    """
+    for r in d.reasons:
+        if "due" not in r:
+            continue
+        # "is due today" → 0
+        if "today" in r:
+            return 0
+        # "is due tomorrow" → 1
+        if "tomorrow" in r:
+            return 1
+        # "is due in N days" → N
+        m = re.search(r"in\s+(\d+)\s+days", r)
+        if m:
+            return int(m.group(1))
+        # "was due N days ago" → -N
+        m = re.search(r"due\s+(\d+)\s+days\s+ago", r)
+        if m:
+            return -int(m.group(1))
+    return None
+
+
+def _extract_interval(d) -> float | None:
+    """Pull the avg-interval-days number from a DecisionResult's reasons."""
+    for r in d.reasons:
+        # "you buy Milk every 3 days" → 3
+        m = re.search(r"every\s+([\d.]+)\s+days", r)
+        if m:
+            return float(m.group(1))
+    return None
+
+
 # ── Subcommand dispatch ─────────────────────────────────────────────
 
 
@@ -294,6 +370,7 @@ SUBCOMMANDS = {
     "tools": cmd_tools,
     "whoami": cmd_whoami,
     "explain": cmd_explain,
+    "recurring": cmd_recurring,
 }
 
 
@@ -341,6 +418,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_explain.add_argument(
         "canonical_name",
         help="The canonical item name (e.g. 'milk', 'rice', 'toothpaste')",
+    )
+    p_recurring = sub.add_parser(
+        "recurring",
+        help="Show items due in your shopping rhythm (Pass 19)",
+    )
+    p_recurring.add_argument(
+        "--window",
+        type=int,
+        default=3,
+        help="Days window for the plan (default 3)",
     )
     return parser
 

@@ -32,6 +32,11 @@ class DashboardState:
     optimized_basket: Any | None = None
     restock_predictions: list[dict[str, Any]] = field(default_factory=list)
     items_needing_confirmation: list[dict[str, Any]] = field(default_factory=list)
+    # Per the home screen review: when there's a trip recommendation
+    # (use_soon, buy, compare, or substitute items), the Plan section
+    # is included in the dashboard. This flag drives both the
+    # open/closed state and the section-list inclusion.
+    has_trip_recommendation: bool = False
 
     @property
     def use_soon_count(self) -> int:
@@ -80,6 +85,41 @@ def _build_dashboard_state_uncached(
         source_registry=source_registry,
         user_id=user_id,
     )
+    # 2026-06-15 (Pass 20): apply user corrections to the
+    # decision set. This is the engine learning loop: when a
+    # user has previously marked a decision as wrong (via the
+    # Memory tab's "Record a correction" form or the CLI's
+    # `correct` subcommand), the next decision on the same
+    # item is adjusted. The most recent correction wins
+    # (time-decay). This is a post-processing step — it does
+    # not modify the engine itself, just the output.
+    try:
+        from shopstack.services.feedback import (
+            apply_corrections_to_decision,
+            get_corrections_for_item,
+        )
+        for attr in ("buy", "skip", "use_soon", "compare", "wait",
+                     "substitute", "watch", "confirm", "optional"):
+            bucket = getattr(decision_set, attr, None)
+            if not bucket:
+                continue
+            for i, decision in enumerate(bucket):
+                corrections = get_corrections_for_item(
+                    db,
+                    decision.canonical_name,
+                    user_id=user_id,
+                    limit=3,
+                )
+                if corrections:
+                    bucket[i] = apply_corrections_to_decision(
+                        decision, corrections,
+                    )
+    except Exception as exc:  # noqa: BLE001
+        # Non-fatal — if the feedback integration fails for
+        # any reason, the dashboard still works without
+        # corrections. Logged at debug level so it's not
+        # noisy in production.
+        logger.debug("Correction integration failed (non-fatal): %s", exc)
     if hasattr(inventory, "get_use_soon"):
         use_soon = inventory.get_use_soon(days=3, user_id=user_id)
     elif hasattr(inventory, "get_use_soon_items"):

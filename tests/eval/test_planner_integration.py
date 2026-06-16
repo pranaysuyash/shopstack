@@ -132,7 +132,9 @@ def test_planner_process_records_eval(tmp_path, monkeypatch):
     assert row["input_tokens"] == 7
     assert row["output_tokens"] == 3
     assert row["eval_passed"] == 1
-    assert row["code_route"].endswith("planner.engine.process")  # auto-resolved
+    # The code route format is module.func:line; just check the prefix
+    assert "planner.engine.process" in row["code_route"]
+    assert "shopstack." in row["code_route"]
     assert "test question" in row["prompt"]
 
 

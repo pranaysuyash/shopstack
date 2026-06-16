@@ -320,14 +320,14 @@ class _ActiveCall:
         return self.record
 
 
-# Filesystem path regex — used by the auto code_route resolver to pick
-# a clean caller frame (skip frames inside the eval package itself and
-# the top-level tests/ directory). Anchored to path boundaries so a
-# file like ``/tmp/tests_thing.py`` does not match.
+# Filesystem path regex — used by the auto code_route resolver to skip
+# the recorder's own package and the Python stdlib. Anchored to
+# path-component boundaries so a substring like ``/lib/`` in a
+# user-named file does not match.
 _FRAME_SKIP_RE = re.compile(
-    r"(^|/)shopstack/eval/|(^|/)tests/|(^|/)lib/python[0-9.]+/"
+    r"(^|/)shopstack/eval/|(^|/)lib/python[0-9.]+/"
 )
-# Module names of the test runners / Python bootstrap we always skip.
+# Module names of test runners / Python bootstrap we always skip.
 _FRAME_SKIP_MODULES = frozenset({
     "runpy",
     "pytest",
@@ -340,22 +340,25 @@ _FRAME_SKIP_MODULES = frozenset({
 
 def _resolve_code_route(skip_frames: int = 1) -> str:
     """Walk the call stack and return ``module.func:line`` for the first
-    non-eval, non-test, non-stdlib frame.
+    non-eval, non-stdlib frame.
 
     Strategy: prefer frames whose ``__name__`` starts with
-    ``shopstack.`` (the app). If none, fall back to the first frame
-    that is not in :data:`_FRAME_SKIP_MODULES` and does not match the
-    path skip regex.
+    ``shopstack.`` *but not* ``shopstack.eval.*`` (the recorder's own
+    package). If none, fall back to the first frame that is not in
+    :data:`_FRAME_SKIP_MODULES` and does not match the path skip
+    regex.
 
     Args:
         skip_frames: how many *additional* caller frames to skip past
             the resolver's own frame. The resolver is always skipped.
             Default 1 — skip the immediate caller of the resolver
-            (e.g. ``record_model_call``).
+            (e.g. ``__enter__``).
     """
     try:
         frame = inspect.currentframe()
     except Exception:
+        return ""
+    if frame is None:
         return ""
     # Skip the resolver itself plus the requested additional callers.
     total_skip = 1 + max(0, int(skip_frames))
@@ -364,7 +367,6 @@ def _resolve_code_route(skip_frames: int = 1) -> str:
             return ""
         frame = frame.f_back
 
-    preferred: tuple[str, int, str] | None = None
     fallback: tuple[str, int, str] | None = None
     while frame is not None:
         module = frame.f_globals.get("__name__", "") or ""
@@ -377,18 +379,14 @@ def _resolve_code_route(skip_frames: int = 1) -> str:
             continue
 
         candidate = (module, lineno, func)
-        if module.startswith("shopstack."):
-            # Keep the *first* shopstack frame (closest to the call
-            # site). Return immediately — deeper frames belong to
-            # internal helpers, not the route.
+        # Prefer shopstack frames EXCEPT the eval package itself —
+        # those are the recorder's own frames, not the caller's code.
+        if module.startswith("shopstack.") and not module.startswith("shopstack.eval."):
             return f"{module}.{func}:{lineno}"
         if fallback is None:
             fallback = candidate
         frame = frame.f_back
 
-    if preferred:
-        module, lineno, func = preferred
-        return f"{module}.{func}:{lineno}"
     if fallback:
         module, lineno, func = fallback
         return f"{module}.{func}:{lineno}"

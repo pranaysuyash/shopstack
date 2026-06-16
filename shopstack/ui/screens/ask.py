@@ -285,7 +285,15 @@ def ask_shopstack_from_audio(audio_path: str | None) -> str:
     if not audio_path:
         return ask_shopstack("")
     try:
-        transcript = providers.stt.transcribe(audio_path)
+        from shopstack.eval.recorder import CAP_STT, SHAPE_TEXT, record_model_call
+        with record_model_call(
+                domain_route="ask_screen",
+                capability=CAP_STT,
+                capability_expected_shape=SHAPE_TEXT,
+            ) as rec:
+                rec.set_prompt(f"transcribe:{audio_path}")
+                transcript = providers.stt.transcribe(audio_path)
+                rec.set_output(str(transcript))
         if isinstance(transcript, dict):
             text = str(transcript.get("text", "")).strip()
         else:

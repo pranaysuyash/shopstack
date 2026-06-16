@@ -1,4 +1,4 @@
-"""Decision explainability HTTP endpoint — ``/api/decision/<name>/explain``.
+"""Decision explainability + recurring shopping HTTP endpoints.
 
 **Why this exists (motto_v3 §0.10 Observability Is Delivery +
 motto_v3 first-principles / mode-portable):**
@@ -6,20 +6,19 @@ motto_v3 first-principles / mode-portable):**
 Per Pass 18, the decision engine produces structured reasons
 and evidence on every ``DecisionResult``. The
 ``shopstack.services.explainability`` module composes these
-into a human-readable explanation. The CLI surfaces it
-(``shopstack cli explain <name>``); this endpoint surfaces it
-to any HTTP consumer (the Gradio UI's "Why?" button, a mobile
-app, a third-party dashboard).
+into a human-readable explanation. Per Pass 19, the
+recurring shopping plan surfaces items the user typically
+buys on a regular cadence and that are due within a window.
 
-Mirrors the ``/api/whoami`` mount pattern (see
-``shopstack.services.whoami_mount``): a thin FastAPI route
-on the Gradio app's underlying app, with best-effort error
-handling per `motto_v3` §0.10.
+This module mounts the HTTP endpoints for both:
+  - ``GET /api/decision/<name>/explain`` (Pass 18)
+  - ``GET /api/recurring`` (Pass 19)
 
-**Mode portability:** the endpoint returns the same
-JSON-serializable dict as the CLI's ``explain`` subcommand
-and the ``DecisionExplanation`` Pydantic model. Any consumer
-that can hit HTTP can use it.
+Both follow the ``mount_*_endpoint`` pattern from
+``shopstack.services.whoami_mount``. They are best-effort:
+sub-check failures return 200 with a partial payload
+(``error: <code>``) rather than 5xx. This makes the
+endpoints useful in degraded states.
 """
 from __future__ import annotations
 
@@ -152,3 +151,123 @@ def mount_decision_explain_endpoint(
 
 
 __all__ = ["mount_decision_explain_endpoint"]
+
+
+# ── Recurring shopping endpoint (Pass 19) ──────────────────────────
+
+
+def mount_recurring_endpoint(
+    app: gr.Blocks,
+    *,
+    path: str = "/api/recurring",
+) -> None:
+    """Mount the ``GET /api/recurring`` route.
+
+    Optional query params (parsed from the request URL):
+      - ``window`` (int, default 3): days window for the plan.
+
+    Returns a JSON dict with:
+      - ``window_days`` (int)
+      - ``summary`` (str): one-line summary ("3 items due...")
+      - ``count`` (int)
+      - ``items`` (list): each item is a ``DecisionExplanation``
+        dict (from the explainability service) plus
+        ``days_until_next`` and ``typical_interval_days``.
+
+    Per `motto_v3` §0.10 (Observability Is Delivery), the
+    route is best-effort: sub-check failures return 200 with
+    an ``error: <code>`` field rather than 5xx.
+    """
+    from starlette.requests import Request
+    from starlette.responses import JSONResponse
+
+    async def _recurring(request: Request) -> JSONResponse:
+        from shopstack.app_context import db as app_db
+        from shopstack.services.recurring_shopping import (
+            build_recurring_shopping_plan,
+            summarize_plan,
+        )
+        from shopstack.services.explainability import (
+            explain_decision,
+            explanation_to_dict,
+        )
+
+        # Parse the window query param (default 3).
+        window = 3
+        try:
+            window_raw = request.query_params.get("window")
+            if window_raw is not None:
+                window = max(0, int(window_raw))
+        except (ValueError, TypeError):
+            window = 3
+
+        try:
+            plan = build_recurring_shopping_plan(app_db, user_id="", window_days=window)
+            items = []
+            for d in plan:
+                items.append({
+                    **explanation_to_dict(explain_decision(d)),
+                    "days_until_next": _extract_days_until_next_from_decision(d),
+                    "typical_interval_days": _extract_interval_from_decision(d),
+                })
+            return JSONResponse(
+                {
+                    "window_days": window,
+                    "summary": summarize_plan(plan),
+                    "count": len(plan),
+                    "items": items,
+                },
+                status_code=200,
+                headers={"Cache-Control": "no-store"},
+            )
+        except Exception as exc:  # noqa: BLE001 — best-effort
+            logger.warning("Could not build recurring plan: %s", exc)
+            return JSONResponse(
+                {
+                    "error": "recurring_failed",
+                    "message": f"{type(exc).__name__}: {exc}",
+                    "items": [],
+                },
+                status_code=200,
+            )
+
+    try:
+        app.app.add_route(path, _recurring, methods=["GET"])
+        logger.info("Recurring endpoint mounted at %s", path)
+    except Exception as exc:  # noqa: BLE001 — best-effort mount
+        logger.warning("Could not mount recurring endpoint at %s: %s", path, exc)
+
+
+def _extract_days_until_next_from_decision(d) -> int | None:
+    """Pull the days-until-next number from a DecisionResult's reasons."""
+    import re
+    for r in d.reasons:
+        if "due" not in r:
+            continue
+        if "today" in r:
+            return 0
+        if "tomorrow" in r:
+            return 1
+        m = re.search(r"in\s+(\d+)\s+days", r)
+        if m:
+            return int(m.group(1))
+        m = re.search(r"due\s+(\d+)\s+days\s+ago", r)
+        if m:
+            return -int(m.group(1))
+    return None
+
+
+def _extract_interval_from_decision(d) -> float | None:
+    """Pull the avg-interval-days number from a DecisionResult's reasons."""
+    import re
+    for r in d.reasons:
+        m = re.search(r"every\s+([\d.]+)\s+days", r)
+        if m:
+            return float(m.group(1))
+    return None
+
+
+__all__ = [
+    "mount_decision_explain_endpoint",
+    "mount_recurring_endpoint",
+]
