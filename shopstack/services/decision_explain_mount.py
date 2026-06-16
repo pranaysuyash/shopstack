@@ -271,3 +271,85 @@ __all__ = [
     "mount_decision_explain_endpoint",
     "mount_recurring_endpoint",
 ]
+
+
+# ── Meal plan endpoint (Pass 21) ──────────────────────────────────
+
+
+def mount_mealplan_endpoint(
+    app: gr.Blocks,
+    *,
+    path: str = "/api/mealplan",
+) -> None:
+    """Mount the ``GET /api/mealplan`` route.
+
+    Optional query params (parsed from the request URL):
+      - ``days`` (int, default 7): number of days to plan.
+      - ``start`` (str, YYYY-MM-DD, default today): start date.
+
+    Returns a JSON dict with:
+      - ``summary`` (str): one-line summary
+      - ``days`` (int)
+      - ``start_date`` (str)
+      - ``count`` (int)
+      - ``items`` (list): each item is a ``DayPlan`` dict
+
+    Per `motto_v3` §0.10 (Observability Is Delivery), the
+    route is best-effort: sub-check failures return 200 with
+    an ``error: <code>`` field rather than 5xx.
+    """
+    from datetime import datetime
+    from starlette.requests import Request
+    from starlette.responses import JSONResponse
+
+    async def _mealplan(request: Request) -> JSONResponse:
+        from shopstack.app_context import db as app_db
+        from shopstack.services.meal_planning import (
+            build_weekly_meal_plan,
+            summarize_meal_plan,
+        )
+
+        # Parse query params with defaults.
+        days = 7
+        start = None
+        try:
+            days_raw = request.query_params.get("days")
+            if days_raw is not None:
+                days = max(1, min(28, int(days_raw)))
+            start_raw = request.query_params.get("start")
+            if start_raw:
+                start = datetime.strptime(start_raw, "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            pass
+
+        try:
+            plan = build_weekly_meal_plan(
+                app_db, user_id="", start_date=start, days=days,
+            )
+            return JSONResponse(
+                {
+                    "summary": summarize_meal_plan(plan),
+                    "days": days,
+                    "start_date": (start.isoformat() if start else (plan[0].date if plan else None)),
+                    "count": len(plan),
+                    "items": [d.model_dump(mode="json") for d in plan],
+                },
+                status_code=200,
+                headers={"Cache-Control": "no-store"},
+            )
+        except Exception as exc:  # noqa: BLE001 — best-effort
+            logger.warning("Could not build meal plan: %s", exc)
+            return JSONResponse(
+                {
+                    "error": "mealplan_failed",
+                    "message": f"{type(exc).__name__}: {exc}",
+                    "items": [],
+                },
+                status_code=200,
+            )
+
+    try:
+        app.app.add_route(path, _mealplan, methods=["GET"])
+        logger.info("Meal plan endpoint mounted at %s", path)
+    except Exception as exc:  # noqa: BLE001 — best-effort mount
+        logger.warning("Could not mount meal plan endpoint at %s: %s", path, exc)

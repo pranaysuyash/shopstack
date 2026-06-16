@@ -25,26 +25,22 @@ def activity_log_screen(window_days: int = 30) -> str:
     Returns XSS-safe HTML for direct insertion into a Gradio
     component. Empty-state when no traces are available.
     """
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: _activity_log_inner(window_days),
+        user_message="Could not load activity log",
+        help_tab="memory",
+    )
+
+
+def _activity_log_inner(window_days: int) -> str:
+    user_id = current_user_id() or ""
     try:
-        user_id = current_user_id() or ""
-        try:
-            traces = db.get_traces(limit=200, user_id=user_id) or []
-        except Exception:
-            traces = []
-        summary = aggregate_activity(traces, window_days=window_days)
-        return render_activity_log_html(summary)
-    except Exception as exc:
-        logger.warning("activity_log_screen failed: %s", exc)
-        return home_card(
-            style="text-align:center;padding:16px;",
-            body=(
-                "<div style='color:var(--amber);font-weight:600;'>Could not load activity log</div>"
-                f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{escape(str(exc)[:120])}</div>"
-                "<div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:8px;'>"
-                "Try refreshing, or add a purchase, log a recipe, or use the app to see activity here."
-                "</div>"
-            ),
-        )
+        traces = db.get_traces(limit=200, user_id=user_id) or []
+    except Exception:
+        traces = []
+    summary = aggregate_activity(traces, window_days=window_days)
+    return render_activity_log_html(summary)
 
 
 __all__ = ["activity_log_screen"]

@@ -61,59 +61,51 @@ def today_intelligence_screen(
       household has in inventory with a community median).
     - The trip advisor's go/deliver/delay call.
     """
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: _today_intelligence_inner(city, max_top),
+        user_message="Could not load today's intelligence",
+        help_tab="today",
+    )
+
+
+def _today_intelligence_inner(city: str, max_top: int) -> str:
+    user_id = current_user_id() or ""
+    state = build_dashboard_state(db, tools.inventory, user_id=user_id, city=city)
+    use_soon = safe_get(state, "use_soon_items", default=[]) or []
+    restock = safe_get(state, "restock_predictions", default=[]) or []
+    cnames: list[dict[str, Any]] = []
+    for it in use_soon:
+        cname = str(it.get("canonical_name") or "")
+        if cname:
+            cnames.append({"canonical_name": cname})
+    for r in restock:
+        cname = str(r.get("canonical_name") or "")
+        if cname:
+            cnames.append({"canonical_name": cname})
+    medians = _gather_community_medians(cnames, city=city)
     try:
-        user_id = current_user_id() or ""
-        state = build_dashboard_state(db, tools.inventory, user_id=user_id, city=city)
-        # Use-soon items for community lookup
-        use_soon = safe_get(state, "use_soon_items", default=[]) or []
-        restock = safe_get(state, "restock_predictions", default=[]) or []
-        # Build a small set of canonical names to consult the
-        # community pool for. Use-soon + restock is a tight
-        # 10-item cap, which is well-bounded.
-        cnames: list[dict[str, Any]] = []
-        for it in use_soon:
-            cname = str(it.get("canonical_name") or "")
-            if cname:
-                cnames.append({"canonical_name": cname})
-        for r in restock:
-            cname = str(r.get("canonical_name") or "")
-            if cname:
-                cnames.append({"canonical_name": cname})
-        medians = _gather_community_medians(cnames, city=city)
-        # Trip advisor
-        try:
-            use_soon_count = _build_use_soon_count(db, user_id)
-        except Exception:
-            use_soon_count = 0
-        try:
-            weather = get_weather(city=city)
-        except Exception:
-            weather = None
-        trip = advise_trip(
-            city=city,
-            use_soon_count=use_soon_count,
-            price_drop_count=0,
-            active_list_size=0,
-            weather=weather,
-        )
-        intel = build_today_intelligence(
-            state,
-            community_medians=medians,
-            trip_advice=trip,
-            max_top=max_top,
-        )
-        return render_today_intelligence_html(intel)
-    except Exception as exc:
-        logger.warning("today_intelligence_screen failed: %s", exc)
-        return home_card(
-            style="text-align:center;padding:12px;",
-            body=(
-                "<div style='color:var(--amber);font-weight:600;'>Could not load today's intelligence</div>"
-                f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{escape(str(exc)[:120])}</div>"
-            ),
-        )
-
-
+        use_soon_count = _build_use_soon_count(db, user_id)
+    except Exception:
+        use_soon_count = 0
+    try:
+        weather = get_weather(city=city)
+    except Exception:
+        weather = None
+    trip = advise_trip(
+        city=city,
+        use_soon_count=use_soon_count,
+        price_drop_count=0,
+        active_list_size=0,
+        weather=weather,
+    )
+    intel = build_today_intelligence(
+        state,
+        community_medians=medians,
+        trip_advice=trip,
+        max_top=max_top,
+    )
+    return render_today_intelligence_html(intel)
 
 
 __all__ = ["today_intelligence_screen"]

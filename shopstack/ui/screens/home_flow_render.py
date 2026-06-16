@@ -310,29 +310,28 @@ def render_home_flow(
     Returns:
         XSS-safe HTML safe to inject via :class:`gr.HTML`.
     """
-    try:
-        if force_state is not None:
-            state = _synthesise_state_for(force_state, user_id=user_id)
-        else:
-            state = _detect_state(user_id)
-        hero = _render_hero(state)
-        body_fn = _HEROES.get(state.state, _render_quiet)
-        body = body_fn(state)
-        return (
-            "<div class='home-flow'>"
-            f"{hero}"
-            f"{body}"
-            "</div>"
-        )
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("render_home_flow failed: %s", exc)
-        return home_card(
-            title="Today",
-            body=(
-                "<p>Could not load the home panel right now.</p>"
-                f"<p style='color:var(--text-dim);font-size:0.75rem;'>{escape(str(exc)[:120])}</p>"
-            ),
-        )
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: _render_home_flow_inner(user_id, force_state),
+        user_message="Could not load the home panel",
+        help_tab="today",
+    )
+
+
+def _render_home_flow_inner(user_id: str, force_state: HomeState | None) -> str:
+    if force_state is not None:
+        state = _synthesise_state_for(force_state, user_id=user_id)
+    else:
+        state = _detect_state(user_id)
+    hero = _render_hero(state)
+    body_fn = _HEROES.get(state.state, _render_quiet)
+    body = body_fn(state)
+    return (
+        "<div class='home-flow'>"
+        f"{hero}"
+        f"{body}"
+        "</div>"
+    )
 
 
 def _detect_state(user_id: str) -> HomeFlowState:

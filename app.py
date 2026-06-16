@@ -108,7 +108,9 @@ from shopstack.services.whoami_mount import mount_whoami_endpoint
 from shopstack.services.decision_explain_mount import (
     mount_decision_explain_endpoint,
     mount_recurring_endpoint,
+    mount_mealplan_endpoint,
 )
+from shopstack.services.corrections_mount import mount_corrections_endpoint
 from shopstack.services.data_retention import (
     render_privacy_panel_html,
     render_privacy_panel_script,
@@ -144,6 +146,7 @@ def _install_post_launch_hooks(app: gr.Blocks) -> None:
         mount_whoami_endpoint(app)
         mount_decision_explain_endpoint(app)
         mount_recurring_endpoint(app)
+        mount_corrections_endpoint(app)
         return result
 
     app.launch = _launch_with_post_hooks
@@ -185,6 +188,9 @@ def build_app() -> gr.Blocks:
         # /api/recurring (Pass 19) — items due in the user's shopping
         # rhythm. Same mount pattern.
         mount_recurring_endpoint(app)
+        # /api/corrections (Pass 20) — user corrections (the
+        # "Mark as wrong" learning loop). Same mount pattern.
+        mount_corrections_endpoint(app)
 
         initial_locale = load_locale_preference(current_user_id() or "default_household")
         # 2026-06-15 (Home screen review): the brand subtitle now

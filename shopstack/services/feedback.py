@@ -193,6 +193,13 @@ def record_user_correction(
     # existing preference infrastructure (staples, dislikes,
     # avoid-list) benefits. The PreferenceService knows how
     # to translate a correction into the right signal type.
+    #
+    # Pass 20: pass ``persist_event=False`` to avoid a
+    # double-write — the event was already persisted above
+    # via ``db.record_correction_event``. The preference
+    # service would otherwise write a SECOND event with a
+    # different event_id, breaking the "one event per
+    # correction" invariant.
     try:
         from shopstack.services.preference import build_preference_service
         pref = build_preference_service(db)
@@ -205,6 +212,7 @@ def record_user_correction(
                 "source": "user_correction",
             },
             user_id=user_id,
+            persist_event=False,  # Event already written above.
         )
     except Exception as exc:
         # Non-fatal — the CorrectionEvent is the primary

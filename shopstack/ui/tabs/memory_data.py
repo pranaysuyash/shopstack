@@ -34,6 +34,13 @@ from shopstack.ui.screens import (
     reject_correction_event,
     render_recent_corrections_html,
 )
+# 2026-06-15 (Pass 20): import the "Record a correction" handler
+# so the Memory → Recent corrections sub-tab can offer a
+# user-facing creation flow (the "Mark as wrong" button
+# equivalent at the form level). This closes the full
+# learning loop: the user records a correction, the engine
+# picks it up on the next decision.
+from shopstack.ui.screens.corrections import record_correction_handler
 from shopstack.services.memory_facts import render_memory_facts
 from shopstack.ui.tabs.context import TabContext
 
@@ -47,6 +54,12 @@ def build_memory_corrections(app: gr.Blocks, ctx: TabContext) -> None:
     ``correction_events`` table; the underlying preference signals
     (already produced by ``PreferenceService.record_correction``)
     are not modified here.
+
+    Pass 20 also adds a "Record a new correction" form at the
+    top of the sub-tab. This closes the full learning loop:
+    the user can record a correction (e.g. "I marked BUY
+    wrong — it should be SKIP because I have plenty"), and
+    the engine adjusts future decisions on the same item.
     """
     with gr.Tab("Recent corrections"):
         gr.Markdown(
@@ -56,6 +69,45 @@ def build_memory_corrections(app: gr.Blocks, ctx: TabContext) -> None:
             "stays in place — you can retract it from **Preferences** if "
             "you want to undo the system-wide effect."
         )
+        # 2026-06-15 (Pass 20): "Record a new correction" form.
+        # This is the creation flow for the learning loop. The
+        # user enters the item name, the action the system
+        # recommended, the action they think should have been
+        # recommended, and an optional reason. On submit, the
+        # correction is recorded and the panel refreshes.
+        with gr.Group():
+            gr.Markdown("### Record a new correction")
+            with gr.Row():
+                correction_canonical = gr.Textbox(
+                    label="Item name (e.g. 'milk', 'rice')",
+                    placeholder="milk",
+                )
+                correction_was = gr.Dropdown(
+                    label="System said",
+                    choices=[
+                        "buy", "skip", "use_soon", "compare", "wait",
+                        "substitute", "watch", "confirm", "optional",
+                    ],
+                    value="buy",
+                )
+                correction_should_be = gr.Dropdown(
+                    label="Should have said",
+                    choices=[
+                        "buy", "skip", "use_soon", "compare", "wait",
+                        "substitute", "watch", "confirm", "optional",
+                    ],
+                    value="skip",
+                )
+            correction_reason = gr.Textbox(
+                label="Reason (optional)",
+                placeholder="I have plenty at home",
+                lines=2,
+            )
+            record_btn = gr.Button(
+                "Record correction",
+                variant="primary",
+                elem_classes="corrections-record-btn",
+            )
         corrections_html = gr.HTML(loading_skeleton("card"))
         corrections_event_id = gr.Textbox(
             visible=False,
@@ -93,6 +145,21 @@ def build_memory_corrections(app: gr.Blocks, ctx: TabContext) -> None:
             outputs=[corrections_html],
             api_name="memory_corrections_refresh",
             api_description="Refresh the recent-corrections panel",
+        )
+        # Pass 20: wire the "Record a correction" form to the
+        # handler. On submit, the correction is persisted and
+        # the panel refreshes to show the new event.
+        record_btn.click(
+            record_correction_handler,
+            inputs=[
+                correction_canonical,
+                correction_was,
+                correction_should_be,
+                correction_reason,
+            ],
+            outputs=[corrections_html],
+            api_name="memory_corrections_record",
+            api_description="Record a new user correction",
         )
         app.load(render_recent_corrections_html, outputs=corrections_html)
 

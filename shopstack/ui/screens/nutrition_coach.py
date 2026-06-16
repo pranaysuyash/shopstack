@@ -46,18 +46,20 @@ def nutrition_coach_screen(
         XSS-safe HTML for direct insertion into a Gradio
         component.
     """
-    try:
-        user_id = current_user_id() or ""
-        summary = get_inventory_nutrition_summary(db, user_id=user_id)
-        profile = HouseholdProfile(size=household_size, dietary=dietary)
-        coaching = build_coaching(summary, profile=profile)
-        return render_coaching_html(coaching, locale=locale)
-    except Exception as exc:
-        logger.warning("nutrition_coach_screen failed: %s", exc)
-        return home_card(
-            style="text-align:center;color:var(--text-dim);padding:16px;",
-            body="🥗 Add some inventory first to see nutrition coaching.",
-        )
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: _nutrition_coach_inner(household_size, dietary, locale),
+        user_message="Could not load nutrition coaching",
+        help_tab="memory",
+    )
+
+
+def _nutrition_coach_inner(household_size: int, dietary: str, locale: str) -> str:
+    user_id = current_user_id() or ""
+    summary = get_inventory_nutrition_summary(db, user_id=user_id)
+    profile = HouseholdProfile(size=household_size, dietary=dietary)
+    coaching = build_coaching(summary, profile=profile)
+    return render_coaching_html(coaching, locale=locale)
 
 
 __all__ = ["nutrition_coach_screen"]

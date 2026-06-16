@@ -116,7 +116,13 @@ class PreferenceService:
 
     # --- Legacy Compatibility Methods ---
 
-    def record_correction(self, correction_event: dict[str, Any], user_id: str = "") -> PreferenceSignal | None:
+    def record_correction(
+        self,
+        correction_event: dict[str, Any],
+        user_id: str = "",
+        *,
+        persist_event: bool = True,
+    ) -> PreferenceSignal | None:
         """Translate a correction event (e.g. from UI / reconciliation) into a PreferenceSignal and persist it.
 
         Additive (2026-06-15): also persists the raw correction
@@ -127,6 +133,19 @@ class PreferenceService:
         the panel only updates the ``accepted`` flag on the new
         table. To retract the system-wide effect, the user must
         do that separately from Memory → Preferences.
+
+        Args:
+            correction_event: Dict with canonical_name, correction_type,
+                old_value, new_value, source.
+            user_id: The active household.
+            persist_event: When True (default), also persist the
+                raw ``CorrectionEvent`` to the ``correction_events``
+                table. Pass ``False`` when the caller has already
+                persisted the event (e.g. ``feedback.record_user_correction``
+                which writes the event as the primary contract
+                before calling this method for the signal). This
+                avoids a double-write that breaks the
+                "one event per correction" invariant.
         """
         try:
             canonical_name = correction_event.get("canonical_name", "").lower().strip()
@@ -143,18 +162,23 @@ class PreferenceService:
             # it from Memory → Recent corrections. Failures here
             # are non-fatal — the preference signal below is the
             # primary contract.
-            try:
-                from shopstack.schemas.models import CorrectionEvent
-                raw_event = CorrectionEvent(
-                    canonical_name=canonical_name,
-                    correction_type=correction_type,
-                    old_value=old_value,
-                    new_value=str(new_value) if new_value is not None else "",
-                    source=str(correction_event.get("source", "user_correction")),
-                )
-                self.db.record_correction_event(raw_event, user_id=user_id)
-            except Exception as exc:  # noqa: BLE001
-                logger.debug("record_correction_event persistence failed (non-fatal): %s", exc)
+            #
+            # Skip when persist_event=False: the caller has
+            # already written the event (e.g. feedback.py
+            # writes the event as the primary contract).
+            if persist_event:
+                try:
+                    from shopstack.schemas.models import CorrectionEvent
+                    raw_event = CorrectionEvent(
+                        canonical_name=canonical_name,
+                        correction_type=correction_type,
+                        old_value=old_value,
+                        new_value=str(new_value) if new_value is not None else "",
+                        source=str(correction_event.get("source", "user_correction")),
+                    )
+                    self.db.record_correction_event(raw_event, user_id=user_id)
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug("record_correction_event persistence failed (non-fatal): %s", exc)
 
             signal_type = "brand_preferred"
             value = str(new_value)

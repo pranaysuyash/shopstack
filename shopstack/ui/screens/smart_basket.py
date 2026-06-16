@@ -31,44 +31,42 @@ def smart_basket_screen(
             empty-state HTML.
         city: City scope for the community median lookup.
     """
-    try:
-        if not items:
-            return render_smart_basket_html(_empty_basket())
-        # Build community medians
-        medians: dict[str, float] = {}
-        for it in items:
-            cname = str(it.get("canonical_name") or "").strip().lower()
-            if not cname:
-                continue
-            try:
-                summary = community_median(cname, city=city, days=30)
-            except Exception:
-                summary = None
-            if summary is None:
-                continue
-            medians[cname] = float(summary.get("median_price", 0) or 0)
-        # Use-soon (best-effort)
-        use_soon_items: list[dict[str, Any]] = []
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: _smart_basket_inner(items, city),
+        user_message="Could not build smart basket",
+        help_tab="basket",
+        icon="🛒",
+    )
+
+
+def _smart_basket_inner(items: list[dict[str, Any]] | None, city: str) -> str:
+    if not items:
+        return render_smart_basket_html(_empty_basket())
+    medians: dict[str, float] = {}
+    for it in items:
+        cname = str(it.get("canonical_name") or "").strip().lower()
+        if not cname:
+            continue
         try:
-            user_id = current_user_id() or ""
-            use_soon_items = tools.inventory.get_use_soon(days=3, user_id=user_id).get("items", [])
+            summary = community_median(cname, city=city, days=30)
         except Exception:
-            use_soon_items = []
-        basket = build_smart_basket(
-            items,
-            community_medians=medians,
-            use_soon_items=use_soon_items,
-        )
-        return render_smart_basket_html(basket)
-    except Exception as exc:
-        logger.warning("smart_basket_screen failed: %s", exc)
-        return home_card(
-            style="text-align:center;padding:12px;",
-            body=(
-                "<div style='color:var(--amber);font-weight:600;'>Could not build smart basket</div>"
-                f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{escape(str(exc)[:120])}</div>"
-            ),
-        )
+            summary = None
+        if summary is None:
+            continue
+        medians[cname] = float(summary.get("median_price", 0) or 0)
+    use_soon_items: list[dict[str, Any]] = []
+    try:
+        user_id = current_user_id() or ""
+        use_soon_items = tools.inventory.get_use_soon(days=3, user_id=user_id).get("items", [])
+    except Exception:
+        use_soon_items = []
+    basket = build_smart_basket(
+        items,
+        community_medians=medians,
+        use_soon_items=use_soon_items,
+    )
+    return render_smart_basket_html(basket)
 
 
 def _empty_basket():

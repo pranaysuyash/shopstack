@@ -90,16 +90,19 @@ def render_recent_corrections_html(limit: int = 20) -> str:
     user, newest first, and renders them as a list of cards. If
     there are no events, returns an actionable empty state.
     """
-    try:
-        user_id = current_user_id() or ""
-        events = db.get_recent_correction_events(limit=limit, user_id=user_id)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("render_recent_corrections_html failed: %s", exc)
-        return home_card(
-            style="text-align:center;color:var(--text-dim);padding:16px;",
-            body="📝 Recent corrections are unavailable. Try again after the next reconciliation.",
-        )
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: _recent_corrections_inner(limit),
+        user_message="Could not load recent corrections",
+        help_tab="memory",
+        icon="📝",
+        retry_label="",
+    )
 
+
+def _recent_corrections_inner(limit: int) -> str:
+    user_id = current_user_id() or ""
+    events = db.get_recent_correction_events(limit=limit, user_id=user_id)
     if not events:
         return empty_state_enhanced(
             "No recent corrections",
@@ -110,7 +113,6 @@ def render_recent_corrections_html(limit: int = 20) -> str:
                 "learning, or reject it to undo the preference change."
             ),
         )
-
     rows = "".join(_format_correction_row(e) for e in events)
     return (
         "<div class='recent-corrections-panel' "
@@ -252,3 +254,61 @@ __all__ = [
     "reject_correction_event",
     "render_corrections_click_handler",
 ]
+
+
+# ── Pass 20: "Record a correction" flow ────────────────────────────
+
+
+def record_correction_handler(
+    canonical_name: str,
+    was_action: str,
+    should_be_action: str,
+    reason: str,
+) -> str:
+    """Handler for the "Record a correction" form in the Memory tab.
+
+    Closes the full learning loop (Pass 20): the user sees
+    a decision they disagree with, records the correction via
+    this form, and the engine adjusts future decisions on
+    the same item. The correction is persisted to the
+    ``correction_events`` table and also translated into a
+    ``PreferenceSignal`` by ``PreferenceService``.
+
+    Returns the refreshed corrections panel HTML.
+    """
+    from shopstack.services.feedback import (
+        record_user_correction,
+        validate_correction,
+    )
+
+    errors = validate_correction(
+        canonical_name=canonical_name or "",
+        was_action=was_action or "",
+        should_be_action=should_be_action or "",
+        reason=reason or "",
+    )
+    if errors:
+        return (
+            f"<div class='correction-error' style='padding:12px;background-color:rgba(166,63,49,0.10);border-radius:4px;color:var(--red-text, var(--red));'>"
+            f"<strong>Could not record correction:</strong><ul>"
+            + "".join(f"<li>{e}</li>" for e in errors)
+            + "</ul></div>"
+        ) + render_recent_corrections_html()
+
+    try:
+        record_user_correction(
+            db,
+            user_id=current_user_id(),
+            canonical_name=canonical_name.strip(),
+            was_action=was_action.strip(),
+            should_be_action=should_be_action.strip(),
+            reason=(reason or "").strip(),
+        )
+    except Exception as exc:  # noqa: BLE001
+        return (
+            f"<div class='correction-error' style='padding:12px;background-color:rgba(166,63,49,0.10);border-radius:4px;color:var(--red-text, var(--red));'>"
+            f"<strong>Could not record correction:</strong> {type(exc).__name__}: {exc}"
+            f"</div>"
+        ) + render_recent_corrections_html()
+
+    return render_recent_corrections_html()

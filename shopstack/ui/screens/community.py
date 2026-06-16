@@ -31,36 +31,41 @@ logger = logging.getLogger(__name__)
 
 def community_status_screen() -> str:
     """Render the opt-in status line for the household settings."""
-    try:
-        return render_opt_in_toggle_html(current_user_id() or "")
-    except Exception as exc:
-        logger.warning("community_status_screen failed: %s", exc)
-        return "<span style='color:var(--amber);'>Community status unavailable</span>"
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: render_opt_in_toggle_html(current_user_id() or ""),
+        user_message="Could not load community status",
+        icon="👥",
+        retry_label="",
+    )
 
 
 def community_pool_stats_screen() -> str:
     """Render a small "X observations, Y items, Z anon ids" stat line."""
-    try:
-        stats = pool_stats()
-        if not stats.get("size"):
-            return home_card(
-                style="font-size: 0.6875rem;color:var(--text-dim);padding:8px;",
-                body="👥 Local community pool is empty. Opt in to start sharing prices.",
-            )
-        return home_card(
-            style="font-size: 0.6875rem;color:var(--text-muted, #5F5144);padding:8px;",
-            body=(
-                f"👥 Local pool: <strong>{stats['size']}</strong> observations, <strong>{stats['distinct_items']}</strong> items, "
-                f"<strong>{stats['distinct_anon']}</strong> anonymized contributors"
-                + (f" · newest: {stats['newest']}" if stats.get("newest") else "")
-            ),
-        )
-    except Exception as exc:
-        logger.warning("community_pool_stats_screen failed: %s", exc)
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: _pool_stats_inner(),
+        user_message="Could not load pool stats",
+        icon="👥",
+        retry_label="",
+    )
+
+
+def _pool_stats_inner() -> str:
+    stats = pool_stats()
+    if not stats.get("size"):
         return home_card(
             style="font-size: 0.6875rem;color:var(--text-dim);padding:8px;",
-            body="<span style='color:var(--amber);'>Community pool stats unavailable</span>",
+            body="👥 Local community pool is empty. Opt in to start sharing prices.",
         )
+    return home_card(
+        style="font-size: 0.6875rem;color:var(--text-muted, #5F5144);padding:8px;",
+        body=(
+            f"👥 Local pool: <strong>{stats['size']}</strong> observations, <strong>{stats['distinct_items']}</strong> items, "
+            f"<strong>{stats['distinct_anon']}</strong> anonymized contributors"
+            + (f" · newest: {stats['newest']}" if stats.get("newest") else "")
+        ),
+    )
 
 
 def community_indicator_for(
@@ -69,15 +74,17 @@ def community_indicator_for(
     city: str = "",
 ) -> str:
     """Render the "👥 ₹X community median" badge for one item."""
-    try:
-        return render_community_indicator_html(
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: render_community_indicator_html(
             canonical_name=canonical_name,
             own_price=own_price,
             city=city,
-        )
-    except Exception as exc:
-        logger.warning("community_indicator_for failed: %s", exc)
-        return ""
+        ),
+        user_message="Could not load community indicator",
+        icon="👥",
+        retry_label="",
+    )
 
 
 def set_opt_in_screen(opt_in: bool) -> str:

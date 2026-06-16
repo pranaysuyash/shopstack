@@ -33,43 +33,42 @@ def trip_advisor_screen(
     tree. Returns XSS-safe HTML for direct insertion into a
     Gradio component.
     """
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: _trip_advisor_inner(city, locale),
+        user_message="Could not load trip advisor",
+        help_tab="basket",
+    )
+
+
+def _trip_advisor_inner(city: str, locale: str) -> str:
+    user_id = current_user_id() or ""
     try:
-        user_id = current_user_id() or ""
-        # Active list size
-        try:
-            lists = db.get_shopping_lists(user_id=user_id) or []  # type: ignore[attr-defined]
-            active_list_size = sum(
-                len(db.get_shopping_list_items(list_id=l.get("list_id") or l.get("id", "")) or [])  # type: ignore[attr-defined]
-                for l in lists
-            )
-        except Exception:
-            active_list_size = 0
-        # Use-soon count (items expiring in 2-3 days)
-        try:
-            use_soon = tools.inventory.get_use_soon(days=3, user_id=user_id).get("items", [])
-            use_soon_count = len(use_soon)
-        except Exception:
-            use_soon_count = 0
-        # Price drops: full detection needs a market snapshot, which
-        # the trip advisor panel doesn't have. Use 0 (the seasonal
-        # engine and use-soon signal are the primary decision inputs).
-        price_drop_count = 0
-        # Weather (best-effort; may use the mock fallback)
-        try:
-            weather = get_weather(city=city)
-        except Exception:
-            weather = None
-        advice = advise_trip(
-            city=city,
-            use_soon_count=use_soon_count,
-            price_drop_count=price_drop_count,
-            active_list_size=active_list_size,
-            weather=weather,
+        lists = db.get_shopping_lists(user_id=user_id) or []  # type: ignore[attr-defined]
+        active_list_size = sum(
+            len(db.get_shopping_list_items(list_id=l.get("list_id") or l.get("id", "")) or [])  # type: ignore[attr-defined]
+            for l in lists
         )
-        return render_trip_advice_html(advice, locale=locale)
-    except Exception as exc:
-        logger.warning("trip_advisor_screen failed: %s", exc)
-        return ""  # graceful degradation — no banner if everything fails
+    except Exception:
+        active_list_size = 0
+    try:
+        use_soon = tools.inventory.get_use_soon(days=3, user_id=user_id).get("items", [])
+        use_soon_count = len(use_soon)
+    except Exception:
+        use_soon_count = 0
+    price_drop_count = 0
+    try:
+        weather = get_weather(city=city)
+    except Exception:
+        weather = None
+    advice = advise_trip(
+        city=city,
+        use_soon_count=use_soon_count,
+        price_drop_count=price_drop_count,
+        active_list_size=active_list_size,
+        weather=weather,
+    )
+    return render_trip_advice_html(advice, locale=locale)
 
 
 __all__ = ["trip_advisor_screen"]

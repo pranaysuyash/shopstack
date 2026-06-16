@@ -357,6 +357,81 @@ def test_recurring_subcommand_json_output_is_valid():
     assert isinstance(payload["items"], list)
 
 
+# ── correct + corrections subcommands (Pass 20) ──────────────────
+
+
+def test_correct_subcommand_dispatches():
+    """The ``correct`` subcommand is in SUBCOMMANDS."""
+    from shopstack.cli import SUBCOMMANDS, build_parser
+
+    parser = build_parser()
+    args = parser.parse_args([
+        "correct", "milk", "--was-action", "buy",
+        "--should-be", "skip", "--reason", "I have plenty",
+    ])
+    assert args.canonical_name == "milk"
+    assert args.was_action == "buy"
+    assert args.should_be_action == "skip"
+    assert args.reason == "I have plenty"
+    assert "correct" in SUBCOMMANDS
+
+
+def test_correct_subcommand_returns_event_dict():
+    """The ``correct`` subcommand returns a dict with the documented shape."""
+    from shopstack.cli import SUBCOMMANDS
+
+    args = type("Args", (), {
+        "canonical_name": "milk",
+        "was_action": "buy",
+        "should_be_action": "skip",
+        "reason": "I have plenty",
+    })()
+    payload = SUBCOMMANDS["correct"](args)
+    # Either a success dict (event was recorded) or a validation
+    # error dict (the event was still created for audit).
+    assert "event_id" in payload or payload.get("error") == "validation_failed"
+    if "event_id" in payload:
+        assert payload["canonical_name"] == "milk"
+        assert payload["was_action"] == "buy"
+        assert payload["should_be_action"] == "skip"
+
+
+def test_correct_subcommand_validation_error_returns_dict():
+    """Same was/should-be returns a validation error dict."""
+    from shopstack.cli import SUBCOMMANDS
+
+    args = type("Args", (), {
+        "canonical_name": "milk",
+        "was_action": "buy",
+        "should_be_action": "buy",  # same as was_action
+        "reason": "",
+    })()
+    payload = SUBCOMMANDS["correct"](args)
+    assert payload["error"] == "validation_failed"
+    assert "errors" in payload
+
+
+def test_corrections_subcommand_dispatches():
+    """The ``corrections`` subcommand is in SUBCOMMANDS."""
+    from shopstack.cli import SUBCOMMANDS, build_parser
+
+    parser = build_parser()
+    args = parser.parse_args(["corrections"])
+    assert args.cmd == "corrections"
+    assert "corrections" in SUBCOMMANDS
+
+
+def test_corrections_subcommand_returns_list_dict():
+    """The ``corrections`` subcommand returns a list of corrections."""
+    from shopstack.cli import SUBCOMMANDS
+
+    args = type("Args", (), {"limit": 20, "accepted_only": False})()
+    payload = SUBCOMMANDS["corrections"](args)
+    for key in ("summary", "count", "items"):
+        assert key in payload, f"missing key: {key}"
+    assert isinstance(payload["items"], list)
+
+
 # ── Mode-portability proof (Tier 3) ─────────────────────────────────
 
 

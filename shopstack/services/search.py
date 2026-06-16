@@ -102,12 +102,20 @@ def semantic_search(
 
     if not results and embedding_provider is not None:
         try:
-            query_embs = embedding_provider.embed([q])
-            if not query_embs:
-                return results
-            query_emb = query_embs[0]
-            item_texts = list(items.keys())
-            item_embs = embedding_provider.embed(item_texts)
+            from shopstack.eval.recorder import CAP_EMBEDDINGS, SHAPE_STRUCTURED, record_model_call
+            with record_model_call(
+                domain_route="semantic_search",
+                capability=CAP_EMBEDDINGS,
+                capability_expected_shape=SHAPE_STRUCTURED,
+            ) as rec:
+                rec.set_prompt(f"embed_query:{q}|embed_docs:{list(items.keys())}")
+                query_embs = embedding_provider.embed([q])
+                if not query_embs:
+                    return results
+                query_emb = query_embs[0]
+                item_texts = list(items.keys())
+                item_embs = embedding_provider.embed(item_texts)
+                rec.set_output(f"query_emb_dim={len(query_emb) if query_emb else 0},doc_count={len(item_embs) if item_embs else 0}")
             if not item_embs or len(item_embs) != len(item_texts):
                 return results
             scored: list[tuple[float, str]] = []
@@ -139,7 +147,15 @@ def build_item_embeddings(
     items = _extract_unique_items(database)
     names = list(items.keys())
     try:
-        embeddings = provider.embed(names)
+        from shopstack.eval.recorder import CAP_EMBEDDINGS, SHAPE_STRUCTURED, record_model_call
+        with record_model_call(
+            domain_route="build_item_embeddings",
+            capability=CAP_EMBEDDINGS,
+            capability_expected_shape=SHAPE_STRUCTURED,
+        ) as rec:
+            rec.set_prompt(f"embed_items:{names[:20]}... ({len(names)} total)")
+            embeddings = provider.embed(names)
+            rec.set_output(f"embed_count={len(embeddings) if embeddings else 0}")
     except Exception:
         return {}
     return dict(zip(names, embeddings))

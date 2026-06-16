@@ -550,7 +550,15 @@ def _safe_detection(providers: Any, image_path: str) -> list[dict[str, Any]]:
         detection_provider = getattr(providers, "object_detection", None)
         if detection_provider is None:
             return []
-        detections = detection_provider.detect(image_path)
+        from shopstack.eval.recorder import record_model_call
+        with record_model_call(
+            domain_route="shelf_intelligence",
+            capability="object_detection",
+            capability_expected_shape="structured",
+        ) as rec:
+            rec.set_prompt(f"detect:{image_path}")
+            detections = detection_provider.detect(image_path)
+            rec.set_output(str(detections))
         return [d for d in detections if isinstance(d, dict) and d.get("label")]
     except Exception as exc:  # noqa: BLE001
         # Item #5 (motto_v3 §0.6 risk-based verification): a
@@ -574,7 +582,15 @@ def _safe_segmentation(providers: Any, image_path: str) -> list[dict[str, Any]]:
         segmentation_provider = getattr(providers, "segmentation", None)
         if segmentation_provider is None:
             return []
-        segments = segmentation_provider.segment(image_path)
+        from shopstack.eval.recorder import record_model_call
+        with record_model_call(
+            domain_route="shelf_intelligence",
+            capability="segmentation",
+            capability_expected_shape="structured",
+        ) as rec:
+            rec.set_prompt(f"segment:{image_path}")
+            segments = segmentation_provider.segment(image_path)
+            rec.set_output(str(segments))
         return [s for s in segments if isinstance(s, dict)]
     except Exception as exc:  # noqa: BLE001
         # Item #5 (motto_v3 §0.6): see _safe_detection for the
@@ -618,20 +634,28 @@ def _safe_grounding(providers: Any, image_path: str, prompts: list[str]) -> list
         grounding_provider = getattr(providers, "grounding", None)
         if grounding_provider is None:
             return []
+        from shopstack.eval.recorder import record_model_call
         grounded: list[dict[str, Any]] = []
-        for prompt in prompts:
-            if not prompt:
-                continue
-            result = grounding_provider.ground(image_path, prompt)
-            if isinstance(result, dict) and result.get("found"):
-                grounded.append(
-                    {
-                        "label": result.get("label") or prompt,
-                        "confidence": float(result.get("confidence", 0.0) or 0.0),
-                        "bbox": list(result.get("bbox") or []),
-                        "class_id": len(grounded),
-                    }
-                )
+        with record_model_call(
+            domain_route="shelf_intelligence",
+            capability="grounding",
+            capability_expected_shape="structured",
+        ) as rec:
+            rec.set_prompt(f"ground:{image_path}:{prompts}")
+            for prompt in prompts:
+                if not prompt:
+                    continue
+                result = grounding_provider.ground(image_path, prompt)
+                if isinstance(result, dict) and result.get("found"):
+                    grounded.append(
+                        {
+                            "label": result.get("label") or prompt,
+                            "confidence": float(result.get("confidence", 0.0) or 0.0),
+                            "bbox": list(result.get("bbox") or []),
+                            "class_id": len(grounded),
+                        }
+                    )
+            rec.set_output(str(grounded))
         return grounded
     except Exception:
         return []
@@ -642,7 +666,15 @@ def _safe_ocr(providers: Any, image_path: str) -> dict[str, Any]:
         ocr_provider = getattr(providers, "ocr", None)
         if ocr_provider is None:
             return {}
-        payload = ocr_provider.extract(image_path)
+        from shopstack.eval.recorder import record_model_call
+        with record_model_call(
+            domain_route="shelf_intelligence",
+            capability="ocr_extraction",
+            capability_expected_shape="structured",
+        ) as rec:
+            rec.set_prompt(f"ocr:{image_path}")
+            payload = ocr_provider.extract(image_path)
+            rec.set_output(str(payload))
         if not isinstance(payload, dict):
             return {}
         raw_product = (

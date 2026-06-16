@@ -327,17 +327,25 @@ class ShopFindService:
         locations = {loc.location_id: loc for loc in self.db.get_locations()}
         lot_texts = [self._lot_search_text(lot, locations.get(lot.storage_location_id)) for lot in lots]
         try:
-            # Nomic distinguishes query vs document prefixes; BGE-M3 has a single embed().
-            query_emb = (
-                provider.embed_queries([query])[0]
-                if hasattr(provider, "embed_queries")
-                else provider.embed([query])[0]
-            )
-            doc_embs = (
-                provider.embed_documents(lot_texts)
-                if hasattr(provider, "embed_documents")
-                else provider.embed(lot_texts)
-            )
+            from shopstack.eval.recorder import CAP_EMBEDDINGS, SHAPE_STRUCTURED, record_model_call
+            with record_model_call(
+                domain_route="semantic_find_inventory",
+                capability=CAP_EMBEDDINGS,
+                capability_expected_shape=SHAPE_STRUCTURED,
+            ) as rec:
+                rec.set_prompt(f"embed_query:{query}|embed_docs:{len(lot_texts)} lots")
+                # Nomic distinguishes query vs document prefixes; BGE-M3 has a single embed().
+                query_emb = (
+                    provider.embed_queries([query])[0]
+                    if hasattr(provider, "embed_queries")
+                    else provider.embed([query])[0]
+                )
+                doc_embs = (
+                    provider.embed_documents(lot_texts)
+                    if hasattr(provider, "embed_documents")
+                    else provider.embed(lot_texts)
+                )
+                rec.set_output(f"query_emb_dim={len(query_emb) if query_emb else 0},doc_count={len(doc_embs) if doc_embs else 0}")
         except Exception as exc:  # noqa: BLE001
             # Item #5 (motto_v3 §0.6 risk-based verification): a
             # silent return on embedding failure left the user

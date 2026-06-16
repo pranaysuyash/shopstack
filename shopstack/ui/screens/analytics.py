@@ -17,20 +17,22 @@ logger = logging.getLogger(__name__)
 
 def analytics_screen(window_days: int = 180) -> str:
     """Render the household analytics dashboard."""
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: _analytics_inner(window_days),
+        user_message="Could not load analytics",
+        help_tab="memory",
+    )
+
+
+def _analytics_inner(window_days: int) -> str:
+    user_id = current_user_id() or ""
     try:
-        user_id = current_user_id() or ""
-        try:
-            traces = db.get_traces(limit=500, user_id=user_id) or []
-        except Exception:
-            traces = []
-        analytics = aggregate_analytics(traces, window_days=window_days)
-        return render_analytics_html(analytics)
-    except Exception as exc:
-        logger.warning("analytics_screen failed: %s", exc)
-        return home_card(
-            style="text-align:center;color:var(--text-dim);padding:16px;",
-            body="📊 No analytics yet. Add some receipts to see insights.",
-        )
+        traces = db.get_traces(limit=500, user_id=user_id) or []
+    except Exception:
+        traces = []
+    analytics = aggregate_analytics(traces, window_days=window_days)
+    return render_analytics_html(analytics)
 
 
 __all__ = ["analytics_screen"]

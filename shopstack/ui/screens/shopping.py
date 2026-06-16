@@ -700,11 +700,18 @@ def shopping_list_share(user_id: str = "") -> str:
         HTML string for the share panel. Empty string if the
         active household has no shopping list.
     """
-    try:
-        sl = db.get_active_shopping_list(user_id=current_user_id() or "")
-    except Exception as exc:  # pragma: no cover — defensive
-        logger.warning("shopping_list_share: get_active failed: %s", exc)
-        return ""
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: _shopping_list_share_inner(user_id),
+        user_message="Could not load shopping list share",
+        help_tab="basket",
+        icon="📋",
+        retry_label="",
+    )
+
+
+def _shopping_list_share_inner(user_id: str) -> str:
+    sl = db.get_active_shopping_list(user_id=current_user_id() or "")
     if not sl:
         return home_card(
             body=(
@@ -713,26 +720,17 @@ def shopping_list_share(user_id: str = "") -> str:
                 "</div>"
             ),
         )
-    # Build the row dicts the share_text helper expects
     rows: list[dict[str, Any]] = []
-    try:
-        for lot in sl.items:
-            if getattr(lot, "status", "active") in ("bought", "skipped"):
-                continue
-            rows.append(
-                {
-                    "canonical_name": lot.canonical_name,
-                    "requested_quantity": lot.requested_quantity or 1.0,
-                    "unit": lot.unit or "unit",
-                    "smart_decision": "must_buy",
-                }
-            )
-    except Exception as exc:  # pragma: no cover — defensive
-        logger.warning("shopping_list_share: build rows failed: %s", exc)
-        return ""
-    try:
-        share_text = _shopping_list_share_text(rows)
-        return _shopping_list_share_html(share_text, load_locale_preference(user_id))
-    except Exception as exc:  # pragma: no cover — defensive
-        logger.warning("shopping_list_share: render failed: %s", exc)
-        return ""
+    for lot in sl.items:
+        if getattr(lot, "status", "active") in ("bought", "skipped"):
+            continue
+        rows.append(
+            {
+                "canonical_name": lot.canonical_name,
+                "requested_quantity": lot.requested_quantity or 1.0,
+                "unit": lot.unit or "unit",
+                "smart_decision": "must_buy",
+            }
+        )
+    share_text = _shopping_list_share_text(rows)
+    return _shopping_list_share_html(share_text, load_locale_preference(user_id))

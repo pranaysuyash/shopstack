@@ -109,6 +109,19 @@ def settings() -> Settings:
         db_path=":memory:",
         off_the_grid=True,
         local_auto_download=False,
+        # All provider backends set to "mock" so benchmark tests measure
+        # mock latency, not real model loading/inference. The default
+        # ``planner_backend="local"`` resolves to the real LocalProvider
+        # (which loads an LLM), causing benchmark assertions to fail.
+        planner_backend="mock",
+        stt_backend="mock",
+        tts_backend="mock",
+        vision_backend="mock",
+        ocr_backend="mock",
+        segmentation_backend="mock",
+        grounding_backend="mock",
+        embeddings_backend="mock",
+        image_gen_backend="mock",
     )
 
 

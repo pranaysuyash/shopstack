@@ -321,6 +321,134 @@ def cmd_recurring(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def cmd_correct(args: argparse.Namespace) -> dict[str, Any]:
+    """Record a user correction of a system decision (Pass 20).
+
+    This is the CLI counterpart of the Memory → Record a
+    correction form. It creates a CorrectionEvent from a
+    decision the user disagrees with. The engine learning
+    loop (wired in ``shopstack.services.dashboard``) picks
+    up the correction and adjusts future decisions on the
+    same item.
+
+    Example:
+        shopstack-cli correct milk --was-action buy \\
+            --should-be skip --reason "I have plenty"
+    """
+    from shopstack.services.feedback import (
+        record_user_correction,
+        validate_correction,
+    )
+
+    errors = validate_correction(
+        canonical_name=args.canonical_name,
+        was_action=args.was_action,
+        should_be_action=args.should_be_action,
+        reason=args.reason or "",
+    )
+    if errors:
+        return {
+            "error": "validation_failed",
+            "errors": errors,
+        }
+
+    event = record_user_correction(
+        db,
+        user_id="",
+        canonical_name=args.canonical_name,
+        was_action=args.was_action,
+        should_be_action=args.should_be_action,
+        reason=args.reason or "",
+    )
+    return {
+        "event_id": event.event_id,
+        "canonical_name": event.canonical_name,
+        "was_action": event.old_value,
+        "should_be_action": event.new_value,
+        "reason": args.reason or "",
+        "source": event.source,
+        "timestamp": event.timestamp.isoformat(),
+        "accepted": event.accepted,
+    }
+
+
+def cmd_corrections(args: argparse.Namespace) -> dict[str, Any]:
+    """List recent user corrections (Pass 20).
+
+    The CLI counterpart of the Memory → Recent corrections
+    sub-tab. Returns the most recent N corrections
+    (default 20), including pending and accepted ones.
+    """
+    from shopstack.services.feedback import (
+        list_recent_corrections,
+        summarize_corrections,
+    )
+
+    limit = args.limit or 20
+    accepted_only = bool(args.accepted_only)
+    corrections = list_recent_corrections(
+        db,
+        user_id="",
+        limit=limit,
+        accepted_only=accepted_only,
+    )
+    return {
+        "summary": summarize_corrections(corrections),
+        "count": len(corrections),
+        "items": [
+            {
+                "event_id": c.event_id,
+                "canonical_name": c.canonical_name,
+                "was_action": c.old_value,
+                "should_be_action": c.new_value,
+                "source": c.source,
+                "timestamp": c.timestamp.isoformat(),
+                "accepted": c.accepted,
+            }
+            for c in corrections
+        ],
+    }
+
+
+def cmd_mealplan(args: argparse.Namespace) -> dict[str, Any]:
+    """Build a weekly meal plan based on the current pantry (Pass 21).
+
+    The CLI counterpart of the dashboard's Recipes → meal
+    plan feature. The plan reuses the existing
+    ``find_recipes_for_inventory`` to score recipes and
+    picks one per day, avoiding repeats. No recipe appears
+    twice in the plan.
+
+    The result is a JSON-serializable dict. With ``--human``,
+    it's a plain-text summary.
+    """
+    from shopstack.services.meal_planning import (
+        build_weekly_meal_plan,
+        summarize_meal_plan,
+    )
+    from datetime import datetime, timedelta
+
+    days = args.days or 7
+    # Parse the optional --start-date arg (ISO format).
+    start = None
+    if args.start:
+        try:
+            start = datetime.strptime(args.start, "%Y-%m-%d").date()
+        except ValueError:
+            start = None
+
+    plan = build_weekly_meal_plan(
+        db, user_id="", start_date=start, days=days,
+    )
+    return {
+        "summary": summarize_meal_plan(plan),
+        "days": days,
+        "start_date": (start or plan[0].date if plan else None),
+        "count": len(plan),
+        "items": [d.model_dump(mode="json") for d in plan],
+    }
+
+
 def _extract_days_until_next(d) -> int | None:
     """Pull the days-until-next number from a DecisionResult's reasons.
 
@@ -371,6 +499,9 @@ SUBCOMMANDS = {
     "whoami": cmd_whoami,
     "explain": cmd_explain,
     "recurring": cmd_recurring,
+    "correct": cmd_correct,
+    "corrections": cmd_corrections,
+    "mealplan": cmd_mealplan,
 }
 
 
@@ -428,6 +559,68 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=3,
         help="Days window for the plan (default 3)",
+    )
+    p_correct = sub.add_parser(
+        "correct",
+        help="Record a user correction of a system decision (Pass 20)",
+    )
+    p_correct.add_argument(
+        "canonical_name",
+        help="The canonical item name (e.g. 'milk', 'rice')",
+    )
+    p_correct.add_argument(
+        "--was-action",
+        required=True,
+        choices=sorted([
+            "buy", "skip", "use_soon", "compare", "wait",
+            "substitute", "watch", "confirm", "optional",
+        ]),
+        help="The action the system recommended",
+    )
+    p_correct.add_argument(
+        "--should-be",
+        dest="should_be_action",
+        required=True,
+        choices=sorted([
+            "buy", "skip", "use_soon", "compare", "wait",
+            "substitute", "watch", "confirm", "optional",
+        ]),
+        help="The action the user thinks should have been recommended",
+    )
+    p_correct.add_argument(
+        "--reason",
+        default="",
+        help="Optional free-text reason for the correction",
+    )
+    p_corrections = sub.add_parser(
+        "corrections",
+        help="List recent user corrections (Pass 20)",
+    )
+    p_corrections.add_argument(
+        "--limit",
+        type=int,
+        default=20,
+        help="Maximum number of corrections to list (default 20)",
+    )
+    p_corrections.add_argument(
+        "--accepted-only",
+        action="store_true",
+        help="Only show accepted corrections (exclude pending)",
+    )
+    p_mealplan = sub.add_parser(
+        "mealplan",
+        help="Build a weekly meal plan based on current pantry (Pass 21)",
+    )
+    p_mealplan.add_argument(
+        "--days",
+        type=int,
+        default=7,
+        help="Number of days to plan (default 7)",
+    )
+    p_mealplan.add_argument(
+        "--start",
+        default=None,
+        help="Start date in YYYY-MM-DD format (default: today)",
     )
     return parser
 

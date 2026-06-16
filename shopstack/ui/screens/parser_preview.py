@@ -22,12 +22,17 @@ def parser_preview_screen(utterance: str) -> str:
     """
     if not utterance or not utterance.strip():
         return ""
-    try:
-        parsed = classify_intent(utterance)
-        return render_intent_html(parsed)
-    except Exception as exc:
-        logger.warning("parser_preview_screen failed: %s", exc)
-        return ""
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: _parser_preview_inner(utterance),
+        user_message="Could not parse the input",
+        icon="🔍",
+    )
+
+
+def _parser_preview_inner(utterance: str) -> str:
+    parsed = classify_intent(utterance)
+    return render_intent_html(parsed)
 
 
 __all__ = ["parser_preview_screen"]

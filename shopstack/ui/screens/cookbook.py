@@ -157,24 +157,20 @@ def cookbook_shop_missing(
             style="border-left:3px solid var(--red);",
             body=f"⚠ Recipe <code>{recipe_id}</code> not found.",
         )
-    try:
-        inventory = db.get_inventory(user_id=current_user_id() or "")
-        result = shop_missing(
-            db, recipe, inventory, user_id=current_user_id() or "",
-        )
-    except Exception as exc:
-        logger.warning("cookbook shop_missing failed: %s", exc, exc_info=True)
-        return home_card(
-            style="border-left:3px solid var(--red);",
-            body=(
-                "⚠ Couldn't update your shopping list. Please try again."
-            ),
-        )
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: _cookbook_shop_missing_inner(recipe, recipe_id),
+        user_message="Could not update shopping list",
+        icon="🍳",
+        retry_label="",
+    )
 
-    # The cookbook service returns a dict with these keys (see
-    # ``shopstack.services.cookbook.shop_missing``):
-    #   ``added`` (bool), ``count`` (int), ``items`` (list), ``reason`` (str).
-    # The status card branches on ``count`` and ``reason``.
+
+def _cookbook_shop_missing_inner(recipe, recipe_id: str) -> str:
+    inventory = db.get_inventory(user_id=current_user_id() or "")
+    result = shop_missing(
+        db, recipe, inventory, user_id=current_user_id() or "",
+    )
     if result.get("added") and result.get("count", 0) > 0:
         added = result["count"]
         return home_card(
@@ -186,7 +182,6 @@ def cookbook_shop_missing(
             style="border-left:3px solid var(--green);",
             body=f"✓ You already have every ingredient for {recipe.name}.",
         )
-    # Catch-all: anything else the service reports (no list, db error, etc.)
     return home_card(
         style="border-left:3px solid var(--amber);",
         body=f"⚠ {result.get('reason', 'No items added yet — add ingredients manually.')} ({recipe.name})",
