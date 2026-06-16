@@ -37,6 +37,7 @@ from shopstack.ui.tabs.memory_data import (
     build_memory_advanced,
     build_memory_backup,
     build_memory_corrections,
+    build_memory_facts,
 )
 from shopstack.ui.tabs.memory_history import build_memory_history
 from shopstack.ui.tabs.memory_intelligence import build_memory_intelligence
@@ -66,6 +67,12 @@ def build_memory_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
     """
     with gr.Tab(_tab_label("memory"), id="memory"):
         with gr.Tabs():
+            # ── Insights answers "what has ShopStack learned?" — the
+            # user opens Memory and wants the canonical learning view
+            # first. Per the home screen review P2.
+            with gr.Tab("Insights"):
+                build_memory_facts(app=app, ctx=ctx)
+
             # ── Recent corrections is the user's window into the
             # learning loop. Putting it first (a) makes the
             # feature discoverable and (b) is the right answer

@@ -288,6 +288,18 @@ class _ActiveCall:
     # record is the same instance both inside and outside the block).
 
     def __enter__(self) -> "_ActiveCall":
+        # Resolve the code route here, AFTER the user's ``with`` block
+        # is established but BEFORE the call site executes. At this
+        # moment the stack is:
+        #   [0] _resolve_code_route  (the resolver)
+        #   [1] _ActiveCall.__enter__  (this method)
+        #   [2] the user's function (e.g. planner.engine.process)
+        #   [3] outer call / test framework
+        # We skip 1 extra frame (this method) so the walk starts at
+        # the caller's call site. This is the same in production and
+        # in tests because the with-statement is the only entry path.
+        if not self.record.code_route:
+            self.record.code_route = _resolve_code_route(skip_frames=1)
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
@@ -309,10 +321,11 @@ class _ActiveCall:
 
 
 # Filesystem path regex — used by the auto code_route resolver to pick
-# a clean caller frame (skip frames inside the eval package itself).
-_THIS_DIR = __file__.rsplit("/", 1)[0] + "/"
+# a clean caller frame (skip frames inside the eval package itself and
+# the top-level tests/ directory). Anchored to path boundaries so a
+# file like ``/tmp/tests_thing.py`` does not match.
 _FRAME_SKIP_RE = re.compile(
-    r"(shopstack/eval/|tests/|/lib/python[0-9.]+/)"
+    r"(^|/)shopstack/eval/|(^|/)tests/|(^|/)lib/python[0-9.]+/"
 )
 # Module names of the test runners / Python bootstrap we always skip.
 _FRAME_SKIP_MODULES = frozenset({
@@ -335,14 +348,18 @@ def _resolve_code_route(skip_frames: int = 1) -> str:
     path skip regex.
 
     Args:
-        skip_frames: how many frames to skip from the top (caller's caller).
+        skip_frames: how many *additional* caller frames to skip past
+            the resolver's own frame. The resolver is always skipped.
+            Default 1 — skip the immediate caller of the resolver
+            (e.g. ``record_model_call``).
     """
     try:
         frame = inspect.currentframe()
     except Exception:
         return ""
-    # skip the recorder's own frame plus caller-provided skips
-    for _ in range(skip_frames + 1):
+    # Skip the resolver itself plus the requested additional callers.
+    total_skip = 1 + max(0, int(skip_frames))
+    for _ in range(total_skip):
         if frame is None:
             return ""
         frame = frame.f_back
@@ -470,13 +487,14 @@ def record_model_call(
                 rec.set_outcome("exception", error=str(e))
                 raise
     """
-    code = code_route
-    if auto_code_route and not code:
-        # skip this function's frame
-        code = _resolve_code_route(skip_frames=1)
+    # The code route is resolved in __enter__ (not here) so the
+    # resolver sees the right number of stack frames regardless of
+    # whether we're called from production code or from a test.
+    # Capturing the route here (in record_model_call) would always
+    # include the recorder's own frame, which is not what we want.
     record = ModelCallRecord(
         domain_route=domain_route or "unknown",
-        code_route=code,
+        code_route=code_route if code_route else "",
         capability=capability,
         capability_expected_shape=capability_expected_shape,
         model=model,
@@ -486,6 +504,9 @@ def record_model_call(
         user_id=user_id,
         household_id=household_id,
     )
+    # The code route is resolved in __enter__ (not here) so the
+    # resolver sees the right number of stack frames regardless of
+    # whether we're called from production code or from a test.
     return _ActiveCall(ModelCallRecorder.instance(), record)
 
 

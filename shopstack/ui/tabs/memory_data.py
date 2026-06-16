@@ -33,6 +33,7 @@ from shopstack.ui.screens import (
     reject_correction_event,
     render_recent_corrections_html,
 )
+from shopstack.services.memory_facts import render_memory_facts
 from shopstack.ui.tabs.context import TabContext
 
 
@@ -93,6 +94,44 @@ def build_memory_corrections(app: gr.Blocks, ctx: TabContext) -> None:
             api_description="Refresh the recent-corrections panel",
         )
         app.load(render_recent_corrections_html, outputs=corrections_html)
+
+
+def build_memory_facts(app: gr.Blocks, ctx: TabContext) -> None:
+    """Build the Insights sub-tab inside the Memory tab.
+
+    The Insights sub-tab shows the user what ShopStack has learned
+    about their household (e.g. "Your household usually buys: Milk
+    every 3 days"). The data layer
+    (:mod:`shopstack.services.memory_facts`) and the renderer
+    (:func:`render_memory_facts`) are already implemented; this
+    sub-builder wires them into a Gradio sub-tab.
+
+    Per motto_v3 §7 supersession: the sub-builder does NOT introduce
+    a new renderer or a new data source. It only wires the canonical
+    :func:`render_memory_facts` into a Gradio sub-tab with the
+    standard ``(app, ctx)`` signature used by sibling sub-builders.
+
+    Args:
+        app: The root gr.Blocks instance — needed for ``app.load(...)``.
+        ctx: Shared dependencies (currently unused here, kept for
+            uniform signature with sibling builders).
+
+    Returns:
+        None. No cross-sub-tab references.
+    """
+    insights_html = gr.HTML(loading_skeleton("card"))
+    # Populate on initial page load (Tier 2 evidence: the renderer
+    # is the same function the data layer exports — no fork).
+    app.load(render_memory_facts, outputs=insights_html)
+    # Expose a manual refresh button so the user can re-render after
+    # adding purchases elsewhere (per the home screen review P2).
+    refresh_btn = gr.Button("Refresh insights", scale=1)
+    refresh_btn.click(
+        render_memory_facts,
+        outputs=insights_html,
+        api_name="memory_insights_refresh",
+        api_description="Re-render the household memory insights cards",
+    )
 
 
 def build_memory_advanced(app: gr.Blocks, ctx: TabContext) -> None:

@@ -236,6 +236,52 @@ def cmd_whoami(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def cmd_explain(args: argparse.Namespace) -> dict[str, Any]:
+    """Explain the decision for ``args.canonical_name``.
+
+    Per Pass 18, the decision engine produces a
+    ``DecisionResult`` with structured reasons and evidence
+    for every recommendation. This subcommand surfaces that
+    explanation to the operator without launching the Gradio
+    UI.
+
+    The result is a JSON-serializable dict (the same shape
+    the HTTP ``/api/decision/{name}/explain`` endpoint
+    returns). The ``--human`` flag renders the explanation
+    as plain text for terminal consumption.
+    """
+    from shopstack.services.explainability import (
+        explain_decision,
+        explanation_to_dict,
+    )
+    from shopstack.services.dashboard import build_dashboard_state
+    from shopstack.app_context import tools
+
+    uid = current_user_id() or "default_household"
+    # Build the dashboard state and find the matching decision.
+    state = build_dashboard_state(db, tools.inventory, user_id=uid)
+    ds = state.decision_set
+    all_decisions = (
+        list(ds.buy) + list(ds.skip) + list(ds.use_soon)
+        + list(ds.compare) + list(ds.substitute) + list(ds.wait)
+    )
+    matches = [d for d in all_decisions if d.canonical_name == args.canonical_name]
+    if not matches:
+        return {
+            "error": "no_decision",
+            "message": (
+                f"No active decision for canonical_name={args.canonical_name!r}. "
+                f"The item may not need a decision right now (e.g. well-stocked), "
+                f"or the name may not match what ShopStack uses."
+            ),
+            "canonical_name": args.canonical_name,
+        }
+    # Prefer the highest-priority / highest-confidence match.
+    matches.sort(key=lambda d: (-d.priority, -d.confidence))
+    explanation = explain_decision(matches[0])
+    return explanation_to_dict(explanation)
+
+
 # ── Subcommand dispatch ─────────────────────────────────────────────
 
 
@@ -247,6 +293,7 @@ SUBCOMMANDS = {
     "next-buy": cmd_next_buy,
     "tools": cmd_tools,
     "whoami": cmd_whoami,
+    "explain": cmd_explain,
 }
 
 
@@ -287,6 +334,14 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("next-buy", help="Show next-buy suggestions")
     sub.add_parser("tools", help="List the public service API surface")
     sub.add_parser("whoami", help="Show operator context (household, DB, pid)")
+    p_explain = sub.add_parser(
+        "explain",
+        help="Explain the decision for a canonical item name (Pass 18)",
+    )
+    p_explain.add_argument(
+        "canonical_name",
+        help="The canonical item name (e.g. 'milk', 'rice', 'toothpaste')",
+    )
     return parser
 
 

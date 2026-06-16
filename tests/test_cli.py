@@ -239,6 +239,72 @@ def test_find_subcommand_requires_name():
     assert exc_info.value.code == 2
 
 
+# ── explain subcommand (Pass 18: decision explainability) ──────────
+
+
+def test_explain_subcommand_dispatches():
+    """The ``explain`` subcommand is in SUBCOMMANDS."""
+    from shopstack.cli import SUBCOMMANDS, build_parser
+
+    parser = build_parser()
+    args = parser.parse_args(["explain", "milk"])
+    assert args.canonical_name == "milk"
+    assert "explain" in SUBCOMMANDS
+
+
+def test_explain_subcommand_returns_decision_explanation_shape():
+    """The ``explain`` subcommand returns a JSON-serializable dict.
+
+    Either it returns a ``DecisionExplanation``-shaped dict
+    (when a decision exists for the item) or an ``error`` dict
+    (when no decision is active). Both are valid.
+    """
+    from shopstack.cli import main, SUBCOMMANDS
+
+    args = type("Args", (), {"canonical_name": "milk"})()
+    payload = SUBCOMMANDS["explain"](args)
+
+    if "error" in payload:
+        # The "no decision" case is also a valid contract.
+        assert payload["error"] == "no_decision"
+        assert "canonical_name" in payload
+    else:
+        # The "decision exists" case — should have the full
+        # DecisionExplanation shape.
+        for key in (
+            "item_id", "canonical_name", "action", "confidence",
+            "summary", "key_signal", "confidence_label",
+            "evidence_summary", "override_hint",
+        ):
+            assert key in payload, f"missing key: {key}"
+
+
+def test_explain_subcommand_handles_unknown_canonical_name():
+    """The ``explain`` subcommand returns a clean error for unknown items."""
+    from shopstack.cli import SUBCOMMANDS
+
+    args = type("Args", (), {"canonical_name": "this_item_does_not_exist_xyz"})()
+    payload = SUBCOMMANDS["explain"](args)
+    assert payload["error"] == "no_decision"
+    assert "canonical_name" in payload
+
+
+def test_explain_subcommand_json_output_is_valid():
+    """Running ``cli explain milk`` produces parseable JSON on stdout."""
+    from shopstack.cli import main
+
+    captured = io.StringIO()
+    with patch("sys.stdout", captured):
+        rc = main(["explain", "milk"])
+    # Either rc=0 (decision found) or rc=0 (clean error case).
+    # Both cases produce valid JSON.
+    assert rc == 0
+    payload = json.loads(captured.getvalue())
+    # payload is either a DecisionExplanation-shaped dict or an
+    # error dict; both are valid JSON.
+    assert isinstance(payload, dict)
+
+
 # ── Mode-portability proof (Tier 3) ─────────────────────────────────
 
 

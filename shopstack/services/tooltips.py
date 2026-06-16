@@ -278,6 +278,25 @@ def render_help_for(
 
 # ── Static check: flag advanced fields without tooltips ────────────
 
+# Conservative: only flag fields whose visible label contains an obvious
+# "advanced" term. We *don't* flag every label — the audit would be too
+# noisy. Each substring maps to its expected HELP_REGISTRY key.
+_SUBSTRING_TO_HELP_ID: dict[str, str] = {
+    "lot id": "lot_id",
+    "batch": "batch_syntax",
+    "expiry": "expiry_date",
+    "scene": "scene_type",
+    "community": "community_optin",
+    "federation": "federation_share",
+    "sms phone": "sms_phone_registry",
+    "voice memo retention": "voice_memo_retention",
+    "action history retention": "trace_retention",
+    "backup format": "backup_format",
+    "actor id": "actor_id",
+    "household role": "household_role",
+    "search syntax": "search_syntax",
+}
+
 
 def tooltips_missing(
     *,
@@ -301,24 +320,6 @@ def tooltips_missing(
         caller is expected to format this into a human report.
     """
     if fields is None:
-        # Conservative: only flag fields whose visible label contains
-        # an obvious "advanced" term. We *don't* flag every label —
-        # the audit would be too noisy.
-        advanced_substrings = (
-            "lot id",
-            "batch",
-            "expiry",
-            "scene",
-            "community",
-            "federation",
-            "sms phone",
-            "voice memo retention",
-            "action history retention",
-            "backup format",
-            "actor id",
-            "household role",
-            "search syntax",
-        )
         # When called with no fields, return the registry's own
         # completeness: every key has a non-empty title and body.
         missing: list[str] = []
@@ -331,10 +332,19 @@ def tooltips_missing(
                 missing.append(f"{help_id}:body")
         return missing
     # When called with a fields list, the audit caller wants a list
-    # of fields that look advanced and have no help entry. We don't
-    # implement that here — the audit tool will do its own match —
-    # so this is a stub kept for backward compat.
-    return []
+    # of fields whose labels match advanced_substrings but have no
+    # corresponding help entry. We match labels against the
+    # registry's known help_ids and flag any field that looks
+    # advanced but hasn't been registered.
+    missing = []
+    for label, context in fields:
+        label_lower = label.lower()
+        for substring, expected_help_id in _SUBSTRING_TO_HELP_ID.items():
+            if substring in label_lower:
+                if expected_help_id not in HELP_REGISTRY:
+                    missing.append(f"{expected_help_id} (label={label!r} at {context})")
+                break
+    return missing
 
 
 # ── Click-toggle script (for long tooltips) ───────────────────────

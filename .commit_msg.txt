@@ -1,0 +1,62 @@
+Pass 18: Eval infrastructure, decisions cleanup, contrast fixes, and expanded test coverage
+
+[Eval infrastructure - new per-call model output eval module]
+- shopstack/eval/recorder.py: Per-call recorder with capability tags, outcomes, shapes, usage tracking
+- shopstack/eval/checks.py: Deterministic online checks (cost, latency, length, duplicates, parse, tokens)
+- shopstack/eval/storage.py: Dual-sink persistence (JSONL + SQLite) with schema versioning
+- shopstack/eval/aggregator.py: Per-route aggregation stats and regression detection
+- shopstack/eval/redact.py: PII-safe field/text redaction utilities
+- shopstack/eval/route_baseline.json: Initial route-level pass/fail baseline
+
+[Planner engine - eval recording integration]
+- shopstack/planner/engine.py: Injected record_model_call with outcome tracking and usage recording
+
+[Database - trace lookup scope fix]
+- shopstack/persistence/database.py: Fixed get_trace_by_id/get_traces user_id scoping regression
+
+[Decisions - legacy shim removal]
+- shopstack/_legacy_decisions.py: DELETED - deprecated DB-aware render wrapper. Per §7 supersession.
+- shopstack/decisions/__init__.py: Removed _LEGACY_NAMES routing
+
+[UI - contrast/accessibility fixes (WCAG AA)]
+- shopstack/ui/theme.py: Comprehensive dark mode contrast pass. Darkened accent, badge-bright tokens
+- shopstack/ui/components/cards.py: Stale warning dark mode text
+- shopstack/ui/screens/corrections.py: Per-row Accept/Reject buttons + JS click handler
+- shopstack/ui/screens/unified_shopping.py: use_soon badge text
+- shopstack/services/permissions.py: Role badge per-role AA contrast colors
+- shopstack/services/walkthrough.py: Accent color alignment
+
+[CLI entry point - new module]
+- shopstack/cli/__init__.py, __main__.py: CLI tool with commands
+- run.py: Quick-launch script
+
+[Error handling]
+- shopstack/ui/errors.py: Dedicated error display module
+
+[UI updates]
+- shopstack/ui/pwa_mount.py, header.py, renderers/decision_cards.py
+- shopstack/ui/screens/dashboard.py, shopping.py
+- shopstack/ui/tabs/*: various tab updates
+
+[Service updates]
+- shopstack/services/empty_states.py, i18n.py
+
+[Tests - new]
+- tests/eval/ (5 files): Recorder, checks, aggregator, redact, planner integration
+- tests/test_correction_event_model.py, test_corrections_inline_buttons.py
+- tests/test_empty_state_coverage.py, test_freshness_stamps.py
+- tests/test_fstring_corruption_guard.py, test_home_flow_in_tabcontext.py
+- tests/test_i18n_new_buttons.py, test_infra_docker_compose.py
+- tests/test_memory_insights_wiring.py, test_module_parse_guard.py
+- tests/test_plan_trip_conditional.py, test_regression_e2e_video_recording.py
+- tests/test_safe_render_html.py, test_supersession_drs4.py
+- tests/test_today_visual_merge.py, test_undo_bar.py, test_cli.py
+- tests/test_decisions_canonical_only.py
+
+[Tests - updated]
+- conftest.py, test_build_app_smoke.py, test_cadence_waste.py, test_decisions.py
+- test_env_and_handoff_lock.py, test_household_wiring.py, test_pwa_shell.py, test_views.py
+
+[Tools/data]
+- tools/fix_primitives_fstrings.py: f-string corruption fix utility
+- data/parser_training_real.jsonl: Extended parser training corpus

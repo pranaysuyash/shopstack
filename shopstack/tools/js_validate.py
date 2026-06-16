@@ -301,10 +301,16 @@ def _call_callee(callee: str) -> str:
 # The well-known modules that contain JS helper functions. We
 # search these when the callee is a single bare name (e.g.
 # ``autocomplete_injector_js()`` with no module prefix).
+#
+# Note: ``shopstack.ui.tooltips`` is NOT included because the
+# tooltip JS lives in ``shopstack.services.tooltips`` (service
+# layer, not a UI helper module). The ``render_help_toggle_script``
+# function there returns JS directly and is referenced by its
+# full dotted path at call sites, never by bare name, so the
+# well-known lookup is never needed for tooltip scripts.
 _KNOWN_JS_HELPER_MODULES = (
     "shopstack.ui.components.js_helpers",
     "shopstack.ui.header",
-    "shopstack.ui.tooltips" if False else None,  # placeholder
 )
 
 

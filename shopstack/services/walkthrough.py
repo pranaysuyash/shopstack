@@ -336,21 +336,42 @@ def should_show_tour(
     return session_count <= int(max_sessions)
 
 
-def reset_tour_for_testing() -> None:
-    """Clear the tour-shown flag and reset session count (test helper).
+def reset_tour_for_testing() -> str:
+    """Return JS that clears the tour-shown flag and resets session count.
 
-    Uses ``localStorage.clear()`` semantics: only the two keys we
-    own are removed. Safer than clearing the whole storage because
-    the user may have theme/locale preferences stored under other
-    keys.
+    The real tour state lives client-side (localStorage / sessionStorage /
+    cookie — see :func:`render_walkthrough_script` for the fallback chain).
+    This function returns a ``<script>`` block that clears the two keys we
+    own (``TOUR_SHOWN_KEY`` and ``SESSION_COUNT_KEY``) from all three
+    storage layers, so the tour shows again on the next page load.
+
+    The returned HTML can be injected into a ``gr.HTML()`` component or
+    appended to any page response. It is safe to call even when the tour
+    has never been shown (all ``removeItem`` / clear-cookie calls are
+    no-ops when the key doesn't exist).
+
+    Returns:
+        A ``<script>`` block that, when evaluated by the browser,
+        clears the tour state from localStorage, sessionStorage, and
+        cookies. Empty string if the script cannot be built (never
+        raises).
     """
-    # Note: in practice this would be called from JS. Server-side
-    # we just expose it for symmetry.
-    try:
-        from pathlib import Path
-        # No-op stub: the real reset is client-side.
-    except Exception:
-        pass
+    # escape is already imported at the top of the module.
+    js = (
+        f"<script data-ss-exec='true'>"
+        f"(function(){{"
+        f"var keys=['{escape(TOUR_SHOWN_KEY)}','{escape(SESSION_COUNT_KEY)}'];"
+        f"for(var i=0;i<keys.length;i++){{"
+        f"try{{localStorage.removeItem(keys[i])}}catch(e){{}}"
+        f"try{{sessionStorage.removeItem(keys[i])}}catch(e){{}}"
+        f"try{{"
+        f"document.cookie=keys[i]+'=;path=/;max-age=0;SameSite=Lax'"
+        f"}}catch(e){{}}"
+        f"}}"
+        f"}})()"
+        f"</script>"
+    )
+    return js
 
 
 __all__ = [

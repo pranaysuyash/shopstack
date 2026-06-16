@@ -113,6 +113,19 @@ class RetentionPolicy:
         return asdict(self)
 
 
+# ── Config key constants ──────────────────────────────────────────
+
+# These are the ``app_config`` keys that map to each RetentionPolicy
+# field. Centralising them here means the reader never has to guess
+# the storage key for a given knob.
+_CONFIG_KEY_TRACE_TTL = "retention.trace_ttl_days"
+_CONFIG_KEY_COMMUNITY_POOL_RETENTION = "retention.community_pool_retention_days"
+_CONFIG_KEY_VOICE_MEMO_RETENTION = "retention.voice_memo_retention_days"
+_CONFIG_KEY_SMS_REGISTRY_RETENTION = "retention.sms_registry_retention_days"
+_CONFIG_KEY_BACKUP_RETENTION = "retention.backup_retention_days"
+_CONFIG_KEY_LOCALE_PERSISTENCE = "retention.locale_persistence"
+_CONFIG_KEY_COMMUNITY_OPTIN = "retention.community_optin"
+
 # ── Summary builder ────────────────────────────────────────────────
 
 
@@ -123,30 +136,93 @@ def retention_summary(database: Any, user_id: str = "") -> RetentionPolicy:
     per-household overrides. Best-effort: a DB error or missing
     settings table returns the defaults — we never want a
     settings fetch to crash the page render.
+
+    Long-term direction: each retention knob has a dedicated
+    ``retention.<knob_name>`` config key in ``app_config``.
+    Adding a new knob is a one-line constant above plus one
+    line in this function.
     """
     # Read the canonical defaults from the DB settings. If the
     # DB doesn't expose them (e.g. an older schema), fall back
     # to the dataclass defaults.
+    def _cfg(key: str, default: str) -> str:
+        if database and hasattr(database, "get_config_value"):
+            return database.get_config_value(key, default)
+        return default
+
     summary = RetentionPolicy()
     try:
-        if database and hasattr(database, "get_config_value"):
-            ttl = database.get_config_value("trace_ttl_days", "30")
-            summary = RetentionPolicy(
-                trace_ttl_days=_coerce_int(ttl, summary.trace_ttl_days),
-                # The other knobs default to the dataclass values
-                # until the schema gains the corresponding config
-                # keys. This is the long-term direction: each
-                # new knob is a one-line addition here.
-            )
-        if database and hasattr(database, "get_community_optin"):
-            optin = database.get_community_optin(user_id=user_id)
-            summary = RetentionPolicy(
-                trace_ttl_days=summary.trace_ttl_days,
-                community_optin=bool(optin),
-            )
+        summary = RetentionPolicy(
+            trace_ttl_days=_coerce_int(
+                _cfg(_CONFIG_KEY_TRACE_TTL, str(summary.trace_ttl_days)),
+                summary.trace_ttl_days,
+            ),
+            community_pool_retention_days=_coerce_int(
+                _cfg(_CONFIG_KEY_COMMUNITY_POOL_RETENTION, str(summary.community_pool_retention_days)),
+                summary.community_pool_retention_days,
+            ),
+            voice_memo_retention_days=_coerce_int(
+                _cfg(_CONFIG_KEY_VOICE_MEMO_RETENTION, str(summary.voice_memo_retention_days)),
+                summary.voice_memo_retention_days,
+            ),
+            sms_registry_retention_days=_coerce_int(
+                _cfg(_CONFIG_KEY_SMS_REGISTRY_RETENTION, str(summary.sms_registry_retention_days)),
+                summary.sms_registry_retention_days,
+            ),
+            backup_retention_days=_coerce_int(
+                _cfg(_CONFIG_KEY_BACKUP_RETENTION, str(summary.backup_retention_days)),
+                summary.backup_retention_days,
+            ),
+            locale_persistence=_cfg(_CONFIG_KEY_LOCALE_PERSISTENCE, "1") == "1",
+            community_optin=_cfg(_CONFIG_KEY_COMMUNITY_OPTIN, "0") == "1",
+        )
     except Exception as exc:  # noqa: BLE001
         logger.debug("retention_summary: %s", exc)
     return summary
+
+
+def update_retention_setting(
+    database: Any,
+    key: str,
+    value: str,
+) -> bool:
+    """Update a single retention setting in the DB.
+
+    ``key`` must be one of the ``_CONFIG_KEY_*`` constants defined
+    above. Returns True on success, False if the key is unknown or
+    the DB write fails.
+
+    Args:
+        database: The ShopStack database. Must expose
+            ``set_config_value(key, value)``.
+        key: One of the ``_CONFIG_KEY_*`` constants (e.g.
+            ``_CONFIG_KEY_TRACE_TTL``).
+        value: The new value as a string. Callers are
+            responsible for serialisation (int → str, bool → "0"/"1").
+
+    Returns:
+        True if the value was written successfully.
+    """
+    _VALID_KEYS = {
+        _CONFIG_KEY_TRACE_TTL,
+        _CONFIG_KEY_COMMUNITY_POOL_RETENTION,
+        _CONFIG_KEY_VOICE_MEMO_RETENTION,
+        _CONFIG_KEY_SMS_REGISTRY_RETENTION,
+        _CONFIG_KEY_BACKUP_RETENTION,
+        _CONFIG_KEY_LOCALE_PERSISTENCE,
+        _CONFIG_KEY_COMMUNITY_OPTIN,
+    }
+    if key not in _VALID_KEYS:
+        return False
+    if not hasattr(database, "set_config_value"):
+        return False
+    try:
+        database.set_config_value(key, value)
+        logger.info("update_retention_setting: %s = %s", key, value)
+        return True
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("update_retention_setting failed: key=%s value=%s exc=%s", key, value, exc)
+        return False
 
 
 def _coerce_int(value: Any, default: int) -> int:
@@ -299,42 +375,57 @@ def render_privacy_panel_html(
     """
     from shopstack.services.i18n import get_translation
 
-    def _row(label_key: str, value_html: str) -> str:
-        label = escape(get_translation(locale, label_key))
+    def _days_select(key: str, days: int, config_key: str) -> str:
+        """Render a row with a ``<select>`` that changes the retention days."""
+        label = escape(get_translation(locale, key))
+        options = [0, 7, 14, 30, 60, 90, 180, 365]
+        opts_html = "".join(
+            f"<option value='{v}' {'selected' if v == days else ''}>"
+            f"{'Indefinite' if v == 0 else f'{v} days'}</option>"
+            for v in options
+        )
         return (
             f'<div class="privacy-row" '
             f'style="display:flex;align-items:center;gap:12px;'
             f'padding:8px 0;border-bottom:1px solid var(--bg-warm,#FFF1D6);">'
             f'<span class="privacy-row-label" style="flex:1;font-size:0.875rem;">'
             f'{label}</span>'
-            f'<span class="privacy-row-value" style="font-size:0.875rem;'
-            f'color:var(--text-muted,#5F5144);">'
-            f'{value_html}</span>'
+            f'<select class="privacy-select" data-config-key="{escape(config_key)}" '
+            f'style="font-size:0.8125rem;padding:4px 6px;border-radius:4px;'
+            f'border:1px solid var(--border,#E5D5B7);background:var(--bg-input,#FFF7EA);'
+            f'color:var(--text,#1F1812);">'
+            f'{opts_html}'
+            f'</select>'
             f'</div>'
         )
 
-    # Each row shows the current value + a small toggle. The
-    # toggles are stub HTML inputs (real wiring is a follow-up).
-    def _days_row(key: str, days: int) -> str:
-        if days == 0:
-            value_html = '<em>Indefinite</em>'
-        else:
-            value_html = f"{days} days"
-        return _row(key, value_html)
-
-    def _bool_row(key: str, value: bool) -> str:
-        glyph = "✓" if value else "—"
-        return _row(key, glyph)
+    def _bool_checkbox(key: str, value: bool, config_key: str) -> str:
+        """Render a row with a checkbox for boolean settings."""
+        label = escape(get_translation(locale, key))
+        checked = 'checked' if value else ''
+        return (
+            f'<div class="privacy-row" '
+            f'style="display:flex;align-items:center;gap:12px;'
+            f'padding:8px 0;border-bottom:1px solid var(--bg-warm,#FFF1D6);">'
+            f'<label class="privacy-row-label" style="flex:1;font-size:0.875rem;'
+            f'cursor:pointer;">'
+            f'<input type="checkbox" class="privacy-checkbox" '
+            f'data-config-key="{escape(config_key)}" {checked} '
+            f'style="margin-right:8px;">'
+            f'{label}'
+            f'</label>'
+            f'</div>'
+        )
 
     rows = "".join(
         [
-            _days_row("privacy.trace_ttl", summary.trace_ttl_days),
-            _days_row("privacy.community_retention", summary.community_pool_retention_days),
-            _days_row("privacy.voice_memo_retention", summary.voice_memo_retention_days),
-            _days_row("privacy.sms_retention", summary.sms_registry_retention_days),
-            _days_row("privacy.backup_retention", summary.backup_retention_days),
-            _bool_row("privacy.locale_persistence", summary.locale_persistence),
-            _bool_row("privacy.community_optin", summary.community_optin),
+            _days_select("privacy.trace_ttl", summary.trace_ttl_days, _CONFIG_KEY_TRACE_TTL),
+            _days_select("privacy.community_retention", summary.community_pool_retention_days, _CONFIG_KEY_COMMUNITY_POOL_RETENTION),
+            _days_select("privacy.voice_memo_retention", summary.voice_memo_retention_days, _CONFIG_KEY_VOICE_MEMO_RETENTION),
+            _days_select("privacy.sms_retention", summary.sms_registry_retention_days, _CONFIG_KEY_SMS_REGISTRY_RETENTION),
+            _days_select("privacy.backup_retention", summary.backup_retention_days, _CONFIG_KEY_BACKUP_RETENTION),
+            _bool_checkbox("privacy.locale_persistence", summary.locale_persistence, _CONFIG_KEY_LOCALE_PERSISTENCE),
+            _bool_checkbox("privacy.community_optin", summary.community_optin, _CONFIG_KEY_COMMUNITY_OPTIN),
         ]
     )
     title = escape(get_translation(locale, "privacy.title"))
@@ -365,33 +456,85 @@ def render_privacy_panel_html(
 
 
 def render_privacy_panel_script() -> str:
-    """Return JS that wires the "Delete my data" button.
+    """Return JS that wires the privacy panel interactive controls.
 
-    The button calls ``/api/purge_user_data`` with ``confirm=true``.
-    On success, the page shows a toast and reloads.
+    Two responsibilities:
+
+    1. **Auto-save toggles** — every ``.privacy-select`` and
+       ``.privacy-checkbox`` fires a POST to ``/api/update_retention``
+       on change, passing ``key`` (from ``data-config-key``) and
+       ``value`` (the selected/checked state). A toast confirms
+       success; failures are logged to console.
+
+    2. **"Delete my data" button** — calls
+       ``/api/purge_user_data?confirm=true``, shows a toast on
+       success.
+
+    Both use the existing ``ss-toast-trigger`` pattern so the
+    page-level toast MutationObserver (item #99b from the
+    2026-06-13 review) shows a green toast.
     """
     return """
 <script data-ss-exec="true">
-function ssPrivacyDelete() {
-  if (!window.confirm('This will delete your traces, community pool, voice memos, SMS registry, and backups. Inventory and lists are kept. This cannot be undone. Continue?')) {
-    return;
-  }
-  fetch('/api/purge_user_data?confirm=true', {method: 'POST'})
+(function() {
+  // ── Retention toggle auto-save ───────────────────────────────
+  function ssSaveRetention(key, value) {
+    fetch('/api/update_retention', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({key: key, value: value})
+    })
     .then(function(r){ return r.json(); })
     .then(function(data) {
-      if (data && data.success) {
-        var t = document.createElement('div');
-        t.className = 'ss-toast-trigger';
-        t.setAttribute('style', 'display:none;');
-        t.setAttribute('data-toast-msg', 'Your data has been deleted.');
-        t.setAttribute('data-toast-kind', 'success');
-        document.body.appendChild(t);
-      } else {
-        console.warn('purge failed', data);
-      }
+      var kind = data && data.success ? 'success' : 'error';
+      var msg = data && data.success ? 'Saved' : 'Failed to save';
+      var t = document.createElement('div');
+      t.className = 'ss-toast-trigger';
+      t.setAttribute('style', 'display:none;');
+      t.setAttribute('data-toast-msg', msg + ': ' + key);
+      t.setAttribute('data-toast-kind', kind);
+      document.body.appendChild(t);
     })
-    .catch(function(e){ console.warn('ssPrivacyDelete failed', e); });
-}
+    .catch(function(e){ console.warn('ssSaveRetention failed', e); });
+  }
+
+  // Wire selects
+  document.addEventListener('change', function(e) {
+    var sel = e.target.closest && e.target.closest('.privacy-select');
+    if (sel) {
+      var key = sel.getAttribute('data-config-key');
+      if (key) ssSaveRetention(key, sel.value);
+      return;
+    }
+    var cb = e.target.closest && e.target.closest('.privacy-checkbox');
+    if (cb) {
+      var key2 = cb.getAttribute('data-config-key');
+      if (key2) ssSaveRetention(key2, cb.checked ? '1' : '0');
+    }
+  });
+
+  // ── Delete my data button ────────────────────────────────────
+  window.ssPrivacyDelete = function() {
+    if (!window.confirm('This will delete your traces, community pool, voice memos, SMS registry, and backups. Inventory and lists are kept. This cannot be undone. Continue?')) {
+      return;
+    }
+    fetch('/api/purge_user_data?confirm=true', {method: 'POST'})
+      .then(function(r){ return r.json(); })
+      .then(function(data) {
+        if (data && data.success) {
+          var t = document.createElement('div');
+          t.className = 'ss-toast-trigger';
+          t.setAttribute('style', 'display:none;');
+          t.setAttribute('data-toast-msg', 'Your data has been deleted.');
+          t.setAttribute('data-toast-kind', 'success');
+          document.body.appendChild(t);
+        } else {
+          console.warn('purge failed', data);
+        }
+      })
+      .catch(function(e){ console.warn('ssPrivacyDelete failed', e); });
+  };
+})();
 </script>
 """
 
@@ -403,4 +546,13 @@ __all__ = [
     "render_privacy_panel_html",
     "render_privacy_panel_script",
     "retention_summary",
+    "update_retention_setting",
+    # Config key constants
+    "_CONFIG_KEY_TRACE_TTL",
+    "_CONFIG_KEY_COMMUNITY_POOL_RETENTION",
+    "_CONFIG_KEY_VOICE_MEMO_RETENTION",
+    "_CONFIG_KEY_SMS_REGISTRY_RETENTION",
+    "_CONFIG_KEY_BACKUP_RETENTION",
+    "_CONFIG_KEY_LOCALE_PERSISTENCE",
+    "_CONFIG_KEY_COMMUNITY_OPTIN",
 ]

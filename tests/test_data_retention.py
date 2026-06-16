@@ -31,6 +31,8 @@ from shopstack.services.data_retention import (
     render_privacy_panel_html,
     render_privacy_panel_script,
     retention_summary,
+    update_retention_setting,
+    _CONFIG_KEY_TRACE_TTL,
 )
 
 
@@ -63,8 +65,10 @@ class _FakeDb:
         self._fail_on = fail_on
 
     def get_config_value(self, key: str, default: str = "") -> str:
-        if key == "trace_ttl_days":
+        if key == "retention.trace_ttl_days":
             return self._trace_ttl
+        if key == "retention.community_optin":
+            return "1" if self._optin else "0"
         return default
 
     def get_community_optin(self, user_id: str = "") -> bool:
@@ -279,7 +283,8 @@ class TestPrivacyPanelHtml:
     def test_indefinite_rendered_for_zero_days(self):
         s = RetentionPolicy(sms_registry_retention_days=0)
         html = render_privacy_panel_html(s, locale="en")
-        assert "<em>Indefinite</em>" in html
+        assert "Indefinite" in html
+        assert "value='0'" in html
 
     def test_hindi_renders_hindi_text(self):
         s = RetentionPolicy()
