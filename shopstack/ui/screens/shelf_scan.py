@@ -29,69 +29,86 @@ def shelf_scan_process(
             "",
         )
 
-    result = analyze_shelf_scene(
-        image_path, video_path, audio_path, scene_type, providers,
-        tools.inventory, user_id=current_user_id(), max_frames=max_frames,
-    )
-    html = _render_shelf_scan(result)
-    scan_state = result.model_dump_json()
-    trace_id = ""
-
+    from shopstack.ui.errors import safe_render_html
     try:
-        trace = create_trace(
-            db,
-            input_type="multimodal" if image_path and audio_path else ("vision" if image_path else "audio"),
-            user_goal="shelf_scan",
-            redacted_user_request=json.dumps(
-                {
-                    "scene_type": result.scene_type.value,
-                    "speech": result.speech_intent.translated_text if result.speech_intent else "",
-                    "items": [item.canonical_name for item in result.aggregates],
-                },
-                ensure_ascii=False,
-            ),
-            perception={
-                "scene_type": result.scene_type.value,
-                "perception_mode": result.perception_mode,
-                "instances": len(result.instances),
-                "aggregates": len(result.aggregates),
-                "speech": bool(result.speech_intent and result.speech_intent.original_text),
-                "annotated_image": bool(result.annotated_image_path),
-            },
-            inventory_context={
-                "matches": [
-                    {
-                        "canonical_name": match.canonical_name,
-                        "home_quantity": match.total_quantity_at_home,
-                        "matched_lots": match.matched_lot_ids,
-                    }
-                    for match in result.inventory_matches
-                ]
-            },
-            decision={
-                "scene_type": result.scene_type.value,
-                "actions": [action.model_dump() for action in result.proposed_actions],
-                "summary": result.confidence_summary.model_dump(),
-            },
-            proposed_tool_calls=[
-                {
-                    "tool_name": _tool_name_for_action(action.action),
-                    "args": _tool_args_for_action(action),
-                }
-                for action in result.proposed_actions
-            ],
-            final_response=html,
-            human_confirmation="uncommitted",
-            user_id=current_user_id(),
+        result = analyze_shelf_scene(
+            image_path, video_path, audio_path, scene_type, providers,
+            tools.inventory, user_id=current_user_id(), max_frames=max_frames,
         )
-        trace_id = trace.trace_id
-    except Exception:
-        logger.warning("Failed to record shelf scan trace", exc_info=True)
+        html = _render_shelf_scan(result)
+        scan_state = result.model_dump_json()
+        trace_id = ""
 
-    return html, scan_state, trace_id, result.annotated_image_path or ""
+        try:
+            trace = create_trace(
+                db,
+                input_type="multimodal" if image_path and audio_path else ("vision" if image_path else "audio"),
+                user_goal="shelf_scan",
+                redacted_user_request=json.dumps(
+                    {
+                        "scene_type": result.scene_type.value,
+                        "speech": result.speech_intent.translated_text if result.speech_intent else "",
+                        "items": [item.canonical_name for item in result.aggregates],
+                    },
+                    ensure_ascii=False,
+                ),
+                perception={
+                    "scene_type": result.scene_type.value,
+                    "perception_mode": result.perception_mode,
+                    "instances": len(result.instances),
+                    "aggregates": len(result.aggregates),
+                    "speech": bool(result.speech_intent and result.speech_intent.original_text),
+                    "annotated_image": bool(result.annotated_image_path),
+                },
+                inventory_context={
+                    "matches": [
+                        {
+                            "canonical_name": match.canonical_name,
+                            "home_quantity": match.total_quantity_at_home,
+                            "matched_lots": match.matched_lot_ids,
+                        }
+                        for match in result.inventory_matches
+                    ]
+                },
+                decision={
+                    "scene_type": result.scene_type.value,
+                    "actions": [action.model_dump() for action in result.proposed_actions],
+                    "summary": result.confidence_summary.model_dump(),
+                },
+                proposed_tool_calls=[
+                    {
+                        "tool_name": _tool_name_for_action(action.action),
+                        "args": _tool_args_for_action(action),
+                    }
+                    for action in result.proposed_actions
+                ],
+                final_response=html,
+                human_confirmation="uncommitted",
+                user_id=current_user_id(),
+            )
+            trace_id = trace.trace_id
+        except Exception:
+            logger.warning("Failed to record shelf scan trace", exc_info=True)
+
+        return html, scan_state, trace_id, result.annotated_image_path or ""
+    except Exception as exc:
+        logger.warning("shelf_scan_process failed: %s", exc)
+        err = safe_render_html(lambda: "", user_message="Shelf scan failed", help_tab="household", icon="📷")
+        return err, "", "", ""
 
 
 def shelf_scan_confirm(scan_json: str, trace_id: str) -> str:
+    from shopstack.ui.errors import safe_render_html
+    sj, tid = scan_json, trace_id
+    return safe_render_html(
+        lambda: _shelf_scan_confirm_inner(sj, tid),
+        user_message="Could not confirm scan",
+        help_tab="household",
+        icon="📷",
+    )
+
+
+def _shelf_scan_confirm_inner(scan_json: str, trace_id: str) -> str:
     result = _load_scan_result(scan_json)
     if result is None:
         return "<div style='color:var(--red);'>Scan something first.</div>"

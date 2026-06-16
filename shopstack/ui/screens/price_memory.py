@@ -11,15 +11,24 @@ from shopstack.app_context import db, current_user_id
 from shopstack.schemas.models import PriceObservation
 from shopstack.ui.views import build_price_memory_view  # noqa: E402 — deferred to avoid circular import via shopstack.ui.screens.__init__
 from shopstack.ui.components.primitives import home_card
-from shopstack.ui.screens._utils import safe_render
-
 
 logger = logging.getLogger(__name__)
 
 
-@safe_render
 def price_memory_view(item_name: str = ""):
     """Price memory view — shows price history, unit prices, and chart data for a given item."""
+    from shopstack.ui.errors import safe_render_html
+    name = item_name
+    return safe_render_html(
+        lambda: _price_memory_view_inner(name),
+        user_message="Could not load price memory",
+        help_tab="memory",
+        icon="💰",
+    )
+
+
+def _price_memory_view_inner(item_name: str):
+    """Inner: price memory view."""
     view = build_price_memory_view(db, item_name, user_id=current_user_id())
     has_data = view.observation_count > 0
     unit_plot_df = view.df[["date", "unit_price"]].dropna() if has_data else pd.DataFrame(columns=["date", "unit_price"])
@@ -31,9 +40,20 @@ def price_memory_view(item_name: str = ""):
     )
 
 
-@safe_render
 def price_intelligence_view() -> str:
     """Price intelligence view — store comparisons, deal scoring, price drops, best store."""
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: _price_intelligence_view_inner(),
+        user_message="Could not load price intelligence",
+        help_tab="memory",
+        icon="💰",
+        retry_label="",
+    )
+
+
+def _price_intelligence_view_inner() -> str:
+    """Inner: price intelligence view."""
     from shopstack.services.price_memory import PriceMemoryService
 
     service = PriceMemoryService(db)
@@ -177,9 +197,20 @@ def price_intelligence_view() -> str:
     return "".join(html_parts)
 
 
-@safe_render
 def seed_swiggy_prices() -> str:
     """Seed price_observations table from Swiggy snapshot data."""
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: _seed_swiggy_prices_inner(),
+        user_message="Could not seed Swiggy prices",
+        help_tab="memory",
+        icon="💰",
+        retry_label="",
+    )
+
+
+def _seed_swiggy_prices_inner() -> str:
+    """Inner: seed price_observations table."""
     from shopstack.market.sources.swiggy import load_snapshot
 
     try:

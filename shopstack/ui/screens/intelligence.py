@@ -7,7 +7,7 @@ from shopstack.app_context import db, current_user_id
 from shopstack.memory.waste_patterns import get_waste_insights
 from shopstack.ui.components.primitives import home_card
 from shopstack.ui.screens.price_memory import price_intelligence_view
-from shopstack.ui.screens._utils import safe_render
+
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +22,20 @@ _DISPLAY_NAMES = {
 }
 
 
-@safe_render
+
 def get_intelligence_dashboard():
     """Return HTML for Waste, Preferences, and Price intelligence."""
+    try:
+        return _get_intelligence_dashboard_inner()
+    except Exception as exc:
+        logger.warning("get_intelligence_dashboard failed: %s", exc)
+        from shopstack.ui.errors import safe_render_html
+        err_html = safe_render_html(lambda: "", user_message="Could not load intelligence", help_tab="memory", icon="🧠")
+        return err_html, err_html, err_html
+
+
+def _get_intelligence_dashboard_inner():
+    """Inner: Return HTML for Waste, Preferences, and Price intelligence."""
     uid = current_user_id()
 
     # 1. Waste Patterns
@@ -122,9 +133,21 @@ def _render_preferences(user_id: str) -> str:
     return home_card(body="<h4>Learned Preferences</h4>" + "".join(sections))
 
 
-@safe_render
+
 def add_preference(canonical_name: str, signal_type: str, value: str) -> str:
     """Add a new preference signal."""
+    from shopstack.ui.errors import safe_render_html
+    cn, st, v = canonical_name, signal_type, value
+    return safe_render_html(
+        lambda: _add_preference_inner(cn, st, v),
+        user_message="Could not add preference",
+        help_tab="memory",
+        icon="📝",
+        retry_label="",
+    )
+
+
+def _add_preference_inner(canonical_name: str, signal_type: str, value: str) -> str:
     if not canonical_name or not canonical_name.strip():
         return "<div style='color:var(--red);'>Item name is required.</div>"
     if signal_type not in _VALID_SIGNAL_TYPES:
@@ -145,9 +168,21 @@ def add_preference(canonical_name: str, signal_type: str, value: str) -> str:
     return f"<div style='color:var(--green);'>Added {escape(signal_type)} preference for {escape(display)}.</div>"
 
 
-@safe_render
+
 def delete_preference(signal_id: str) -> str:
     """Delete a preference signal by ID."""
+    from shopstack.ui.errors import safe_render_html
+    sid = signal_id
+    return safe_render_html(
+        lambda: _delete_preference_inner(sid),
+        user_message="Could not delete preference",
+        help_tab="memory",
+        icon="🗑️",
+        retry_label="",
+    )
+
+
+def _delete_preference_inner(signal_id: str) -> str:
     if not signal_id:
         return "<div style='color:var(--red);'>No signal ID provided.</div>"
 
@@ -159,8 +194,14 @@ def delete_preference(signal_id: str) -> str:
     return "<div style='color:var(--red);'>Signal not found.</div>"
 
 
-@safe_render
+
 def refresh_preferences() -> str:
     """Refresh the preferences display."""
-    uid = current_user_id()
-    return _render_preferences(uid)
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: _render_preferences(current_user_id()),
+        user_message="Could not refresh preferences",
+        help_tab="memory",
+        icon="🔄",
+        retry_label="",
+    )

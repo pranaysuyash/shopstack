@@ -41,9 +41,7 @@ from shopstack.ui.renderers.image_cards import (
     render_decision_card as render_svg_decision_card,
     render_shopping_summary_card as render_svg_summary,
 )
-from shopstack.ui.screens._utils import (
-    safe_render,
-)
+from shopstack.ui.errors import safe_render_html
 from shopstack.ui.screens.other import inventory_alerts, what_is_in_fridge_now
 
 logger = logging.getLogger(__name__)
@@ -89,8 +87,19 @@ def _details_section(title: str, body: str, description: str = "", count_label: 
     )
 
 
-@safe_render
 def today_dashboard():
+    try:
+        return _today_dashboard_inner()
+    except Exception:
+        err = safe_render_html(
+            lambda: "",
+            user_message="Couldn't load dashboard",
+            help_tab="today",
+        )
+        return [err, "", "", "", "", ""]
+
+
+def _today_dashboard_inner():
     uid = current_user_id()
     from shopstack.decisions import (
         render_decision_panel,

@@ -32,8 +32,19 @@ from shopstack.ui.screens._utils import safe_render
 logger = logging.getLogger(__name__)
 
 
-@safe_render
+
 def photo_map_view() -> str:
+    """Render the photo-anchored map: grid of locations, with photos."""
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: _photo_map_view_inner(),
+        user_message="Could not load photo map",
+        help_tab="household",
+        icon="🗺️",
+    )
+
+
+def _photo_map_view_inner() -> str:
     """Render the photo-anchored map: grid of locations, with photos."""
     locations = db.get_locations()
     inventory = db.get_inventory(user_id=current_user_id())
@@ -114,12 +125,24 @@ def clear_location_photo(location_id: str) -> str:
     return f"<div style='color:var(--green);'>Photo cleared for {escape(location_id)}.</div>"
 
 
-@safe_render
+
 def find_location_by_photo(image_path: str, top_k: int = 5) -> str:
     """Find the most similar stored location photos to ``image_path``.
 
     Returns HTML with the top matches (name + similarity %).
     """
+    from shopstack.ui.errors import safe_render_html
+    path, k = image_path, top_k
+    return safe_render_html(
+        lambda: _find_location_by_photo_inner(path, k),
+        user_message="Photo search failed",
+        help_tab="household",
+        icon="🔍",
+    )
+
+
+def _find_location_by_photo_inner(image_path: str, top_k: int) -> str:
+    """Inner: find the most similar stored location photos."""
     if not (image_path or "").strip():
         return home_card(
             style="text-align:center;padding:16px;color:var(--text-dim);",

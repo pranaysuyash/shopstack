@@ -24,6 +24,29 @@ from shopstack.services.i18n import load_locale_preference, t
 from shopstack.app_context import current_user_id
 
 
+def _render_mealplan() -> str:
+    """Render the weekly meal plan as HTML for the Recipes tab.
+
+    Pass 22 (item 2): the Recipes tab surfaces the meal
+    plan built by ``shopstack.services.meal_planning.build_weekly_meal_plan``
+    (Pass 21). The plan reuses the existing
+    ``find_recipes_for_inventory`` scoring + the
+    ``render_meal_plan_html`` adapter (Pass 21).
+
+    Mode-portable: the same ``DayPlan`` data flows through
+    the CLI (``python -m shopstack.cli mealplan``), the
+    HTTP endpoint (``GET /api/mealplan``), and the Recipes
+    tab. This function is the Gradio-specific adapter.
+    """
+    from shopstack.app_context import db
+    from shopstack.services.meal_planning import build_weekly_meal_plan
+    from shopstack.ui.renderers.meal_plan import render_meal_plan_html
+
+    uid = current_user_id() or ""
+    plan = build_weekly_meal_plan(db, user_id=uid, days=7)
+    return render_meal_plan_html(plan)
+
+
 def build_recipe_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None:
     """Build the Recipe Scan tab."""
     # Pass 18 §2.5: rich empty-state for the "Paste ingredients or
@@ -67,3 +90,27 @@ def build_recipe_tab(blocks: gr.Blocks, app: gr.Blocks, ctx: TabContext) -> None
         rc_add.click(recipe_text_add_missing_to_list, rc_input, rc_output,
                      api_name="recipe_tab_add_missing",
                      api_description="Add all missing recipe ingredients to the active shopping list")
+
+        # ── 2026-06-15 (Pass 22 item 2): Weekly meal plan section ──
+        # The Recipes tab surfaces the meal plan built by
+        # ``build_weekly_meal_plan`` (Pass 21). The plan picks
+        # a recipe per day, avoiding repeats. No recipe appears
+        # twice. The data is mode-portable: same DayPlan schema
+        # flows through CLI / HTTP / Recipes tab.
+        gr.Markdown("---")
+        gr.Markdown("### Your weekly meal plan")
+        gr.Markdown(
+            "ShopStack suggests a recipe for each day based on "
+            "your current pantry. Recipes that use up your "
+            "use-soon items are prioritized (waste reduction). "
+            "No recipe appears twice in the plan."
+        )
+        mealplan_html = gr.HTML(value=_render_mealplan())
+        mealplan_refresh = gr.Button("Refresh plan", size="sm")
+        mealplan_refresh.click(
+            _render_mealplan,
+            outputs=mealplan_html,
+            api_name="recipe_mealplan_refresh",
+            api_description="Refresh the weekly meal plan",
+        )
+        app.load(_render_mealplan, outputs=mealplan_html)

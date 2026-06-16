@@ -37,9 +37,21 @@ _BADGE_STYLE = (
 # ── Public API (Gradio-facing) ─────────────────────────────────────────
 
 
-@safe_render
+
 def find_trail_view(query: str) -> str:
     """Main entry: search for an item and render its full trail card."""
+    from shopstack.ui.errors import safe_render_html
+    q = query
+    return safe_render_html(
+        lambda: _find_trail_view_inner(q),
+        user_message="Could not search for item",
+        help_tab="memory",
+        icon="🔍",
+    )
+
+
+def _find_trail_view_inner(query: str) -> str:
+    """Inner: search for an item and render its full trail card."""
     if not (query or "").strip():
         return _empty_state()
     uid = current_user_id()

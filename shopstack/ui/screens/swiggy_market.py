@@ -6,7 +6,7 @@ from html import escape
 from shopstack.market.schema import NormalizedMarketRecord
 from shopstack.services.market_sources import get_latest_snapshot, source_status_report
 from shopstack.ui.components.primitives import home_card
-from shopstack.ui.screens._utils import safe_render, source_freshness_html
+from shopstack.ui.screens._utils import source_freshness_html
 
 
 logger = logging.getLogger(__name__)
@@ -16,8 +16,17 @@ def _market_freshness_html(snapshot) -> str:
     return source_freshness_html("swiggy")
 
 
-@safe_render
 def swiggy_market_view() -> str:
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: _swiggy_market_view_inner(),
+        user_message="Could not load Swiggy market view",
+        help_tab="memory",
+        icon="🛒",
+    )
+
+
+def _swiggy_market_view_inner() -> str:
     from shopstack.market import compute_snapshot_analytics
 
     try:
@@ -107,8 +116,19 @@ def swiggy_market_view() -> str:
     return "".join(parts) if parts else "<div style='color:var(--text-dim);'>No market data available.</div>"
 
 
-@safe_render
+
 def swiggy_basket_estimate(items_text: str) -> str:
+    from shopstack.ui.errors import safe_render_html
+    text = items_text
+    return safe_render_html(
+        lambda: _swiggy_basket_estimate_inner(text),
+        user_message="Could not estimate basket",
+        help_tab="basket",
+        icon="🛒",
+    )
+
+
+def _swiggy_basket_estimate_inner(items_text: str) -> str:
     from shopstack.market import basket_summary, build_basket
     from shopstack.market.metadata import get_produce_metadata
 

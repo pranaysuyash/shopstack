@@ -17,7 +17,6 @@ from shopstack.services.receipt import (
     parse_receipt_text,
 )
 from shopstack.ui.components.primitives import data_table, home_card
-from shopstack.ui.screens._utils import safe_render
 
 logger = logging.getLogger(__name__)
 
@@ -102,8 +101,18 @@ def _resolve_path(file_input: Any) -> str:
     return str(file_input)
 
 
-@safe_render
 def receipt_scan_ocr(file_input: Any) -> tuple[list[list[Any]], str, str, str, str]:
+    from shopstack.ui.errors import safe_render_html
+    fi = file_input
+    try:
+        return _receipt_scan_ocr_inner(fi)
+    except Exception as exc:
+        logger.warning("receipt_scan_ocr failed: %s", exc)
+        err = safe_render_html(lambda: "", user_message="Receipt scan failed", help_tab="inventory", icon="🧾")
+        return [], "", "", "", err
+
+
+def _receipt_scan_ocr_inner(file_input: Any) -> tuple[list[list[Any]], str, str, str, str]:
     # Returns [dataframe_data, merchant, date, raw_text, status_html]
     file_path = _resolve_path(file_input)
     if not file_path:
@@ -140,8 +149,19 @@ def receipt_scan_ocr(file_input: Any) -> tuple[list[list[Any]], str, str, str, s
     return rows, result.merchant, result.purchase_date.isoformat(), raw_text, ""
 
 
-@safe_render
+
 def receipt_parse_text(raw_text: str) -> tuple[list[list[Any]], str, str]:
+    from shopstack.ui.errors import safe_render_html
+    txt = raw_text
+    try:
+        return _receipt_parse_text_inner(txt)
+    except Exception as exc:
+        logger.warning("receipt_parse_text failed: %s", exc)
+        err = safe_render_html(lambda: "", user_message="Could not parse receipt text", help_tab="inventory", icon="🧾")
+        return [], "", ""
+
+
+def _receipt_parse_text_inner(raw_text: str) -> tuple[list[list[Any]], str, str]:
     if not raw_text.strip():
         return [], "", ""
 
@@ -150,8 +170,19 @@ def receipt_parse_text(raw_text: str) -> tuple[list[list[Any]], str, str]:
     return rows, result.merchant, result.purchase_date.isoformat()
 
 
-@safe_render
+
 def receipt_confirm(df_data: Any, merchant: str, date_str: str, raw_text: str) -> str:
+    from shopstack.ui.errors import safe_render_html
+    dd, m, ds, rt = df_data, merchant, date_str, raw_text
+    return safe_render_html(
+        lambda: _receipt_confirm_inner(dd, m, ds, rt),
+        user_message="Could not confirm receipt",
+        help_tab="inventory",
+        icon="🧾",
+    )
+
+
+def _receipt_confirm_inner(df_data: Any, merchant: str, date_str: str, raw_text: str) -> str:
     # df_data is a pandas DataFrame or list of lists
     if df_data is None:
         return (
@@ -261,29 +292,30 @@ def receipt_export_txt(merchant: str, date_str: str, raw_text: str) -> str:
     function returns the same body for in-app display / clipboard
     use.
     """
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: _receipt_export_txt_inner(merchant, date_str, raw_text),
+        user_message="Could not generate receipt text export",
+        help_tab="inventory",
+        icon="🧾",
+    )
+
+
+def _receipt_export_txt_inner(merchant: str, date_str: str, raw_text: str) -> str:
+    from datetime import date as _date
     try:
-        from datetime import date as _date
-        try:
-            purchase_date = _date.fromisoformat(date_str) if date_str else _date.today()
-        except Exception:
-            purchase_date = _date.today()
-        from shopstack.services.receipt import (
-            ReceiptResult,
-            ReceiptLine,
-            _receipt_txt_body,
-        )
-        # Parse the raw_text back into a minimal result. We
-        # don't have the parsed line items here (they were
-        # confirmed), so the .txt is a header + raw_text
-        # body. This is enough for sharing/audit.
-        result = ReceiptResult(
-            merchant=merchant or "(unknown)",
-            purchase_date=purchase_date,
-            lines=[],
-            total=0.0,
-            raw_text=raw_text or "",
-        )
-        return _receipt_txt_body(result)
-    except Exception as exc:  # pragma: no cover — defensive
-        logger.warning("receipt_export_txt failed: %s", exc)
-        return ""
+        purchase_date = _date.fromisoformat(date_str) if date_str else _date.today()
+    except Exception:
+        purchase_date = _date.today()
+    from shopstack.services.receipt import (
+        ReceiptResult,
+        _receipt_txt_body,
+    )
+    result = ReceiptResult(
+        merchant=merchant or "(unknown)",
+        purchase_date=purchase_date,
+        lines=[],
+        total=0.0,
+        raw_text=raw_text or "",
+    )
+    return _receipt_txt_body(result)

@@ -147,6 +147,7 @@ def _install_post_launch_hooks(app: gr.Blocks) -> None:
         mount_decision_explain_endpoint(app)
         mount_recurring_endpoint(app)
         mount_corrections_endpoint(app)
+        mount_mealplan_endpoint(app)
         return result
 
     app.launch = _launch_with_post_hooks
@@ -191,6 +192,9 @@ def build_app() -> gr.Blocks:
         # /api/corrections (Pass 20) — user corrections (the
         # "Mark as wrong" learning loop). Same mount pattern.
         mount_corrections_endpoint(app)
+        # /api/mealplan (Pass 21) — weekly meal plan. Same
+        # mount pattern.
+        mount_mealplan_endpoint(app)
 
         initial_locale = load_locale_preference(current_user_id() or "default_household")
         # 2026-06-15 (Home screen review): the brand subtitle now

@@ -24,24 +24,33 @@ from shopstack.services.timeline import (
 )
 from shopstack.ui.components.decorators import aria_live_screen
 from shopstack.ui.components.primitives import home_card
-from shopstack.ui.screens._utils import safe_render
 
 logger = logging.getLogger(__name__)
 
 
-@safe_render
+
 def timeline_view(
     canonical_name: str = "",
     lot_id: str = "",
     days: int = 30,
 ) -> str:
-    """Render the Unified Timeline for the active household.
+    """Render the Unified Timeline for the active household."""
+    from shopstack.ui.errors import safe_render_html
+    cn, lid, d = canonical_name, lot_id, days
+    return safe_render_html(
+        lambda: _timeline_view_inner(cn, lid, d),
+        user_message="Could not load timeline",
+        help_tab="memory",
+        icon="📋",
+    )
 
-    Args:
-        canonical_name: Optional filter — only events for this item.
-        lot_id: Optional filter — only events for this lot.
-        days: Window size in days. Defaults to 30.
-    """
+
+def _timeline_view_inner(
+    canonical_name: str = "",
+    lot_id: str = "",
+    days: int = 30,
+) -> str:
+    """Inner render for the Unified Timeline."""
     days = max(1, int(days or 30))
     since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
     user_id = current_user_id() or ""
@@ -65,16 +74,29 @@ def timeline_view(
     return render_timeline_html(result)
 
 
-@safe_render
+
 def timeline_for_canonical(canonical_name: str) -> str:
     """Convenience: short (90-day) timeline focused on a single item."""
-    return timeline_view(canonical_name=canonical_name, days=90)
+    from shopstack.ui.errors import safe_render_html
+    cn = canonical_name
+    return safe_render_html(
+        lambda: timeline_view(canonical_name=cn, days=90),
+        user_message="Could not load timeline for item",
+        help_tab="memory",
+        icon="📋",
+    )
 
 
-@safe_render
 def timeline_for_lot(lot_id: str) -> str:
     """Convenience: full history for a single lot."""
-    return timeline_view(lot_id=lot_id, days=365)
+    from shopstack.ui.errors import safe_render_html
+    lid = lot_id
+    return safe_render_html(
+        lambda: timeline_view(lot_id=lid, days=365),
+        user_message="Could not load timeline for lot",
+        help_tab="memory",
+        icon="📋",
+    )
 
 
 @aria_live_screen()

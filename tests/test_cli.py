@@ -432,6 +432,59 @@ def test_corrections_subcommand_returns_list_dict():
     assert isinstance(payload["items"], list)
 
 
+# ── mealplan subcommand (Pass 21) ───────────────────────────────
+
+
+def test_mealplan_subcommand_dispatches():
+    """The ``mealplan`` subcommand is in SUBCOMMANDS."""
+    from shopstack.cli import SUBCOMMANDS, build_parser
+
+    parser = build_parser()
+    args = parser.parse_args(["mealplan"])
+    assert args.cmd == "mealplan"
+    assert args.days == 7
+    assert "mealplan" in SUBCOMMANDS
+
+
+def test_mealplan_subcommand_custom_days():
+    from shopstack.cli import build_parser
+    parser = build_parser()
+    args = parser.parse_args(["mealplan", "--days", "5"])
+    assert args.days == 5
+
+
+def test_mealplan_subcommand_custom_start_date():
+    from shopstack.cli import build_parser
+    parser = build_parser()
+    args = parser.parse_args(["mealplan", "--start", "2026-07-01"])
+    assert args.start == "2026-07-01"
+
+
+def test_mealplan_subcommand_returns_plan_dict():
+    """The ``mealplan`` subcommand returns a dict with the documented shape."""
+    from shopstack.cli import SUBCOMMANDS
+
+    args = type("Args", (), {"days": 7, "start": None})()
+    payload = SUBCOMMANDS["mealplan"](args)
+    for key in ("summary", "days", "start_date", "count", "items"):
+        assert key in payload, f"missing key: {key}"
+    assert isinstance(payload["items"], list)
+
+
+def test_mealplan_subcommand_json_output_is_valid():
+    """``cli mealplan`` produces parseable JSON on stdout."""
+    from shopstack.cli import main
+
+    captured = io.StringIO()
+    with patch("sys.stdout", captured):
+        rc = main(["mealplan", "--days", "3"])
+    assert rc == 0
+    payload = json.loads(captured.getvalue())
+    assert "summary" in payload
+    assert "items" in payload
+    assert payload["days"] == 3
+
+
 # ── Mode-portability proof (Tier 3) ─────────────────────────────────
 
 

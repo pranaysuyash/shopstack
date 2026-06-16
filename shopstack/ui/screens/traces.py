@@ -243,24 +243,44 @@ def record_workflow_trace(
     human_confirmation: str | None = None,
     user_id: str = "",
 ) -> str:
-    try:
-        service = get_trace_service()
-        trace = service.create_trace(
-            input_type=input_type,
-            user_goal=user_goal,
-            redacted_user_request=redacted_user_request,
-            perception=perception,
-            inventory_context=inventory_context,
-            decision=decision,
-            proposed_tool_calls=proposed_tool_calls,
-            human_confirmation=human_confirmation,
-            final_response=final_response,
-            user_id=user_id,
-        )
-        return trace.trace_id
-    except Exception as exc:
-        logger.warning("record_workflow_trace failed: %s", exc)
-        return ""
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: _record_workflow_trace_inner(
+            input_type, user_goal, redacted_user_request,
+            perception, inventory_context, decision,
+            proposed_tool_calls, final_response, human_confirmation, user_id,
+        ),
+        user_message="Could not record workflow trace",
+        help_tab="memory",
+    )
+
+
+def _record_workflow_trace_inner(
+    input_type: str,
+    user_goal: str,
+    redacted_user_request: str,
+    perception: dict[str, Any],
+    inventory_context: dict[str, Any],
+    decision: dict[str, Any],
+    proposed_tool_calls: list[dict[str, Any]],
+    final_response: str,
+    human_confirmation: str | None = None,
+    user_id: str = "",
+) -> str:
+    service = get_trace_service()
+    trace = service.create_trace(
+        input_type=input_type,
+        user_goal=user_goal,
+        redacted_user_request=redacted_user_request,
+        perception=perception,
+        inventory_context=inventory_context,
+        decision=decision,
+        proposed_tool_calls=proposed_tool_calls,
+        human_confirmation=human_confirmation,
+        final_response=final_response,
+        user_id=user_id,
+    )
+    return trace.trace_id
 
 
 # Public handler for Gradio composition layer

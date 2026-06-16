@@ -7,7 +7,7 @@ from shopstack.app_context import db, tools, current_user_id
 from shopstack.services.market_intelligence import MarketCluster, build_market_intelligence_graph
 from shopstack.ui.components.cards import badge_html, card as ui_card, render_action_grid, render_unified_decision_card
 from shopstack.ui.components.primitives import stat_card, home_card
-from shopstack.ui.screens._utils import safe_render
+from shopstack.ui.errors import safe_render_html
 
 _LANE_LABELS = {
     "buy": "Buy Now",
@@ -34,8 +34,15 @@ _LANE_VARIANTS = {
 }
 
 
-@safe_render
 def market_intelligence_view(search: str = "", lane_filter: str = "") -> str:
+    return safe_render_html(
+        lambda: _market_intelligence_view_inner(search, lane_filter),
+        user_message="Couldn't load market intelligence",
+        help_tab="basket",
+    )
+
+
+def _market_intelligence_view_inner(search: str = "", lane_filter: str = "") -> str:
     graph = build_market_intelligence_graph(db, tools.inventory, user_id=current_user_id())
     clusters = _filter_clusters(graph.clusters, search=search, lane_filter=lane_filter)
     trust_counts = _trust_counts(clusters)

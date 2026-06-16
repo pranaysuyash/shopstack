@@ -188,6 +188,56 @@ def _refresh_undo_bar() -> str:
     return _render_undo_bar_html(current_user_id() or "")
 
 
+def _mark_bought_handler(canonical_name: str) -> tuple[str, str]:
+    """Handler for the "Mark as bought" Row (Pass 22 item 3).
+
+    The user sees a recurring card ("Milk — buy every 3 days")
+    in the **Your shopping rhythm** section above. They type
+    the item name in the text input and click "Mark as bought".
+    This handler:
+      1. Validates the input (non-empty canonical_name).
+      2. Calls ``shopstack.services.recurring_shopping.mark_bought``
+         which records a PurchaseEvent (timestamp=now).
+      3. Returns a success/error HTML message.
+      4. Triggers a refresh of the home_flow HTML (which
+         re-renders the dashboard state, including the
+         updated recurring plan).
+
+    The next call to ``build_recurring_shopping_plan`` sees
+    the new purchase event and recomputes the rhythm. This
+    closes the Mark-as-bought loop.
+    """
+    from shopstack.services.recurring_shopping import mark_bought as _mark_bought
+    from html import escape
+
+    canonical = (canonical_name or "").strip()
+    if not canonical:
+        return (
+            "<div class='mark-bought-error' style='padding:8px;background-color:rgba(166,63,49,0.10);border-radius:4px;color:var(--red-text, var(--red));'>"
+            "Please enter an item name."
+            "</div>",
+            render_home_flow(),  # refresh home flow
+        )
+
+    try:
+        _mark_bought(db, canonical, user_id=current_user_id() or "")
+    except Exception as exc:  # noqa: BLE001
+        return (
+            f"<div class='mark-bought-error' style='padding:8px;background-color:rgba(166,63,49,0.10);border-radius:4px;color:var(--red-text, var(--red));'>"
+            f"Could not mark as bought: {type(exc).__name__}: {escape(str(exc))}"
+            f"</div>",
+            render_home_flow(),
+        )
+
+    success_msg = (
+        f"<div class='mark-bought-success' style='padding:8px;background-color:rgba(26,158,74,0.10);border-radius:4px;color:var(--green);'>"
+        f"Marked <strong>{escape(canonical)}</strong> as bought. "
+        f"The next plan will reflect the updated rhythm."
+        f"</div>"
+    )
+    return success_msg, render_home_flow()
+
+
 def _render_home_flow() -> str:
     """Render the unified home-flow panel (state-aware)."""
     from shopstack.ui.errors import safe_render_html
@@ -356,6 +406,46 @@ def build_today_tab(
             _refresh_undo_bar,
             inputs=[],
             outputs=[undo_bar],
+        )
+
+        # ── 2026-06-15 (Pass 22 item 3): Mark as bought ──
+        # The recurring plan (Pass 19) surfaces items due for
+        # purchase. This Row lets the user confirm they bought
+        # an item, which records a PurchaseEvent and updates
+        # the cadence. The next plan reflects the new rhythm.
+        #
+        # First-principles: the button is separate from the
+        # HTML cards (Gradio buttons can't live inside HTML
+        # strings). The connection is the text input — the
+        # user types the item name from the card and clicks
+        # the button. Simpler than a dropdown with dynamic
+        # choices (no state management needed).
+        gr.Markdown("---")
+        gr.Markdown("### Mark as bought")
+        gr.Markdown(
+            "See a recurring item in the **Your shopping "
+            "rhythm** card above? Type its name here and "
+            "click **Mark as bought** to record the purchase. "
+            "The next plan will reflect the updated rhythm."
+        )
+        with gr.Row():
+            mark_bought_input = gr.Textbox(
+                label="Item name (e.g. 'milk', 'rice', 'toothpaste')",
+                placeholder="milk",
+                scale=3,
+            )
+            mark_bought_btn = gr.Button(
+                "Mark as bought",
+                variant="primary",
+                scale=1,
+            )
+        mark_bought_output = gr.HTML("")
+        mark_bought_btn.click(
+            _mark_bought_handler,
+            inputs=[mark_bought_input],
+            outputs=[mark_bought_output, home_flow],
+            api_name="today_mark_bought",
+            api_description="Record a purchase event for a recurring item",
         )
 
     return TodayTabHandles(

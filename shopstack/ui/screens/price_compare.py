@@ -224,18 +224,24 @@ def refresh_source_registry() -> str:
     Returns:
         HTML string with registration status.
     """
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: _refresh_source_registry_inner(),
+        user_message="Could not refresh source registry",
+        help_tab="basket",
+    )
+
+
+def _refresh_source_registry_inner() -> str:
     global _registry
-    try:
-        _registry, _registry_errors = load_market_registry(force=True)
-        registered = _registry.registered()
-        snapshots = _registry.all_snapshots()
-        loaded = len([s for s in snapshots.values() if s and s.normalized_records])
-        return toast(
-            f"Registry refreshed: {len(registered)} sources registered, {loaded} snapshots loaded.",
-            kind="success",
-        )
-    except Exception as exc:
-        return toast("Couldn't refresh the registry. Please try again.", kind="error")
+    _registry, _registry_errors = load_market_registry(force=True)
+    registered = _registry.registered()
+    snapshots = _registry.all_snapshots()
+    loaded = len([s for s in snapshots.values() if s and s.normalized_records])
+    return toast(
+        f"Registry refreshed: {len(registered)} sources registered, {loaded} snapshots loaded.",
+        kind="success",
+    )
 
 
 def basket_compare_view(items_text: str) -> str:

@@ -49,13 +49,21 @@ _ACTION_LABELS: dict[str, str] = {
 }
 
 
-@safe_render
-def repair_inbox_view(severity: str = "") -> str:
-    """Render the repair inbox.
 
-    Args:
-        severity: Optional filter — only events of this severity.
-    """
+def repair_inbox_view(severity: str = "") -> str:
+    """Render the repair inbox."""
+    from shopstack.ui.errors import safe_render_html
+    sev = severity
+    return safe_render_html(
+        lambda: _repair_inbox_view_inner(sev),
+        user_message="Could not load repair inbox",
+        help_tab="household",
+        icon="🔧",
+    )
+
+
+def _repair_inbox_view_inner(severity: str) -> str:
+    """Inner render for the repair inbox."""
     sev = None
     if severity:
         try:

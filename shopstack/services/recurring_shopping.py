@@ -271,3 +271,67 @@ def summarize_plan(plan: list[DecisionResult]) -> str:
     if count == 1:
         return "1 item due in your usual rhythm."
     return f"{count} items due in your usual rhythm."
+
+
+# ── Mark as bought (Pass 22) ──────────────────────────────────────
+
+
+def mark_bought(
+    db: Any,
+    canonical_name: str,
+    *,
+    user_id: str = "",
+    quantity: float = 1.0,
+    unit: str = "unit",
+) -> bool:
+    """Record that the user bought a recurring item. Updates the cadence.
+
+    **Why this exists (motto_v3 §0.14 product reality + first-principles):**
+
+    The recurring shopping plan (Pass 19) surfaces items
+    that are "due in your rhythm". The natural next step is:
+    the user actually buys the item, and the system should
+    know. Recording the purchase updates the cadence
+    (``detect_purchase_cadence``) so the next plan reflects
+    the new rhythm (e.g. "you just bought milk today, so
+    it's not due for 3 more days").
+
+    **Closed loop (Pass 22):**
+    1. User sees a recurring card ("Milk — buy every 3 days").
+    2. User clicks "Mark as bought" (in the Today tab).
+    3. This function records a ``PurchaseEvent`` with
+       ``timestamp=now``.
+    4. The next call to ``build_recurring_shopping_plan``
+       sees the new event and recomputes the rhythm.
+
+    Args:
+        db: The ``Database`` instance.
+        canonical_name: The canonical name of the item
+            bought. Lowercased and trimmed.
+        user_id: The active household.
+        quantity: How much was bought. Default 1.
+        unit: The unit. Default "unit".
+
+    Returns:
+        True on success. Raises ``ValueError`` if
+        ``canonical_name`` is empty.
+
+    Mode-portable: this is a pure service function. The CLI,
+    HTTP endpoint, and Today tab button all call it.
+    """
+    from datetime import datetime
+    from shopstack.schemas.models import PurchaseEvent
+
+    canonical = (canonical_name or "").lower().strip()
+    if not canonical:
+        raise ValueError("canonical_name is required")
+
+    event = PurchaseEvent(
+        canonical_name=canonical,
+        quantity=quantity,
+        unit=unit,
+        total_price=0.0,  # Mark-as-bought doesn't track price.
+        timestamp=datetime.now(),
+    )
+    db.add_purchase_event(event, user_id=user_id or "")
+    return True

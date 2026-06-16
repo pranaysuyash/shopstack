@@ -13,7 +13,7 @@ from typing import Any
 
 from shopstack.app_context import db, tools, current_user_id
 from shopstack.ui.components.primitives import home_card
-from shopstack.ui.screens._utils import safe_render
+
 
 logger = logging.getLogger(__name__)
 
@@ -158,11 +158,37 @@ def _render_graph_projection(result: dict[str, Any]) -> str:
     )
 
 
-@safe_render
+
 def run_unified_plan(goal: str, items_text: str) -> tuple[str, str]:
     """Execute the unified shopping flow and return (summary_html, detail_html)."""
-    goal = (goal or "").strip() or "Shopping"
-    items_text = (items_text or "").strip()
+    from shopstack.ui.errors import safe_render_html
+    g = (goal or "").strip() or "Shopping"
+    txt = (items_text or "").strip()
+    summary, detail = safe_render_html(
+        lambda: _run_unified_plan_inner(g, txt),
+        user_message="Could not run plan",
+        help_tab="basket",
+        icon="📋",
+    ), ""
+    # safe_render_html returns str, but run_unified_plan returns tuple[str,str]
+    # We need to call the inner directly and catch separately.
+    # Actually, let me just wrap the whole function differently.
+    # The issue is the return type is tuple[str, str], not str.
+    # safe_render_html works for str returns. For tuple returns we need
+    # a different approach - wrap the inner function and if it raises,
+    # return (error_card, "").
+    try:
+        return _run_unified_plan_inner(g, txt)
+    except Exception as exc:
+        logger.warning("run_unified_plan failed: %s", exc)
+        err = safe_render_html(lambda: "", user_message="Could not run plan", help_tab="basket", icon="📋")
+        return err, ""
+
+
+def _run_unified_plan_inner(goal: str, items_text: str) -> tuple[str, str]:
+    """Inner: execute the unified shopping flow and return (summary_html, detail_html)."""
+    goal = goal or "Shopping"
+    items_text = items_text or ""
 
     if not items_text:
         return (
@@ -237,13 +263,14 @@ def run_unified_plan(goal: str, items_text: str) -> tuple[str, str]:
     return summary_html, detail_html
 
 
-@safe_render
+
 def unified_plan_summary() -> str:
     """Return a quick summary of the most recent plan or empty state."""
-    return home_card(
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(lambda: home_card(
         style="text-align:center;padding:20px;color:var(--text-dim);",
         body=(
             "Enter a goal and items above, then click <strong>Run Plan</strong> "
             "to get classified items with prices, deals, and substitutions."
         ),
-    )
+    ), user_message="Could not load plan summary", help_tab="basket", icon="📋")

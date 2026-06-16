@@ -17,6 +17,17 @@ logger = logging.getLogger(__name__)
 
 
 def market_lens_process(image_path: str | None, audio_path: str | None) -> tuple:
+    from shopstack.ui.errors import safe_render_html
+    img, aud = image_path, audio_path
+    try:
+        return _market_lens_process_inner(img, aud)
+    except Exception as exc:
+        logger.warning("market_lens_process failed: %s", exc)
+        err = safe_render_html(lambda: "", user_message="Market lens failed", help_tab="basket", icon="📷")
+        return err, "", "", "", ""
+
+
+def _market_lens_process_inner(image_path: str | None, audio_path: str | None) -> tuple:
     result_html = "<div style='color:var(--text-dim);'>No input provided.</div>"
     service_result = analyze_market_lens(image_path, audio_path, providers, tools.inventory)
     analysis = service_result.analysis_json

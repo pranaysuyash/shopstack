@@ -69,18 +69,24 @@ def import_data_file(file_path: str | Path | object | None) -> str:
     Handles Gradio's various file upload return types (string path,
     Path, tempfile wrapper, dict) via _resolve_uploaded_file_path.
     """
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: _import_data_file_inner(file_path),
+        user_message="Could not import data file",
+        help_tab="today",
+    )
+
+
+def _import_data_file_inner(file_path: str | Path | object | None) -> str:
     resolved = _resolve_uploaded_file_path(file_path)
     if not resolved:
         return "<div style='color:var(--text-dim);'>Upload a JSON or CSV file first.</div>"
-    try:
-        path = str(resolved)
-        if path.endswith(".csv"):
-            with open(path) as f:
-                result = import_csv(db, f.read())
-        else:
-            with open(path) as f:
-                data = json.load(f)
-            result = import_json(db, data)
-        return result.summary_html
-    except Exception as e:
-        return f"<div style='color:var(--red);'>Import failed: {escape(str(e))}</div>"
+    path = str(resolved)
+    if path.endswith(".csv"):
+        with open(path) as f:
+            result = import_csv(db, f.read())
+    else:
+        with open(path) as f:
+            data = json.load(f)
+        result = import_json(db, data)
+    return result.summary_html

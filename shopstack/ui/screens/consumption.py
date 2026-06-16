@@ -16,7 +16,7 @@ from typing import Any
 
 from shopstack.app_context import db, tools, current_user_id
 from shopstack.services.dashboard import clear_dashboard_cache
-from shopstack.ui.screens._utils import safe_render
+from shopstack.ui.errors import safe_render_html
 from shopstack.ui.components.cards import card as ui_card
 from shopstack.ui.components.decorators import aria_live_screen  # canonical path (replaces primitives import)
 from shopstack.ui.components.primitives import home_card
@@ -209,9 +209,20 @@ def _compute_consumption_rates(uid: str) -> list[dict[str, Any]]:
     return rates
 
 
-@safe_render
 def consumption_dashboard() -> tuple[str, str, str]:
     """Return (quick_consume_grid, recent_history, rates_summary)."""
+    try:
+        return _consumption_dashboard_inner()
+    except Exception:
+        err = safe_render_html(
+            lambda: "",
+            user_message="Couldn't load consumption dashboard",
+            help_tab="today",
+        )
+        return err, err, err
+
+
+def _consumption_dashboard_inner() -> tuple[str, str, str]:
     uid = current_user_id()
     items = _active_inventory_rows(uid)
     grid_html = _render_quick_consume_grid(items)
@@ -248,10 +259,17 @@ def consumption_dashboard() -> tuple[str, str, str]:
     return grid_html, history_html, rates_html
 
 
-@safe_render
 @aria_live_screen()
 def quick_consume(lot_id: str, qty: float) -> str:
     """Consume a quantity from a lot and return status HTML."""
+    return safe_render_html(
+        lambda: _quick_consume_inner(lot_id, qty),
+        user_message="Couldn't process consumption",
+        help_tab="today",
+    )
+
+
+def _quick_consume_inner(lot_id: str, qty: float) -> str:
     if not lot_id or not lot_id.strip():
         return "<div style='color:var(--red);'>No lot ID provided.</div>"
     if qty <= 0:
@@ -271,7 +289,6 @@ def quick_consume(lot_id: str, qty: float) -> str:
     )
 
 
-@safe_render
 @aria_live_screen()
 def batch_consume_with_context(lines_text: str, meal_context: str, is_waste: str) -> str:
     """Batch consume with context tracking.
@@ -281,6 +298,14 @@ def batch_consume_with_context(lines_text: str, meal_context: str, is_waste: str
         meal_context: One of breakfast/lunch/dinner/snack/other
         is_waste: ``"waste"`` to mark as waste, anything else for normal consumption
     """
+    return safe_render_html(
+        lambda: _batch_consume_with_context_inner(lines_text, meal_context, is_waste),
+        user_message="Couldn't process batch consumption",
+        help_tab="today",
+    )
+
+
+def _batch_consume_with_context_inner(lines_text: str, meal_context: str, is_waste: str) -> str:
     if not lines_text or not lines_text.strip():
         return "<div style='color:var(--text-dim);'>Add at least one entry.</div>"
 
@@ -321,9 +346,16 @@ def batch_consume_with_context(lines_text: str, meal_context: str, is_waste: str
     )
 
 
-@safe_render
 def consumption_history(canonical_name: str) -> str:
     """Show consumption history for a specific item."""
+    return safe_render_html(
+        lambda: _consumption_history_inner(canonical_name),
+        user_message="Couldn't load consumption history",
+        help_tab="today",
+    )
+
+
+def _consumption_history_inner(canonical_name: str) -> str:
     canonical_name = (canonical_name or "").strip().lower()
     if not canonical_name:
         events = db.get_inventory_events(limit=30)
@@ -333,9 +365,16 @@ def consumption_history(canonical_name: str) -> str:
     return _render_recent_events(events)
 
 
-@safe_render
 def consumption_rates() -> str:
     """Return consumption rate summary HTML."""
+    return safe_render_html(
+        lambda: _consumption_rates_inner(),
+        user_message="Couldn't load consumption rates",
+        help_tab="today",
+    )
+
+
+def _consumption_rates_inner() -> str:
     uid = current_user_id()
     rates = _compute_consumption_rates(uid)
 

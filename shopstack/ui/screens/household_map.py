@@ -19,8 +19,18 @@ from shopstack.ui.screens._utils import safe_render
 
 logger = logging.getLogger(__name__)
 
-@safe_render
+
 def household_map_view() -> str:
+    from shopstack.ui.errors import safe_render_html
+    return safe_render_html(
+        lambda: _household_map_view_inner(),
+        user_message="Could not load storage map",
+        help_tab="household",
+        icon="🗺️",
+    )
+
+
+def _household_map_view_inner() -> str:
     locations = db.get_locations()
     inventory = db.get_inventory(user_id=current_user_id())
     loc_counts: dict[str, int] = {}

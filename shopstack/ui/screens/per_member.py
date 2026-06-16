@@ -21,29 +21,27 @@ logger = logging.getLogger(__name__)
 
 def per_member_screen(window_days: int = 30) -> str:
     """Render the per-member activity panel for the active household."""
+    from shopstack.ui.errors import safe_render_html
+    wd = window_days
+    return safe_render_html(
+        lambda: _per_member_screen_inner(wd),
+        user_message="Could not load per-member activity",
+        help_tab="memory",
+        icon="👥",
+    )
+
+
+def _per_member_screen_inner(window_days: int) -> str:
+    """Inner: render the per-member activity panel."""
+    user_id = current_user_id() or ""
     try:
-        user_id = current_user_id() or ""
-        try:
-            traces = db.get_traces(limit=500, user_id=user_id) or []
-        except Exception:
-            traces = []
-        # Annotate every trace with the active user as the actor
-        # (the default user is the default actor for now; once
-        # the household UI surfaces "switch actor", this becomes
-        # the user_id at the time of action).
-        from shopstack.services.per_member_activity import with_actor
-        traces = [with_actor(t, user_id) for t in traces]
-        activity = aggregate_by_actor(traces, window_days=window_days)
-        return render_per_member_html(activity)
-    except Exception as exc:
-        logger.warning("per_member_screen failed: %s", exc)
-        return home_card(
-            style="text-align:center;padding:12px;",
-            body=(
-                "<div style='color:var(--amber);font-weight:600;'>Could not load per-member activity</div>"
-                f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{escape(str(exc)[:120])}</div>"
-            ),
-        )
+        traces = db.get_traces(limit=500, user_id=user_id) or []
+    except Exception:
+        traces = []
+    from shopstack.services.per_member_activity import with_actor
+    traces = [with_actor(t, user_id) for t in traces]
+    activity = aggregate_by_actor(traces, window_days=window_days)
+    return render_per_member_html(activity)
 
 
 __all__ = ["per_member_screen"]
