@@ -145,6 +145,16 @@ class ShoppingListItem(BaseModel):
     status: ListItemStatus = "pending"
     linked_inventory_lots: list[str] = Field(default_factory=list)
 
+    @property
+    def item_id(self) -> str:
+        """Alias for ``list_item_id`` matching the DB column name.
+
+        Code that references ``ShoppingListItem.item_id`` (e.g.
+        ``store_mode.py``, ``undo_mount.py``) gets the same value as
+        ``list_item_id`` without needing a separate ``item_id`` field.
+        """
+        return self.list_item_id
+
 
 class ShoppingList(BaseModel):
     list_id: str = Field(default_factory=new_id)

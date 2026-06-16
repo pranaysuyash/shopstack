@@ -205,6 +205,110 @@ class ConsumeInventoryRequest(ApiModel):
     )
 
 
+# ── Household ──────────────────────────────────────────────────────
+
+
+class CreateHouseholdRequest(ApiModel):
+    """``POST /api/v1/household`` body."""
+
+    household_id: str | None = Field(
+        default=None,
+        max_length=80,
+        description="Optional explicit ID. If omitted, the server "
+        "derives one from the name.",
+    )
+    name: str = Field(..., min_length=1, max_length=80)
+    notes: str = Field(default="", max_length=500)
+
+
+class HouseholdListResponse(ApiModel):
+    """``GET /api/v1/household`` response."""
+
+    items: list[Household]
+    active_household_id: str = Field(..., description="Currently active household.")
+
+
+# ── Shopping ───────────────────────────────────────────────────────
+
+
+class ShoppingItemInput(ApiModel):
+    """One item to add (input side — no server-assigned id)."""
+
+    canonical_name: str = Field(..., min_length=1, max_length=200)
+    requested_quantity: float | None = Field(default=None, gt=0)
+    unit: str | None = Field(default=None, max_length=32)
+    priority: str = Field(default="optional", max_length=32)
+    reason: str = Field(default="", max_length=500)
+
+
+class ShoppingListItemWire(ApiModel):
+    """One item on a shopping list, in wire form."""
+
+    item_id: str
+    canonical_name: str
+    requested_quantity: float | None = None
+    unit: str | None = None
+    priority: str = "optional"
+    reason: str = ""
+    status: str = "pending"
+    linked_inventory_lots: list[str] = Field(default_factory=list)
+
+
+class ShoppingListWire(ApiModel):
+    """A shopping list, in wire form."""
+
+    list_id: str
+    name: str = "Shopping List"
+    created_at: str
+    updated_at: str
+    goal: str = ""
+    is_active: bool = True
+    items: list[ShoppingListItemWire] = Field(default_factory=list)
+
+
+class CreateShoppingListRequest(ApiModel):
+    """``POST /api/v1/shopping/lists`` body."""
+
+    goal: str = Field(default="", max_length=500)
+    items: list[ShoppingItemInput] = Field(default_factory=list)
+
+
+class AddShoppingItemsRequest(ApiModel):
+    """``POST /api/v1/shopping/lists/{list_id}/items`` body.
+
+    Accepts an array so a receipt-scan or import flow sends N items in
+    one round-trip (per the mobile-contract note in the exploration doc).
+    """
+
+    items: list[ShoppingItemInput] = Field(..., min_length=1)
+
+
+# ── Dashboard ──────────────────────────────────────────────────────
+
+
+class DashboardSnapshot(ApiModel):
+    """``GET /api/v1/dashboard/today`` response.
+
+    A *data* snapshot of the Today dashboard — counts and item lists,
+    not the rendered HTML. This is what a mobile client caches to draw
+    the home screen offline. Fields mirror the highest-value panels of
+    ``DashboardState`` (``shopstack/services/dashboard.py``).
+    """
+
+    household_id: str
+    timestamp: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+    pantry_count: int = 0
+    use_soon_count: int = 0
+    low_items_count: int = 0
+    recent_purchases_count: int = 0
+    use_soon_items: list[dict[str, Any]] = Field(default_factory=list)
+    low_items: list[dict[str, Any]] = Field(default_factory=list)
+    recent_purchases: list[dict[str, Any]] = Field(default_factory=list)
+    has_trip_recommendation: bool = False
+
+
 __all__ = [
     "ApiModel",
     "ApiError",
@@ -215,4 +319,12 @@ __all__ = [
     "WhoAmI",
     "InventoryLot",
     "ConsumeInventoryRequest",
+    "CreateHouseholdRequest",
+    "HouseholdListResponse",
+    "ShoppingItemInput",
+    "ShoppingListItemWire",
+    "ShoppingListWire",
+    "CreateShoppingListRequest",
+    "AddShoppingItemsRequest",
+    "DashboardSnapshot",
 ]

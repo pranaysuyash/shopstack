@@ -40,17 +40,23 @@ def mount_v1_routes(gradio_app: gr.Blocks) -> None:  # noqa: ANN001
     # ── 1. v1 routers ──────────────────────────────────────────
     from .routers import (
         auth_router,
+        dashboard_router,
+        household_router,
         inventory_router,
         meta_router,
+        shopping_router,
     )
 
     # The routers each declare their own prefix ("/meta", "/auth",
-    # "/inventory"); we mount them under a single "/api/v1" so the
+    # "/inventory", ...); we mount them under a single "/api/v1" so the
     # final paths are "/api/v1/meta/...", etc.
     for router, prefix in (
         (meta_router, "/api/v1"),
         (auth_router, "/api/v1"),
         (inventory_router, "/api/v1"),
+        (household_router, "/api/v1"),
+        (shopping_router, "/api/v1"),
+        (dashboard_router, "/api/v1"),
     ):
         try:
             fastapi_app.include_router(router, prefix=prefix)

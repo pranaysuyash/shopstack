@@ -30,9 +30,15 @@ from __future__ import annotations
 from .meta import router as meta_router
 from .auth_router import router as auth_router
 from .inventory import router as inventory_router
+from .household import router as household_router
+from .shopping import router as shopping_router
+from .dashboard import router as dashboard_router
 
 __all__ = [
     "meta_router",
     "auth_router",
     "inventory_router",
+    "household_router",
+    "shopping_router",
+    "dashboard_router",
 ]

@@ -60,16 +60,31 @@ def v1_app(db_handle):
     from shopstack.api.v1.routers.auth_router import router as auth_router
     from shopstack.api.v1.routers.inventory import router as inventory_router
     from shopstack.api.v1.routers.meta import router as meta_router
+    from shopstack.api.v1.routers.household import router as household_router
+    from shopstack.api.v1.routers.shopping import router as shopping_router
+    from shopstack.api.v1.routers.dashboard import router as dashboard_router
 
     monkey = pytest.MonkeyPatch()
     monkey.setattr(app_context, "db", db_handle)
+    # The shopping/dashboard routers reach for tools.inventory via
+    # app_context.tools; point it at the same registry the production
+    # app uses so service-layer delegation works in tests.
+    try:
+        from shopstack.tools.registry import ToolRegistry
+
+        monkey.setattr(app_context, "tools", ToolRegistry(db_handle), raising=False)
+    except Exception:
+        pass
 
     fastapi_app = FastAPI(title="shopstack-test")
     # Note: the routers already declare their own prefix ("/meta",
-    # "/auth", "/inventory"), so we mount at "/api/v1" only.
+    # "/auth", "/inventory", ...), so we mount at "/api/v1" only.
     fastapi_app.include_router(meta_router, prefix="/api/v1")
     fastapi_app.include_router(auth_router, prefix="/api/v1")
     fastapi_app.include_router(inventory_router, prefix="/api/v1")
+    fastapi_app.include_router(household_router, prefix="/api/v1")
+    fastapi_app.include_router(shopping_router, prefix="/api/v1")
+    fastapi_app.include_router(dashboard_router, prefix="/api/v1")
     yield fastapi_app
     monkey.undo()
 
@@ -502,3 +517,226 @@ class TestBackcompatAliases:
             assert "app" in r.json() or "household" in r.json()
         else:
             assert r.status_code == 404
+
+
+# ── Household endpoints ──────────────────────────────────────────
+
+
+class TestHouseholdEndpoints:
+    def _issue(self, db_handle, household: str = "default_household") -> str:
+        from shopstack.api.v1 import auth as auth_mod
+
+        auth_mod.ensure_auth_table(db_handle)
+        return auth_mod.issue_token(
+            db_handle, device_id="dev_hh", household_id=household,
+        )["token"]
+
+    def _hdr(self, token: str) -> dict:
+        return {"Authorization": f"Bearer {token}"}
+
+    def test_list_requires_token(self, client):
+        assert client.get("/api/v1/household").status_code == 401
+
+    def test_list_includes_default_and_marks_active(self, client, db_handle):
+        token = self._issue(db_handle, "default_household")
+        r = client.get("/api/v1/household", headers=self._hdr(token))
+        assert r.status_code == 200
+        body = r.json()
+        ids = [h["household_id"] for h in body["items"]]
+        assert "default_household" in ids
+        active = [h for h in body["items"] if h["is_active"]]
+        assert len(active) == 1
+
+    def test_create_household(self, client, db_handle):
+        token = self._issue(db_handle, "default_household")
+        r = client.post(
+            "/api/v1/household",
+            json={"name": "Beach House"},
+            headers=self._hdr(token),
+        )
+        assert r.status_code == 201, r.text
+        body = r.json()
+        assert body["name"] == "Beach House"
+        assert body["household_id"]
+        assert body["is_active"] is False
+
+    def test_create_duplicate_is_409(self, client, db_handle):
+        token = self._issue(db_handle, "default_household")
+        client.post(
+            "/api/v1/household",
+            json={"household_id": "hh_dup", "name": "One"},
+            headers=self._hdr(token),
+        )
+        r = client.post(
+            "/api/v1/household",
+            json={"household_id": "hh_dup", "name": "Two"},
+            headers=self._hdr(token),
+        )
+        assert r.status_code == 409
+        assert r.json()["detail"]["code"] == "household_exists"
+
+    def test_switch_re_scopes_token(self, client, db_handle):
+        token = self._issue(db_handle, "default_household")
+        # Create a second household.
+        client.post(
+            "/api/v1/household",
+            json={"household_id": "hh_second", "name": "Second"},
+            headers=self._hdr(token),
+        )
+        r = client.post(
+            "/api/v1/household/hh_second/switch",
+            headers=self._hdr(token),
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["household_id"] == "hh_second"
+        assert body["household_name"] == "Second"
+        assert body["token"]
+        # The new token is now scoped to hh_second — inventory list
+        # scoped to hh_second returns no lots (different household
+        # than the seeded default).
+        new_token = body["token"]
+        r2 = client.get(
+            "/api/v1/household", headers={"Authorization": f"Bearer {new_token}"}
+        )
+        active = [h for h in r2.json()["items"] if h["is_active"]]
+        assert active[0]["household_id"] == "hh_second"
+
+    def test_switch_unknown_household_is_404(self, client, db_handle):
+        token = self._issue(db_handle, "default_household")
+        r = client.post(
+            "/api/v1/household/no_such/switch", headers=self._hdr(token)
+        )
+        assert r.status_code == 404
+        assert r.json()["detail"]["code"] == "household_not_found"
+
+
+# ── Shopping endpoints ───────────────────────────────────────────
+
+
+class TestShoppingEndpoints:
+    def _issue(self, db_handle, household: str = "hh_shop") -> str:
+        from shopstack.api.v1 import auth as auth_mod
+
+        auth_mod.ensure_auth_table(db_handle)
+        db_handle.add_household(household, household)
+        # Writable households need an owner member (mirrors the
+        # production create path). Without this, add_list_item's
+        # permission gate denies the write.
+        db_handle.add_household_member(household, household, role="owner")
+        return auth_mod.issue_token(
+            db_handle, device_id="dev_shop", household_id=household,
+        )["token"]
+
+    def _hdr(self, token: str) -> dict:
+        return {"Authorization": f"Bearer {token}"}
+
+    def test_active_requires_token(self, client):
+        assert client.get("/api/v1/shopping/active").status_code == 401
+
+    def test_active_empty_returns_placeholder(self, client, db_handle):
+        token = self._issue(db_handle)
+        r = client.get("/api/v1/shopping/active", headers=self._hdr(token))
+        assert r.status_code == 200
+        body = r.json()
+        assert body["list_id"] == ""
+        assert body["items"] == []
+
+    def test_create_list_with_items(self, client, db_handle):
+        token = self._issue(db_handle)
+        r = client.post(
+            "/api/v1/shopping/lists",
+            json={
+                "goal": "Weekend groceries",
+                "items": [
+                    {"canonical_name": "milk", "requested_quantity": 2, "unit": "L"},
+                    {"canonical_name": "bread"},
+                ],
+            },
+            headers=self._hdr(token),
+        )
+        assert r.status_code == 201, r.text
+        body = r.json()
+        assert body["list_id"]
+        assert body["goal"] == "Weekend groceries"
+        names = {it["canonical_name"] for it in body["items"]}
+        assert names == {"milk", "bread"}
+
+    def test_active_after_create_returns_list(self, client, db_handle):
+        token = self._issue(db_handle)
+        client.post(
+            "/api/v1/shopping/lists",
+            json={"items": [{"canonical_name": "eggs"}]},
+            headers=self._hdr(token),
+        )
+        r = client.get("/api/v1/shopping/active", headers=self._hdr(token))
+        assert r.status_code == 200
+        body = r.json()
+        assert body["list_id"]
+        assert body["items"][0]["canonical_name"] == "eggs"
+
+    def test_add_items_appends(self, client, db_handle):
+        token = self._issue(db_handle)
+        create = client.post(
+            "/api/v1/shopping/lists",
+            json={"items": [{"canonical_name": "milk"}]},
+            headers=self._hdr(token),
+        ).json()
+        list_id = create["list_id"]
+        r = client.post(
+            f"/api/v1/shopping/lists/{list_id}/items",
+            json={"items": [{"canonical_name": "butter"}, {"canonical_name": "cheese"}]},
+            headers=self._hdr(token),
+        )
+        assert r.status_code == 200, r.text
+        names = {it["canonical_name"] for it in r.json()["items"]}
+        assert {"milk", "butter", "cheese"} <= names
+
+    def test_add_items_wrong_household_is_404(self, client, db_handle):
+        # List owned by hh_a.
+        token_a = self._issue(db_handle, "hh_a")
+        list_id = client.post(
+            "/api/v1/shopping/lists",
+            json={"items": [{"canonical_name": "milk"}]},
+            headers=self._hdr(token_a),
+        ).json()["list_id"]
+        # Caller scoped to hh_b.
+        token_b = self._issue(db_handle, "hh_b")
+        r = client.post(
+            f"/api/v1/shopping/lists/{list_id}/items",
+            json={"items": [{"canonical_name": "butter"}]},
+            headers=self._hdr(token_b),
+        )
+        assert r.status_code == 404
+        assert r.json()["detail"]["code"] == "list_not_found"
+
+
+# ── Dashboard endpoint ───────────────────────────────────────────
+
+
+class TestDashboardEndpoint:
+    def _issue(self, db_handle, household: str = "default_household") -> str:
+        from shopstack.api.v1 import auth as auth_mod
+
+        auth_mod.ensure_auth_table(db_handle)
+        return auth_mod.issue_token(
+            db_handle, device_id="dev_dash", household_id=household,
+        )["token"]
+
+    def test_today_requires_token(self, client):
+        assert client.get("/api/v1/dashboard/today").status_code == 401
+
+    def test_today_returns_snapshot(self, client, db_handle):
+        token = self._issue(db_handle, "default_household")
+        r = client.get(
+            "/api/v1/dashboard/today",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["household_id"] == "default_household"
+        # Counts are present and non-negative.
+        for k in ("pantry_count", "use_soon_count", "low_items_count", "recent_purchases_count"):
+            assert isinstance(body[k], int) and body[k] >= 0
+        assert "timestamp" in body
+
