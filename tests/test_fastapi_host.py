@@ -55,6 +55,10 @@ def test_fastapi_host_serves_api_and_ui():
         assert "/api/v1/command/preview" in root.text
         assert "/api/v1/inventory/lots" in root.text
         assert "/api/v1/shopping/active" in root.text
+        assert "/api/v1/meta/runtime" in root.text
+        assert "/api/v1/account/privacy/retention-summary" in root.text
+        assert "/api/v1/corrections" in root.text
+        assert "/api/v1/account/undo" in root.text
         assert "/search/global" in root.text
         assert "/intelligence/recurring" in root.text
         assert "/gradio" in root.text

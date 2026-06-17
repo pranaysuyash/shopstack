@@ -45,6 +45,10 @@ def test_frontend_shell_is_the_root_surface():
         assert "/api/v1/auth/register" in body
         assert "/api/v1/inventory/lots" in body
         assert "/api/v1/shopping/active" in body
+        assert "/api/v1/meta/runtime" in body
+        assert "/api/v1/account/privacy/retention-summary" in body
+        assert "/api/v1/corrections" in body
+        assert "/api/v1/account/undo" in body
         assert "/search/global" in body
         assert "/intelligence/recurring" in body
         assert "/gradio" in body

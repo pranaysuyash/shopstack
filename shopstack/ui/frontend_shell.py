@@ -692,6 +692,77 @@ def render_frontend_shell_html() -> str:
         </div>
       </section>
 
+      <section class="panel" aria-labelledby="ops-title">
+        <div class="section-title">
+          <h3 id="ops-title">Operations</h3>
+          <span class="tiny">Runtime, privacy, corrections, undo</span>
+        </div>
+        <div class="two-col">
+          <div class="stack">
+            <div class="item">
+              <div class="item-row">
+                <div class="item-title">Runtime diagnostics</div>
+                <span class="pill" id="runtime-diagnostics-pill">idle</span>
+              </div>
+              <div class="item-meta" id="runtime-diagnostics-summary">No runtime diagnostics loaded.</div>
+              <div class="stack" id="runtime-diagnostics-list"></div>
+              <div class="auth-actions">
+                <button class="button primary" id="runtime-refresh-btn" type="button">Refresh runtime</button>
+              </div>
+              <div class="tiny">API: <code>/api/v1/meta/runtime</code></div>
+            </div>
+            <div class="item">
+              <div class="item-row">
+                <div class="item-title">Privacy retention</div>
+                <span class="pill" id="privacy-pill">idle</span>
+              </div>
+              <div class="item-meta" id="privacy-summary">No retention summary loaded.</div>
+              <div class="stack" id="privacy-list"></div>
+              <div class="auth-actions">
+                <button class="button primary" id="privacy-refresh-btn" type="button">Refresh privacy</button>
+                <button class="button ghost" id="undo-btn" type="button">Undo last mutation</button>
+              </div>
+              <div class="tiny">API: <code>/api/v1/account/privacy/retention-summary</code> · <code>/api/v1/account/undo</code></div>
+            </div>
+          </div>
+          <div class="stack">
+            <div class="item">
+              <div class="item-row">
+                <div class="item-title">Corrections</div>
+                <span class="pill" id="corrections-pill">idle</span>
+              </div>
+              <div class="item-meta" id="corrections-summary">No corrections loaded.</div>
+              <div class="auth-row">
+                <label class="auth-field">
+                  <span class="tiny">Canonical name</span>
+                  <input id="correction-canonical" autocomplete="off" placeholder="milk">
+                </label>
+                <label class="auth-field">
+                  <span class="tiny">Was action</span>
+                  <input id="correction-was-action" autocomplete="off" placeholder="buy">
+                </label>
+              </div>
+              <div class="auth-row">
+                <label class="auth-field">
+                  <span class="tiny">Should be action</span>
+                  <input id="correction-should-action" autocomplete="off" placeholder="use_soon">
+                </label>
+                <label class="auth-field">
+                  <span class="tiny">Reason</span>
+                  <input id="correction-reason" autocomplete="off" placeholder="We usually finish it faster">
+                </label>
+              </div>
+              <div class="auth-actions">
+                <button class="button primary" id="correction-create-btn" type="button">Record correction</button>
+                <button class="button ghost" id="corrections-refresh-btn" type="button">Refresh corrections</button>
+              </div>
+              <div class="tiny">API: <code>/api/v1/corrections</code></div>
+              <div class="stack" id="corrections-list"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="panel" aria-labelledby="history-title">
         <div class="section-title">
           <h3 id="history-title">Recent commands</h3>
@@ -807,6 +878,24 @@ def render_frontend_shell_html() -> str:
       mealplanPill: document.getElementById('mealplan-pill'),
       mealplanSummary: document.getElementById('mealplan-summary'),
       mealplanList: document.getElementById('mealplan-list'),
+      runtimeDiagnosticsPill: document.getElementById('runtime-diagnostics-pill'),
+      runtimeDiagnosticsSummary: document.getElementById('runtime-diagnostics-summary'),
+      runtimeDiagnosticsList: document.getElementById('runtime-diagnostics-list'),
+      runtimeRefreshBtn: document.getElementById('runtime-refresh-btn'),
+      privacyPill: document.getElementById('privacy-pill'),
+      privacySummary: document.getElementById('privacy-summary'),
+      privacyList: document.getElementById('privacy-list'),
+      privacyRefreshBtn: document.getElementById('privacy-refresh-btn'),
+      undoBtn: document.getElementById('undo-btn'),
+      correctionsPill: document.getElementById('corrections-pill'),
+      correctionsSummary: document.getElementById('corrections-summary'),
+      correctionsList: document.getElementById('corrections-list'),
+      correctionCanonical: document.getElementById('correction-canonical'),
+      correctionWasAction: document.getElementById('correction-was-action'),
+      correctionShouldAction: document.getElementById('correction-should-action'),
+      correctionReason: document.getElementById('correction-reason'),
+      correctionCreateBtn: document.getElementById('correction-create-btn'),
+      correctionsRefreshBtn: document.getElementById('corrections-refresh-btn'),
       historyList: document.getElementById('history-list'),
       useSoonCount: document.getElementById('use-soon-count'),
       lowCount: document.getElementById('low-count'),
@@ -1200,6 +1289,91 @@ def render_frontend_shell_html() -> str:
       `).join('');
     }
 
+    function renderRuntimeDiagnostics(data) {
+      if (!data) {
+        els.runtimeDiagnosticsPill.textContent = 'idle';
+        els.runtimeDiagnosticsSummary.textContent = 'No runtime diagnostics loaded.';
+        els.runtimeDiagnosticsList.innerHTML = '';
+        return;
+      }
+      const providers = Array.isArray(data.providers) ? data.providers : [];
+      els.runtimeDiagnosticsPill.textContent = data.mode || 'unknown';
+      els.runtimeDiagnosticsSummary.textContent = `${providers.length} provider${providers.length === 1 ? '' : 's'} · ${data.timestamp || ''}`;
+      if (!providers.length) {
+        els.runtimeDiagnosticsList.innerHTML = `
+          <div class="item">
+            <div class="item-title">No providers reported</div>
+            <div class="item-meta">${esc(data.error || 'Runtime diagnostics were empty.')}</div>
+          </div>
+        `;
+        return;
+      }
+      els.runtimeDiagnosticsList.innerHTML = providers.map((provider) => `
+        <div class="item">
+          <div class="item-row">
+            <div class="item-title">${esc(provider.name || 'provider')}</div>
+            <span class="pill" data-tone="${provider.available ? 'good' : 'warn'}">${esc(provider.backend || 'backend')}</span>
+          </div>
+          <div class="item-meta">${esc(provider.model_id || 'no model')} · ${provider.loaded ? 'loaded' : 'idle'} · ${provider.available ? 'available' : 'unavailable'}</div>
+          <div class="tiny">Latency: ${esc(provider.last_latency_ms ?? '—')} ms</div>
+        </div>
+      `).join('');
+    }
+
+    function renderRetentionSummary(data) {
+      const summary = data && data.summary ? data.summary : null;
+      if (!summary) {
+        els.privacyPill.textContent = 'idle';
+        els.privacySummary.textContent = 'No retention summary loaded.';
+        els.privacyList.innerHTML = '';
+        return;
+      }
+      els.privacyPill.textContent = 'loaded';
+      els.privacySummary.textContent = 'Current privacy retention policy for this household.';
+      els.privacyList.innerHTML = [
+        ['Trace TTL', `${summary.trace_ttl_days} days`],
+        ['Trace max rows', summary.trace_max_rows],
+        ['Community pool', `${summary.community_pool_retention_days} days`],
+        ['Voice memos', `${summary.voice_memo_retention_days} days`],
+        ['SMS registry', `${summary.sms_registry_retention_days} days`],
+        ['Backups', `${summary.backup_retention_days} days`],
+        ['Locale persistence', summary.locale_persistence ? 'on' : 'off'],
+        ['Community opt-in', summary.community_optin ? 'on' : 'off'],
+      ].map(([label, value]) => `
+        <div class="item">
+          <div class="item-row">
+            <div class="item-title">${esc(label)}</div>
+            <span class="pill">${esc(value)}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderCorrections(data) {
+      const items = (data && data.items) || [];
+      els.correctionsPill.textContent = `${items.length || 0} items`;
+      els.correctionsSummary.textContent = data && data.summary ? data.summary : 'No corrections loaded.';
+      if (!items.length) {
+        els.correctionsList.innerHTML = `
+          <div class="item">
+            <div class="item-title">No corrections recorded</div>
+            <div class="item-meta">Use this panel to tighten the feedback loop on decisions.</div>
+          </div>
+        `;
+        return;
+      }
+      els.correctionsList.innerHTML = items.map((item) => `
+        <div class="item">
+          <div class="item-row">
+            <div class="item-title">${esc(item.canonical_name || 'item')}</div>
+            <span class="pill">${esc(item.accepted ? 'accepted' : 'pending')}</span>
+          </div>
+          <div class="item-meta">${esc(item.was_action || '—')} → ${esc(item.should_be_action || '—')} · ${esc(item.source || 'source')}</div>
+          <div class="tiny">${esc(item.timestamp || '')}</div>
+        </div>
+      `).join('');
+    }
+
     function bindExplainButtons() {
       document.querySelectorAll('[data-explain-name]').forEach((button) => {
         if (button.dataset.bound === 'true') {
@@ -1260,6 +1434,8 @@ def render_frontend_shell_html() -> str:
         recent_purchases: [],
       });
       renderHistory({ items: [] });
+      renderRetentionSummary(null);
+      renderCorrections(null);
     }
 
     async function refreshPublicState() {
@@ -1277,12 +1453,14 @@ def render_frontend_shell_html() -> str:
           ? `${healthPayload.database.table_count} tables`
           : 'database status unknown';
         els.healthDetail.textContent = `${tables} · ${healthPayload.timestamp || ''}`;
+        await refreshRuntimeDiagnostics();
         log(`Loaded public metadata: ${whoami.runtime_mode || 'local_mock'}.`, 'good');
       } catch (err) {
         setPill(els.runtimePill, 'Unavailable', 'bad');
         setPill(els.healthPill, 'Degraded', 'bad');
         els.runtimeDetail.textContent = err.message || 'Failed to load public metadata.';
         els.healthDetail.textContent = 'The backend is reachable, but the public metadata failed.';
+        renderRuntimeDiagnostics(null);
         log(`Public metadata failed: ${err.message}`, 'bad');
       }
     }
@@ -1437,6 +1615,105 @@ def render_frontend_shell_html() -> str:
       }
     }
 
+    async function refreshRuntimeDiagnostics() {
+      try {
+        const data = await requestJson('/meta/runtime');
+        renderRuntimeDiagnostics(data);
+        log('Loaded runtime diagnostics.', 'good');
+      } catch (err) {
+        renderRuntimeDiagnostics({
+          mode: 'error',
+          providers: [],
+          error: err.message,
+        });
+        log(`Runtime diagnostics failed: ${err.message}`, 'bad');
+      }
+    }
+
+    async function refreshRetentionSummary() {
+      const token = currentToken();
+      if (!token) {
+        renderRetentionSummary(null);
+        log('Connect a household before loading privacy settings.', 'warn');
+        return;
+      }
+      try {
+        const data = await requestJson('/account/privacy/retention-summary', {}, true);
+        renderRetentionSummary(data);
+        log('Loaded privacy retention summary.', 'good');
+      } catch (err) {
+        renderRetentionSummary(null);
+        log(`Privacy summary failed: ${err.message}`, 'bad');
+      }
+    }
+
+    async function refreshCorrections() {
+      const token = currentToken();
+      if (!token) {
+        renderCorrections(null);
+        log('Connect a household before loading corrections.', 'warn');
+        return;
+      }
+      try {
+        const data = await requestJson('/corrections?limit=8', {}, true);
+        renderCorrections(data);
+        log('Loaded recent corrections.', 'good');
+      } catch (err) {
+        renderCorrections(null);
+        log(`Corrections load failed: ${err.message}`, 'bad');
+      }
+    }
+
+    async function createCorrection() {
+      const token = currentToken();
+      if (!token) {
+        log('Connect a household before recording corrections.', 'warn');
+        return;
+      }
+      const canonical_name = (els.correctionCanonical.value || '').trim();
+      const was_action = (els.correctionWasAction.value || '').trim();
+      const should_be_action = (els.correctionShouldAction.value || '').trim();
+      const reason = (els.correctionReason.value || '').trim();
+      if (!canonical_name || !was_action || !should_be_action) {
+        log('Fill canonical name, was action, and should-be action first.', 'warn');
+        return;
+      }
+      try {
+        const data = await requestJson('/corrections', {
+          method: 'POST',
+          body: {
+            canonical_name,
+            was_action,
+            should_be_action,
+            reason,
+          },
+        }, true);
+        log(`Recorded correction for ${data.canonical_name}.`, 'good');
+        await refreshCorrections();
+        await refreshRetentionSummary();
+      } catch (err) {
+        log(`Correction create failed: ${err.message}`, 'bad');
+      }
+    }
+
+    async function undoLastMutation() {
+      const token = currentToken();
+      if (!token) {
+        log('Connect a household before using undo.', 'warn');
+        return;
+      }
+      try {
+        const data = await requestJson('/account/undo', {
+          method: 'POST',
+          body: {},
+        }, true);
+        log(data.message || 'Undo completed.', data.success ? 'good' : 'warn');
+        await refreshAllHouseholdViews();
+      } catch (err) {
+        log(`Undo failed: ${err.message}`, 'bad');
+      }
+    }
+
     async function refreshDecisionExplain(name) {
       const token = currentToken();
       if (!token) {
@@ -1558,6 +1835,8 @@ def render_frontend_shell_html() -> str:
         refreshShopping(),
         refreshRecurringPlan(),
         refreshMealPlan(),
+        refreshRetentionSummary(),
+        refreshCorrections(),
       ]);
     }
 
@@ -1761,6 +2040,11 @@ def render_frontend_shell_html() -> str:
     els.recurringBtn.addEventListener('click', refreshRecurringPlan);
     els.mealplanBtn.addEventListener('click', refreshMealPlan);
     els.intelRefreshBtn.addEventListener('click', refreshAllHouseholdViews);
+    els.runtimeRefreshBtn.addEventListener('click', refreshRuntimeDiagnostics);
+    els.privacyRefreshBtn.addEventListener('click', refreshRetentionSummary);
+    els.undoBtn.addEventListener('click', undoLastMutation);
+    els.correctionCreateBtn.addEventListener('click', createCorrection);
+    els.correctionsRefreshBtn.addEventListener('click', refreshCorrections);
 
     document.querySelectorAll('[data-quick-command]').forEach((button) => {
       button.addEventListener('click', () => {
@@ -1793,6 +2077,11 @@ def render_frontend_shell_html() -> str:
       parseVoiceIntent,
       refreshRecurringPlan,
       refreshMealPlan,
+      refreshRuntimeDiagnostics,
+      refreshRetentionSummary,
+      refreshCorrections,
+      createCorrection,
+      undoLastMutation,
       refreshDecisionExplain,
       addInventoryLot,
       createShoppingList,

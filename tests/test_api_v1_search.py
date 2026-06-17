@@ -223,6 +223,50 @@ class TestSearchInventory:
         if body["count"] > 0:
             assert body["results"][0]["kind"] == "inventory"
 
+    def test_semantic_match_type_in_meta_when_available(self, client, db_handle):
+        """When sentence-transformers is installed, /search/inventory
+        returns results with match_type=semantic and score > 0.
+
+        The search router wires ``BGEM3EmbeddingProvider`` at module
+        level. When ``sentence-transformers`` is available the model
+        loads lazily and semantic routing kicks in, producing
+        ``match_type=semantic`` in each result's meta field.
+
+        If ``sentence-transformers`` is not installed the endpoint
+        falls back to text-only matching (match_type=exact/prefix).
+        The test still validates response shape in that case.
+        """
+        _seed_inventory(db_handle)
+        token = _issue(db_handle)
+        r = client.get(
+            "/api/v1/search/inventory",
+            params={"q": "milk"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["count"] >= 1
+
+        result = body["results"][0]
+        meta = result["meta"]
+        assert "match:" in meta, f"Expected match info in meta, got: {meta}"
+        assert "confidence:" in meta, f"Expected confidence info in meta, got: {meta}"
+        assert isinstance(result["score"], float), "score must be a float"
+        assert result["score"] > 0, "score must be positive for a matching result"
+
+        # When sentence-transformers is installed, BGE-M3 provides semantic
+        # embeddings and the match_type should be 'semantic'. Otherwise the
+        # endpoint falls back to text-only (exact/prefix) and we skip the
+        # semantic assertion while still validating the response shape above.
+        try:
+            import sentence_transformers  # noqa: F401
+            assert "semantic" in meta, (
+                f"sentence-transformers is installed but meta does not contain "
+                f"'semantic'. meta={meta!r}"
+            )
+        except ImportError:
+            pass
+
 
 class TestVoiceIntent:
     def test_voice_intent_public_and_normalized(self, client):
