@@ -7,7 +7,7 @@ sdk: gradio
 sdk_version: "6.17.3"
 app_file: app.py
 pinned: false
-tags: [shopstack, gradio, inventory, shopping, offline-first, household]
+tags: [shopstack, inventory, shopping, offline-first, household, fastapi]
 ---
 
 # ShopStack
@@ -20,7 +20,7 @@ ShopStack is a stack of shopping intelligence layers: home inventory (ShopStock)
 
 ## Philosophy
 
-ShopStack runs entirely locally — SQLite database (WAL mode), mockable provider interfaces, and a Gradio workflow UI that works offline. The "Off the Grid" path means zero cloud dependencies for core functionality.
+ShopStack runs entirely locally — SQLite database (WAL mode), mockable provider interfaces, and an API-first FastAPI frontend shell that works offline. The "Off the Grid" path means zero cloud dependencies for core functionality.
 The default mock providers let you build and test the full app without loading any ML models.
 
 **Total parameter limit:** ≤32 billion parameters across all loaded models.
@@ -39,11 +39,11 @@ The default mock providers let you build and test the full app without loading a
 
 See `Docs/SHOPSTACK_PRODUCT_ARCHITECTURE.md` for full details.
 
-## Gradio Workflows
+## Frontend Shell
 
-ShopStack is organized around workflow experiences:
+ShopStack is organized around workflow experiences in the FastAPI shell:
 
- - **Today** — Decision-first dashboard: what to buy, skip, use soon, and compare
+- **Today** — Decision-first dashboard: what to buy, skip, use soon, and compare
 - **Ask ShopStack** — Natural language queries across all modules
 - **Shopping List** — Create, classify (buy/skip/use-soon), and complete shopping plans
 - **Market Lens** — Scan items via camera or voice, compare to inventory
@@ -189,7 +189,7 @@ Every tool execution creates an agent trace stored in the database. Traces inclu
 
 Explicitly **not** redacted: generic `name` fields, canonical item names, location names.
 
-## Screens
+## Screens (Gradio UI)
 
 | Tab | Purpose |
 |-----|---------|
@@ -204,6 +204,126 @@ Explicitly **not** redacted: generic `name` fields, canonical item names, locati
 | **Model Stack** | Active model stack + budget status and candidate catalog |
 | **Agent Trace** | Agent session trace viewer with redaction preview |
 | **Field Notes** | Agent reasoning and decision log |
+
+## FastAPI /api/v1 REST API
+
+ShopStack exposes a **versioned HTTP API** under `/api/v1/*` for the mobile app and other HTTP clients. The API is mounted directly on top of Gradio's embedded FastAPI instance (`gr.Blocks().app`) at startup — meaning both the Gradio UI and the REST API run on the same server/port.
+
+### Architecture
+
+```
+HTTP Client (shopstack-mobile, curl, etc.)
+  │
+  ├── GET  /api/v1/meta/...           ← public (no auth)
+  ├── POST /api/v1/auth/...           ← public (bootstraps sessions)
+  ├── POST /api/v1/sms/...            ← public (Twilio webhooks)
+  │
+  └── ALL /api/v1/{inventory,shopping,dashboard,
+                  search,intelligence,account,traces,
+                  corrections,command,household}/*  ← Bearer token required
+```
+
+### Auth model
+
+| Concept | Implementation |
+|---------|---------------|
+| **Device identity** | `device_id` + `device_secret` generated client-side, registered via `POST /auth/register` |
+| **Token** | Opaque bearer token (40-char hex), returned on register/login, refreshed via `POST /auth/refresh` |
+| **Transport** | `Authorization: Bearer <token>` header (or `?token=<token>` query param for Gradio-rendered clients) |
+| **Storage** | `expo-secure-store` (iOS/Android) or `localStorage` (web fallback) |
+| **Household scoping** | Authenticated operations are scoped to the user's household |
+
+### Endpoints
+
+| Router | Endpoints | Description |
+|--------|-----------|-------------|
+| **`/meta`** | `whoami`, `health`, `runtime` | Server identity, health check, model runtime status |
+| **`/auth`** | `register`, `login`, `refresh`, `logout` | Device registration, authentication, session management |
+| **`/inventory`** | `list lots`, `get lot`, `add lot`, `consume lot` | Household inventory CRUD |
+| **`/household`** | `list`, `create`, `switch` | Multi-household support |
+| **`/shopping`** | `get active`, `create list`, `add items`, `complete`, `mark-purchased` | Shopping list management |
+| **`/dashboard`** | `today` | Today's snapshot: pantry count, use-soon, low items, recent purchases |
+| **`/command`** | `preview`, `execute`, `recent` | Natural language command processing |
+| **`/search`** | `global`, `inventory`, `voice-intent` | Text + semantic search across inventory |
+| **`/traces`** | `list`, `get`, `export` | Workflow audit trail with PII-redacted export |
+| **`/intelligence`** | `decision explain`, `recurring plan`, `meal plan` | AI-powered insights |
+| **`/account`** | `privacy` (purge, retention), `undo`, `store-mode toggle` | Account management |
+| **`/corrections`** | `list`, `create` | Correction event management |
+| **`/sms`** | `webhook` | Twilio SMS webhook handler (Twilio-signed) |
+
+### OpenAPI schema
+
+The full OpenAPI 3.0 schema is auto-generated from route declarations:
+
+```bash
+python -c "from shopstack.api.v1.openapi import openapi_schema_json; print(openapi_schema_json())"
+```
+
+The schema is the **canonical API contract** between the backend and the mobile client. Contract tests in `tests/test_api_v1_openapi_schema.py` assert schema structure. TypeScript types in `shopstack-mobile/src/api/types.ts` are hand-mapped from the Python Pydantic schemas.
+
+## shopstack-mobile (React Native / Expo)
+
+`shopstack-mobile/` is a **React Native (Expo) app** that consumes the `/api/v1` REST API — giving ShopStack a native mobile interface alongside the Gradio web UI.
+
+### Architecture
+
+```
+shopstack-mobile/
+├── app/                    # expo-router file-based navigation
+│   ├── _layout.tsx         # Root: auth gate + React Query provider
+│   ├── (auth)/             # Login, Register
+│   ├── (tabs)/             # Today, Pantry, Shopping, Search, More
+│   ├── intelligence.tsx    # Recurring plan + meal plan
+│   ├── account.tsx         # Privacy, undo, server info
+│   ├── traces.tsx          # Command history
+│   ├── corrections.tsx     # Corrections
+│   └── store-mode.tsx      # In-store check-off mode
+└── src/
+    ├── api/
+    │   ├── types.ts        # TypeScript interfaces (70+ types)
+    │   ├── client.ts       # HTTP client with Bearer token injection
+    │   ├── auth.ts         # Device registration & auth
+    │   ├── *.ts            # 9 endpoint modules (inventory, shopping, ...)
+    └── storage/
+        └── token.ts        # expo-secure-store wrapper
+```
+
+### Key decisions
+
+| Decision | Choice |
+|---|---|
+| Framework | Expo managed workflow (no bare RN needed for HTTP CRUD) |
+| Nav | expo-router (file-based, deep links built-in) |
+| Caching | TanStack React Query (stale-while-revalidate) |
+| Auth tokens | expo-secure-store (hardware-backed on iOS/Android) |
+| Screens | 12 screens covering every /api/v1 endpoint |
+
+### Setup
+
+```bash
+cd shopstack-mobile
+npm install
+npx expo start    # Scan QR with Expo Go, or press 'w' for web
+```
+
+See `shopstack-mobile/README.md` for full details.
+
+## Frontend Shell (FastAPI HTML UI)
+
+In addition to the Gradio interface, `shopstack/ui/frontend_shell.py` renders a **standalone HTML/CSS frontend** served by FastAPI. It provides:
+
+- Full auth flow (login, register, device management)
+- Dashboard view (today's snapshot)
+- Inventory browser with add/consume actions
+- Shopping list creation and management
+- Global + inventory search
+- Intelligence panels (recurring plan, meal plan, decision explain)
+- Privacy controls (retention, purge, undo)
+- Trace history viewer
+- Store mode (check-off items while shopping)
+- Mobile-responsive dark theme
+
+The frontend shell is loaded through FastAPI routes and communicates entirely through the `/api/v1/*` REST endpoints.
 
 ## Configuration
 

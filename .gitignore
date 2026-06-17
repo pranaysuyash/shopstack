@@ -44,6 +44,7 @@ Docs/
 !Docs/
 !Docs/README.md
 docs/**
+!docs/ARCHITECTURE.md
 AGENTS.md
 .playwright-mcp/
 .runtime/
