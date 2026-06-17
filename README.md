@@ -3,9 +3,7 @@ title: ShopStack
 emoji: 🛒
 colorFrom: green
 colorTo: blue
-sdk: gradio
-sdk_version: "6.17.3"
-app_file: app.py
+sdk: docker
 pinned: false
 tags: [shopstack, inventory, shopping, offline-first, household, fastapi]
 ---
@@ -118,7 +116,7 @@ shopstack/
   ui/                       # (reserved)
   configs/                  # (reserved)
 
-app.py                      # Gradio Blocks UI entry point (workflow-first tabs, custom warm CSS)
+app.py                      # FastAPI entry shim (launches the backend host)
 tests/                      # pytest test suite (run `pytest tests/ --collect-only -q` for current count)
 benchmarks/                 # pytest benchmark suite (9 latency markers)
 ```
@@ -126,7 +124,7 @@ benchmarks/                 # pytest benchmark suite (9 latency markers)
 ## Architecture
 
 ```
-Gradio Blocks (app.py)
+FastAPI host (shopstack/server.py)
   → ToolRegistry (12 tools, validates args, calls Database)
     → Database (SQLite WAL, 26 tables, 2 views, 2 triggers, 9 indexes)
   → ProviderRegistry (wired from Settings)
@@ -189,7 +187,7 @@ Every tool execution creates an agent trace stored in the database. Traces inclu
 
 Explicitly **not** redacted: generic `name` fields, canonical item names, location names.
 
-## Screens (Gradio UI)
+## Screens
 
 | Tab | Purpose |
 |-----|---------|
@@ -207,7 +205,7 @@ Explicitly **not** redacted: generic `name` fields, canonical item names, locati
 
 ## FastAPI /api/v1 REST API
 
-ShopStack exposes a **versioned HTTP API** under `/api/v1/*` for the mobile app and other HTTP clients. The API is mounted directly on top of Gradio's embedded FastAPI instance (`gr.Blocks().app`) at startup — meaning both the Gradio UI and the REST API run on the same server/port.
+ShopStack exposes a **versioned HTTP API** under `/api/v1/*` for the mobile app and other HTTP clients. The API is mounted directly on the FastAPI host at startup, alongside the HTML shell served at `/`.
 
 ### Architecture
 
@@ -229,7 +227,7 @@ HTTP Client (shopstack-mobile, curl, etc.)
 |---------|---------------|
 | **Device identity** | `device_id` + `device_secret` generated client-side, registered via `POST /auth/register` |
 | **Token** | Opaque bearer token (40-char hex), returned on register/login, refreshed via `POST /auth/refresh` |
-| **Transport** | `Authorization: Bearer <token>` header (or `?token=<token>` query param for Gradio-rendered clients) |
+| **Transport** | `Authorization: Bearer <token>` header |
 | **Storage** | `expo-secure-store` (iOS/Android) or `localStorage` (web fallback) |
 | **Household scoping** | Authenticated operations are scoped to the user's household |
 
@@ -263,7 +261,7 @@ The schema is the **canonical API contract** between the backend and the mobile 
 
 ## shopstack-mobile (React Native / Expo)
 
-`shopstack-mobile/` is a **React Native (Expo) app** that consumes the `/api/v1` REST API — giving ShopStack a native mobile interface alongside the Gradio web UI.
+`shopstack-mobile/` is a **React Native (Expo) app** that consumes the `/api/v1` REST API — giving ShopStack a native mobile interface alongside the FastAPI frontend shell.
 
 ### Architecture
 
@@ -310,7 +308,7 @@ See `shopstack-mobile/README.md` for full details.
 
 ## Frontend Shell (FastAPI HTML UI)
 
-In addition to the Gradio interface, `shopstack/ui/frontend_shell.py` renders a **standalone HTML/CSS frontend** served by FastAPI. It provides:
+`shopstack/ui/frontend_shell.py` renders a **standalone HTML/CSS frontend** served by FastAPI. It provides:
 
 - Full auth flow (login, register, device management)
 - Dashboard view (today's snapshot)
@@ -334,7 +332,7 @@ Operational resource guards are documented in **[`Docs/RESOURCE_OPTIMIZATION_POL
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SHOPSTACK_DB_PATH` | `data/shopstack.db` | SQLite database file path |
-| `SHOPSTACK_APP_PORT` | `7860` | Gradio server port |
+| `SHOPSTACK_APP_PORT` | `7860` | FastAPI server port |
 | `SHOPSTACK_OFF_THE_GRID` | `true` | Use mock providers (no cloud) |
 | `SHOPSTACK_LOCAL_AUTO_UNLOAD` | `true` | Unload local model runtime after each local provider call |
 | `SHOPSTACK_LOCAL_WHISPER_AUTO_UNLOAD` | `true` | Unload local STT model after each transcription |
