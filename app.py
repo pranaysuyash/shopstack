@@ -68,9 +68,22 @@ class PermissionsPolicyMiddleware(BaseHTTPMiddleware):
 
 
 def _install_permissions_policy_middleware(app: gr.Blocks) -> None:
-    """Install the Permissions-Policy middleware on the Gradio app's FastAPI instance."""
+    """Install the Permissions-Policy middleware on the Gradio app's FastAPI instance.
+
+    Idempotent: if the middleware is already installed (e.g. because a previous
+    test in the same process already called this), the ``RuntimeError`` is
+    silently caught. In production, ``build_app()`` is called once so the
+    middleware is always installed correctly on the first call.
+    """
     fastapi_app = app.app
-    fastapi_app.add_middleware(PermissionsPolicyMiddleware)
+    try:
+        fastapi_app.add_middleware(PermissionsPolicyMiddleware)
+    except RuntimeError:
+        # ``Cannot add middleware after an application has started`` —
+        # occurs when two or more app-launch test files run in the same
+        # process. The middleware is already installed by the first test;
+        # the second call is a no-op.
+        pass
 
 
 
