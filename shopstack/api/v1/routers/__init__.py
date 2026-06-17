@@ -35,6 +35,7 @@ from .shopping import router as shopping_router
 from .dashboard import router as dashboard_router
 from .command import router as command_router
 from .search import router as search_router
+from .traces import router as traces_router
 from .intelligence import router as intelligence_router
 from .account import router as account_router
 from .sms import router as sms_router
@@ -49,6 +50,7 @@ __all__ = [
     "dashboard_router",
     "command_router",
     "search_router",
+    "traces_router",
     "intelligence_router",
     "account_router",
     "corrections_router",

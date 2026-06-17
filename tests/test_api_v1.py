@@ -336,6 +336,14 @@ class TestAuthEndpoints:
         assert r2.status_code == 200
         assert r2.json()["token"]
 
+    def test_register_bootstraps_writable_membership(self, client, db_handle):
+        secret = secrets.token_hex(20)
+        r = self._register(client, secret=secret)
+        assert r.status_code == 201, r.text
+        household_id = r.json()["household_id"]
+        members = db_handle.list_household_members(household_id)
+        assert any(m.get("user_id") == household_id and m.get("role") == "owner" for m in members)
+
     def test_login_unknown_device_is_401(self, client):
         r = client.post(
             "/api/v1/auth/login",
@@ -739,4 +747,3 @@ class TestDashboardEndpoint:
         for k in ("pantry_count", "use_soon_count", "low_items_count", "recent_purchases_count"):
             assert isinstance(body[k], int) and body[k] >= 0
         assert "timestamp" in body
-

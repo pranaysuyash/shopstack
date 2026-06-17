@@ -148,6 +148,10 @@ class TestPathCoverage:
         ("get", "/api/v1/search/global"),
         ("get", "/api/v1/search/inventory"),
         ("post", "/api/v1/search/voice-intent"),
+        # ── traces ──
+        ("get", "/api/v1/traces"),
+        ("get", "/api/v1/traces/{trace_id}"),
+        ("get", "/api/v1/traces/{trace_id}/export"),
         # ── intelligence ──
         ("get", "/api/v1/intelligence/decision/{name}/explain"),
         ("get", "/api/v1/intelligence/recurring"),

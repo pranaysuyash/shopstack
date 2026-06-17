@@ -18,33 +18,37 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 class TestAppPyHandleGuards:
-    """app.py must fail fast if today/reconcile builders return None."""
+    """app_builder.py must fail fast if today/reconcile builders return None.
+
+    The handle guards were extracted from app.py to
+    shopstack/app_builder.py (Pass 26, 2026-06-17).
+    """
+
+    BUILDER_PATH = REPO_ROOT / "shopstack" / "app_builder.py"
 
     def test_today_handle_guarded(self):
-        app_source = (REPO_ROOT / "app.py").read_text(encoding="utf-8")
-        # Look for a guard pattern: handles.get("today") with a check
+        builder_source = self.BUILDER_PATH.read_text(encoding="utf-8")
         assert re.search(
             r'handles\.get\(["\']today["\']\)',
-            app_source,
-        ), "app.py must extract today handles with handles.get('today')"
-        # And a RuntimeError check
+            builder_source,
+        ), "app_builder.py must extract today handles with handles.get('today')"
         assert re.search(
             r"today_handles\s+is\s+None.*?RuntimeError",
-            app_source,
+            builder_source,
             re.DOTALL,
-        ), "app.py must check 'today_handles is None' and raise RuntimeError"
+        ), "app_builder.py must check 'today_handles is None' and raise RuntimeError"
 
     def test_reconcile_handle_guarded(self):
-        app_source = (REPO_ROOT / "app.py").read_text(encoding="utf-8")
+        builder_source = self.BUILDER_PATH.read_text(encoding="utf-8")
         assert re.search(
             r'handles\.get\(["\']reconcile["\']\)',
-            app_source,
-        ), "app.py must extract reconcile handles with handles.get('reconcile')"
+            builder_source,
+        ), "app_builder.py must extract reconcile handles with handles.get('reconcile')"
         assert re.search(
             r"reconcile_handles\s+is\s+None.*?RuntimeError",
-            app_source,
+            builder_source,
             re.DOTALL,
-        ), "app.py must check 'reconcile_handles is None' and raise RuntimeError"
+        ), "app_builder.py must check 'reconcile_handles is None' and raise RuntimeError"
 
 
 class TestHouseholdSwitchReload:

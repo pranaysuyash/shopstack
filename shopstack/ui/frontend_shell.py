@@ -253,6 +253,12 @@ def render_frontend_shell_html() -> str:
     .button.ghost {
       color: var(--text-muted);
     }
+    .button.danger {
+      background: linear-gradient(180deg, rgba(220, 91, 91, 0.22), rgba(220, 91, 91, 0.12));
+      border-color: rgba(220, 91, 91, 0.38);
+      color: #ffd2d2;
+      font-weight: 700;
+    }
     .quick-actions {
       display: flex;
       flex-wrap: wrap;
@@ -610,6 +616,7 @@ def render_frontend_shell_html() -> str:
           <div class="auth-actions">
             <button class="button primary" id="shopping-create-btn" type="button">Create shopping list</button>
             <button class="button" id="shopping-complete-btn" type="button">Complete active list</button>
+            <button class="button" id="shopping-mark-purchased-btn" type="button">Mark selected purchased</button>
             <button class="button ghost" id="shopping-refresh-btn" type="button">Refresh shopping</button>
           </div>
           <div class="item">
@@ -639,6 +646,7 @@ def render_frontend_shell_html() -> str:
               <input id="voice-text" autocomplete="off" placeholder="Add milk and bread">
             </label>
           </div>
+          <div class="tiny">Global search spans lists, recipes, and actions. Inventory search falls back to semantic matching when available.</div>
           <div class="auth-actions">
             <button class="button primary" id="search-global-btn" type="button">Global search</button>
             <button class="button" id="search-inventory-btn" type="button">Inventory search</button>
@@ -669,6 +677,14 @@ def render_frontend_shell_html() -> str:
         </div>
         <div class="stack">
           <div class="auth-actions">
+            <label class="auth-field">
+              <span class="tiny">Recurring window</span>
+              <input id="recurring-window" autocomplete="off" type="number" min="0" max="30" value="7">
+            </label>
+            <label class="auth-field">
+              <span class="tiny">Meal plan days</span>
+              <input id="mealplan-days" autocomplete="off" type="number" min="1" max="28" value="7">
+            </label>
             <button class="button primary" id="recurring-btn" type="button">Load recurring plan</button>
             <button class="button" id="mealplan-btn" type="button">Load meal plan</button>
             <button class="button ghost" id="intel-refresh-btn" type="button">Refresh intelligence</button>
@@ -718,11 +734,53 @@ def render_frontend_shell_html() -> str:
               </div>
               <div class="item-meta" id="privacy-summary">No retention summary loaded.</div>
               <div class="stack" id="privacy-list"></div>
+              <div class="auth-row">
+                <label class="auth-field">
+                  <span class="tiny">Privacy profile</span>
+                  <select id="privacy-profile">
+                    <option value="balanced">Balanced defaults</option>
+                    <option value="strict">Strict privacy</option>
+                    <option value="shared">Household sharing</option>
+                  </select>
+                </label>
+                <div class="auth-actions" style="align-self:end;">
+                  <button class="button primary" id="privacy-apply-profile-btn" type="button">Apply profile</button>
+                </div>
+              </div>
+              <div class="tiny" id="privacy-profile-summary">Balanced defaults keeps the current household defaults: 30-day traces, 90-day community pool, and local locale persistence.</div>
+              <div class="auth-row">
+                <label class="auth-field">
+                  <span class="tiny">Setting</span>
+                  <select id="privacy-key">
+                    <option value="retention.trace_ttl_days">Trace TTL</option>
+                    <option value="retention.community_pool_retention_days">Community pool</option>
+                    <option value="retention.voice_memo_retention_days">Voice memos</option>
+                    <option value="retention.sms_registry_retention_days">SMS registry</option>
+                    <option value="retention.backup_retention_days">Backups</option>
+                    <option value="retention.locale_persistence">Locale persistence</option>
+                    <option value="retention.community_optin">Community opt-in</option>
+                  </select>
+                </label>
+                <label class="auth-field">
+                  <span class="tiny">Value</span>
+                  <input id="privacy-value" autocomplete="off" placeholder="30, 0, or 1">
+                </label>
+              </div>
+              <div class="auth-row">
+                <label class="auth-field">
+                  <span class="tiny">Purge confirm</span>
+                  <input id="privacy-confirm" autocomplete="off" placeholder="PURGE">
+                </label>
+                <div class="auth-actions" style="align-self:end;">
+                  <button class="button primary" id="privacy-update-btn" type="button">Update retention</button>
+                  <button class="button danger" id="privacy-purge-btn" type="button">Purge household data</button>
+                </div>
+              </div>
               <div class="auth-actions">
                 <button class="button primary" id="privacy-refresh-btn" type="button">Refresh privacy</button>
                 <button class="button ghost" id="undo-btn" type="button">Undo last mutation</button>
               </div>
-              <div class="tiny">API: <code>/api/v1/account/privacy/retention-summary</code> · <code>/api/v1/account/undo</code></div>
+              <div class="tiny">API: <code>/api/v1/account/privacy/retention-summary</code> · <code>/api/v1/account/privacy/update-retention</code> · <code>/api/v1/account/privacy/purge</code> · <code>/api/v1/account/undo</code></div>
             </div>
           </div>
           <div class="stack">
@@ -760,6 +818,51 @@ def render_frontend_shell_html() -> str:
               <div class="stack" id="corrections-list"></div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="trace-title">
+        <div class="section-title">
+          <h3 id="trace-title">Traces</h3>
+          <span class="tiny">Audit log and redacted export</span>
+        </div>
+        <div class="stack">
+          <div class="auth-row">
+            <label class="auth-field">
+              <span class="tiny">Search</span>
+              <input id="trace-search" autocomplete="off" placeholder="milk">
+            </label>
+            <label class="auth-field">
+              <span class="tiny">Input type filter</span>
+              <input id="trace-type" autocomplete="off" placeholder="command">
+            </label>
+          </div>
+          <div class="auth-actions">
+            <button class="button primary" id="trace-refresh-btn" type="button">Refresh traces</button>
+          </div>
+          <div class="item">
+            <div class="item-row">
+              <div class="item-title">Recent traces</div>
+              <span class="pill" id="trace-pill">idle</span>
+            </div>
+            <div class="item-meta" id="trace-summary">No traces loaded.</div>
+            <div class="stack" id="trace-list"></div>
+          </div>
+          <div class="item">
+            <div class="item-row">
+              <div class="item-title">Trace detail</div>
+              <span class="pill">redacted</span>
+            </div>
+            <div class="preview" id="trace-detail" data-tone="muted">Pick a trace to inspect the payload.</div>
+          </div>
+          <div class="item">
+            <div class="item-row">
+              <div class="item-title">Trace export</div>
+              <span class="pill" id="trace-export-pill">idle</span>
+            </div>
+            <div class="preview" id="trace-export" data-tone="muted">Redacted JSONL export will appear here.</div>
+          </div>
+          <div class="tiny">API: <code>/api/v1/traces</code> · <code>/api/v1/traces/{trace_id}</code> · <code>/api/v1/traces/{trace_id}/export</code></div>
         </div>
       </section>
 
@@ -855,6 +958,7 @@ def render_frontend_shell_html() -> str:
       shoppingItems: document.getElementById('shopping-items'),
       shoppingCreateBtn: document.getElementById('shopping-create-btn'),
       shoppingCompleteBtn: document.getElementById('shopping-complete-btn'),
+      shoppingMarkPurchasedBtn: document.getElementById('shopping-mark-purchased-btn'),
       shoppingRefreshBtn: document.getElementById('shopping-refresh-btn'),
       shoppingListTitle: document.getElementById('shopping-list-title'),
       shoppingPill: document.getElementById('shopping-pill'),
@@ -885,6 +989,14 @@ def render_frontend_shell_html() -> str:
       privacyPill: document.getElementById('privacy-pill'),
       privacySummary: document.getElementById('privacy-summary'),
       privacyList: document.getElementById('privacy-list'),
+      privacyProfile: document.getElementById('privacy-profile'),
+      privacyProfileSummary: document.getElementById('privacy-profile-summary'),
+      privacyApplyProfileBtn: document.getElementById('privacy-apply-profile-btn'),
+      privacyKey: document.getElementById('privacy-key'),
+      privacyValue: document.getElementById('privacy-value'),
+      privacyConfirm: document.getElementById('privacy-confirm'),
+      privacyUpdateBtn: document.getElementById('privacy-update-btn'),
+      privacyPurgeBtn: document.getElementById('privacy-purge-btn'),
       privacyRefreshBtn: document.getElementById('privacy-refresh-btn'),
       undoBtn: document.getElementById('undo-btn'),
       correctionsPill: document.getElementById('corrections-pill'),
@@ -896,6 +1008,17 @@ def render_frontend_shell_html() -> str:
       correctionReason: document.getElementById('correction-reason'),
       correctionCreateBtn: document.getElementById('correction-create-btn'),
       correctionsRefreshBtn: document.getElementById('corrections-refresh-btn'),
+      traceSearch: document.getElementById('trace-search'),
+      traceType: document.getElementById('trace-type'),
+      traceRefreshBtn: document.getElementById('trace-refresh-btn'),
+      tracePill: document.getElementById('trace-pill'),
+      traceSummary: document.getElementById('trace-summary'),
+      traceList: document.getElementById('trace-list'),
+      traceDetail: document.getElementById('trace-detail'),
+      traceExport: document.getElementById('trace-export'),
+      traceExportPill: document.getElementById('trace-export-pill'),
+      recurringWindow: document.getElementById('recurring-window'),
+      mealplanDays: document.getElementById('mealplan-days'),
       historyList: document.getElementById('history-list'),
       useSoonCount: document.getElementById('use-soon-count'),
       lowCount: document.getElementById('low-count'),
@@ -1157,6 +1280,9 @@ def render_frontend_shell_html() -> str:
       els.shoppingListTitle.textContent = listId ? `Active list: ${listId}` : 'Active list';
       els.shoppingGoalText.textContent = data && data.goal ? data.goal : (listId ? 'List loaded with no explicit goal.' : 'No shopping list loaded yet.');
       els.shoppingPill.textContent = data && data.is_active ? 'active' : 'idle';
+      if (els.shoppingMarkPurchasedBtn) {
+        els.shoppingMarkPurchasedBtn.disabled = !listId || !items.length;
+      }
       if (!items.length) {
         els.shoppingList.innerHTML = `
           <div class="item">
@@ -1169,13 +1295,22 @@ def render_frontend_shell_html() -> str:
       els.shoppingList.innerHTML = items.map((item) => `
         <div class="item">
           <div class="item-row">
-            <div class="item-title">${esc(item.canonical_name || 'Item')}</div>
+            <label class="item-title" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+              <input type="checkbox" data-shopping-item-id="${esc(item.item_id || item.list_item_id || '')}">
+              <span>${esc(item.canonical_name || 'Item')}</span>
+            </label>
             <span class="pill">${esc(item.priority || 'optional')}</span>
           </div>
           <div class="item-meta">${esc((item.requested_quantity ?? '1') + ' ' + (item.unit || 'unit'))} · ${esc(item.status || 'pending')}</div>
           <div class="tiny">${esc(item.reason || '')}</div>
         </div>
       `).join('');
+    }
+
+    function getSelectedShoppingItemIds() {
+      return Array.from(document.querySelectorAll('[data-shopping-item-id]:checked'))
+        .map((el) => el.getAttribute('data-shopping-item-id') || '')
+        .filter(Boolean);
     }
 
     function renderSearchResults(target, data, emptyLabel) {
@@ -1326,10 +1461,12 @@ def render_frontend_shell_html() -> str:
         els.privacyPill.textContent = 'idle';
         els.privacySummary.textContent = 'No retention summary loaded.';
         els.privacyList.innerHTML = '';
+        renderPrivacyProfileHint(els.privacyProfile && els.privacyProfile.value ? els.privacyProfile.value : 'balanced');
         return;
       }
       els.privacyPill.textContent = 'loaded';
       els.privacySummary.textContent = 'Current privacy retention policy for this household.';
+      renderPrivacyProfileHint(els.privacyProfile && els.privacyProfile.value ? els.privacyProfile.value : 'balanced');
       els.privacyList.innerHTML = [
         ['Trace TTL', `${summary.trace_ttl_days} days`],
         ['Trace max rows', summary.trace_max_rows],
@@ -1347,6 +1484,66 @@ def render_frontend_shell_html() -> str:
           </div>
         </div>
       `).join('');
+    }
+
+    function privacyProfileConfig(profile) {
+      const profiles = {
+        balanced: {
+          label: 'Balanced defaults',
+          description: 'Balanced defaults keeps the current household defaults: 30-day traces, 90-day community pool, and local locale persistence.',
+          settings: [
+            ['retention.trace_ttl_days', '30'],
+            ['retention.community_pool_retention_days', '90'],
+            ['retention.voice_memo_retention_days', '7'],
+            ['retention.sms_registry_retention_days', '0'],
+            ['retention.backup_retention_days', '0'],
+            ['retention.locale_persistence', '1'],
+            ['retention.community_optin', '0'],
+          ],
+        },
+        strict: {
+          label: 'Strict privacy',
+          description: 'Strict privacy shortens traces and voice memos, keeps community sharing off, and avoids persisting locale preferences.',
+          settings: [
+            ['retention.trace_ttl_days', '7'],
+            ['retention.community_pool_retention_days', '30'],
+            ['retention.voice_memo_retention_days', '3'],
+            ['retention.sms_registry_retention_days', '0'],
+            ['retention.backup_retention_days', '0'],
+            ['retention.locale_persistence', '0'],
+            ['retention.community_optin', '0'],
+          ],
+        },
+        shared: {
+          label: 'Household sharing',
+          description: 'Household sharing keeps more memory for the home while opting into the community pool and preserving locale defaults.',
+          settings: [
+            ['retention.trace_ttl_days', '30'],
+            ['retention.community_pool_retention_days', '90'],
+            ['retention.voice_memo_retention_days', '7'],
+            ['retention.sms_registry_retention_days', '0'],
+            ['retention.backup_retention_days', '0'],
+            ['retention.locale_persistence', '1'],
+            ['retention.community_optin', '1'],
+          ],
+        },
+      };
+      return profiles[profile] || profiles.balanced;
+    }
+
+    function renderPrivacyProfileHint(profile) {
+      const config = privacyProfileConfig(profile);
+      if (els.privacyProfileSummary) {
+        els.privacyProfileSummary.textContent = config.description;
+      }
+    }
+
+    function parseBoundedInt(value, fallback, min, max) {
+      const parsed = Number.parseInt(String(value ?? '').trim(), 10);
+      if (!Number.isFinite(parsed)) {
+        return fallback;
+      }
+      return Math.min(max, Math.max(min, parsed));
     }
 
     function renderCorrections(data) {
@@ -1374,6 +1571,76 @@ def render_frontend_shell_html() -> str:
       `).join('');
     }
 
+    function renderTraces(data) {
+      const items = (data && data.items) || [];
+      els.tracePill.textContent = `${items.length || 0} items`;
+      els.traceSummary.textContent = data && data.summary ? data.summary : 'No traces loaded.';
+      if (!items.length) {
+        els.traceList.innerHTML = `
+          <div class="item">
+            <div class="item-title">No traces recorded</div>
+            <div class="item-meta">Command execution and feedback should populate this list.</div>
+          </div>
+        `;
+        els.traceDetail.textContent = 'Pick a trace to inspect the payload.';
+        els.traceExport.textContent = 'Redacted JSONL export will appear here.';
+        els.traceExportPill.textContent = 'idle';
+        return;
+      }
+      els.traceList.innerHTML = items.map((item) => `
+        <div class="item">
+          <div class="item-row">
+            <div class="item-title">${esc(item.user_goal || item.input_type || 'trace')}</div>
+            <span class="pill">${esc(item.action || item.input_type || 'trace')}</span>
+          </div>
+          <div class="item-meta">${esc(item.final_response || '')}</div>
+          <div class="tiny">${esc(item.timestamp || '')} · ${esc(item.human_confirmation || 'unconfirmed')}</div>
+          <div class="auth-actions">
+            <button class="button primary" type="button" data-trace-id="${esc(item.trace_id || '')}" data-trace-action="detail">View detail</button>
+            <button class="button ghost" type="button" data-trace-id="${esc(item.trace_id || '')}" data-trace-action="export">Export</button>
+          </div>
+        </div>
+      `).join('');
+      bindTraceButtons();
+      if (items[0] && items[0].trace_id) {
+        refreshTraceDetail(items[0].trace_id);
+      }
+    }
+
+    function renderTraceDetail(data) {
+      if (!data || !data.trace) {
+        els.traceDetail.dataset.tone = 'muted';
+        els.traceDetail.textContent = 'Pick a trace to inspect the payload.';
+        return;
+      }
+      const trace = data.trace;
+      els.traceDetail.dataset.tone = 'good';
+      els.traceDetail.innerHTML = `
+        <div class="item-row">
+          <strong>${esc(trace.user_goal || trace.input_type || 'trace')}</strong>
+          <span class="pill">${esc(trace.action || trace.input_type || 'trace')}</span>
+        </div>
+        <div class="subtle" style="margin-top:8px;">${esc(trace.redacted_user_request || trace.final_response || '')}</div>
+        <div class="tiny" style="margin-top:10px;">Decision: ${esc(JSON.stringify(trace.decision || {}))}</div>
+        <div class="tiny">Tool calls: ${esc((trace.tool_call_count ?? (trace.proposed_tool_calls || []).length) || 0)}</div>
+      `;
+    }
+
+    function renderTraceExport(data) {
+      if (!data) {
+        els.traceExportPill.textContent = 'idle';
+        els.traceExport.dataset.tone = 'muted';
+        els.traceExport.textContent = 'Redacted JSONL export will appear here.';
+        return;
+      }
+      els.traceExportPill.textContent = data.redacted ? 'redacted' : 'raw';
+      els.traceExport.dataset.tone = 'good';
+      els.traceExport.innerHTML = `
+        <div class="subtle" style="margin-bottom:8px;">Trace ${esc(data.trace_id || '')}</div>
+        <pre style="white-space:pre-wrap;word-break:break-word;margin:0;">${esc(data.jsonl || '')}</pre>
+      `;
+    }
+
     function bindExplainButtons() {
       document.querySelectorAll('[data-explain-name]').forEach((button) => {
         if (button.dataset.bound === 'true') {
@@ -1384,6 +1651,26 @@ def render_frontend_shell_html() -> str:
           const name = button.getAttribute('data-explain-name') || '';
           if (name) {
             refreshDecisionExplain(name);
+          }
+        });
+      });
+    }
+
+    function bindTraceButtons() {
+      document.querySelectorAll('[data-trace-id]').forEach((button) => {
+        if (button.dataset.bound === 'true') {
+          return;
+        }
+        button.dataset.bound = 'true';
+        button.addEventListener('click', () => {
+          const traceId = button.getAttribute('data-trace-id') || '';
+          const action = button.getAttribute('data-trace-action') || 'detail';
+          if (traceId) {
+            if (action === 'export') {
+              refreshTraceExport(traceId);
+            } else {
+              refreshTraceDetail(traceId);
+            }
           }
         });
       });
@@ -1422,6 +1709,15 @@ def render_frontend_shell_html() -> str:
       els.householdDetail.textContent = 'Sign in or register a device to unlock household-scoped data.';
       els.householdSelect.innerHTML = '<option value="">Connect first</option>';
       els.householdMeta.textContent = 'Waiting for a household-scoped token.';
+      renderShopping({
+        list_id: '',
+        name: 'Shopping List',
+        created_at: '',
+        updated_at: '',
+        goal: '',
+        is_active: true,
+        items: [],
+      });
       renderDashboard({
         household_id: '',
         timestamp: '',
@@ -1436,6 +1732,22 @@ def render_frontend_shell_html() -> str:
       renderHistory({ items: [] });
       renderRetentionSummary(null);
       renderCorrections(null);
+      renderTraces(null);
+      if (els.privacyValue) {
+        els.privacyValue.value = '';
+      }
+      if (els.privacyConfirm) {
+        els.privacyConfirm.value = '';
+      }
+      if (els.privacyProfile) {
+        els.privacyProfile.value = 'balanced';
+      }
+      if (els.recurringWindow) {
+        els.recurringWindow.value = '7';
+      }
+      if (els.mealplanDays) {
+        els.mealplanDays.value = '7';
+      }
     }
 
     async function refreshPublicState() {
@@ -1590,9 +1902,10 @@ def render_frontend_shell_html() -> str:
         return;
       }
       try {
-        const data = await requestJson('/intelligence/recurring?window=7', {}, true);
+        const windowDays = parseBoundedInt(els.recurringWindow.value, 7, 0, 30);
+        const data = await requestJson(`/intelligence/recurring?window=${windowDays}`, {}, true);
         renderRecurringPlan(data);
-        log('Loaded recurring plan.', 'good');
+        log(`Loaded recurring plan for ${windowDays} days.`, 'good');
       } catch (err) {
         setPill(els.recurringPill, 'error', 'bad');
         log(`Recurring plan failed: ${err.message}`, 'bad');
@@ -1606,9 +1919,10 @@ def render_frontend_shell_html() -> str:
         return;
       }
       try {
-        const data = await requestJson('/intelligence/mealplan?days=7', {}, true);
+        const days = parseBoundedInt(els.mealplanDays.value, 7, 1, 28);
+        const data = await requestJson(`/intelligence/mealplan?days=${days}`, {}, true);
         renderMealPlan(data);
-        log('Loaded meal plan.', 'good');
+        log(`Loaded meal plan for ${days} days.`, 'good');
       } catch (err) {
         setPill(els.mealplanPill, 'error', 'bad');
         log(`Meal plan failed: ${err.message}`, 'bad');
@@ -1647,6 +1961,79 @@ def render_frontend_shell_html() -> str:
       }
     }
 
+    async function updateRetentionSetting() {
+      const token = currentToken();
+      if (!token) {
+        log('Connect a household before updating privacy settings.', 'warn');
+        return;
+      }
+      const key = (els.privacyKey.value || '').trim();
+      const value = (els.privacyValue.value || '').trim();
+      if (!key || !value) {
+        log('Choose a retention setting and enter a value first.', 'warn');
+        return;
+      }
+      try {
+        const data = await requestJson('/account/privacy/update-retention', {
+          method: 'POST',
+          body: { key, value },
+        }, true);
+        log(data.success ? 'Updated privacy retention.' : 'Privacy retention update rejected.', data.success ? 'good' : 'warn');
+        await refreshRetentionSummary();
+      } catch (err) {
+        log(`Privacy update failed: ${err.message}`, 'bad');
+      }
+    }
+
+    async function applyPrivacyProfile() {
+      const token = currentToken();
+      if (!token) {
+        log('Connect a household before applying privacy profiles.', 'warn');
+        return;
+      }
+      const config = privacyProfileConfig((els.privacyProfile && els.privacyProfile.value) || 'balanced');
+      try {
+        for (const [key, value] of config.settings) {
+          const result = await requestJson('/account/privacy/update-retention', {
+            method: 'POST',
+            body: { key, value },
+          }, true);
+          if (!result.success) {
+            log(`Privacy profile stopped on ${key}.`, 'warn');
+            break;
+          }
+        }
+        log(`Applied privacy profile: ${config.label}.`, 'good');
+        await refreshRetentionSummary();
+      } catch (err) {
+        log(`Privacy profile apply failed: ${err.message}`, 'bad');
+      }
+    }
+
+    async function purgePrivacyData() {
+      const token = currentToken();
+      if (!token) {
+        log('Connect a household before purging data.', 'warn');
+        return;
+      }
+      const confirmation = (els.privacyConfirm.value || '').trim().toUpperCase();
+      if (confirmation !== 'PURGE') {
+        log('Type PURGE to confirm the privacy wipe.', 'warn');
+        return;
+      }
+      try {
+        const data = await requestJson('/account/privacy/purge', {
+          method: 'POST',
+          body: {},
+        }, true);
+        log(data.success ? 'Purged household-derived data.' : 'Privacy purge completed with warnings.', data.success ? 'good' : 'warn');
+        els.privacyConfirm.value = '';
+        await refreshAllHouseholdViews();
+      } catch (err) {
+        log(`Privacy purge failed: ${err.message}`, 'bad');
+      }
+    }
+
     async function refreshCorrections() {
       const token = currentToken();
       if (!token) {
@@ -1661,6 +2048,65 @@ def render_frontend_shell_html() -> str:
       } catch (err) {
         renderCorrections(null);
         log(`Corrections load failed: ${err.message}`, 'bad');
+      }
+    }
+
+    async function refreshTraces() {
+      const token = currentToken();
+      if (!token) {
+        renderTraces(null);
+        log('Connect a household before loading traces.', 'warn');
+        return;
+      }
+      try {
+        const search = (els.traceSearch.value || '').trim();
+        const inputType = (els.traceType.value || '').trim();
+        const q = new URLSearchParams();
+        q.set('limit', '8');
+        if (search) {
+          q.set('search', search);
+        }
+        if (inputType) {
+          q.set('input_type_filter', inputType);
+        }
+        const data = await requestJson(`/traces?${q.toString()}`, {}, true);
+        renderTraces(data);
+        log('Loaded recent traces.', 'good');
+      } catch (err) {
+        renderTraces(null);
+        log(`Trace load failed: ${err.message}`, 'bad');
+      }
+    }
+
+    async function refreshTraceDetail(traceId) {
+      const token = currentToken();
+      if (!token) {
+        log('Connect a household before loading trace details.', 'warn');
+        return;
+      }
+      try {
+        const data = await requestJson(`/traces/${encodeURIComponent(traceId)}`, {}, true);
+        renderTraceDetail(data);
+        log(`Loaded trace ${traceId}.`, 'good');
+      } catch (err) {
+        renderTraceDetail(null);
+        log(`Trace detail failed: ${err.message}`, 'bad');
+      }
+    }
+
+    async function refreshTraceExport(traceId) {
+      const token = currentToken();
+      if (!token) {
+        log('Connect a household before exporting traces.', 'warn');
+        return;
+      }
+      try {
+        const data = await requestJson(`/traces/${encodeURIComponent(traceId)}/export?redact=true`, {}, true);
+        renderTraceExport(data);
+        log(`Exported trace ${traceId}.`, 'good');
+      } catch (err) {
+        renderTraceExport(null);
+        log(`Trace export failed: ${err.message}`, 'bad');
       }
     }
 
@@ -1828,6 +2274,38 @@ def render_frontend_shell_html() -> str:
       }
     }
 
+    async function markSelectedShoppingItems() {
+      const token = currentToken();
+      if (!token) {
+        log('Connect a household before marking shopping items purchased.', 'warn');
+        return;
+      }
+      const itemIds = getSelectedShoppingItemIds();
+      if (!itemIds.length) {
+        log('Select one or more shopping items first.', 'warn');
+        return;
+      }
+      try {
+        const active = await requestJson('/shopping/active', {}, true);
+        if (!active.list_id) {
+          log('No active shopping list to update.', 'warn');
+          return;
+        }
+        const data = await requestJson(`/shopping/lists/${encodeURIComponent(active.list_id)}/mark-purchased`, {
+          method: 'POST',
+          body: {
+            item_ids: itemIds,
+          },
+        }, true);
+        log(data.message || `Marked ${itemIds.length} shopping items purchased.`, data.success ? 'good' : 'warn');
+        await refreshShopping();
+        await refreshInventory();
+        await refreshAllHouseholdViews();
+      } catch (err) {
+        log(`Mark purchased failed: ${err.message}`, 'bad');
+      }
+    }
+
     async function refreshAllHouseholdViews() {
       await Promise.allSettled([
         refreshPrivateState(),
@@ -1837,6 +2315,7 @@ def render_frontend_shell_html() -> str:
         refreshMealPlan(),
         refreshRetentionSummary(),
         refreshCorrections(),
+        refreshTraces(),
       ]);
     }
 
@@ -2005,6 +2484,7 @@ def render_frontend_shell_html() -> str:
       els.householdName.value = session.household_name || 'Default Household';
       els.householdId.value = session.household_id || '';
       els.tokenInput.value = session.token || '';
+      renderPrivacyProfileHint(els.privacyProfile && els.privacyProfile.value ? els.privacyProfile.value : 'balanced');
       if (!session.token) {
         setDisconnectedIdentity();
       }
@@ -2033,6 +2513,7 @@ def render_frontend_shell_html() -> str:
     els.inventoryRefreshBtn.addEventListener('click', refreshInventory);
     els.shoppingCreateBtn.addEventListener('click', createShoppingList);
     els.shoppingCompleteBtn.addEventListener('click', completeActiveShoppingList);
+    els.shoppingMarkPurchasedBtn.addEventListener('click', markSelectedShoppingItems);
     els.shoppingRefreshBtn.addEventListener('click', refreshShopping);
     els.searchGlobalBtn.addEventListener('click', refreshGlobalSearch);
     els.searchInventoryBtn.addEventListener('click', refreshInventorySearch);
@@ -2041,10 +2522,19 @@ def render_frontend_shell_html() -> str:
     els.mealplanBtn.addEventListener('click', refreshMealPlan);
     els.intelRefreshBtn.addEventListener('click', refreshAllHouseholdViews);
     els.runtimeRefreshBtn.addEventListener('click', refreshRuntimeDiagnostics);
+    els.privacyUpdateBtn.addEventListener('click', updateRetentionSetting);
+    els.privacyApplyProfileBtn.addEventListener('click', applyPrivacyProfile);
+    els.privacyPurgeBtn.addEventListener('click', purgePrivacyData);
     els.privacyRefreshBtn.addEventListener('click', refreshRetentionSummary);
     els.undoBtn.addEventListener('click', undoLastMutation);
+    if (els.privacyProfile) {
+      els.privacyProfile.addEventListener('change', () => {
+        renderPrivacyProfileHint(els.privacyProfile.value || 'balanced');
+      });
+    }
     els.correctionCreateBtn.addEventListener('click', createCorrection);
     els.correctionsRefreshBtn.addEventListener('click', refreshCorrections);
+    els.traceRefreshBtn.addEventListener('click', refreshTraces);
 
     document.querySelectorAll('[data-quick-command]').forEach((button) => {
       button.addEventListener('click', () => {
@@ -2080,6 +2570,9 @@ def render_frontend_shell_html() -> str:
       refreshRuntimeDiagnostics,
       refreshRetentionSummary,
       refreshCorrections,
+      refreshTraces,
+      refreshTraceDetail,
+      refreshTraceExport,
       createCorrection,
       undoLastMutation,
       refreshDecisionExplain,

@@ -44,6 +44,7 @@ def mount_v1_routes(gradio_app: gr.Blocks) -> None:  # noqa: ANN001
         meta_router,
         corrections_router,
         search_router,
+        traces_router,
         shopping_router,
         sms_router,
     )
@@ -60,6 +61,7 @@ def mount_v1_routes(gradio_app: gr.Blocks) -> None:  # noqa: ANN001
         (dashboard_router, "/api/v1"),
         (command_router, "/api/v1"),
         (search_router, "/api/v1"),
+        (traces_router, "/api/v1"),
         (intelligence_router, "/api/v1"),
         (account_router, "/api/v1"),
         (corrections_router, "/api/v1"),

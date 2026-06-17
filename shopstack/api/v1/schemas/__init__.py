@@ -710,6 +710,55 @@ class CorrectionCreateResponse(ApiModel):
     accepted: bool = False
 
 
+# ── Traces ────────────────────────────────────────────────────────
+
+
+class TraceSummaryWire(ApiModel):
+    """Compact trace metadata for list views."""
+
+    trace_id: str
+    input_type: str = ""
+    user_goal: str = ""
+    timestamp: str = ""
+    human_confirmation: str | None = None
+    final_response: str = ""
+    action: str = ""
+    tool_call_count: int = 0
+
+
+class TraceDetailWire(TraceSummaryWire):
+    """Expanded trace payload for detail/export views."""
+
+    redacted_user_request: str = ""
+    perception: dict[str, Any] = Field(default_factory=dict)
+    inventory_context: dict[str, Any] = Field(default_factory=dict)
+    decision: dict[str, Any] = Field(default_factory=dict)
+    proposed_tool_calls: list[dict[str, Any]] = Field(default_factory=list)
+    actor_id: str = ""
+
+
+class TraceListResponse(ApiModel):
+    """``GET /api/v1/traces`` response."""
+
+    summary: str = ""
+    count: int = 0
+    items: list[TraceSummaryWire] = Field(default_factory=list)
+
+
+class TraceDetailResponse(ApiModel):
+    """``GET /api/v1/traces/{trace_id}`` response."""
+
+    trace: TraceDetailWire
+
+
+class TraceExportResponse(ApiModel):
+    """``GET /api/v1/traces/{trace_id}/export`` response."""
+
+    trace_id: str
+    redacted: bool = True
+    jsonl: str = ""
+
+
 __all__ = [
     "ApiModel",
     "ApiError",
@@ -771,4 +820,10 @@ __all__ = [
     "CorrectionListResponse",
     "CorrectionCreateRequest",
     "CorrectionCreateResponse",
+    # Traces
+    "TraceSummaryWire",
+    "TraceDetailWire",
+    "TraceListResponse",
+    "TraceDetailResponse",
+    "TraceExportResponse",
 ]

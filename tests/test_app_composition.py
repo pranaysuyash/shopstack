@@ -87,17 +87,17 @@ def test_app_py_under_300_lines():
 
 
 def test_app_py_uses_registry_for_tabs():
-    """app.py must use build_all_tabs() for tab wiring, not individual imports.
+    """app_builder.py must use build_all_tabs() for tab wiring, not individual imports.
 
-    This is the positive control that verifies the registry-driven
-    composition pattern is being followed. app.py should import
-    ``build_all_tabs`` from the registry, not 21 individual
-    ``build_*_tab`` functions.
+    The build_app() function was extracted from app.py to
+    shopstack/app_builder.py (Pass 26, 2026-06-17). This test
+    enforces the registry-driven composition pattern in the
+    canonical builder module.
     """
-    app_source = (Path(__file__).resolve().parents[1] / "app.py").read_text()
+    builder_source = (Path(__file__).resolve().parents[1] / "shopstack/app_builder.py").read_text()
 
-    assert "from shopstack.ui.tabs.registry import build_all_tabs" in app_source, (
-        "app.py must import build_all_tabs from the tab registry. "
+    assert "from shopstack.ui.tabs.registry import build_all_tabs" in builder_source, (
+        "app_builder.py must import build_all_tabs from the tab registry. "
         "Tab wiring should be registry-driven, not hardcoded."
     )
 
@@ -106,33 +106,43 @@ def test_app_py_uses_registry_for_tabs():
         r"^\s*from\s+shopstack\.ui\.tabs\.(today|cookbook|basket|market|reconcile|memory|scanner|timeline|find_trail|photo_map|repair_inbox|nutrition_coach|store_mode|smart_basket|analytics|consumption|recipe|parser|community|market_intel|trip_advisor)\s+import\s+build_",
         re.MULTILINE,
     )
-    matches = pattern.findall(app_source)
+    matches = pattern.findall(builder_source)
     assert not matches, (
-        f"app.py imports individual build_*_tab functions from tab modules. "
-        f"These belong in shopstack/ui/tabs/registry.py, not app.py. "
+        f"app_builder.py imports individual build_*_tab functions from tab modules. "
+        f"These belong in shopstack/ui/tabs/registry.py, not app_builder.py. "
         f"Found: {matches}"
     )
 
-    # Essential composition helpers that must remain
+    # Essential composition helpers that must be referenced in the builder
     essential_imports = [
         "build_all_tabs",
         "build_household_settings",
         "build_locale_save",
-        "mount_pwa_static",
-        "mount_sms_webhook",
+        "build_onboarding_wizard",
+        "wire_household_handlers",
     ]
-    missing = [name for name in essential_imports if name not in app_source]
+    missing = [name for name in essential_imports if name not in builder_source]
     assert not missing, (
-        f"app.py does not reference these essential composition helpers: {missing}."
+        f"app_builder.py does not reference these essential composition helpers: {missing}."
+    )
+
+    # Verify app.py delegates to app_builder.py
+    app_source = (Path(__file__).resolve().parents[1] / "app.py").read_text()
+    assert "from shopstack.app_builder import build_app" in app_source, (
+        "app.py must delegate build_app() to shopstack.app_builder."
     )
 
 
 def test_app_py_guards_required_handles():
-    """app.py must assert that required tab handles are non-None.
+    """app_builder.py must assert that required tab handles are non-None.
+
+    The handle guards were extracted from app.py to
+    shopstack/app_builder.py (Pass 26, 2026-06-17). This test
+    verifies they exist in the canonical builder module.
 
     Per audit 2026-06-14 P0 finding: if build_today_tab or
     build_reconcile_tab returns None (or is silently skipped by the
-    registry), app.py would crash with AttributeError deep inside the
+    registry), build_app() would crash with AttributeError deep inside the
     event wiring. This is a P0 guard.
 
     The guards must:
@@ -140,7 +150,7 @@ def test_app_py_guards_required_handles():
     - Raise a clear RuntimeError with diagnostic context
     - Mention which builder is missing and where to look
     """
-    app_source = (Path(__file__).resolve().parents[1] / "app.py").read_text()
+    builder_source = (Path(__file__).resolve().parents[1] / "shopstack/app_builder.py").read_text()
 
     # Check for the guard pattern
     required_patterns = [
@@ -149,10 +159,10 @@ def test_app_py_guards_required_handles():
         ("RuntimeError", "Explicit runtime error (not silent AttributeError)"),
     ]
     missing_patterns = [name for pattern, name in required_patterns
-                        if pattern not in app_source]
+                        if pattern not in builder_source]
     assert not missing_patterns, (
-        f"app.py is missing required handle guards: {missing_patterns}. "
-        f"Per audit 2026-06-14, app.py must fail fast with a clear "
+        f"app_builder.py is missing required handle guards: {missing_patterns}. "
+        f"Per audit 2026-06-14, app_builder.py must fail fast with a clear "
         f"RuntimeError if today or reconcile builders return None. "
         f"Without these guards, a broken tab builder would crash with "
         f"a confusing AttributeError deep in the event wiring."
@@ -166,15 +176,15 @@ def test_app_py_refreshes_home_flow_on_household_switch():
     panel (Home flow state machine) must re-render when the user
     switches households — otherwise a new household with different
     data would still show the old household's hero. The wiring was
-    extracted from app.py into
-    ``shopstack/ui/state/household_wiring.py`` in Pass 15; both
+    extracted from app.py into ``shopstack/app_builder.py`` (Pass 26)
+    and ``shopstack/ui/state/household_wiring.py`` (Pass 15); both
     files are checked here to keep the contract visible.
     """
-    app_source = (Path(__file__).resolve().parents[1] / "app.py").read_text()
+    builder_source = (Path(__file__).resolve().parents[1] / "shopstack/app_builder.py").read_text()
     # The app composition layer must call the household-wiring
     # sub-builder, which in turn references the home_flow handle.
-    assert "wire_household_handlers" in app_source, (
-        "app.py must call wire_household_handlers() to register "
+    assert "wire_household_handlers" in builder_source, (
+        "app_builder.py must call wire_household_handlers() to register "
         "the cross-tab event handlers (household switch, "
         "create-household, per-render refresh, JS shims)."
     )

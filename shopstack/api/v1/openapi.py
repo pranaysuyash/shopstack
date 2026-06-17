@@ -91,6 +91,7 @@ def _build_openapi_app() -> FastAPI:
         inventory_router,
         meta_router,
         search_router,
+        traces_router,
         shopping_router,
         sms_router,
     )
@@ -109,6 +110,7 @@ def _build_openapi_app() -> FastAPI:
         inventory_router,
         meta_router,
         search_router,
+        traces_router,
         shopping_router,
         sms_router,
     ):

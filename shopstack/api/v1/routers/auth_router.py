@@ -226,6 +226,10 @@ def register(req: RegisterRequest) -> TokenResponse:
         db.add_household(req.household_id, req.household_name)
 
     hh_id, hh_name = _resolve_household(db, req.household_id)
+    try:
+        db.add_household_member(hh_id, hh_id, role="owner")
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("auth register owner-membership bootstrap failed: %s", exc)
     issued = auth_mod.issue_token(
         db, device_id=req.device_id, household_id=hh_id,
     )
