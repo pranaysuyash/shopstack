@@ -53,6 +53,10 @@ def test_fastapi_host_serves_api_and_ui():
         assert "text/html" in root.headers.get("content-type", "")
         assert 'data-shell-root="true"' in root.text
         assert "/api/v1/command/preview" in root.text
+        assert "/api/v1/inventory/lots" in root.text
+        assert "/api/v1/shopping/active" in root.text
+        assert "/search/global" in root.text
+        assert "/intelligence/recurring" in root.text
         assert "/gradio" in root.text
     finally:
         db.close()

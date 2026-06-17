@@ -540,6 +540,158 @@ def render_frontend_shell_html() -> str:
         <div class="signature" id="household-meta">Waiting for a household-scoped token.</div>
       </section>
 
+      <section class="panel" aria-labelledby="inventory-title">
+        <div class="section-title">
+          <h3 id="inventory-title">Inventory</h3>
+          <span class="tiny">From <code>/api/v1/inventory/lots</code></span>
+        </div>
+        <div class="stack">
+          <div class="auth-row">
+            <label class="auth-field">
+              <span class="tiny">Canonical name</span>
+              <input id="inventory-canonical" autocomplete="off" placeholder="milk">
+            </label>
+            <label class="auth-field">
+              <span class="tiny">Display name</span>
+              <input id="inventory-display" autocomplete="off" placeholder="Whole milk">
+            </label>
+          </div>
+          <div class="auth-row">
+            <label class="auth-field">
+              <span class="tiny">Quantity</span>
+              <input id="inventory-qty" autocomplete="off" placeholder="1">
+            </label>
+            <label class="auth-field">
+              <span class="tiny">Unit</span>
+              <input id="inventory-unit" autocomplete="off" placeholder="L">
+            </label>
+          </div>
+          <div class="auth-row">
+            <label class="auth-field">
+              <span class="tiny">Storage location</span>
+              <input id="inventory-location" autocomplete="off" placeholder="fridge">
+            </label>
+            <label class="auth-field">
+              <span class="tiny">Category</span>
+              <input id="inventory-category" autocomplete="off" placeholder="dairy">
+            </label>
+          </div>
+          <div class="auth-actions">
+            <button class="button primary" id="inventory-add-btn" type="button">Add inventory</button>
+            <button class="button ghost" id="inventory-refresh-btn" type="button">Refresh inventory</button>
+          </div>
+          <div class="item">
+            <div class="item-row">
+              <div class="item-title">Decision explain</div>
+              <span class="pill" id="decision-pill" data-tone="warn">idle</span>
+            </div>
+            <div class="preview" id="decision-box" data-tone="muted">Click an inventory item or search result to inspect why it was classified.</div>
+          </div>
+          <div class="stack" id="inventory-list"></div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="shopping-title">
+        <div class="section-title">
+          <h3 id="shopping-title">Shopping list</h3>
+          <span class="tiny">From <code>/api/v1/shopping/active</code></span>
+        </div>
+        <div class="stack">
+          <div class="auth-row">
+            <label class="auth-field">
+              <span class="tiny">List goal</span>
+              <input id="shopping-goal" autocomplete="off" placeholder="Stock up for the week">
+            </label>
+            <label class="auth-field">
+              <span class="tiny">Items (comma separated)</span>
+              <input id="shopping-items" autocomplete="off" placeholder="milk, bread, tomatoes">
+            </label>
+          </div>
+          <div class="auth-actions">
+            <button class="button primary" id="shopping-create-btn" type="button">Create shopping list</button>
+            <button class="button" id="shopping-complete-btn" type="button">Complete active list</button>
+            <button class="button ghost" id="shopping-refresh-btn" type="button">Refresh shopping</button>
+          </div>
+          <div class="item">
+            <div class="item-row">
+              <div class="item-title" id="shopping-list-title">Active list</div>
+              <span class="pill" id="shopping-pill">idle</span>
+            </div>
+            <div class="item-meta" id="shopping-goal-text">No shopping list loaded yet.</div>
+          </div>
+          <div class="stack" id="shopping-list"></div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="search-title">
+        <div class="section-title">
+          <h3 id="search-title">Search</h3>
+          <span class="tiny">Global and inventory search</span>
+        </div>
+        <div class="stack">
+          <div class="auth-row">
+            <label class="auth-field">
+              <span class="tiny">Query</span>
+              <input id="search-query" autocomplete="off" placeholder="milk">
+            </label>
+            <label class="auth-field">
+              <span class="tiny">Voice transcript</span>
+              <input id="voice-text" autocomplete="off" placeholder="Add milk and bread">
+            </label>
+          </div>
+          <div class="auth-actions">
+            <button class="button primary" id="search-global-btn" type="button">Global search</button>
+            <button class="button" id="search-inventory-btn" type="button">Inventory search</button>
+            <button class="button ghost" id="voice-intent-btn" type="button">Parse voice intent</button>
+          </div>
+          <div class="item">
+            <div class="item-row">
+              <div class="item-title">Global results</div>
+              <span class="pill" id="search-pill">idle</span>
+            </div>
+            <div class="stack" id="search-global-list"></div>
+          </div>
+          <div class="item">
+            <div class="item-row">
+              <div class="item-title">Inventory results</div>
+              <span class="pill">semantic</span>
+            </div>
+            <div class="stack" id="search-inventory-list"></div>
+          </div>
+          <div class="preview" id="voice-box" data-tone="muted">Voice intent will appear here.</div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="intel-title">
+        <div class="section-title">
+          <h3 id="intel-title">Intelligence</h3>
+          <span class="tiny">Recurring plan and meal plan</span>
+        </div>
+        <div class="stack">
+          <div class="auth-actions">
+            <button class="button primary" id="recurring-btn" type="button">Load recurring plan</button>
+            <button class="button" id="mealplan-btn" type="button">Load meal plan</button>
+            <button class="button ghost" id="intel-refresh-btn" type="button">Refresh intelligence</button>
+          </div>
+          <div class="item">
+            <div class="item-row">
+              <div class="item-title">Recurring plan</div>
+              <span class="pill" id="recurring-pill">idle</span>
+            </div>
+            <div class="item-meta" id="recurring-summary">No recurring plan loaded.</div>
+            <div class="stack" id="recurring-list"></div>
+          </div>
+          <div class="item">
+            <div class="item-row">
+              <div class="item-title">Meal plan</div>
+              <span class="pill" id="mealplan-pill">idle</span>
+            </div>
+            <div class="item-meta" id="mealplan-summary">No meal plan loaded.</div>
+            <div class="stack" id="mealplan-list"></div>
+          </div>
+        </div>
+      </section>
+
       <section class="panel" aria-labelledby="history-title">
         <div class="section-title">
           <h3 id="history-title">Recent commands</h3>
@@ -617,6 +769,44 @@ def render_frontend_shell_html() -> str:
       refreshBtn: document.getElementById('refresh-btn'),
       metricGrid: document.getElementById('metric-grid'),
       householdMeta: document.getElementById('household-meta'),
+      inventoryCanonical: document.getElementById('inventory-canonical'),
+      inventoryDisplay: document.getElementById('inventory-display'),
+      inventoryQty: document.getElementById('inventory-qty'),
+      inventoryUnit: document.getElementById('inventory-unit'),
+      inventoryLocation: document.getElementById('inventory-location'),
+      inventoryCategory: document.getElementById('inventory-category'),
+      inventoryAddBtn: document.getElementById('inventory-add-btn'),
+      inventoryRefreshBtn: document.getElementById('inventory-refresh-btn'),
+      inventoryList: document.getElementById('inventory-list'),
+      decisionPill: document.getElementById('decision-pill'),
+      decisionBox: document.getElementById('decision-box'),
+      shoppingGoal: document.getElementById('shopping-goal'),
+      shoppingItems: document.getElementById('shopping-items'),
+      shoppingCreateBtn: document.getElementById('shopping-create-btn'),
+      shoppingCompleteBtn: document.getElementById('shopping-complete-btn'),
+      shoppingRefreshBtn: document.getElementById('shopping-refresh-btn'),
+      shoppingListTitle: document.getElementById('shopping-list-title'),
+      shoppingPill: document.getElementById('shopping-pill'),
+      shoppingGoalText: document.getElementById('shopping-goal-text'),
+      shoppingList: document.getElementById('shopping-list'),
+      searchQuery: document.getElementById('search-query'),
+      voiceText: document.getElementById('voice-text'),
+      searchGlobalBtn: document.getElementById('search-global-btn'),
+      searchInventoryBtn: document.getElementById('search-inventory-btn'),
+      voiceIntentBtn: document.getElementById('voice-intent-btn'),
+      searchPill: document.getElementById('search-pill'),
+      searchGlobalList: document.getElementById('search-global-list'),
+      searchInventoryList: document.getElementById('search-inventory-list'),
+      voiceBox: document.getElementById('voice-box'),
+      recurringBtn: document.getElementById('recurring-btn'),
+      mealplanBtn: document.getElementById('mealplan-btn'),
+      intelRefreshBtn: document.getElementById('intel-refresh-btn'),
+      recurringPill: document.getElementById('recurring-pill'),
+      recurringSummary: document.getElementById('recurring-summary'),
+      recurringList: document.getElementById('recurring-list'),
+      mealplanPill: document.getElementById('mealplan-pill'),
+      mealplanSummary: document.getElementById('mealplan-summary'),
+      mealplanList: document.getElementById('mealplan-list'),
       historyList: document.getElementById('history-list'),
       useSoonCount: document.getElementById('use-soon-count'),
       lowCount: document.getElementById('low-count'),
@@ -841,6 +1031,190 @@ def render_frontend_shell_html() -> str:
       `).join('');
     }
 
+    function renderInventory(data) {
+      const items = (data && data.items) || [];
+      const total = data && typeof data.total === 'number' ? data.total : items.length;
+      const hasMore = Boolean(data && data.has_more);
+      if (!items.length) {
+        els.inventoryList.innerHTML = `
+          <div class="item">
+            <div class="item-title">No inventory</div>
+            <div class="item-meta">Add the first lot to seed the household pantry.</div>
+          </div>
+        `;
+        return;
+      }
+      els.inventoryList.innerHTML = items.map((item) => `
+        <div class="item">
+          <div class="item-row">
+            <div class="item-title">${esc(item.display_name || item.canonical_name || 'Item')}</div>
+            <span class="pill">${esc(item.status || 'active')}</span>
+          </div>
+          <div class="item-meta">${esc((item.quantity ?? '1') + ' ' + (item.unit || 'unit'))} · ${esc(item.storage_location_name || item.storage_location_id || 'unplaced')}</div>
+          <div class="tiny">${esc(item.category || 'uncategorized')} · ${esc(item.estimated_use_by_date || item.purchase_date || '')}</div>
+          <div class="auth-actions">
+            <button class="button ghost" type="button" data-explain-name="${esc(item.canonical_name || '')}">Explain decision</button>
+          </div>
+        </div>
+      `).join('') + `
+        <div class="tiny">Showing ${esc(items.length)} of ${esc(total)}${hasMore ? ' (more available)' : ''}.</div>
+      `;
+      bindExplainButtons();
+    }
+
+    function renderShopping(data) {
+      const items = (data && data.items) || [];
+      const listId = data && data.list_id ? data.list_id : '';
+      els.shoppingListTitle.textContent = listId ? `Active list: ${listId}` : 'Active list';
+      els.shoppingGoalText.textContent = data && data.goal ? data.goal : (listId ? 'List loaded with no explicit goal.' : 'No shopping list loaded yet.');
+      els.shoppingPill.textContent = data && data.is_active ? 'active' : 'idle';
+      if (!items.length) {
+        els.shoppingList.innerHTML = `
+          <div class="item">
+            <div class="item-title">No shopping items</div>
+            <div class="item-meta">Create a list from the composer above or from a command.</div>
+          </div>
+        `;
+        return;
+      }
+      els.shoppingList.innerHTML = items.map((item) => `
+        <div class="item">
+          <div class="item-row">
+            <div class="item-title">${esc(item.canonical_name || 'Item')}</div>
+            <span class="pill">${esc(item.priority || 'optional')}</span>
+          </div>
+          <div class="item-meta">${esc((item.requested_quantity ?? '1') + ' ' + (item.unit || 'unit'))} · ${esc(item.status || 'pending')}</div>
+          <div class="tiny">${esc(item.reason || '')}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderSearchResults(target, data, emptyLabel) {
+      const items = (data && data.results) || [];
+      if (!items.length) {
+        target.innerHTML = `
+          <div class="item">
+            <div class="item-title">${esc(emptyLabel)}</div>
+            <div class="item-meta">No results yet.</div>
+          </div>
+        `;
+        return;
+      }
+      target.innerHTML = items.map((item) => `
+        <div class="item">
+          <div class="item-row">
+            <div class="item-title">${esc(item.title || 'Result')}</div>
+            <span class="pill">${esc(item.kind || 'result')}</span>
+          </div>
+          <div class="item-meta">${esc(item.meta || '')}</div>
+          <div class="tiny">Score: ${esc((item.score ?? 0).toFixed ? item.score.toFixed(2) : item.score)}</div>
+          ${item.household_id ? `<div class="tiny">Household: ${esc(item.household_id)}</div>` : ''}
+        </div>
+      `).join('');
+    }
+
+    function renderVoiceIntent(data) {
+      if (!data) {
+        els.voiceBox.dataset.tone = 'muted';
+        els.voiceBox.textContent = 'Voice intent will appear here.';
+        return;
+      }
+      els.voiceBox.dataset.tone = data.action && data.action !== 'observe' ? 'good' : 'warn';
+      els.voiceBox.innerHTML = `
+        <div class="item-row">
+          <strong>${esc(data.action || 'observe')}</strong>
+          <span class="pill">${esc(data.language || 'en')}</span>
+        </div>
+        <div class="subtle" style="margin-top:8px;">${esc(data.translated_text || data.original_text || '')}</div>
+        <div class="tiny" style="margin-top:10px;">Confidence: ${esc((data.confidence ?? 0).toFixed ? data.confidence.toFixed(2) : data.confidence)}</div>
+      `;
+    }
+
+    function renderDecisionExplain(data) {
+      if (!data) {
+        els.decisionPill.textContent = 'idle';
+        els.decisionBox.dataset.tone = 'muted';
+        els.decisionBox.textContent = 'Click an inventory item or search result to inspect why it was classified.';
+        return;
+      }
+      els.decisionPill.textContent = data.action || 'unknown';
+      els.decisionPill.dataset.tone = data.action && data.action !== 'error' ? 'good' : 'bad';
+      els.decisionBox.dataset.tone = data.action && data.action !== 'error' ? 'good' : 'bad';
+      els.decisionBox.innerHTML = `
+        <div class="item-row">
+          <strong>${esc(data.canonical_name || 'item')}</strong>
+          <span class="pill">${esc(data.confidence_label || data.freshness_label || 'explain')}</span>
+        </div>
+        <div class="subtle" style="margin-top:8px;">${esc(data.summary || '')}</div>
+        <div class="tiny" style="margin-top:10px;">${esc(data.key_signal || '')}</div>
+      `;
+    }
+
+    function renderRecurringPlan(data) {
+      const items = (data && data.items) || [];
+      els.recurringSummary.textContent = data && data.summary ? data.summary : 'No recurring plan loaded.';
+      els.recurringPill.textContent = `${items.length || 0} items`;
+      if (!items.length) {
+        els.recurringList.innerHTML = `
+          <div class="item">
+            <div class="item-title">No recurring signals</div>
+            <div class="item-meta">Nothing due in the current cadence window.</div>
+          </div>
+        `;
+        return;
+      }
+      els.recurringList.innerHTML = items.map((item) => `
+        <div class="item">
+          <div class="item-row">
+            <div class="item-title">${esc(item.display_name || item.canonical_name || 'Recurring item')}</div>
+            <span class="pill">${esc(item.action || 'buy')}</span>
+          </div>
+          <div class="item-meta">${esc((item.priority ?? 0) + ' priority')} · ${esc(item.days_until_next ?? '—')} days</div>
+          <div class="tiny">${esc((item.reasons || []).join(' · '))}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderMealPlan(data) {
+      const items = (data && data.items) || [];
+      els.mealplanSummary.textContent = data && data.summary ? data.summary : 'No meal plan loaded.';
+      els.mealplanPill.textContent = `${items.length || 0} days`;
+      if (!items.length) {
+        els.mealplanList.innerHTML = `
+          <div class="item">
+            <div class="item-title">No meal plan</div>
+            <div class="item-meta">Load a plan to see the week.</div>
+          </div>
+        `;
+        return;
+      }
+      els.mealplanList.innerHTML = items.map((item) => `
+        <div class="item">
+          <div class="item-row">
+            <div class="item-title">${esc(item.date || 'Day')}</div>
+            <span class="pill">${esc(item.confidence || 'low')}</span>
+          </div>
+          <div class="item-meta">${esc(item.recipe_name || 'No recipe selected')} · ${esc((item.cook_minutes ?? '—') + ' min')}</div>
+          <div class="tiny">${esc(item.rationale || '')}</div>
+        </div>
+      `).join('');
+    }
+
+    function bindExplainButtons() {
+      document.querySelectorAll('[data-explain-name]').forEach((button) => {
+        if (button.dataset.bound === 'true') {
+          return;
+        }
+        button.dataset.bound = 'true';
+        button.addEventListener('click', () => {
+          const name = button.getAttribute('data-explain-name') || '';
+          if (name) {
+            refreshDecisionExplain(name);
+          }
+        });
+      });
+    }
+
     function renderHouseholds(data) {
       const items = (data && data.items) || [];
       const active = data && data.active_household_id ? data.active_household_id : '';
@@ -944,6 +1318,249 @@ def render_frontend_shell_html() -> str:
       }
     }
 
+    async function refreshInventory() {
+      const token = currentToken();
+      if (!token) {
+        log('Connect a household before loading inventory.', 'warn');
+        return;
+      }
+      try {
+        const data = await requestJson('/inventory/lots?limit=12', {}, true);
+        renderInventory(data);
+        log(`Loaded ${data.items ? data.items.length : 0} inventory lots.`, 'good');
+      } catch (err) {
+        setPill(els.decisionPill, 'error', 'bad');
+        log(`Inventory load failed: ${err.message}`, 'bad');
+      }
+    }
+
+    async function refreshShopping() {
+      const token = currentToken();
+      if (!token) {
+        log('Connect a household before loading shopping.', 'warn');
+        return;
+      }
+      try {
+        const data = await requestJson('/shopping/active', {}, true);
+        renderShopping(data);
+        log('Loaded active shopping list.', 'good');
+      } catch (err) {
+        log(`Shopping load failed: ${err.message}`, 'bad');
+      }
+    }
+
+    function _searchQuery() {
+      return encodeURIComponent((els.searchQuery.value || '').trim());
+    }
+
+    async function refreshGlobalSearch() {
+      const q = (els.searchQuery.value || '').trim();
+      if (!q) {
+        log('Enter a search query first.', 'warn');
+        return;
+      }
+      try {
+        const data = await requestJson(`/search/global?q=${encodeURIComponent(q)}`, {}, true);
+        renderSearchResults(els.searchGlobalList, data, 'No global results');
+        setPill(els.searchPill, 'global', 'good');
+        log(`Global search completed for "${q}".`, 'good');
+      } catch (err) {
+        setPill(els.searchPill, 'error', 'bad');
+        log(`Global search failed: ${err.message}`, 'bad');
+      }
+    }
+
+    async function refreshInventorySearch() {
+      const q = (els.searchQuery.value || '').trim();
+      if (!q) {
+        log('Enter a search query first.', 'warn');
+        return;
+      }
+      try {
+        const data = await requestJson(`/search/inventory?q=${encodeURIComponent(q)}`, {}, true);
+        renderSearchResults(els.searchInventoryList, data, 'No inventory results');
+        setPill(els.searchPill, 'inventory', 'good');
+        log(`Inventory search completed for "${q}".`, 'good');
+      } catch (err) {
+        setPill(els.searchPill, 'error', 'bad');
+        log(`Inventory search failed: ${err.message}`, 'bad');
+      }
+    }
+
+    async function parseVoiceIntent() {
+      const text = (els.voiceText.value || '').trim();
+      if (!text) {
+        log('Enter a transcript first.', 'warn');
+        return;
+      }
+      try {
+        const data = await requestJson('/search/voice-intent', {
+          method: 'POST',
+          body: { text, language: 'en' },
+        });
+        renderVoiceIntent(data);
+        log(`Parsed voice intent: ${data.action || 'observe'}.`, 'good');
+      } catch (err) {
+        log(`Voice intent parsing failed: ${err.message}`, 'bad');
+      }
+    }
+
+    async function refreshRecurringPlan() {
+      const token = currentToken();
+      if (!token) {
+        log('Connect a household before loading intelligence.', 'warn');
+        return;
+      }
+      try {
+        const data = await requestJson('/intelligence/recurring?window=7', {}, true);
+        renderRecurringPlan(data);
+        log('Loaded recurring plan.', 'good');
+      } catch (err) {
+        setPill(els.recurringPill, 'error', 'bad');
+        log(`Recurring plan failed: ${err.message}`, 'bad');
+      }
+    }
+
+    async function refreshMealPlan() {
+      const token = currentToken();
+      if (!token) {
+        log('Connect a household before loading intelligence.', 'warn');
+        return;
+      }
+      try {
+        const data = await requestJson('/intelligence/mealplan?days=7', {}, true);
+        renderMealPlan(data);
+        log('Loaded meal plan.', 'good');
+      } catch (err) {
+        setPill(els.mealplanPill, 'error', 'bad');
+        log(`Meal plan failed: ${err.message}`, 'bad');
+      }
+    }
+
+    async function refreshDecisionExplain(name) {
+      const token = currentToken();
+      if (!token) {
+        log('Connect a household before requesting explanations.', 'warn');
+        return;
+      }
+      try {
+        const data = await requestJson(`/intelligence/decision/${encodeURIComponent(name)}/explain`, {}, true);
+        renderDecisionExplain(data);
+        log(`Explained decision for ${name}.`, 'good');
+      } catch (err) {
+        renderDecisionExplain({
+          canonical_name: name,
+          action: 'error',
+          summary: err.message,
+          key_signal: '',
+          confidence_label: 'error',
+        });
+        log(`Decision explanation failed: ${err.message}`, 'bad');
+      }
+    }
+
+    async function addInventoryLot() {
+      const token = currentToken();
+      if (!token) {
+        log('Connect a household before adding inventory.', 'warn');
+        return;
+      }
+      const canonical_name = (els.inventoryCanonical.value || '').trim();
+      if (!canonical_name) {
+        log('Enter a canonical inventory name first.', 'warn');
+        return;
+      }
+      const quantity = Number.parseFloat((els.inventoryQty.value || '1').trim() || '1');
+      try {
+        const data = await requestJson('/inventory/lots', {
+          method: 'POST',
+          body: {
+            canonical_name,
+            display_name: (els.inventoryDisplay.value || '').trim(),
+            quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+            unit: (els.inventoryUnit.value || 'unit').trim() || 'unit',
+            storage_location_id: (els.inventoryLocation.value || '').trim(),
+            category: (els.inventoryCategory.value || '').trim(),
+          },
+        }, true);
+        log(`Added inventory lot ${data.display_name || data.canonical_name}.`, 'good');
+        await refreshInventory();
+        await refreshAllHouseholdViews();
+      } catch (err) {
+        log(`Inventory add failed: ${err.message}`, 'bad');
+      }
+    }
+
+    function parseShoppingItems() {
+      return (els.shoppingItems.value || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((name) => ({
+          canonical_name: name,
+          priority: 'optional',
+          reason: '',
+        }));
+    }
+
+    async function createShoppingList() {
+      const token = currentToken();
+      if (!token) {
+        log('Connect a household before creating shopping lists.', 'warn');
+        return;
+      }
+      const items = parseShoppingItems();
+      try {
+        const data = await requestJson('/shopping/lists', {
+          method: 'POST',
+          body: {
+            goal: (els.shoppingGoal.value || '').trim(),
+            items,
+          },
+        }, true);
+        renderShopping(data);
+        log(`Created shopping list ${data.list_id || ''}.`, 'good');
+        await refreshAllHouseholdViews();
+      } catch (err) {
+        log(`Shopping create failed: ${err.message}`, 'bad');
+      }
+    }
+
+    async function completeActiveShoppingList() {
+      const token = currentToken();
+      if (!token) {
+        log('Connect a household before completing shopping lists.', 'warn');
+        return;
+      }
+      try {
+        const active = await requestJson('/shopping/active', {}, true);
+        if (!active.list_id) {
+          log('No active shopping list to complete.', 'warn');
+          return;
+        }
+        const data = await requestJson(`/shopping/lists/${encodeURIComponent(active.list_id)}/complete`, {
+          method: 'POST',
+          body: {},
+        }, true);
+        log(data.message || 'Completed active shopping list.', 'good');
+        await refreshShopping();
+        await refreshInventory();
+        await refreshAllHouseholdViews();
+      } catch (err) {
+        log(`Shopping completion failed: ${err.message}`, 'bad');
+      }
+    }
+
+    async function refreshAllHouseholdViews() {
+      await Promise.allSettled([
+        refreshPrivateState(),
+        refreshInventory(),
+        refreshShopping(),
+        refreshRecurringPlan(),
+        refreshMealPlan(),
+      ]);
+    }
+
     let previewTimer = null;
     async function refreshPreview() {
       const text = els.commandInput.value.trim();
@@ -987,7 +1604,7 @@ def render_frontend_shell_html() -> str:
           intent: result.intent || { action: '', canonical_name: '' },
         });
         log(`Executed ${result.intent && result.intent.action ? result.intent.action : 'command'}.`, 'good');
-        await refreshPrivateState();
+        await refreshAllHouseholdViews();
       } catch (err) {
         if (err.status === 401) {
           clearSession();
@@ -1019,7 +1636,7 @@ def render_frontend_shell_html() -> str:
         els.tokenInput.value = result.token;
         setConnectedIdentity(result.household_id, result.household_name);
         log(`Registered device for ${result.household_name || result.household_id}.`, 'good');
-        await refreshPrivateState();
+        await refreshAllHouseholdViews();
       } catch (err) {
         log(`Register failed: ${err.message}`, 'bad');
       }
@@ -1046,7 +1663,7 @@ def render_frontend_shell_html() -> str:
         els.tokenInput.value = result.token;
         setConnectedIdentity(result.household_id, result.household_name);
         log(`Logged in to ${result.household_name || result.household_id}.`, 'good');
-        await refreshPrivateState();
+        await refreshAllHouseholdViews();
       } catch (err) {
         log(`Login failed: ${err.message}`, 'bad');
       }
@@ -1060,7 +1677,7 @@ def render_frontend_shell_html() -> str:
       }
       saveSession({ token });
       log('Loaded bearer token from the override field.', 'good');
-      await refreshPrivateState();
+      await refreshAllHouseholdViews();
     }
 
     function forgetToken() {
@@ -1085,7 +1702,7 @@ def render_frontend_shell_html() -> str:
         els.tokenInput.value = result.token;
         setConnectedIdentity(result.household_id, result.household_name);
         log(`Switched to ${result.household_name || result.household_id}.`, 'good');
-        await refreshPrivateState();
+        await refreshAllHouseholdViews();
       } catch (err) {
         log(`Switch failed: ${err.message}`, 'bad');
       }
@@ -1131,8 +1748,19 @@ def render_frontend_shell_html() -> str:
     els.switchBtn.addEventListener('click', switchHousehold);
     els.refreshBtn.addEventListener('click', async () => {
       await refreshPublicState();
-      await refreshPrivateState();
+      await refreshAllHouseholdViews();
     });
+    els.inventoryAddBtn.addEventListener('click', addInventoryLot);
+    els.inventoryRefreshBtn.addEventListener('click', refreshInventory);
+    els.shoppingCreateBtn.addEventListener('click', createShoppingList);
+    els.shoppingCompleteBtn.addEventListener('click', completeActiveShoppingList);
+    els.shoppingRefreshBtn.addEventListener('click', refreshShopping);
+    els.searchGlobalBtn.addEventListener('click', refreshGlobalSearch);
+    els.searchInventoryBtn.addEventListener('click', refreshInventorySearch);
+    els.voiceIntentBtn.addEventListener('click', parseVoiceIntent);
+    els.recurringBtn.addEventListener('click', refreshRecurringPlan);
+    els.mealplanBtn.addEventListener('click', refreshMealPlan);
+    els.intelRefreshBtn.addEventListener('click', refreshAllHouseholdViews);
 
     document.querySelectorAll('[data-quick-command]').forEach((button) => {
       button.addEventListener('click', () => {
@@ -1144,7 +1772,7 @@ def render_frontend_shell_html() -> str:
     hydrateSessionFromUrl();
     seedDefaults();
     refreshPublicState().then(() => {
-      refreshPrivateState();
+      refreshAllHouseholdViews();
     });
     renderPreview(null);
 
@@ -1157,6 +1785,18 @@ def render_frontend_shell_html() -> str:
     window.ShopStackShell = {
       refreshPublicState,
       refreshPrivateState,
+      refreshAllHouseholdViews,
+      refreshInventory,
+      refreshShopping,
+      refreshGlobalSearch,
+      refreshInventorySearch,
+      parseVoiceIntent,
+      refreshRecurringPlan,
+      refreshMealPlan,
+      refreshDecisionExplain,
+      addInventoryLot,
+      createShoppingList,
+      completeActiveShoppingList,
       refreshPreview,
       executeCommand,
     };
