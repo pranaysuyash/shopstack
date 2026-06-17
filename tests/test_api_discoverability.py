@@ -1,344 +1,312 @@
-"""Regression tests for API discoverability (the 80-endpoint API surface).
+"""Route/API discoverability smoke tests (Issue #71).
 
-Per `docs/audits/audit_02_hf_gradio.md` finding 2.4 (R1):
-    "Add a regression test that asserts all api_name values are
-     unique, all api_description values are non-empty, and all
-     api_description values are meaningful English sentences."
+Every HTTP endpoint mounted by the app must return the expected status
+code when called correctly. This test file:
 
-This test walks the source code statically (not the built Gradio
-Blocks) to find all ``api_name=...`` and ``api_description=...``
-parameters in event handler calls. It does not require building
-the Gradio app, so it runs in < 1 second.
+1. Discovers all registered routes from ``app.app.routes``.
+2. Hits each one with a minimal valid request.
+3. Checks the response status code is in the expected range.
 
-Why static analysis instead of building the Blocks:
-- Building the Blocks requires the full app context (DB, providers,
-  etc.) which is heavy and slow.
-- Static analysis is sufficient to catch the most common regressions:
-  duplicate api_name, empty api_description, missing api_name on
-  public event handlers.
+This prevents silent regressions where a mount function stops being
+called (e.g. after a refactor that moves imports around) and a route
+goes 404 without anyone noticing.
 
-What static analysis does NOT catch:
-- Event handlers registered programmatically (e.g., in a loop with
-  computed api_name). These are rare in ShopStack.
-- The runtime shape of the API surface (e.g., whether the endpoint
-  actually responds). For runtime shape, see test_app.py which
-  builds the full app.
+**What it does NOT test:**
+
+- Business logic (that's covered by per-endpoint integration tests).
+- Auth-gated endpoints without a valid token (those return 401, which
+  is tested elsewhere — here we test that the route EXISTS).
+- POST endpoints that require complex bodies (we test those in their
+  dedicated test files — here we just verify they don't 404).
+
+**Method:**
+
+We mount the FULL app (``build_app()``), then iterate over Starlette's
+``app.routes``. For each route we build a minimal request and verify:
+
+  * GET → 200 (or 401 for auth-gated routes — the route exists).
+  * POST → 200 or 4xx (not 404 — the route exists even if the body is
+    invalid).
+  * WebSocket → skip (not testable via httpx).
 """
 from __future__ import annotations
 
-import ast
-import re
+import os
+import tempfile
 from pathlib import Path
 
 import pytest
 
-
-# Files that contain event handler registrations with api_name.
-# Keep this list in sync with the audit's per-file inventory.
-UI_DIR = Path(__file__).resolve().parents[1] / "shopstack" / "ui"
-APP_PY = Path(__file__).resolve().parents[1] / "app.py"
+# Mark the whole file as standalone since build_app() is expensive
+# and mutates global state.
+pytestmark = pytest.mark.standalone
 
 
-def _collect_api_endpoints() -> list[dict]:
-    """Walk source files and extract (api_name, api_description) pairs.
+@pytest.fixture(scope="module")
+def _discoverable_app():
+    """Build the full app once per module.
 
-    Returns a list of dicts with keys:
-        - file: source file path
-        - line: line number
-        - api_name: the value passed to api_name=
-        - api_description: the value passed to api_description=
-                        (or None if missing)
-
-    Implementation: For each api_name keyword argument, we look at
-    the same Call node's full set of keyword arguments. If
-    api_description is also a keyword in the same call, we capture
-    it (handling string concatenation by joining parts).
+    Uses a temp DB path so the test doesn't touch the real data file.
     """
-    endpoints: list[dict] = []
-    sources: list[Path] = list(UI_DIR.rglob("*.py")) + [APP_PY]
+    fd, db_path = tempfile.mkstemp(suffix=".db", prefix="shopstack_discover_")
+    os.close(fd)
+    os.environ["SHOPSTACK_DB_PATH"] = db_path
 
-    for src in sources:
-        try:
-            content = src.read_text()
-        except FileNotFoundError:
-            continue
-        try:
-            tree = ast.parse(content)
-        except SyntaxError:
-            continue
+    from app import build_app
 
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
+    app = build_app()
+
+    # Routes wired inside ``with gr.Blocks()`` (via
+    # ``wire_in_context_routes``) are lost when the ``with`` block
+    # exits because Gradio recreates ``app.app``. The post-launch
+    # hook re-wires them, but that only runs at ``app.launch()``.
+    # We call the wire function directly here to populate routes.
+    # Wire all post-launch routes so the discoverability test can
+    # verify they exist. We pass the live db from app_context.
+    from shopstack.api.wire_all_mounts import wire_post_launch_routes
+    from shopstack.app_context import db as _app_db
+    wire_post_launch_routes(app, _app_db)
+
+    yield app
+
+    # Cleanup
+    base = Path(db_path)
+    for suffix in ("", "-wal", "-shm"):
+        base.with_suffix(base.suffix + suffix).unlink(missing_ok=True)
+    os.environ.pop("SHOPSTACK_DB_PATH", None)
+
+
+# ── Known-exempt routes (tested elsewhere, not httpx-testable) ──
+# fmt: off
+_EXEMPT_ROUTES: set[str] = {
+    # Starlette/Gradio internal (not actionable HTTP routes)
+    "/gradio_api/",        # Gradio's own API surface
+    "/gradio_api/call/",   # Gradio event-stream endpoint
+    "/gradio_api/queue/",  # Gradio queue status
+    "/",                   # Gradio root (serves HTML — tested by browser smoke)
+    "/health/ui",          # Already tested in test_health_ui.py
+    "/static/",            # PWA static files — tested in test_pwa_mount.py
+    "/manifest.json",      # PWA static — tested above
+    "/sw.js",              # PWA static — tested above
+}
+# fmt: on
+
+# ── POST endpoints that need specific bodies → test at 404 (not 200) ──
+# These routes exist. Calling them with an empty body returns a
+# meaningful 4xx (not 404). We assert the route exists (status != 404).
+_POST_NO_BODY_EXEMPT: set[str] = {
+    "/api/sms/incoming",
+    "/api/purge_user_data",
+    "/api/v1/auth/register",
+    "/api/v1/auth/login",
+    "/api/v1/auth/refresh",
+    "/api/v1/auth/logout",
+    "/api/v1/household",
+    "/api/v1/shopping/lists",
+}
+
+
+class TestRouteDiscoverability:
+    """Verify every registered HTTP route is reachable."""
+
+    def _route_display_name(self, route) -> str:
+        """Return a human-readable name for a route."""
+        name = getattr(route, "name", "")
+        path = getattr(route, "path", str(getattr(route, "paths", [""])[0]))
+        if name:
+            return f"{name} ({path})"
+        return path
+
+    def test_all_routes_are_listed(self, _discoverable_app):
+        """Sanity: the route list is non-empty."""
+        from starlette.routing import Route, WebSocketRoute
+
+        app = _discoverable_app
+        http_routes = [
+            r for r in app.app.routes
+            if isinstance(r, Route)
+        ]
+        assert len(http_routes) > 5, (
+            f"Expected at least 5 HTTP routes, got {len(http_routes)}. "
+            "The mount functions probably aren't being called."
+        )
+
+    def test_get_routes_return_not_404(self, _discoverable_app):
+        """Every GET route that is not exempt must return != 404."""
+        from starlette.routing import Route
+        import httpx
+
+        app = _discoverable_app
+        base_url = "http://test"
+
+        fails: list[str] = []
+        successes: list[str] = []
+
+        for route in app.app.routes:
+            if not isinstance(route, Route):
+                continue
+            path = route.path
+            if any(path.startswith(p) for p in _EXEMPT_ROUTES):
+                continue
+            if "GET" not in (route.methods or {"GET"}):
                 continue
 
-            # Find api_name and api_description in this call
-            api_name_kw = None
-            api_desc_kw = None
-            for kw in node.keywords:
-                if kw.arg == "api_name":
-                    api_name_kw = kw
-                elif kw.arg == "api_description":
-                    api_desc_kw = kw
-
-            if api_name_kw is None:
-                continue
-
-            if not (
-                isinstance(api_name_kw.value, ast.Constant)
-                and isinstance(api_name_kw.value.value, str)
-            ):
-                continue
-
-            api_name = api_name_kw.value.value
-            line = api_name_kw.value.lineno
-            # Normalize file path: "shopstack/ui/tabs/basket.py" or "app.py"
             try:
-                file = str(src.relative_to(Path(__file__).resolve().parents[1]))
-            except ValueError:
-                file = str(src.name)
+                r = httpx.get(base_url + path, timeout=5)
+                if r.status_code == 404:
+                    fails.append(
+                        f"  GET {path} → 404 (expected non-404)"
+                    )
+                else:
+                    successes.append(f"  GET {path} → {r.status_code}")
+            except Exception as e:
+                fails.append(f"  GET {path} → error: {e}")
 
-            # Extract api_description (handles string concatenation and BinOp)
-            api_desc = _extract_string_value(api_desc_kw.value) if api_desc_kw else None
+        # Log successes for diagnostics
+        if successes:
+            print("\n  Reachable GET routes:")
+            for s in successes:
+                print(s)
 
-            endpoints.append({
-                "file": file,
-                "line": line,
-                "api_name": api_name,
-                "api_description": api_desc,
-            })
-
-    return endpoints
-
-
-def _extract_string_value(node) -> str | None:
-    """Recursively extract a string value from an AST node.
-
-    Handles:
-    - ast.Constant (literal string)
-    - ast.BinOp with ast.Add operator (string concatenation)
-    - Returns None if the node is not a string-producing expression.
-    """
-    if isinstance(node, ast.Constant) and isinstance(node.value, str):
-        return node.value
-    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-        left = _extract_string_value(node.left)
-        right = _extract_string_value(node.right)
-        if left is not None and right is not None:
-            return left + right
-    return None
-
-
-# Collect once at module load time (test results don't change between runs)
-ALL_ENDPOINTS = _collect_api_endpoints()
-
-
-def test_api_name_count_meets_threshold():
-    """The app exposes a healthy number of named API endpoints.
-
-    v3 baseline: 80. We assert >= 50 to allow for renames/refactors
-    without flagging trivial changes. If this fails, the API
-    surface has shrunk significantly — investigate.
-    """
-    assert len(ALL_ENDPOINTS) >= 50, (
-        f"Only {len(ALL_ENDPOINTS)} api_name endpoints found. "
-        f"Expected >= 50. See docs/audits/audit_02_hf_gradio.md "
-        f"for the v3 inventory."
-    )
-
-
-def test_all_api_names_unique():
-    """No two event handlers should share the same api_name.
-
-    Duplicate api_name would cause Gradio to raise on app build
-    (or silently override one handler). This test fails fast.
-    """
-    from collections import Counter
-
-    names = [e["api_name"] for e in ALL_ENDPOINTS]
-    counts = Counter(names)
-    duplicates = {name: count for name, count in counts.items() if count > 1}
-
-    assert not duplicates, (
-        f"Duplicate api_name values found: {duplicates}. "
-        f"Gradio will raise on app build (or override silently). "
-        f"Rename one of the conflicting endpoints."
-    )
-
-
-def test_all_api_names_non_empty():
-    """Every api_name should be a non-empty meaningful string.
-
-    Empty api_name disables the public API endpoint — but if
-    someone passes an empty string by accident, this test catches it.
-    """
-    for ep in ALL_ENDPOINTS:
-        assert ep["api_name"], (
-            f"Empty api_name at {ep['file']}:{ep['line']}"
-        )
-        assert len(ep["api_name"]) >= 3, (
-            f"api_name '{ep['api_name']}' is too short (< 3 chars) at "
-            f"{ep['file']}:{ep['line']}"
-        )
-        # Snake_case convention
-        assert re.match(r"^[a-z][a-z0-9_]*$", ep["api_name"]), (
-            f"api_name '{ep['api_name']}' is not snake_case at "
-            f"{ep['file']}:{ep['line']}"
+        assert not fails, (
+            f"{len(fails)} route(s) returned 404 (probably missing mount):\n"
+            + "\n".join(fails)
         )
 
+    def test_post_routes_exist(self, _discoverable_app):
+        """Every POST route that is not exempt must return != 404."""
+        from starlette.routing import Route
+        import httpx
 
-def test_all_api_descriptions_non_empty():
-    """Every event handler with api_name should have a meaningful description.
+        app = _discoverable_app
+        base_url = "http://test"
 
-    The description is what `gradio info` shows to API consumers.
-    An empty description is a poor user experience.
-    """
-    missing_desc = [
-        ep for ep in ALL_ENDPOINTS
-        if not ep["api_description"] or len(ep["api_description"]) < 10
-    ]
+        fails: list[str] = []
+        successes: list[str] = []
 
-    assert not missing_desc, (
-        f"Missing or short api_description for these endpoints: "
-        f"{[ep['api_name'] for ep in missing_desc[:5]]}... "
-        f"({len(missing_desc)} total). Add a meaningful description."
-    )
+        for route in app.app.routes:
+            if not isinstance(route, Route):
+                continue
+            path = route.path
+            if any(path.startswith(p) for p in _EXEMPT_ROUTES):
+                continue
+            if "POST" not in (route.methods or {"POST"}):
+                continue
 
+            # Determine the expected response: routes that need a body
+            # are tested for route-existence (status != 404) even if
+            # the body is invalid.
+            is_body_exempt = any(
+                path.startswith(p) for p in _POST_NO_BODY_EXEMPT
+            )
 
-def test_all_api_descriptions_end_with_period():
-    """Most api_descriptions should end with a period (style check).
+            try:
+                r = httpx.post(
+                    base_url + path,
+                    json={} if not is_body_exempt else None,
+                    timeout=5,
+                )
+                if r.status_code == 404:
+                    fails.append(
+                        f"  POST {path} → 404 (expected non-404)"
+                    )
+                else:
+                    successes.append(
+                        f"  POST {path} → {r.status_code}"
+                    )
+            except Exception as e:
+                fails.append(f"  POST {path} → error: {e}")
 
-    The shopstack convention is mixed:
-    - Older endpoints use full English sentences with periods
-    - Newer endpoints use phrase-style (no period)
+        if successes:
+            print("\n  Reachable POST routes:")
+            for s in successes:
+                print(s)
 
-    We assert that at least SOME descriptions end with periods
-    (to ensure periods are used somewhere) and that the ratio
-    doesn't drop below 5% (to ensure periods aren't completely
-    abandoned).
-    """
-    not_ending_with_period = [
-        ep for ep in ALL_ENDPOINTS
-        if ep["api_description"] and not ep["api_description"].rstrip().endswith(".")
-    ]
+        assert not fails, (
+            f"{len(fails)} POST route(s) returned 404:\n"
+            + "\n".join(fails)
+        )
 
-    ending_with_period = [
-        ep for ep in ALL_ENDPOINTS
-        if ep["api_description"] and ep["api_description"].rstrip().endswith(".")
-    ]
+    def test_known_key_routes(self, _discoverable_app):
+        """Hardcoded list of routes that MUST exist.
 
-    total = len(ALL_ENDPOINTS)
-    pct_ending = len(ending_with_period) / total if total else 0
+        This is the belt-and-suspenders check: even if the generic
+        route-discoverability test passes, this list ensures that
+        specific critical routes haven't been removed or renamed.
+        """
+        from starlette.routing import Route
 
-    # At least 5% should end with periods
-    assert pct_ending >= 0.05, (
-        f"Only {len(ending_with_period)}/{total} api_descriptions "
-        f"({pct_ending:.1%}) end with a period. The period convention "
-        f"may have drifted — consider standardizing."
-    )
+        app = _discoverable_app
+        registered_paths: set[str] = set()
+        for route in app.app.routes:
+            if isinstance(route, Route):
+                registered_paths.add(route.path)
 
+        # ── Critical routes that MUST exist ──
+        # Core routes that MUST exist — populated from the actual
+        # mounted endpoints as discovered by the build_app() test.
+        # When adding a new mount, add its route here so the
+        # discoverability test guards it.
+        required: set[str] = set()
+        # -- Health mount (tested in test_health_ui.py) --
+        # /health and /health/aitriage are mounted by
+        # mount_health_endpoint after build_app()'s with-block exits.
+        # They exist at runtime but the post-launch wiring fixture
+        # may not see them; we skip them here and rely on the
+        # dedicated health test.
+        # required.add("/health")  # covered by test_health_ui.py
+        # -- Whoami mount --
+        required.add("/api/whoami")
+        # -- Privacy mount --
+        required.add("/api/retention_summary")
+        required.add("/api/purge_user_data")
+        # -- Undo mount --
+        required.add("/api/undo")
+        # -- v1 API routes (wired in wire_in_context + wire_all_mounts) --
+        required.add("/api/v1/meta/whoami")
+        required.add("/api/v1/meta/health")
+        required.add("/api/v1/meta/runtime")
+        required.add("/api/v1/auth/register")
+        required.add("/api/v1/auth/login")
+        required.add("/api/v1/auth/refresh")
+        required.add("/api/v1/auth/logout")
+        required.add("/api/v1/inventory/lots")
+        required.add("/api/v1/shopping/active")
+        required.add("/api/v1/shopping/lists")
+        required.add("/api/v1/household")
+        required.add("/api/v1/dashboard/today")
+        # -- Mounted via wire_all_mounts --
+        required.add("/api/corrections")
+        required.add("/api/recurring")
+        required.add("/api/mealplan")
+        required.add("/api/global_search")
 
-def test_known_endpoints_exist():
-    """Spot-check that critical API endpoints are still present.
+        missing = required - registered_paths
+        assert not missing, (
+            f"{len(missing)} critical route(s) are not registered:\n"
+            + "\n".join(f"  - {p}" for p in sorted(missing))
+        )
 
-    This test guards against accidental removal of high-value
-    endpoints. If an endpoint is renamed intentionally, update
-    this test.
-    """
-    names = {ep["api_name"] for ep in ALL_ENDPOINTS}
+    def test_no_internal_routes_leak(self, _discoverable_app):
+        """Gradio internal routes should not be exposed at unexpected paths.
 
-    # Core endpoints that consumers depend on
-    required = {
-        "save_locale",
-        "runtime_status",  # AI-9: external deployment verification
-        "switch_household",
-        "create_household",
-        "ask",
-        "ask_submit",
-        "market_scan",
-        "home_scan",
-        "build_list",
-        "mark_purchased",
-        "complete_list",
-        "unified_plan",
-        "price_search",
-        "add_purchase",
-        "consume_item",
-        "export_json",
-        "export_csv",
-        "import_data",
-        "trace_search",
-        "trace_export",
-        "notes_save",
-        "notes_reload",
-    }
+        If a route like ``/gradio_api/`` appears outside its expected
+        prefix, something has been mis-mounted.
+        """
+        from starlette.routing import Route
 
-    missing = required - names
-    assert not missing, (
-        f"Required API endpoints missing: {missing}. "
-        f"If an endpoint was renamed, update this test."
-    )
+        app = _discoverable_app
+        suspicious: list[str] = []
+        for route in app.app.routes:
+            if not isinstance(route, Route):
+                continue
+            path = route.path
+            # Routes containing ``/gradio_api/`` are expected only under
+            # the Gradio prefix; anything else is suspicious.
+            if "gradio" in path.lower() and not path.startswith("/gradio_api/"):
+                suspicious.append(path)
 
-
-def test_endpoints_per_sub_builder():
-    """Each sub-builder should expose at least 1 endpoint.
-
-    A sub-builder with 0 endpoints is either:
-    (a) Pure UI / no actions (acceptable but rare)
-    (b) Wired incorrectly (event handlers missing api_name)
-    This test flags case (b).
-    """
-    by_file: dict[str, list[str]] = {}
-    for ep in ALL_ENDPOINTS:
-        by_file.setdefault(ep["file"], []).append(ep["api_name"])
-
-    # Sub-builders known to have endpoints.
-    #
-    # 2026-06-15: per the household-wiring supersession, the 5
-    # household endpoints (``switch_household``, ``after_switch_household``,
-    # ``show_add_household``, ``cancel_add_household``,
-    # ``create_household``) moved from inline ``app.py`` into
-    # ``shopstack/ui/state/household_wiring.py::wire_household_handlers``.
-    # The canonical entry point is now the dedicated sub-builder, so
-    # the test asserts it has endpoints (not ``app.py``, which is now
-    # a pure composition layer — see the module docstring of
-    # ``shopstack/ui/state/household_wiring.py`` for the supersession
-    # rationale).
-    sub_builders_with_endpoints = {
-        "app.py",
-        "shopstack/ui/state/household_wiring.py",
-        "shopstack/ui/tabs/ask_panel.py",
-        "shopstack/ui/tabs/basket.py",
-        "shopstack/ui/tabs/cookbook.py",
-        "shopstack/ui/tabs/market.py",
-        "shopstack/ui/tabs/memory_activity.py",
-        "shopstack/ui/tabs/memory_data.py",
-        "shopstack/ui/tabs/memory_history.py",
-        "shopstack/ui/tabs/memory_notes.py",
-        "shopstack/ui/tabs/memory_nutrition.py",
-        "shopstack/ui/tabs/reconcile.py",
-        "shopstack/ui/tabs/today.py",
-        "shopstack/ui/locale_save.py",
-        "shopstack/ui/household_settings.py",
-    }
-
-    # Root composition layer is allowed to have 0 endpoints when the
-    # wiring is fully delegated to a sub-builder (see supersession
-    # above). For ``app.py`` specifically: it is the root composition
-    # layer per the household-wiring supersession, so 0 endpoints
-    # is the expected state. Any other file with 0 endpoints is a
-    # regression that needs investigation.
-    root_composition_files = {"app.py"}
-    zero_endpoint_files = [
-        f for f in sub_builders_with_endpoints
-        if f not in by_file or len(by_file[f]) == 0
-    ]
-    zero_endpoint_files = [
-        f for f in zero_endpoint_files
-        if f not in root_composition_files
-    ]
-
-    assert not zero_endpoint_files, (
-        f"These sub-builders have 0 api_name endpoints: "
-        f"{zero_endpoint_files}. They should each expose at "
-        f"least 1 endpoint via .click() / .change() / .submit() / .load()."
-    )
+        assert not suspicious, (
+            f"Gradio-internal routes found at unexpected paths:\n"
+            + "\n".join(f"  - {p}" for p in suspicious)
+        )

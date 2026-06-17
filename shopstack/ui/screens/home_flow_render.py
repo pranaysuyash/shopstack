@@ -72,13 +72,60 @@ logger = logging.getLogger(__name__)
 
 
 def _render_hero(state: HomeFlowState) -> str:
-    """The headline + subhead block at the top of the home flow panel."""
+    """The headline + subhead block at the top of the home flow panel.
+
+    Includes a weather badge showing the current condition for
+    the user's default city, if weather data is available.
+    """
+    weather_badge = _render_weather_badge()
     return (
         "<div class='home-flow-hero'>"
+        f"<div style='display:flex;align-items:flex-start;justify-content:space-between;gap:12px;'>"
+        f"<div>"
         f"<h2 class='home-flow-headline'>{escape(state.headline)}</h2>"
         f"<p class='home-flow-subhead'>{escape(state.subhead)}</p>"
+        f"</div>"
+        f"{weather_badge}"
+        f"</div>"
         "</div>"
     )
+
+
+def _render_weather_badge() -> str:
+    """Render a compact weather badge for the Today tab header.
+
+    Shows the current weather condition icon and temperature
+    for the user's default city (mumbai). Falls back to an
+    empty string if weather data is unavailable.
+
+    The badge is a small chip in the hero header so the user
+    can quickly gauge whether today is a good day for market
+    shopping.
+    """
+    try:
+        from shopstack.services.weather import get_weather
+        weather = get_weather(city="mumbai")
+        if weather is None:
+            return ""
+        icon = getattr(weather, "condition_icon", "")
+        temp = getattr(weather, "temperature_c", None)
+        if icon and temp is not None:
+            return (
+                f"<span class='weather-badge' "
+                f"style='display:inline-flex;align-items:center;gap:4px;"
+                f"padding:4px 10px;border-radius:var(--radius-sm);"
+                f"background:var(--bg-card-strong, var(--bg-card));"
+                f"border:1px solid var(--border);"
+                f"font-size:0.75rem;color:var(--text-muted);"
+                f"white-space:nowrap;flex-shrink:0;' "
+                f"title='Weather in Mumbai · {escape(getattr(weather, "recommendation", ""))}'>"
+                f"{icon} {temp:.0f}°C"
+                f"</span>"
+            )
+        return ""
+    except Exception:  # noqa: BLE001
+        # Never let a weather fetch failure break the page.
+        return ""
 
 
 def _render_setup_gate(state: HomeFlowState) -> str:

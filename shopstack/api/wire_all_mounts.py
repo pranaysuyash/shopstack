@@ -51,6 +51,8 @@ def wire_post_launch_routes(  # noqa: ANN001
     )
     from shopstack.services.undo_mount import mount_undo_endpoint
     from shopstack.services.whoami_mount import mount_whoami_endpoint
+    from shopstack.services.privacy_mount import mount_privacy_endpoints
+    from shopstack.services.global_search_mount import mount_global_search
 
     # ``mount_pwa_static`` and ``mount_health_endpoint`` are
     # looked up via the ``app`` module (rather than imported
@@ -65,6 +67,9 @@ def wire_post_launch_routes(  # noqa: ANN001
     mount_pwa_static(app)
     mount_health_endpoint(app, db)
     mount_whoami_endpoint(app)
+    mount_undo_endpoint(app)
+    mount_privacy_endpoints(app)
+    mount_global_search(app)
     mount_decision_explain_endpoint(app)
     mount_recurring_endpoint(app)
     mount_corrections_endpoint(app)

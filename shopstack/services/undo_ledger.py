@@ -207,13 +207,19 @@ def _default_inverse(kind: str, before: dict[str, Any], db: Any) -> bool:
                 return True
             return False
         if kind == "record_price":
-            # The `before` dict carries the price_id; we delete it.
-            # Most DB versions don't have a public delete for prices;
-            # we use update to mark it "removed" instead.
-            if hasattr(db, "update_inventory_lot"):
-                # The price record may not be linked to a lot; the
-                # safest no-op undo is a no-op (the user can see
-                # the price was added in the timeline).
+            # The `before` dict carries the price_id from
+            # Database.record_price's ``_register_undo`` call.
+            # We delete the row directly from price_observations.
+            price_id = before.get("price_id", "")
+            if price_id and hasattr(db, "conn"):
+                logger.info(
+                    "undo: deleting price observation %s", price_id
+                )
+                db.conn.execute(
+                    "DELETE FROM price_observations WHERE price_id = ?",
+                    (price_id,),
+                )
+                db.conn.commit()
                 return True
             return False
         if kind in {
