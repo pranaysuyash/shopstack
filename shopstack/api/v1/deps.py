@@ -83,6 +83,11 @@ def _extract_bearer(
         return creds.credentials
     qs = request.query_params.get("token", "").strip()
     if qs:
+        logger.info(
+            "Query-string bearer token used for %s %s",
+            request.method,
+            request.url.path,
+        )
         return qs
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

@@ -2293,6 +2293,18 @@ details.home-details > *:not(summary),
   color: var(--text-dim);
   margin: 4px 0;
 }
+.ic-provenance {
+  display: inline-block;
+  font-size: 0.625rem;
+  color: var(--text-faint, #7A6B5C);
+  background: var(--bg-warm, #FFF1D6);
+  border: 1px solid var(--border, #DACAB5);
+  border-radius: 3px;
+  padding: 1px 7px;
+  margin: 4px 0 2px 0;
+  letter-spacing: 0.03em;
+  font-weight: 500;
+}
 .ic-confidence {
   font-size: 0.6875rem;
   color: var(--text-dim);

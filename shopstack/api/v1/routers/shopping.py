@@ -30,7 +30,12 @@ from shopstack.api.v1.deps import HouseholdContext, require_household
 from shopstack.api.v1.schemas import (
     AddShoppingItemsRequest,
     ApiError,
+    CompleteShoppingListResponse,
+    CompletionItemWire,
     CreateShoppingListRequest,
+    MarkPurchasedItemWire,
+    MarkPurchasedRequest,
+    MarkPurchasedResponse,
     ShoppingListItemWire,
     ShoppingListWire,
 )
@@ -216,6 +221,111 @@ def _reload(db: Any, list_id: str) -> ShoppingListWire:
 
     sl = _row_to_list(row, db.conn)
     return _list_to_wire(sl.model_dump())
+
+
+# ── Shopping-completion endpoints ──────────────────────────────────
+
+
+@router.post(
+    "/lists/{list_id}/complete",
+    response_model=CompleteShoppingListResponse,
+    summary="Complete a shopping list: convert items to inventory",
+)
+def complete_list(
+    list_id: str,
+    ctx: HouseholdContext = Depends(require_household),
+) -> CompleteShoppingListResponse:
+    """Close out a shopping list into inventory.
+
+    Items with priority ``must_buy`` are added at full quantity;
+    ``optional`` items are added at 50% quantity; ``avoid_buying``
+    items are skipped. The list is marked complete.
+
+    This is the endpoint that closes the only broken loop in the
+    shopping API — mobile can now create a list AND convert it to
+    inventory.
+    """
+    from shopstack.app_context import db, tools
+    from shopstack.services.shopping import complete_shopping_list_service
+
+    _assert_list_owned(db, list_id, ctx.household_id)
+
+    inventory = getattr(tools, "inventory", None)
+    if inventory is None:
+        from shopstack.repos.inventory import InventoryRepo
+        inventory = InventoryRepo(db)
+
+    result = complete_shopping_list_service(
+        list_id=list_id,
+        inventory=inventory,
+        database=db,
+        user_id=ctx.household_id,
+    )
+
+    return CompleteShoppingListResponse(
+        success=result.success,
+        list_id=result.list_id,
+        items_added=[
+            CompletionItemWire(
+                canonical_name=i.canonical_name,
+                lot_id=i.lot_id,
+                quantity=i.quantity,
+                unit=i.unit,
+            )
+            for i in result.items_added
+        ],
+        items_skipped=result.items_skipped,
+        goal=result.goal,
+        message=result.message,
+    )
+
+
+@router.post(
+    "/lists/{list_id}/mark-purchased",
+    response_model=MarkPurchasedResponse,
+    summary="Mark selected items as purchased",
+)
+def mark_purchased(
+    list_id: str,
+    body: MarkPurchasedRequest,
+    ctx: HouseholdContext = Depends(require_household),
+) -> MarkPurchasedResponse:
+    """Mark specific shopping list items as purchased and add to inventory.
+
+    ``item_ids`` must be the ``list_item_id`` values of items on the
+    list. Items are added to inventory with their full requested
+    quantity. The items' status is updated to ``bought``.
+    """
+    from shopstack.app_context import db, tools
+    from shopstack.services.shopping import mark_items_purchased_service
+
+    _assert_list_owned(db, list_id, ctx.household_id)
+
+    inventory = getattr(tools, "inventory", None)
+    if inventory is None:
+        from shopstack.repos.inventory import InventoryRepo
+        inventory = InventoryRepo(db)
+
+    result = mark_items_purchased_service(
+        item_ids_json=body.item_ids,
+        inventory=inventory,
+        database=db,
+        user_id=ctx.household_id,
+    )
+
+    return MarkPurchasedResponse(
+        success=result.success,
+        items_added=[
+            MarkPurchasedItemWire(
+                canonical_name=i.canonical_name,
+                lot_id=i.lot_id,
+                quantity=i.quantity,
+                unit=i.unit,
+            )
+            for i in result.items_added
+        ],
+        message=result.message,
+    )
 
 
 __all__ = ["router"]

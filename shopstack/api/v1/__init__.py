@@ -38,11 +38,14 @@ pre-existing is not an excuse).
   * ``shopstack.api.v1.routers`` — ``APIRouter`` per resource group
   * ``shopstack.api.v1.mount`` — single entry point called by ``app.py``
   * ``shopstack.api.v1.deps`` — FastAPI ``Depends()`` helpers
+  * ``shopstack.api.v1.openapi`` — OpenAPI 3.0 schema generation
 """
 from __future__ import annotations
 
 __all__ = [
     "mount_v1_routes",
+    "openapi_schema",
+    "openapi_schema_json",
 ]
 
 
@@ -69,3 +72,14 @@ def mount_v1_routes(gradio_app) -> None:  # noqa: ANN001 — gradio.Blocks
     from .mount import mount_v1_routes as _mount
 
     _mount(gradio_app)
+
+
+def openapi_schema() -> dict:
+    # docstring redacted — the real one lives in .openapi
+    from .openapi import openapi_schema as _os  # type: ignore[import-untyped]  # noqa: F811
+    return _os()
+
+
+def openapi_schema_json() -> str:
+    from .openapi import openapi_schema_json as _osj  # type: ignore[import-untyped]  # noqa: F811
+    return _osj()

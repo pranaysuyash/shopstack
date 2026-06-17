@@ -241,7 +241,7 @@ def register_handler(action: str, handler: Callable[[str], CommandResult]) -> No
     logger.debug("Registered command handler: %s", action)
 
 
-def dispatch(intent: CommandIntent) -> CommandResult:
+def dispatch(intent: CommandIntent, *, user_id: str | None = None) -> CommandResult:
     """Run the registered handler for ``intent.action``.
 
     Falls back to a generic "ask" handler if the specific action has
@@ -257,7 +257,13 @@ def dispatch(intent: CommandIntent) -> CommandResult:
             message=f"No handler registered for '{intent.action}'.",
         )
     try:
-        return handler(intent.canonical_name, intent=intent)  # type: ignore[arg-type]
+        if user_id is None:
+            return handler(intent.canonical_name, intent=intent)  # type: ignore[arg-type]
+        return handler(
+            intent.canonical_name,
+            intent=intent,
+            user_id=user_id,
+        )  # type: ignore[arg-type]
     except TypeError:
         # Backwards-compat: handlers with the old (canonical_name) signature
         return handler(intent.canonical_name)  # type: ignore[call-arg]

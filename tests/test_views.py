@@ -115,15 +115,17 @@ class TestTodayDashboard:
 
 class TestShoppingListView:
     def test_empty(self, app):
-        html, table, list_id, goal = shopping_list_view()
-        assert "No active shopping list" in html
+        # _shopping_list_view_with_cards returns (card_wrap, goal_html, tbl, list_id, goal, share)
+        # goal_html is the equivalent of the deprecated shopping_list_view()'s first element
+        _cards, list_html, _table, _list_id, _goal, _share = _shopping_list_view_with_cards()
+        assert "No active shopping list" in list_html
 
     def test_create_and_view(self, app):
         result = shopping_list_create(
             "Weekly groceries", '[{"canonical_name":"milk","requested_quantity":2}]'
         )
         assert "Created list" in result
-        html, table, list_id, goal = shopping_list_view()
+        cards, _list_html, _table, list_id, goal, _share = _shopping_list_view_with_cards()
         assert list_id
         assert goal == "Weekly groceries"
 

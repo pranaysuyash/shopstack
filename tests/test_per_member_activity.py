@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -18,7 +18,7 @@ from shopstack.services.per_member_activity import (
 @dataclass
 class FakeTrace:
     actor_id: str = ""
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     decision: dict = field(default_factory=dict)
     proposed_tool_calls: list = field(default_factory=list)
     input_type: str = "text"

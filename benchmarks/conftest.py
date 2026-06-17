@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import tempfile
 from datetime import date, timedelta
@@ -13,6 +14,76 @@ from shopstack.persistence.database import Database
 from shopstack.providers.registry import ProviderRegistry
 from shopstack.schemas.models import InventoryLot, PriceObservation
 from shopstack.tools.registry import ToolRegistry
+
+logger = logging.getLogger(__name__)
+
+
+# ── CI-compatible baseline regression detection ──────────────────────────
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """Add custom CLI flags for benchmark CI mode."""
+    parser.addoption(
+        "--ci-benchmarks",
+        action="store_true",
+        default=False,
+        help="Compare benchmark results against stored baselines and fail on regression.",
+    )
+
+
+# Captured benchmark results, populated by ``pytest_benchmark_generate_json``.
+_benchmark_results: dict[str, dict[str, Any]] = {}
+
+
+def pytest_benchmark_generate_json(config: pytest.Config, benchmarks: Any, **kwargs: Any) -> None:
+    """Capture benchmark results for post-session baseline comparison.
+
+    pytest-benchmark passes a list of ``Benchmark`` objects (not dicts).
+    Each ``bench`` has ``.stats`` (a ``Stats`` object) and ``.as_dict()``.
+    """
+    for bench in benchmarks:
+        if getattr(bench, "has_error", False):
+            continue
+        # Use fullname to avoid collisions between tests with the same
+        # function name in different files.
+        fullname = getattr(bench, "fullname", bench.name)
+        stats = bench.stats
+        _benchmark_results[fullname] = {
+            "mean": stats.mean,
+            "stddev": stats.stddev,
+            "min": stats.min,
+            "max": stats.max,
+            "median": stats.median,
+            "rounds": stats.rounds,
+            "group": getattr(bench, "group", "default"),
+        }
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    """After the session, compare benchmarks against baselines if --ci-benchmarks is set."""
+    if not session.config.getoption("--ci-benchmarks", default=False):
+        return
+
+    if not _benchmark_results:
+        logger.info("--ci-benchmarks set but no benchmark results captured. Skipping comparison.")
+        return
+
+    from benchmarks.baselines import BaselineStore
+
+    store = BaselineStore()
+    comparisons = store.compare(_benchmark_results)
+    passed, failed = store.report(comparisons)
+
+    if failed > 0:
+        logger.error(
+            "PERFORMANCE REGRESSION: %d benchmark(s) exceeded their baseline tolerance. "
+            "Run 'uv run python benchmarks/update_baselines.py' to update baselines "
+            "after intentional performance changes.",
+            failed,
+        )
+        # Set non-zero exit code via session.exitstatus
+        if session.exitstatus == 0:
+            session.exitstatus = 1
 
 
 SEED_ITEMS = [

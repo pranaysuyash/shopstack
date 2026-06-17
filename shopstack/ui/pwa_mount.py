@@ -127,7 +127,7 @@ def mount_pwa_static(app: gr.Blocks) -> None:
         logger.debug("PWA static dir not found at %s; skipping mount", static_dir)
         return
 
-    fastapi_app = app.app
+    fastapi_app = getattr(app, "app", app)
 
     # ─── Layer 1: Middleware (preferred) ─────────────────────────
     # Add a BaseHTTPMiddleware that intercepts PWA paths before any

@@ -235,22 +235,54 @@ class TestStoreModeView:
 
 
 class TestStoreModeToggleAPI:
-    """Tests for the /api/store_mode/toggle endpoint via mocked requests.
+    """Tests for the /api/v1/account/store-mode/toggle endpoint via TestClient.
 
-    Calls ``_store_mode_toggle_endpoint`` directly with a mock Starlette
-    Request object, avoiding the complexity of Gradio's post-launch route
-    mounting or FastAPI's parameter injection.
+    Uses FastAPI's TestClient against the account v1 router (the legacy
+    ``_store_mode_toggle_endpoint`` from ``undo_mount`` was removed in
+    Pass 26). The test seeds an auth token so ``require_household``
+    Depends passes.
     """
 
-    def _call_toggle(self, item_id: str) -> dict:
-        """Call the toggle endpoint with the given item_id and return the result dict."""
-        from shopstack.services.undo_mount import _store_mode_toggle_endpoint
+    @pytest.fixture(autouse=True)
+    def _setup_client(self) -> None:
+        """Build a TestClient for the account v1 router."""
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
 
-        request = MagicMock()
-        body_bytes = f'{{"item_id": "{item_id}"}}'.encode("utf-8")
-        request.body = body_bytes
-        request.query_params = {}
-        return _store_mode_toggle_endpoint(request)
+        from shopstack import app_context
+        from shopstack.api.v1 import auth as auth_mod
+        from shopstack.api.v1.routers.account import router as account_router
+        from shopstack.app_context import db
+
+        auth_mod.ensure_auth_table(db)
+
+        monkey = pytest.MonkeyPatch()
+        monkey.setattr(app_context, "db", db)
+
+        fastapi_app = FastAPI(title="shopstack-test-store-mode")
+        fastapi_app.include_router(account_router, prefix="/api/v1")
+
+        self.client = TestClient(fastapi_app)
+        self.token = auth_mod.issue_token(
+            db, device_id="dev_store_mode", household_id=db.active_household_id,
+        )["token"]
+        self.monkey = monkey
+
+    @pytest.fixture(autouse=True)
+    def _teardown(self) -> None:
+        yield
+        self.monkey.undo()
+
+    def _headers(self) -> dict[str, str]:
+        return {"Authorization": f"Bearer {self.token}"}
+
+    def _call_toggle(self, item_id: str) -> dict:
+        r = self.client.post(
+            "/api/v1/account/store-mode/toggle",
+            json={"item_id": item_id},
+            headers=self._headers(),
+        )
+        return r.json()
 
     def test_toggle_bought(self) -> None:
         """Toggling a pending item returns new_status='bought'."""
@@ -273,11 +305,10 @@ class TestStoreModeToggleAPI:
         """Toggling a non-existent item returns success=False."""
         result = self._call_toggle("no-such-item")
         assert result["success"] is False
-        assert "not found" in result.get("error", "").lower()
+        assert "not found" in result.get("message", "").lower()
 
     def test_toggle_multiple_items(self) -> None:
         """Multiple items can be toggled independently."""
-        # Toggle li-3 twice: bought → pending (uses its own item_id)
         r1 = self._call_toggle("li-3")
         assert r1["new_status"] == "bought"
 
@@ -288,7 +319,6 @@ class TestStoreModeToggleAPI:
         """After toggling, the DB reflects the new status."""
         from shopstack.app_context import db
 
-        # Use li-2 (not touched by other toggle tests) for isolation
         self._call_toggle("li-2")
 
         # Verify via direct DB query

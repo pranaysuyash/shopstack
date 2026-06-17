@@ -109,7 +109,7 @@ class InventoryRepo:
         if lot.quantity < quantity:
             quantity = lot.quantity
         qty_before = lot.quantity
-        updated = self.db.consume_inventory(resolved_id, quantity)
+        updated = self.db.consume_inventory(resolved_id, quantity, user_id=user_id)
         if not updated:
             return {"success": False, "error": "Consumption failed"}
         self.db.record_inventory_event(InventoryEvent(

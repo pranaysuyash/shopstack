@@ -101,3 +101,33 @@ The household-selection error reported during browser use has not been
 reproduced locally. The household state machine is covered by
 `tests/test_household_state.py`, and the live Space should be retested
 against the `22ef457...` build now that the PWA route issue is resolved.
+
+## 2026-06-17 Runtime Addendum
+
+The runtime architecture has since shifted to a FastAPI host in
+`shopstack/server.py`, with the Gradio UI mounted under that host as a
+migration bridge. The next Space deployment should validate the FastAPI
+entrypoint explicitly and not assume the old Gradio-root launch path is
+still the primary runtime contract.
+
+## 2026-06-17 Command Surface Addendum
+
+The shared command surface now has a versioned HTTP preview path at
+`POST /api/v1/command/preview` and a household-scoped execution path at
+`POST /api/v1/command/execute`. Both use the same deterministic intent
+rules as the Today-tab input; preview is safe to call without auth,
+and execute dispatches through the shared command handlers so mobile
+and web clients can use the canonical behavior without reimplementing
+the parser or mutation logic.
+
+The same trace layer now powers `GET /api/v1/command/recent`, which
+returns the recent executed command history for a household without
+adding a second log store.
+
+## 2026-06-17 Frontend Shell Addendum
+
+The root route is now an API-first FastAPI shell instead of the Gradio
+workspace. The shell renders household state, command preview/execute,
+auth, and recent command history from the v1 API, while Gradio remains
+available under `/gradio` as the compatibility surface for legacy
+screens and tests.

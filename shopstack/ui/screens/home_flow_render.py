@@ -249,9 +249,14 @@ def _render_intel(intel: Any) -> str:
 
 
 def _action_to_card(action: Any) -> str:
-    """Convert a :class:`TodayAction` into the appropriate intelligence card."""
+    """Convert a :class:`TodayAction` into the appropriate intelligence card.
+
+    Uses the action's data-driven ``confidence`` (derived from purchase
+    counts, expiry urgency, or drop magnitude) instead of a hardcoded
+    label. Also passes ``provenance`` as a small source chip on the card.
+    """
     display = action.display_name
-    confidence = ConfidenceLabel(
+    confidence = getattr(action, "confidence", None) or ConfidenceLabel(
         level="medium",
         text="Based on your household's recent activity",
     )

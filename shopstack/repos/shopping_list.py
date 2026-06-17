@@ -34,7 +34,7 @@ class ShoppingListRepo:
                     priority=item_data.get("priority", "optional"),
                     reason=item_data.get("reason", ""),
                 )
-                self.db.add_list_item(sl.list_id, sl_item)
+                self.db.add_list_item(sl.list_id, sl_item, user_id=user_id)
 
         return {"list": self._load_list(sl.list_id)}
 

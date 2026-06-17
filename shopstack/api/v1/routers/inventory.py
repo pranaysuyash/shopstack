@@ -27,6 +27,7 @@ from pydantic import Field
 
 from shopstack.api.v1.deps import HouseholdContext, require_household
 from shopstack.api.v1.schemas import (
+    AddInventoryLotRequest,
     ApiError,
     ConsumeInventoryRequest,
     InventoryLot,
@@ -54,7 +55,7 @@ def _lot_to_wire(lot: dict[str, Any], location_name: str = "") -> InventoryLot:
         canonical_name=lot.get("canonical_name", "") or "",
         display_name=lot.get("display_name", "") or "",
         category=lot.get("category", "") or "",
-        quantity=float(lot.get("quantity", 1.0) or 1.0),
+        quantity=float(lot.get("quantity") if lot.get("quantity") is not None else 1.0),
         unit=lot.get("unit", "unit") or "unit",
         storage_location_id=lot.get("storage_location_id", "") or "",
         storage_location_name=location_name,
@@ -64,7 +65,7 @@ def _lot_to_wire(lot: dict[str, Any], location_name: str = "") -> InventoryLot:
         opened_date=lot.get("opened_date"),
         price_paid=lot.get("price_paid"),
         currency=lot.get("currency", "INR") or "INR",
-        confidence=float(lot.get("confidence", 1.0) or 1.0),
+        confidence=float(lot.get("confidence") if lot.get("confidence") is not None else 1.0),
         status=lot.get("status", "active") or "active",
     )
 
@@ -255,7 +256,6 @@ def consume_lot(
     inv_repo.consume_item(
         lot_id=lot_id,
         quantity=body.quantity,
-        unit=body.unit,
         user_id=ctx.household_id,
     )
 
@@ -271,6 +271,96 @@ def consume_lot(
     new_row = cur.fetchone()
     location_name = _resolve_location_name(db, new_row["storage_location_id"])
     return _lot_to_wire(dict(new_row), location_name)
+
+
+@router.post(
+    "/lots",
+    response_model=InventoryLot,
+    status_code=status.HTTP_201_CREATED,
+    summary="Add a new inventory lot (record a purchase)",
+)
+def add_lot(
+    body: AddInventoryLotRequest,
+    ctx: HouseholdContext = Depends(require_household),
+) -> InventoryLot:
+    """Record a new purchase as an inventory lot.
+
+    This is the **most-used write endpoint** — the mobile app's primary
+    way to add items to the household inventory. The endpoint accepts
+    optional metadata (dates, price, location, category) alongside the
+    required item name.
+
+    The lot is created with an auto-generated ``lot_id``. The response
+    returns the full ``InventoryLot`` wire shape so the mobile app can
+    update its local cache without a second round-trip.
+
+    Validation:
+    - ``canonical_name`` is required (min 1 char, max 200).
+    - ``quantity`` must be > 0 (default 1.0).
+    - ``price_paid`` must be >= 0 if provided.
+    - ``confidence`` must be in [0, 1].
+    """
+    from datetime import date
+
+    from shopstack.schemas.models import InventoryLot as DomainLot
+
+    from shopstack.app_context import db
+
+    lot = DomainLot(
+        canonical_name=body.canonical_name,
+        display_name=body.display_name or body.canonical_name,
+        quantity=body.quantity,
+        unit=body.unit,
+        storage_location_id=body.storage_location_id,
+        purchase_date=(
+            date.fromisoformat(body.purchase_date) if body.purchase_date else date.today()
+        ),
+        estimated_use_by_date=(
+            date.fromisoformat(body.estimated_use_by_date) if body.estimated_use_by_date else None
+        ),
+        label_expiry_date=(
+            date.fromisoformat(body.label_expiry_date) if body.label_expiry_date else None
+        ),
+        opened_date=(
+            date.fromisoformat(body.opened_date) if body.opened_date else None
+        ),
+        price_paid=body.price_paid,
+        currency=body.currency,
+        confidence=body.confidence,
+        category=body.category,
+    )
+    db.add_inventory_lot(lot, user_id=ctx.household_id)
+
+    # Record an inventory event so the audit trail is complete.
+    from shopstack.schemas.models import InventoryEvent
+
+    db.record_inventory_event(
+        InventoryEvent(
+            lot_id=lot.lot_id,
+            canonical_name=lot.canonical_name,
+            action="added",
+            quantity_before=0,
+            quantity_after=body.quantity,
+            quantity_delta=body.quantity,
+            unit=body.unit,
+            location_to=body.storage_location_id,
+            source="api",
+        ),
+        user_id=ctx.household_id,
+    )
+
+    # Re-read the row so we return server-set timestamps.
+    cur = db.conn.execute(
+        "SELECT lot_id, canonical_name, display_name, category, "
+        "quantity, unit, storage_location_id, purchase_date, "
+        "estimated_use_by_date, label_expiry_date, opened_date, "
+        "price_paid, currency, confidence, status "
+        "FROM inventory_lots WHERE lot_id = ? AND user_id = ?",
+        (lot.lot_id, ctx.household_id),
+    )
+    row = cur.fetchone()
+    location_name = _resolve_location_name(db, row["storage_location_id"])
+    return _lot_to_wire(dict(row), location_name)
 
 
 __all__ = ["router"]

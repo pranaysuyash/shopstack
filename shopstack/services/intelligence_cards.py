@@ -137,6 +137,8 @@ class IntelligenceCard:
     # user how fresh the data is. Optional so existing call
     # sites that don't care can leave it None.
     last_updated: datetime | None = None
+    # Provenance is auto-populated by the renderer from _KIND_META
+    # based on card.kind. No per-card field needed.
 
     def to_html(self) -> str:
         return render_intelligence_card(self)
@@ -416,41 +418,49 @@ _KIND_META: dict[str, dict[str, str]] = {
         "badge": "Buy soon",
         "badge_class": "badge badge-amber",
         "icon": "🛒",
+        "provenance": "Purchase history",
     },
     "use_soon": {
         "badge": "Use soon",
         "badge_class": "badge badge-amber",
         "icon": "🥬",
+        "provenance": "Inventory scan",
     },
     "skip": {
         "badge": "Skip",
         "badge_class": "badge badge-gray",
         "icon": "⏸",
+        "provenance": "Decision engine",
     },
     "price_drop": {
         "badge": "Price drop",
         "badge_class": "badge badge-green",
         "icon": "💰",
+        "provenance": "Market intelligence",
     },
     "price_overpriced": {
         "badge": "Above median",
         "badge_class": "badge badge-gray",
         "icon": "👥",
+        "provenance": "Community prices",
     },
     "restock": {
         "badge": "Restock",
         "badge_class": "badge badge-amber",
         "icon": "📦",
+        "provenance": "Purchase history",
     },
     "memory": {
         "badge": "Memory",
         "badge_class": "badge badge-blue",
         "icon": "🧠",
+        "provenance": "ShopStack learning",
     },
     "trip": {
         "badge": "Trip",
         "badge_class": "badge badge-blue",
         "icon": "🧭",
+        "provenance": "Weather service",
     },
 }
 
@@ -462,6 +472,17 @@ def render_intelligence_card(card: IntelligenceCard) -> str:
         f"<div class='ic-confidence ic-confidence--{escape(card.confidence.level)}'>"
         f"{escape(card.confidence.text)}</div>"
         if card.confidence is not None
+        else ""
+    )
+    # Provenance badge: a small chip showing where the signal came from.
+    # Auto-filled from _KIND_META based on card kind so no call-site
+    # changes are needed. The chip sits between the subtitle and the
+    # confidence label so the user sees the "who says so" factor
+    # alongside the "how sure are we" factor.
+    provenance_label = meta.get("provenance", "")
+    provenance_html = (
+        f"<span class='ic-provenance'>{escape(provenance_label)}</span>"
+        if provenance_label
         else ""
     )
     actions_html = _render_actions(card)
@@ -493,6 +514,7 @@ def render_intelligence_card(card: IntelligenceCard) -> str:
         f"</div>"
         f"<div class='ic-subtitle'>{subtitle}</div>"
         f"{secondary_html}"
+        f"{provenance_html}"
         f"{confidence_html}"
         f"{actions_html}"
         f"</div>"

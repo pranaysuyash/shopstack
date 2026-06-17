@@ -150,12 +150,13 @@ def mount_health_endpoint(
             headers={"Cache-Control": "no-store"},
         )
 
+    target_app = getattr(app, "app", app)
     try:
         # Use Starlette's ``add_route`` (matches the sms_webhook pattern)
         # rather than FastAPI's ``add_api_route`` — the latter requires
         # the FastAPI app to be fully constructed, which doesn't hold
         # inside ``with gr.Blocks() as app:``.
-        app.app.add_route(path, _health, methods=["GET"])
+        target_app.add_route(path, _health, methods=["GET"])
         logger.info("Health endpoint mounted at %s", path)
     except Exception as exc:  # noqa: BLE001 — best-effort mount
         logger.warning("Could not mount health endpoint at %s: %s", path, exc)

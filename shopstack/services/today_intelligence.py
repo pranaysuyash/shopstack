@@ -72,6 +72,16 @@ class TodayAction:
 
     Fields are intentionally simple — the renderer is the
     one place that decides visual treatment.
+
+    Attributes:
+        confidence: Optional :class:`ConfidenceLabel` showing how
+            sure the signal is (e.g. "High confidence — 8 purchases
+            logged"). When set, the intelligence card renders a
+            coloured badge.
+        provenance: Optional short label describing where the
+            signal came from, e.g. "Purchase history", "Inventory
+            scan", "Market intelligence", "Weather service".
+            Rendered as a small chip below the card subtitle.
     """
 
     rank: int
@@ -81,6 +91,8 @@ class TodayAction:
     urgency: int  # 0..100; higher = more urgent
     reason: str  # one-line, human-friendly
     secondary: str = ""  # optional extra context (qty, price, etc.)
+    confidence: Any | None = None  # ConfidenceLabel, imported lazily
+    provenance: str = ""  # short source label
 
 
 @dataclass
@@ -157,6 +169,61 @@ def _build_headline(
     return f"{lead} · " + " · ".join(parts)
 
 
+def _derive_use_soon_confidence(days_until_expiry: int | None) -> Any:
+    """Derive a ConfidenceLabel for a use-soon item based on expiry urgency."""
+    from shopstack.services.intelligence_cards import ConfidenceLabel
+    if days_until_expiry is not None and days_until_expiry <= 0:
+        return ConfidenceLabel(
+            level="high",
+            text="High confidence — overdue, confirmed by inventory",
+        )
+    if days_until_expiry is not None and days_until_expiry <= 2:
+        return ConfidenceLabel(
+            level="medium",
+            text="Medium confidence — expires soon per inventory reckoning",
+        )
+    return ConfidenceLabel(
+        level="low",
+        text="Low confidence — expiry estimate from purchase date",
+    )
+
+
+def _derive_restock_confidence(cadence_data: dict, canonical_name: str) -> Any:
+    """Derive a ConfidenceLabel for a restock item from purchase cadence."""
+    from shopstack.services.intelligence_cards import ConfidenceLabel
+    info = cadence_data.get(canonical_name.strip().lower(), {})
+    purchase_count = int(info.get("purchase_count", 0))
+    return ConfidenceLabel.from_count(purchase_count)
+
+
+def _derive_price_drop_confidence(drop_pct: float | None) -> Any:
+    """Derive a ConfidenceLabel for a price-drop signal."""
+    from shopstack.services.intelligence_cards import ConfidenceLabel
+    if drop_pct is not None and abs(drop_pct) >= 20:
+        return ConfidenceLabel(
+            level="high",
+            text=f"High confidence — {abs(drop_pct):.0f}% below historical median",
+        )
+    if drop_pct is not None and abs(drop_pct) >= 10:
+        return ConfidenceLabel(
+            level="medium",
+            text=f"Medium confidence — {abs(drop_pct):.0f}% below historical median",
+        )
+    return ConfidenceLabel(
+        level="low",
+        text="Low confidence — small deviation from typical price",
+    )
+
+
+_PROVENANCE: dict[str, str] = {
+    "use_soon": "Inventory scan",
+    "restock_due": "Purchase history",
+    "price_drop": "Market intelligence",
+    "overpriced": "Community prices",
+    "trip": "Weather service",
+}
+
+
 def build_today_intelligence(
     dashboard_state: Any,
     *,
@@ -170,7 +237,9 @@ def build_today_intelligence(
     Args:
         dashboard_state: A :class:`DashboardState` (or any
             object with ``restock_predictions``, ``use_soon_items``,
-            and ``price_drops`` attributes/dicts).
+            and ``price_drops`` attributes/dicts). Also may carry
+            ``cadence_data`` (dict of canonical_name → cadence info)
+            used to derive confidence labels for restock signals.
         community_medians: Optional dict of ``{canonical_name: median_price}``
             for items in the community pool. When provided,
             items whose current observed price is well above
@@ -186,6 +255,7 @@ def build_today_intelligence(
         A :class:`TodayIntelligence` with ranked actions.
     """
     actions: list[TodayAction] = []
+    cadence_data = safe_get(dashboard_state, "cadence_data", default={}) or {}
 
     # 1. Use-soon items (highest urgency — food going bad)
     use_soon = safe_get(dashboard_state, "use_soon_items", default=[]) or []
@@ -206,6 +276,8 @@ def build_today_intelligence(
             urgency=95,
             reason=f"Use {display} before it spoils.",
             secondary=secondary,
+            confidence=_derive_use_soon_confidence(days),
+            provenance=_PROVENANCE.get("use_soon", ""),
         ))
 
     # 2. Restock due (high urgency — running out)
@@ -230,6 +302,8 @@ def build_today_intelligence(
             urgency=80 if (days_until is None or days_until > 2) else 90,
             reason=f"You'll run out of {display} soon — add to list.",
             secondary=secondary,
+            confidence=_derive_restock_confidence(cadence_data, cname),
+            provenance=_PROVENANCE.get("restock_due", ""),
         ))
 
     # 3. Price drops (opportunity — act fast)
@@ -251,15 +325,13 @@ def build_today_intelligence(
             urgency=60,
             reason=f"{display} is at a recent low — buy extra.",
             secondary=secondary,
+            confidence=_derive_price_drop_confidence(drop_pct),
+            provenance=_PROVENANCE.get("price_drop", ""),
         ))
 
     # 4. Overpriced vs community median (medium urgency — wait)
     if community_medians:
         for cname, median in community_medians.items():
-            # We don't have a current price in dashboard_state;
-            # the *signal* is "community says ₹X, you might be
-            # paying more". Surface as a low-urgency hint so the
-            # user can verify on their next receipt.
             display = cname.replace("_", " ").title()
             actions.append(TodayAction(
                 rank=0,
@@ -269,6 +341,7 @@ def build_today_intelligence(
                 urgency=30,
                 reason=f"Community median for {display}: ₹{median:.0f}.",
                 secondary="verify on next receipt",
+                provenance=_PROVENANCE.get("overpriced", ""),
             ))
 
     # 5. Trip advisor (if provided)
@@ -283,6 +356,7 @@ def build_today_intelligence(
             urgency=50,
             reason=reason,
             secondary="trip advisor",
+            provenance=_PROVENANCE.get("trip", ""),
         ))
 
     return _rank(actions, max_top=max_top)
