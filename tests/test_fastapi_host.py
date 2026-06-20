@@ -52,25 +52,26 @@ def test_fastapi_host_serves_api_and_ui():
         assert root.status_code == 200
         assert "text/html" in root.headers.get("content-type", "")
         assert 'data-shell-root="true"' in root.text
-        assert "/api/v1/command/preview" in root.text
-        assert "/api/v1/inventory/lots" in root.text
-        assert "/api/v1/shopping/active" in root.text
+        assert "/command/preview" in root.text
+        assert "/inventory/lots" in root.text
+        assert "/shopping/active" in root.text
         assert "shopping-mark-purchased-btn" in root.text
-        assert "/api/v1/meta/runtime" in root.text
-        assert "/api/v1/account/privacy/retention-summary" in root.text
+        assert "/meta/runtime" in root.text
+        assert "/account/privacy/retention-summary" in root.text
         assert "privacy-profile" in root.text
         assert "privacy-apply-profile-btn" in root.text
         assert "privacy-profile-summary" in root.text
         assert "privacy-update-btn" in root.text
         assert "privacy-purge-btn" in root.text
-        assert "/api/v1/corrections" in root.text
-        assert "/api/v1/account/undo" in root.text
-        assert "/api/v1/traces" in root.text
+        assert "/corrections" in root.text
+        assert "/account/undo" in root.text
+        assert "/traces" in root.text
         assert "/search/global" in root.text
+        assert "search-global-pill" in root.text
+        assert "search-inventory-pill" in root.text
         assert "/intelligence/recurring" in root.text
         assert "recurring-window" in root.text
         assert "mealplan-days" in root.text
-        assert "/gradio" in root.text
     finally:
         db.close()
         import app as app_module

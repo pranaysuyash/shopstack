@@ -1729,6 +1729,16 @@ class Database:
         )
         self.conn.commit()
 
+    def set_config_values(self, values: dict[str, str]) -> None:
+        """Persist multiple app config values in a single transaction."""
+        if not values:
+            return
+        self.conn.executemany(
+            "INSERT OR REPLACE INTO app_config (key, value) VALUES (?, ?)",
+            list(values.items()),
+        )
+        self.conn.commit()
+
     # --- Traces ---
 
     def save_trace(self, trace: Trace, user_id: str = "") -> Trace:

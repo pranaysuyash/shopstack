@@ -317,8 +317,7 @@ def _render_shelf_scan(result: ShelfIntelligenceResult) -> str:
             body=(
                 f"<h4>Video frame sweep · {result.frame_count} frame(s)</h4>"
                 f"<div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:4px;'>"
-                f"First frame was used for detection, segmentation, and OCR. "
-                f"Other frames were sampled at regular intervals to catch items you may have panned past."
+                f"Frames were merged into one household memory result. The first frame anchors the annotation preview, and later frames catch items you may have panned past."
                 f"</div>"
                 f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:8px;'>{thumbs}</div>"
             ),
@@ -381,11 +380,14 @@ def _render_instance_card(instance: Any) -> str:
     expiry = ""
     if getattr(instance, "expiry_date", None):
         expiry = f" · expiry {instance.expiry_date.isoformat()}"
+    source_label = ""
+    if getattr(instance, "source_label", ""):
+        source_label = f" · {escape(str(instance.source_label))}"
     return stat_card(
         style="text-align:left;",
         body_html=(
             f"<div style='font-weight:600;'>{escape(instance.display_name)}</div><div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>"
-            f"{escape(instance.recognition_source)} · {instance.quantity_estimate.value:g} {escape(instance.quantity_estimate.unit)}{freshness}{expiry}</div>"
+            f"{escape(instance.recognition_source)} · {instance.quantity_estimate.value:g} {escape(instance.quantity_estimate.unit)}{freshness}{expiry}{source_label}</div>"
             f"<div style='margin-top:6px;font-size: 0.6875rem;color:var(--text-dim);'>{escape(instance.zone_guess or 'unknown zone')}</div>"
         ),
     )
@@ -397,7 +399,7 @@ def _render_aggregate_card(aggregate: Any) -> str:
         body_html=(
             f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
             f"<strong>{escape(aggregate.display_name)}</strong><span class='badge badge-blue'>{escape(aggregate.recommendation)}</span></div>"
-            f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{aggregate.count} instance(s) · {aggregate.estimated_quantity:g} {escape(aggregate.unit)}"
+            f"<div style='font-size: 0.75rem;color:var(--text-dim);margin-top:4px;'>{aggregate.count} instance(s) · {getattr(aggregate, 'frame_hits', aggregate.count)} frame(s) · {aggregate.estimated_quantity:g} {escape(aggregate.unit)}"
             f" · home {aggregate.matched_home_quantity:g}</div><div style='font-size: 0.6875rem;color:var(--text-dim);margin-top:4px;'>"
             f"delta {aggregate.delta_from_inventory:+g} · confidence {aggregate.confidence:.0%}</div>"
             + (

@@ -417,6 +417,10 @@ class SearchResponse(ApiModel):
     """``GET /api/v1/search/*`` response."""
 
     query: str
+    search_mode: str = ""
+    semantic_active: bool = False
+    match_type: str = ""
+    expanded_queries: list[str] = Field(default_factory=list)
     results: list[SearchResultWire] = Field(default_factory=list)
     count: int = 0
 
@@ -650,6 +654,46 @@ class UpdateRetentionResponse(ApiModel):
     """Response from updating a retention setting."""
 
     success: bool
+
+
+class ApplyRetentionProfileRequest(ApiModel):
+    """``POST /api/v1/account/privacy/apply-profile`` body."""
+
+    profile: str = Field(
+        ...,
+        description="Named privacy profile: balanced, strict, or shared.",
+    )
+
+
+class ApplyRetentionProfileResponse(ApiModel):
+    """Response from applying a retention profile."""
+
+    success: bool
+    profile: str = ""
+    updated_keys: list[str] = Field(default_factory=list)
+    summary: RetentionPolicyWire = Field(default_factory=RetentionPolicyWire)
+    errors: list[str] = Field(default_factory=list)
+
+
+class RetentionProfileWire(ApiModel):
+    """A canonical privacy profile exposed by the backend."""
+
+    profile: str
+    label: str
+    description: str = ""
+    recommended: bool = False
+    values: dict[str, str] = Field(default_factory=dict)
+    summary: RetentionPolicyWire = Field(default_factory=RetentionPolicyWire)
+
+
+class RetentionProfileListResponse(ApiModel):
+    """``GET /api/v1/account/privacy/profiles`` response."""
+
+    items: list[RetentionProfileWire] = Field(default_factory=list)
+    total: int = 0
+    limit: int = 0
+    offset: int = 0
+    has_more: bool = False
 
 
 class StoreModeToggleRequest(ApiModel):

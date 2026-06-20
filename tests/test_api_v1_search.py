@@ -160,6 +160,9 @@ class TestSearchGlobal:
         assert r.status_code == 200
         body = r.json()
         assert "query" in body
+        assert body["search_mode"] == "global"
+        assert body["semantic_active"] is False
+        assert body["match_type"] == "n/a"
         assert "results" in body
         assert "count" in body
         assert isinstance(body["results"], list)
@@ -218,6 +221,10 @@ class TestSearchInventory:
         assert r.status_code == 200
         body = r.json()
         assert "query" in body
+        assert body["search_mode"] in {"inventory-semantic", "inventory-text"}
+        assert isinstance(body["semantic_active"], bool)
+        assert isinstance(body["match_type"], str)
+        assert isinstance(body["expanded_queries"], list)
         assert "results" in body
         assert "count" in body
         if body["count"] > 0:

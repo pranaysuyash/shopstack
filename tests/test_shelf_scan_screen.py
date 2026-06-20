@@ -162,11 +162,11 @@ def test_shelf_scan_process_with_video(app, monkeypatch):
 
     parsed = json.loads(scan_state)
     assert parsed["scene_type"] == "fridge"
-    assert parsed["frame_count"] > 0
+    assert parsed["frame_count"] == 2
     assert parsed["video_path"] is not None
-    # With detections available, the mock's promptable_segmentation
-    # capability kicks in, so perception_mode becomes "promptable_segmentation"
-    assert parsed["perception_mode"] == "promptable_segmentation"
+    # With detections available, the mock promptable path now runs over a
+    # merged video sweep, so the mode is prefixed with ``video_``.
+    assert parsed["perception_mode"] == "video_promptable_segmentation"
 
 
 def test_shelf_scan_process_with_video_and_audio(app, monkeypatch):
@@ -216,9 +216,8 @@ def test_shelf_scan_process_with_video_and_audio(app, monkeypatch):
 
     parsed = json.loads(scan_state)
     assert parsed["scene_type"] == "fridge"
-    assert parsed["frame_count"] > 0
-    # With detections available, the mock's promptable_segmentation
-    # capability kicks in, so perception_mode becomes "promptable_segmentation"
-    # even with video+audio input.
-    assert parsed["perception_mode"] == "promptable_segmentation"
-
+    assert parsed["frame_count"] == 2
+    # With detections available, the mock promptable path now runs over a
+    # merged video sweep, so the mode is prefixed with ``video_`` even with
+    # video+audio input.
+    assert parsed["perception_mode"] == "video_promptable_segmentation"

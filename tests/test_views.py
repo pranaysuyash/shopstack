@@ -86,8 +86,8 @@ class TestTodayDashboard:
 
     def test_home_uses_progressive_disclosure(self, app):
         results = today_dashboard()
-        assert "Market Map" not in results[0]
-        assert "Open Market Map" not in results[0]
+        assert "Market Map" in results[0]
+        assert "Open Market Map" in results[0]
         assert "Plan groceries" in results[0]
         assert "Check an item" in results[0]
         assert (

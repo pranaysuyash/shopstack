@@ -87,6 +87,9 @@ class TestAccountAuth:
     def test_retention_summary_requires_token(self, client):
         assert client.get("/api/v1/account/privacy/retention-summary").status_code == 401
 
+    def test_profiles_requires_token(self, client):
+        assert client.get("/api/v1/account/privacy/profiles").status_code == 401
+
     def test_undo_requires_token(self, client):
         assert client.post("/api/v1/account/undo", json={}).status_code == 401
 
@@ -157,6 +160,37 @@ class TestRetentionSummary:
         assert s["community_optin"] is False
 
 
+# ── Privacy: Profile Catalog ──────────────────────────────────────
+
+
+class TestRetentionProfiles:
+    def test_returns_catalog_shape(self, client, db_handle):
+        token = _issue(db_handle)
+        r = client.get(
+            "/api/v1/account/privacy/profiles",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["total"] == len(body["items"])
+        assert body["limit"] == len(body["items"])
+        assert body["offset"] == 0
+        assert body["has_more"] is False
+        assert {item["profile"] for item in body["items"]} == {"balanced", "strict", "shared"}
+
+    def test_balanced_profile_is_recommended(self, client, db_handle):
+        token = _issue(db_handle)
+        r = client.get(
+            "/api/v1/account/privacy/profiles",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        body = r.json()
+        balanced = next(item for item in body["items"] if item["profile"] == "balanced")
+        assert balanced["recommended"] is True
+        assert balanced["summary"]["trace_ttl_days"] == 30
+        assert balanced["summary"]["community_optin"] is False
+
+
 # ── Privacy: Update Retention ────────────────────────────────────
 
 
@@ -180,6 +214,46 @@ class TestUpdateRetention:
         )
         assert r.status_code == 200
         assert r.json()["success"] is True
+
+
+# ── Privacy: Apply Profile ───────────────────────────────────────
+
+
+class TestApplyRetentionProfile:
+    def test_requires_token(self, client):
+        r = client.post(
+            "/api/v1/account/privacy/apply-profile",
+            json={"profile": "balanced"},
+        )
+        assert r.status_code == 401
+
+    def test_apply_balanced_profile_returns_summary(self, client, db_handle):
+        token = _issue(db_handle)
+        r = client.post(
+            "/api/v1/account/privacy/apply-profile",
+            json={"profile": "balanced"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["success"] is True
+        assert body["profile"] == "balanced"
+        assert body["updated_keys"]
+        assert body["summary"]["trace_ttl_days"] == 30
+        assert body["summary"]["community_optin"] is False
+
+    def test_unknown_profile_returns_failure(self, client, db_handle):
+        token = _issue(db_handle)
+        r = client.post(
+            "/api/v1/account/privacy/apply-profile",
+            json={"profile": "mystery"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["success"] is False
+        assert body["profile"] == "mystery"
+        assert body["errors"]
 
 
 # ── Undo ─────────────────────────────────────────────────────────

@@ -88,6 +88,9 @@ def search_global(
     )
     return SearchResponse(
         query=q,
+        search_mode="global",
+        semantic_active=False,
+        match_type="n/a",
         results=[
             SearchResultWire(
                 kind=r.kind,
@@ -138,8 +141,14 @@ def search_inventory(
         query=q, user_id=ctx.household_id,
     )
     raw_results = result.get("results", [])
+    semantic_active = bool(result.get("semantic_active", False))
+    match_type = str(result.get("match_type", "none") or "none")
     return SearchResponse(
         query=q,
+        search_mode="inventory-semantic" if semantic_active else "inventory-text",
+        semantic_active=semantic_active,
+        match_type=match_type,
+        expanded_queries=list(result.get("expanded_queries", [])),
         results=[
             SearchResultWire(
                 kind="inventory",

@@ -48,6 +48,8 @@ def _preview_for_intent(text: str) -> CommandPreviewResponse:
         summary = f"Would mark {intent.canonical_name.replace('_', ' ')} as used."
     elif intent.action == "ask":
         summary = "Would route this as a question to Ask ShopStack."
+    elif intent.action == "unknown":
+        summary = ""
     else:
         summary = "Would route this to Ask ShopStack."
     return CommandPreviewResponse(

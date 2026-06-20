@@ -61,6 +61,7 @@ class VisibleItemInstance(BaseModel):
     instance_id: str
     canonical_name: str
     display_name: str
+    source_label: str = ""
     bbox: list[float] = Field(default_factory=list)
     mask_ref: str | None = None
     detection_confidence: float = 0.0

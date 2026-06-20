@@ -35,8 +35,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from shopstack.api.v1.deps import HouseholdContext, require_household
 from shopstack.api.v1.schemas import (
+    ApplyRetentionProfileRequest,
+    ApplyRetentionProfileResponse,
     ApiError,
     PurgeDataResponse,
+    RetentionProfileListResponse,
+    RetentionProfileWire,
     RetentionPolicyWire,
     RetentionSummaryResponse,
     StoreModeToggleRequest,
@@ -129,6 +133,90 @@ def retention_summary_endpoint(
     except Exception as exc:  # noqa: BLE001
         logger.warning("retention_summary failed: %s", exc)
         return RetentionSummaryResponse()
+
+
+@router.get(
+    "/privacy/profiles",
+    response_model=RetentionProfileListResponse,
+    summary="List the canonical privacy profiles",
+)
+def list_profiles(
+    ctx: HouseholdContext = Depends(require_household),
+) -> RetentionProfileListResponse:
+    """Return the canonical profile catalog for privacy settings.
+
+    The frontend can use this to render profile cards, compare the
+    effect of each preset, and keep the profile catalog aligned with
+    the backend source of truth.
+    """
+    from shopstack.app_context import db
+    from shopstack.services.data_retention import retention_profiles
+
+    profiles = retention_profiles(db, user_id=ctx.household_id)
+    items = [
+        RetentionProfileWire(
+            profile=item.profile,
+            label=item.label,
+            description=item.description,
+            recommended=item.recommended,
+            values=dict(item.values),
+            summary=RetentionPolicyWire(
+                trace_ttl_days=item.summary.trace_ttl_days,
+                trace_max_rows=item.summary.trace_max_rows,
+                community_pool_retention_days=item.summary.community_pool_retention_days,
+                voice_memo_retention_days=item.summary.voice_memo_retention_days,
+                sms_registry_retention_days=item.summary.sms_registry_retention_days,
+                backup_retention_days=item.summary.backup_retention_days,
+                locale_persistence=item.summary.locale_persistence,
+                community_optin=item.summary.community_optin,
+            ),
+        )
+        for item in profiles
+    ]
+    return RetentionProfileListResponse(
+        items=items,
+        total=len(items),
+        limit=len(items),
+        offset=0,
+        has_more=False,
+    )
+
+
+@router.post(
+    "/privacy/apply-profile",
+    response_model=ApplyRetentionProfileResponse,
+    summary="Apply a named privacy profile",
+)
+def apply_profile(
+    body: ApplyRetentionProfileRequest,
+    ctx: HouseholdContext = Depends(require_household),
+) -> ApplyRetentionProfileResponse:
+    """Apply a canonical privacy profile in one backend write.
+
+    Profiles are the durable bundle used by clients to align the
+    household's privacy posture without issuing one config write per
+    setting.
+    """
+    from shopstack.app_context import db
+    from shopstack.services.data_retention import apply_retention_profile
+
+    result = apply_retention_profile(db, body.profile, user_id=ctx.household_id)
+    return ApplyRetentionProfileResponse(
+        success=result.success,
+        profile=result.profile,
+        updated_keys=list(result.updated_keys),
+        summary=RetentionPolicyWire(
+            trace_ttl_days=result.summary.trace_ttl_days,
+            trace_max_rows=result.summary.trace_max_rows,
+            community_pool_retention_days=result.summary.community_pool_retention_days,
+            voice_memo_retention_days=result.summary.voice_memo_retention_days,
+            sms_registry_retention_days=result.summary.sms_registry_retention_days,
+            backup_retention_days=result.summary.backup_retention_days,
+            locale_persistence=result.summary.locale_persistence,
+            community_optin=result.summary.community_optin,
+        ),
+        errors=list(result.errors),
+    )
 
 
 @router.post(

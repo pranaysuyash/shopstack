@@ -63,6 +63,7 @@ def v1_app(db_handle):
     from shopstack.api.v1.routers.household import router as household_router
     from shopstack.api.v1.routers.shopping import router as shopping_router
     from shopstack.api.v1.routers.dashboard import router as dashboard_router
+    from shopstack.api.v1.routers.account import router as account_router
 
     monkey = pytest.MonkeyPatch()
     monkey.setattr(app_context, "db", db_handle)
@@ -85,6 +86,7 @@ def v1_app(db_handle):
     fastapi_app.include_router(household_router, prefix="/api/v1")
     fastapi_app.include_router(shopping_router, prefix="/api/v1")
     fastapi_app.include_router(dashboard_router, prefix="/api/v1")
+    fastapi_app.include_router(account_router, prefix="/api/v1")
     yield fastapi_app
     monkey.undo()
 
@@ -747,3 +749,256 @@ class TestDashboardEndpoint:
         for k in ("pantry_count", "use_soon_count", "low_items_count", "recent_purchases_count"):
             assert isinstance(body[k], int) and body[k] >= 0
         assert "timestamp" in body
+
+
+# ── Privacy / Retention endpoints ────────────────────────────────
+
+
+class TestPrivacyEndpoints:
+    """Boundary tests for the privacy/retention endpoint.
+
+    ``POST /api/v1/account/privacy/update-retention`` accepts
+    ``{"key": str, "value": str}``.  The schema plain ``str``
+    (no ``min_length``) so:
+
+    * ``key=""`` — passes schema, fails service validation
+      (unknown key), returns ``{"success": False}``.
+    * ``key=None`` — Pydantic rejects ``None`` for a ``str``
+      field, returns 422.
+    * ``key=null`` (JSON) — same: Pydantic rejects nullable
+      ``str``, returns 422.
+    """
+
+    def _issue(self, db_handle, household: str = "hh_priv") -> str:
+        from shopstack.api.v1 import auth as auth_mod
+
+        auth_mod.ensure_auth_table(db_handle)
+        return auth_mod.issue_token(
+            db_handle, device_id="dev_priv", household_id=household,
+        )["token"]
+
+    def _hdr(self, token: str) -> dict:
+        return {"Authorization": f"Bearer {token}"}
+
+    URL = "/api/v1/account/privacy/update-retention"
+
+    def test_requires_token(self, client):
+        r = client.post(self.URL, json={"key": "retention.trace_ttl_days", "value": "30"})
+        assert r.status_code == 401
+
+    def test_empty_key_returns_success_false(self, client, db_handle):
+        """Empty key "" is accepted by the schema but rejected by
+        the service layer (not in _VALID_KEYS).  Returns 200 with
+        success=False."""
+        token = self._issue(db_handle)
+        r = client.post(
+            self.URL,
+            json={"key": "", "value": "30"},
+            headers=self._hdr(token),
+        )
+        assert r.status_code == 200
+        assert r.json()["success"] is False
+
+    def test_null_key_is_422(self, client, db_handle):
+        """JSON ``null`` for a ``str`` field is rejected by Pydantic."""
+        token = self._issue(db_handle)
+        r = client.post(
+            self.URL,
+            json={"key": None, "value": "30"},
+            headers=self._hdr(token),
+        )
+        assert r.status_code == 422
+        detail = r.json()["detail"]
+        assert any("key" in str(err.get("loc", [])) for err in detail)
+
+    def test_null_value_is_422(self, client, db_handle):
+        """JSON ``null`` for ``value`` is also rejected by Pydantic."""
+        token = self._issue(db_handle)
+        r = client.post(
+            self.URL,
+            json={"key": "retention.trace_ttl_days", "value": None},
+            headers=self._hdr(token),
+        )
+        assert r.status_code == 422
+        detail = r.json()["detail"]
+        assert any("value" in str(err.get("loc", [])) for err in detail)
+
+    def test_valid_key_succeeds(self, client, db_handle):
+        """Happy path: valid key + non-empty value returns success=True."""
+        token = self._issue(db_handle)
+        r = client.post(
+            self.URL,
+            json={"key": "retention.trace_ttl_days", "value": "30"},
+            headers=self._hdr(token),
+        )
+        assert r.status_code == 200
+        assert r.json()["success"] is True
+
+    def test_unknown_key_returns_success_false(self, client, db_handle):
+        """A well-formed but unrecognised key returns success=False."""
+        token = self._issue(db_handle)
+        r = client.post(
+            self.URL,
+            json={"key": "retention.nonexistent", "value": "30"},
+            headers=self._hdr(token),
+        )
+        assert r.status_code == 200
+        assert r.json()["success"] is False
+
+
+# ── Retention-summary GET endpoint ─────────────────────────────────
+
+
+RETENTION_SUMMARY_URL = "/api/v1/account/privacy/retention-summary"
+RETENTION_PROFILES_URL = "/api/v1/account/privacy/profiles"
+
+
+class TestRetentionSummaryEndpoint:
+    """Boundary tests for the retention-summary endpoint.
+
+    ``GET /api/v1/account/privacy/retention-summary`` returns the
+    current retention policy.  A household with no overrides gets
+    the module-level defaults.
+    """
+
+    def _issue(self, db_handle, household: str = "hh_ret") -> str:
+        from shopstack.api.v1 import auth as auth_mod
+
+        auth_mod.ensure_auth_table(db_handle)
+        return auth_mod.issue_token(
+            db_handle, device_id="dev_ret", household_id=household,
+        )["token"]
+
+    def _hdr(self, token: str) -> dict:
+        return {"Authorization": f"Bearer {token}"}
+
+    def test_requires_token(self, client):
+        r = client.get(RETENTION_SUMMARY_URL)
+        assert r.status_code == 401
+
+    def test_returns_defaults(self, client, db_handle):
+        """A household with no overrides returns the hard-coded
+        defaults from ``RetentionPolicyWire``."""
+        token = self._issue(db_handle)
+        r = client.get(RETENTION_SUMMARY_URL, headers=self._hdr(token))
+        assert r.status_code == 200
+        body = r.json()
+        s = body["summary"]
+        assert s["trace_ttl_days"] == 30
+        assert s["trace_max_rows"] == 5000
+        assert s["community_pool_retention_days"] == 90
+        assert s["voice_memo_retention_days"] == 7
+        assert s["sms_registry_retention_days"] == 0
+        assert s["backup_retention_days"] == 0
+        assert s["locale_persistence"] is True
+        assert s["community_optin"] is False
+
+    def test_returns_defaults_for_unknown_household(self, client, db_handle):
+        """Even a household ID that has never been used returns the
+        defaults — the endpoint is not household-scoped for storage."""
+        token = self._issue(db_handle, "hh_nonexistent_abc")
+        r = client.get(RETENTION_SUMMARY_URL, headers=self._hdr(token))
+        assert r.status_code == 200
+        s = r.json()["summary"]
+        assert s["trace_ttl_days"] == 30
+        assert s["community_optin"] is False
+
+
+class TestRetentionProfilesEndpoint:
+    """Boundary tests for the retention profiles endpoint."""
+
+    def _issue(self, db_handle, household: str = "hh_profiles") -> str:
+        from shopstack.api.v1 import auth as auth_mod
+
+        auth_mod.ensure_auth_table(db_handle)
+        return auth_mod.issue_token(
+            db_handle, device_id="dev_profiles", household_id=household,
+        )["token"]
+
+    def _hdr(self, token: str) -> dict:
+        return {"Authorization": f"Bearer {token}"}
+
+    def test_requires_token(self, client):
+        r = client.get(RETENTION_PROFILES_URL)
+        assert r.status_code == 401
+
+    def test_returns_static_profile_catalog(self, client, db_handle):
+        token = self._issue(db_handle)
+        r = client.get(RETENTION_PROFILES_URL, headers=self._hdr(token))
+        assert r.status_code == 200
+        body = r.json()
+        assert body["total"] == 3
+        assert body["has_more"] is False
+        assert {item["profile"] for item in body["items"]} == {"balanced", "strict", "shared"}
+        for item in body["items"]:
+            assert "label" in item
+            assert "description" in item
+            assert "summary" in item
+            assert "values" in item
+
+
+# ── Purge endpoint (privacy) ───────────────────────────────────────
+
+
+PURGE_URL = "/api/v1/account/privacy/purge"
+
+
+class TestPurgeEndpoint:
+    """Boundary tests for the purge endpoint.
+
+    ``POST /api/v1/account/privacy/purge`` wipes user-derived data
+    for the caller's household.  ``confirm=True`` is hardcoded at the
+    endpoint level; the service function raises ``ValueError`` when
+    ``confirm=False``.
+    """
+
+    def _issue(self, db_handle, household: str = "hh_purge") -> str:
+        from shopstack.api.v1 import auth as auth_mod
+
+        auth_mod.ensure_auth_table(db_handle)
+        return auth_mod.issue_token(
+            db_handle, device_id="dev_purge", household_id=household,
+        )["token"]
+
+    def _hdr(self, token: str) -> dict:
+        return {"Authorization": f"Bearer {token}"}
+
+    # ── HTTP-level boundaries ───────────────────────────────────
+
+    def test_requires_token(self, client):
+        r = client.post(PURGE_URL)
+        assert r.status_code == 401
+
+    def test_unknown_household_still_succeeds(self, client, db_handle):
+        """A token scoped to an unknown household (no traces, no
+        community data) should still return a 200 with zero counts
+        rather than 4xx or 5xx."""
+        token = self._issue(db_handle, "hh_no_data")
+        r = client.post(PURGE_URL, headers=self._hdr(token))
+        assert r.status_code == 200
+        body = r.json()
+        assert body["success"] is True
+        assert body["traces_purged"] == 0
+        assert body["community_observations_purged"] == 0
+        assert body["sms_registry_cleared"] == 0
+        assert body["voice_memos_purged"] == 0
+        assert body["backups_purged"] == 0
+        assert body["errors"] == []
+
+    # ── Service-level boundary: missing confirm ──────────────────
+
+    def test_purge_without_confirm_raises_value_error(self, db_handle):
+        from shopstack.services.data_retention import purge_user_data
+
+        with pytest.raises(ValueError, match="purge_user_data is destructive"):
+            purge_user_data(db_handle, user_id="hh_any", confirm=False)
+
+    def test_purge_with_confirm_succeeds_empty(self, db_handle):
+        """Even with confirm=True, a household with no data returns
+        success with zero counts (no crash)."""
+        from shopstack.services.data_retention import purge_user_data
+
+        result = purge_user_data(db_handle, user_id="hh_clean", confirm=True)
+        assert result.success is True
+        assert result.traces_purged == 0
+        assert result.errors == []

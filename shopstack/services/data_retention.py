@@ -126,6 +126,54 @@ _CONFIG_KEY_BACKUP_RETENTION = "retention.backup_retention_days"
 _CONFIG_KEY_LOCALE_PERSISTENCE = "retention.locale_persistence"
 _CONFIG_KEY_COMMUNITY_OPTIN = "retention.community_optin"
 
+RETENTION_PROFILE_VALUES: dict[str, dict[str, str]] = {
+    "balanced": {
+        _CONFIG_KEY_TRACE_TTL: "30",
+        _CONFIG_KEY_COMMUNITY_POOL_RETENTION: "90",
+        _CONFIG_KEY_VOICE_MEMO_RETENTION: "7",
+        _CONFIG_KEY_SMS_REGISTRY_RETENTION: "0",
+        _CONFIG_KEY_BACKUP_RETENTION: "0",
+        _CONFIG_KEY_LOCALE_PERSISTENCE: "1",
+        _CONFIG_KEY_COMMUNITY_OPTIN: "0",
+    },
+    "strict": {
+        _CONFIG_KEY_TRACE_TTL: "7",
+        _CONFIG_KEY_COMMUNITY_POOL_RETENTION: "30",
+        _CONFIG_KEY_VOICE_MEMO_RETENTION: "3",
+        _CONFIG_KEY_SMS_REGISTRY_RETENTION: "0",
+        _CONFIG_KEY_BACKUP_RETENTION: "0",
+        _CONFIG_KEY_LOCALE_PERSISTENCE: "0",
+        _CONFIG_KEY_COMMUNITY_OPTIN: "0",
+    },
+    "shared": {
+        _CONFIG_KEY_TRACE_TTL: "30",
+        _CONFIG_KEY_COMMUNITY_POOL_RETENTION: "90",
+        _CONFIG_KEY_VOICE_MEMO_RETENTION: "7",
+        _CONFIG_KEY_SMS_REGISTRY_RETENTION: "0",
+        _CONFIG_KEY_BACKUP_RETENTION: "0",
+        _CONFIG_KEY_LOCALE_PERSISTENCE: "1",
+        _CONFIG_KEY_COMMUNITY_OPTIN: "1",
+    },
+}
+
+RETENTION_PROFILE_METADATA: dict[str, dict[str, Any]] = {
+    "balanced": {
+        "label": "Balanced",
+        "description": "Recommended default for most households: keep useful history without retaining too much.",
+        "recommended": True,
+    },
+    "strict": {
+        "label": "Strict",
+        "description": "Minimise retention windows for a more privacy-forward posture.",
+        "recommended": False,
+    },
+    "shared": {
+        "label": "Shared",
+        "description": "Keep the household opt-in enabled so pricing insights can be shared with the community pool.",
+        "recommended": False,
+    },
+}
+
 # ── Summary builder ────────────────────────────────────────────────
 
 
@@ -223,6 +271,136 @@ def update_retention_setting(
     except Exception as exc:  # noqa: BLE001
         logger.warning("update_retention_setting failed: key=%s value=%s exc=%s", key, value, exc)
         return False
+
+
+def _policy_from_values(values: dict[str, str]) -> RetentionPolicy:
+    """Build a policy snapshot by overlaying raw config values on defaults."""
+    base = RetentionPolicy()
+    return RetentionPolicy(
+        trace_ttl_days=_coerce_int(values.get(_CONFIG_KEY_TRACE_TTL, str(base.trace_ttl_days)), base.trace_ttl_days),
+        trace_max_rows=base.trace_max_rows,
+        community_pool_retention_days=_coerce_int(
+            values.get(_CONFIG_KEY_COMMUNITY_POOL_RETENTION, str(base.community_pool_retention_days)),
+            base.community_pool_retention_days,
+        ),
+        voice_memo_retention_days=_coerce_int(
+            values.get(_CONFIG_KEY_VOICE_MEMO_RETENTION, str(base.voice_memo_retention_days)),
+            base.voice_memo_retention_days,
+        ),
+        sms_registry_retention_days=_coerce_int(
+            values.get(_CONFIG_KEY_SMS_REGISTRY_RETENTION, str(base.sms_registry_retention_days)),
+            base.sms_registry_retention_days,
+        ),
+        backup_retention_days=_coerce_int(
+            values.get(_CONFIG_KEY_BACKUP_RETENTION, str(base.backup_retention_days)),
+            base.backup_retention_days,
+        ),
+        locale_persistence=values.get(_CONFIG_KEY_LOCALE_PERSISTENCE, "1") == "1",
+        community_optin=values.get(_CONFIG_KEY_COMMUNITY_OPTIN, "0") == "1",
+    )
+
+
+@dataclass(frozen=True)
+class ApplyRetentionProfileResult:
+    """Result from applying one of the named privacy profiles."""
+
+    profile: str
+    success: bool = False
+    updated_keys: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+    summary: RetentionPolicy = field(default_factory=RetentionPolicy)
+
+
+@dataclass(frozen=True)
+class RetentionProfileSpec:
+    """Canonical metadata for a named privacy profile."""
+
+    profile: str
+    label: str
+    description: str
+    recommended: bool = False
+    values: dict[str, str] = field(default_factory=dict)
+    summary: RetentionPolicy = field(default_factory=RetentionPolicy)
+
+
+def retention_profiles(database: Any = None, user_id: str = "") -> list[RetentionProfileSpec]:
+    """Return the canonical privacy profile catalog.
+
+    ``database`` and ``user_id`` are accepted for symmetry with the
+    other retention helpers. The catalog is static for now, but this
+    seam lets us overlay household-specific profile defaults later
+    without changing the API contract.
+    """
+    _ = database, user_id  # reserved for future household-specific overrides
+    profiles: list[RetentionProfileSpec] = []
+    for profile, values in RETENTION_PROFILE_VALUES.items():
+        meta = RETENTION_PROFILE_METADATA.get(profile, {})
+        profiles.append(
+            RetentionProfileSpec(
+                profile=profile,
+                label=str(meta.get("label", profile.title())),
+                description=str(meta.get("description", "")),
+                recommended=bool(meta.get("recommended", False)),
+                values=dict(values),
+                summary=_policy_from_values(values),
+            ),
+        )
+    return profiles
+
+
+def apply_retention_profile(
+    database: Any,
+    profile: str,
+    *,
+    user_id: str = "",
+) -> ApplyRetentionProfileResult:
+    """Apply a named retention profile atomically when possible.
+
+    Profiles are the canonical bundle of privacy settings for the
+    household. This keeps the backend as the source of truth for the
+    "balanced", "strict", and "shared" presets that the shell can
+    surface.
+    """
+    profile_key = (profile or "").strip().lower()
+    values = RETENTION_PROFILE_VALUES.get(profile_key)
+    if values is None:
+        return ApplyRetentionProfileResult(
+            profile=profile_key or profile,
+            success=False,
+            errors=[f"unknown profile: {profile!r}"],
+            summary=retention_summary(database, user_id=user_id),
+        )
+    if not database:
+        return ApplyRetentionProfileResult(
+            profile=profile_key,
+            success=False,
+            errors=["database unavailable"],
+            summary=retention_summary(database, user_id=user_id),
+        )
+
+    try:
+        if hasattr(database, "set_config_values"):
+            database.set_config_values(values)
+        else:
+            for key, value in values.items():
+                if not update_retention_setting(database, key, value):
+                    raise RuntimeError(f"failed to update {key}")
+        summary = retention_summary(database, user_id=user_id)
+        return ApplyRetentionProfileResult(
+            profile=profile_key,
+            success=True,
+            updated_keys=list(values.keys()),
+            summary=summary,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("apply_retention_profile failed: profile=%s exc=%s", profile_key, exc)
+        return ApplyRetentionProfileResult(
+            profile=profile_key,
+            success=False,
+            updated_keys=list(values.keys()),
+            errors=[str(exc)],
+            summary=retention_summary(database, user_id=user_id),
+        )
 
 
 def _coerce_int(value: Any, default: int) -> int:
@@ -540,11 +718,17 @@ def render_privacy_panel_script() -> str:
 
 
 __all__ = [
+    "ApplyRetentionProfileResult",
+    "RETENTION_PROFILE_METADATA",
     "PurgeResult",
     "RetentionPolicy",
+    "RetentionProfileSpec",
+    "RETENTION_PROFILE_VALUES",
+    "apply_retention_profile",
     "purge_user_data",
     "render_privacy_panel_html",
     "render_privacy_panel_script",
+    "retention_profiles",
     "retention_summary",
     "update_retention_setting",
     # Config key constants

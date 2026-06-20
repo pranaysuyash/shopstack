@@ -597,7 +597,7 @@ MODEL_REGISTRY: list[ModelEntry] = [
         runtime="transformers",
         status="active",
         badge_relevance="llama_champion",
-        notes="BiRefNet (Jul 2024, 683k downloads). **Modal A10G seg bench WINNER (13-Jun-2026): IoU 0.8555, pixel acc 0.9699, 0.432s/image, 20 synthetic product images.** Provider wired as birefnet backend. Now the default segmentation provider. RMBG-2.0 was gated. RMBG-1.4 had all_tied_weights_keys issue with newer transformers. GSF-ai/Birefnet-General couldn't load.",
+        notes="BiRefNet (Jul 2024, 683k downloads). **Modal A10G seg bench WINNER (13-Jun-2026): IoU 0.8555, pixel acc 0.9699, 0.432s/image, 20 synthetic product images.** Provider wired as birefnet backend. Now the default segmentation provider. RMBG-2.0 is now benchmarked successfully and remains a non-default candidate. RMBG-1.4 had all_tied_weights_keys issue with newer transformers. GSF-ai/Birefnet-General couldn't load.",
     ),
     ModelEntry(
         provider_group="segmentation",
@@ -607,7 +607,7 @@ MODEL_REGISTRY: list[ModelEntry] = [
         license_note="Apache-2.0",
         runtime="transformers",
         status="candidate",
-        notes="HF frontier segmentation candidate (2026). GATED — needs user approval at https://huggingface.co/briaai/RMBG-2.0. Once approved, expect ~5-10% IoU improvement over BiRefNet (2.0 is a generational upgrade).",
+        notes="HF frontier segmentation candidate (2026). Approval was accepted in this workspace and the model is now benchmarked successfully: 0.8455 IoU, 0.9611 pixel acc, 0.232s/image on the white-background synthetic sweep. Still a candidate rather than default because BiRefNet is slightly stronger on this harness.",
     ),
     # Embeddings — Nomic-Embed-Text-v1.5 (Aug 2024, 2.3M downloads, WINNER 13-Jun-2026)
     ModelEntry(

@@ -168,6 +168,8 @@ def _today_dashboard_inner():
             "tone": "default",
         },
     ])
+    market_map_teaser = _render_market_map_teaser(state, market_graph)
+    market_next_steps = _render_market_next_steps(market_graph)
 
     decision_panel = render_decision_panel(ds)
     market_basket = render_market_basket(ds)
@@ -277,7 +279,7 @@ def _today_dashboard_inner():
     )
 
     sections = [
-        f"{hero}{market_chips}{onboarding}{quick_actions}{loop_actions}",
+        f"{hero}{market_chips}{onboarding}{quick_actions}{loop_actions}{market_map_teaser}{market_next_steps}",
         tonight_section,
     ]
     if has_trip_recommendation:
@@ -618,13 +620,22 @@ def _render_compare_preview(graph) -> str:
 def _render_market_next_steps(graph) -> str:
     """Render next-step action cards based on the market graph signals."""
     actions = []
+    if graph.summary.get("use_soon", 0):
+        actions.append(
+            {
+                "label": "Cook tonight",
+                "subtitle": "Use what is already at home",
+                "tab_id": "cookbook",
+                "tone": "primary",
+            }
+        )
     if graph.summary.get("buy", 0):
         actions.append(
             {
-                "label": "Open Groceries",
+                "label": "Build basket",
                 "subtitle": "Turn buy items into the list",
                 "tab_id": "basket",
-                "tone": "primary",
+                "tone": "default" if graph.summary.get("use_soon", 0) else "primary",
             }
         )
     if graph.summary.get("compare", 0):
@@ -661,7 +672,7 @@ def _render_market_next_steps(graph) -> str:
             body=(
                 "<div class='muted'>No market signals yet. Add a few items to "
                 "your pantry or shopping list, and ShopStack will start "
-                "surfacing buy, compare, and substitute recommendations here.</div>"
+                "surfacing buy, compare, substitute, and cook-tonight recommendations here.</div>"
             ),
             style="text-align:left;margin-top:8px;",
         )
@@ -691,6 +702,13 @@ def _render_market_map_teaser(state, graph) -> str:
     )
     if state.market_snapshot is None and graph.summary.get("items_scored", 0) == 0:
         body = "No market snapshot is loaded yet. Add one and the graph will start ranking buy / compare / substitute signals."
+    captured_at = getattr(state.market_snapshot, "captured_at", None)
+    if isinstance(captured_at, str):
+        from datetime import datetime
+        try:
+            captured_at = datetime.fromisoformat(captured_at.replace("Z", "+00:00"))
+        except ValueError:
+            captured_at = None
 
     actions = [
         {
@@ -717,6 +735,6 @@ def _render_market_map_teaser(state, graph) -> str:
         "Market Map",
         f"<div class='muted' style='margin-bottom:8px;'>{freshness}</div>"
         f"<div style='margin-bottom:10px;'>{body}</div>"
-        f"{last_updated_stamp(getattr(state.market_snapshot, 'captured_at', None), label='Market data')}"
+        f"{last_updated_stamp(captured_at, label='Market data')}"
         f"{compare_preview}{render_action_grid(actions)}",
     )

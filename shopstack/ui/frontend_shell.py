@@ -1,9 +1,8 @@
 """FastAPI frontend shell for ShopStack.
 
-This is the real user-facing entrypoint for the app while Gradio
-remains available under ``/gradio`` as a compatibility surface.
-The shell is intentionally API-driven: it pulls state from the v1
-HTTP contract instead of reaching into UI internals.
+This is the real user-facing entrypoint for the app. The shell is
+intentionally API-driven: it pulls state from the v1 HTTP contract
+instead of reaching into UI internals.
 """
 from __future__ import annotations
 
@@ -30,388 +29,539 @@ def render_frontend_shell_html() -> str:
   <title>__APP_TITLE__</title>
   <meta name="description" content="__APP_SUBTITLE__">
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#111614">
+  <meta name="theme-color" content="#1a1814">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400..700&family=Rubik:wght@300..700&family=JetBrains+Mono:wght@400..600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0f1412;
-      --bg-elevated: rgba(21, 28, 25, 0.92);
-      --bg-card: rgba(24, 32, 28, 0.96);
-      --bg-soft: rgba(40, 52, 46, 0.72);
-      --text: #f2ece2;
-      --text-muted: #c8bfaf;
-      --text-dim: #9f9587;
-      --accent: #7fc98d;
-      --accent-strong: #b3e6b2;
-      --accent-warm: #d0a35c;
-      --border: rgba(255, 255, 255, 0.12);
-      --border-strong: rgba(255, 255, 255, 0.2);
-      --shadow: 0 24px 72px rgba(0, 0, 0, 0.42);
-      --radius-xl: 30px;
-      --radius-lg: 22px;
-      --radius-md: 16px;
-      --radius-sm: 12px;
-      --font-display: "Charter", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
-      --font-body: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
-      --font-mono: "SF Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace;
+      --bg: #121410;
+      --bg-elevated: #1a1c17;
+      --bg-card: #1e211b;
+      --bg-soft: #282b24;
+      --bg-hover: #2a2d26;
+      --text: #eee8db;
+      --text-muted: #bbb09e;
+      --text-dim: #887e6e;
+      --accent: #d4a34b;
+      --accent-strong: #edc880;
+      --accent-cool: #6f8a6a;
+      --accent-red: #d4786a;
+      --success: #7fb083;
+      --warn: #d4a34b;
+      --border: rgba(212, 163, 75, 0.1);
+      --border-strong: rgba(212, 163, 75, 0.2);
+      --border-focus: rgba(237, 200, 128, 0.5);
+      --radius: 8px;
+      --radius-sm: 6px;
+      --radius-pill: 999px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+      --shadow-lg: 0 4px 12px rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.25);
+      --font-display: "Sora", system-ui, sans-serif;
+      --font-body: "Rubik", system-ui, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, monospace;
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); }
-    body {
+    html, body {
+      margin: 0; min-height: 100%;
+      background: var(--bg);
+      color: var(--text);
       font-family: var(--font-body);
-      line-height: 1.45;
-      background:
-        radial-gradient(circle at top left, rgba(127, 201, 141, 0.18), transparent 26%),
-        radial-gradient(circle at 80% 10%, rgba(208, 163, 92, 0.14), transparent 22%),
-        linear-gradient(180deg, #101612 0%, #0b0f0e 100%);
-      min-height: 100vh;
+      font-size: 15px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
       overflow-x: hidden;
     }
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      background-image:
-        linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-      background-size: 42px 42px;
-      mask-image: radial-gradient(circle at center, black 35%, transparent 90%);
-      opacity: 0.5;
-    }
-    a { color: inherit; }
-    button, input, select, textarea {
-      font: inherit;
-    }
+    a { color: inherit; text-decoration: none; }
+    a:hover { color: var(--accent-strong); }
+    button, input, select, textarea { font: inherit; }
+    ::selection { background: rgba(212, 163, 75, 0.25); color: var(--text); }
     .shell {
-      position: relative;
-      z-index: 1;
-      max-width: 1440px;
+      max-width: 1280px;
       margin: 0 auto;
-      padding: 32px 20px 56px;
+      padding: 24px 20px 48px;
     }
     .masthead {
-      display: grid;
-      grid-template-columns: 1.25fr 0.75fr;
-      gap: 20px;
-      align-items: end;
-      margin-bottom: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
     }
-    .brand {
-      padding: 10px 0 0;
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-mark {
+      width: 32px; height: 32px;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, var(--accent), var(--accent-cool));
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-display); font-weight: 700; font-size: 1rem;
+      color: #121410; flex-shrink: 0;
     }
-    .eyebrow {
-      margin: 0 0 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.24em;
-      color: var(--accent-strong);
-      font-size: 0.72rem;
-      font-weight: 700;
-    }
-    h1 {
+    .brand-text h1 {
       margin: 0;
       font-family: var(--font-display);
-      font-size: clamp(3rem, 7vw, 5.4rem);
-      line-height: 0.95;
-      letter-spacing: -0.05em;
-      text-wrap: balance;
+      font-size: 1.25rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
     }
-    .lede {
-      max-width: 62ch;
-      margin: 16px 0 0;
+    .brand-text .lede {
+      margin: 0;
+      font-size: 0.78rem;
+      color: var(--text-dim);
+    }
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .storyboard {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+      gap: 16px;
+      margin-bottom: 20px;
+      align-items: stretch;
+    }
+    .story-panel {
+      position: relative;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at top right, rgba(212, 163, 75, 0.16), transparent 38%),
+        radial-gradient(circle at 12% 18%, rgba(111, 138, 106, 0.14), transparent 30%),
+        var(--bg-card);
+    }
+    .story-panel::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(120deg, rgba(255,255,255,0.02), transparent 30%, rgba(255,255,255,0.015));
+      pointer-events: none;
+    }
+    .story-panel-inner {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      gap: 12px;
+    }
+    .story-kicker {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--accent-strong);
+      font-weight: 650;
+    }
+    .story-title {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: clamp(1.5rem, 3vw, 2.25rem);
+      line-height: 1.02;
+      letter-spacing: -0.03em;
+      max-width: 12ch;
+    }
+    .story-copy {
+      margin: 0;
+      max-width: 60ch;
       color: var(--text-muted);
-      font-size: 1.02rem;
     }
-    .status-rail {
-      justify-self: end;
-      width: min(100%, 420px);
+    .story-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .story-rail {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .story-tile {
       display: grid;
       gap: 10px;
-    }
-    .rail-card, .panel {
-      background: var(--bg-card);
+      align-content: start;
+      text-align: left;
       border: 1px solid var(--border);
-      border-radius: var(--radius-xl);
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(18px);
+      border-radius: calc(var(--radius) + 2px);
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      color: var(--text);
+      padding: 14px;
+      min-height: 132px;
+      transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
     }
-    .rail-card {
-      padding: 16px 18px;
+    .story-tile:hover {
+      transform: translateY(-1px);
+      border-color: var(--border-strong);
+      background: rgba(255,255,255,0.03);
     }
-    .rail-label {
-      font-size: 0.72rem;
-      text-transform: uppercase;
-      letter-spacing: 0.18em;
-      color: var(--text-dim);
-      margin-bottom: 8px;
+    .story-tile-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
     }
-    .rail-value {
+    .story-tile-title {
+      font-family: var(--font-display);
       font-size: 1rem;
       font-weight: 650;
-      color: var(--text);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
+      letter-spacing: -0.02em;
     }
-    .pill {
+    .story-tile-note {
+      color: var(--text-dim);
+      font-size: 0.84rem;
+      line-height: 1.4;
+    }
+    .status-dot {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 6px 10px;
-      border-radius: 999px;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: var(--radius-pill);
+      background: var(--bg-card);
       border: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.03);
-      color: var(--text);
-      font-size: 0.8rem;
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      white-space: nowrap;
     }
-    .pill[data-tone="good"] { border-color: rgba(127, 201, 141, 0.35); color: var(--accent-strong); }
-    .pill[data-tone="warn"] { border-color: rgba(208, 163, 92, 0.38); color: #f2cf8e; }
-    .pill[data-tone="bad"] { border-color: rgba(207, 95, 95, 0.4); color: #f4a8a8; }
-    .grid {
-      display: grid;
-      grid-template-columns: 1.15fr 0.85fr;
-      gap: 18px;
-      align-items: start;
+    .status-dot::before {
+      content: "";
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--border-strong);
+      flex-shrink: 0;
     }
+    .status-dot[data-tone="good"]::before { background: var(--success); }
+    .status-dot[data-tone="warn"]::before { background: var(--warn); }
+    .status-dot[data-tone="bad"]::before { background: var(--accent-red); }
     .panel {
-      padding: 22px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
     }
-    .panel h2 {
-      margin: 0 0 10px;
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .panel-header h2, .panel-header h3 {
+      margin: 0;
       font-family: var(--font-display);
-      font-size: 1.75rem;
-      letter-spacing: -0.03em;
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
     }
-    .panel-subtitle {
-      margin: 0 0 18px;
-      color: var(--text-muted);
-      max-width: 70ch;
-    }
-    .hero {
-      display: grid;
-      gap: 18px;
-    }
-    .hero-top {
-      display: grid;
-      grid-template-columns: 1.3fr 0.7fr;
-      gap: 16px;
-    }
-    .command-card {
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
-      padding: 18px;
-    }
-    .command-field {
-      display: grid;
-      gap: 12px;
-    }
-    .command-field textarea,
-    .auth-field input,
-    .auth-field select {
-      width: 100%;
-      color: var(--text);
-      background: rgba(8, 12, 11, 0.7);
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: var(--radius-md);
-      padding: 14px 15px;
-      outline: none;
-    }
-    .command-field textarea::placeholder,
-    .auth-field input::placeholder {
+    .panel-header h3 { font-size: 0.85rem; color: var(--text-muted); }
+    .panel-badge {
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+      background: var(--bg-soft);
       color: var(--text-dim);
-    }
-    .command-field textarea:focus,
-    .auth-field input:focus,
-    .auth-field select:focus,
-    button:focus-visible {
-      border-color: rgba(179, 230, 178, 0.75);
-      box-shadow: 0 0 0 4px rgba(127, 201, 141, 0.16);
-    }
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-    .button {
-      appearance: none;
       border: 1px solid var(--border);
-      border-radius: 999px;
-      padding: 11px 15px;
-      background: rgba(255, 255, 255, 0.04);
-      color: var(--text);
-      cursor: pointer;
-      transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
     }
-    .button:hover { transform: translateY(-1px); border-color: var(--border-strong); }
-    .button.primary {
-      background: linear-gradient(180deg, rgba(127, 201, 141, 0.22), rgba(127, 201, 141, 0.12));
-      border-color: rgba(127, 201, 141, 0.38);
-      color: var(--accent-strong);
-      font-weight: 700;
-    }
-    .button.ghost {
-      color: var(--text-muted);
-    }
-    .button.danger {
-      background: linear-gradient(180deg, rgba(220, 91, 91, 0.22), rgba(220, 91, 91, 0.12));
-      border-color: rgba(220, 91, 91, 0.38);
-      color: #ffd2d2;
-      font-weight: 700;
-    }
-    .quick-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .mini-chip {
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      background: rgba(255,255,255,0.03);
-      color: var(--text-muted);
-      padding: 8px 11px;
-      cursor: pointer;
-    }
-    .two-col {
+    .panel-badge[data-tone="good"] { color: var(--success); border-color: rgba(127, 176, 131, 0.25); }
+    .panel-badge[data-tone="warn"] { color: var(--warn); border-color: rgba(212, 163, 75, 0.25); }
+    .panel-badge[data-tone="bad"] { color: var(--accent-red); border-color: rgba(212, 120, 106, 0.25); }
+    .metrics {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-    }
-    .card-list {
-      display: grid;
-      gap: 12px;
-    }
-    .metric-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(4, 1fr);
       gap: 12px;
     }
     .metric {
       padding: 14px;
-      border-radius: var(--radius-lg);
+      border-radius: var(--radius);
+      background: var(--bg-elevated);
       border: 1px solid var(--border);
-      background: rgba(255,255,255,0.03);
     }
     .metric .label {
-      font-size: 0.72rem;
-      letter-spacing: 0.18em;
+      font-size: 0.7rem;
       text-transform: uppercase;
+      letter-spacing: 0.08em;
       color: var(--text-dim);
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
     .metric .value {
       font-family: var(--font-display);
-      font-size: 2rem;
-      letter-spacing: -0.04em;
+      font-size: 1.6rem;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      line-height: 1;
     }
-    .subtle {
-      color: var(--text-muted);
-      font-size: 0.92rem;
-    }
-    .section-title {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 12px;
-    }
-    .section-title h3 {
-      margin: 0;
-      font-size: 0.86rem;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: var(--text-dim);
-    }
-    .stack {
+    .list-grid {
       display: grid;
+      grid-template-columns: 1fr 1fr;
       gap: 12px;
+    }
+    .list-group { display: grid; gap: 8px; }
+    .list-group-title {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
     .item {
+      padding: 12px;
+      border-radius: var(--radius);
+      background: var(--bg-elevated);
       border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      background: rgba(255,255,255,0.03);
-      padding: 14px;
       display: grid;
-      gap: 8px;
+      gap: 4px;
     }
     .item-row {
       display: flex;
       justify-content: space-between;
-      gap: 10px;
       align-items: baseline;
-    }
-    .item-title {
-      font-weight: 650;
-    }
-    .item-meta {
-      color: var(--text-dim);
-      font-size: 0.88rem;
-    }
-    .preview {
-      border-radius: var(--radius-lg);
-      border: 1px solid var(--border);
-      padding: 14px;
-      background: rgba(255,255,255,0.03);
-      min-height: 96px;
-    }
-    .preview[data-tone="muted"] { color: var(--text-dim); }
-    .preview[data-tone="good"] { color: var(--accent-strong); }
-    .preview[data-tone="warn"] { color: #f2cf8e; }
-    .tiny {
-      color: var(--text-dim);
-      font-size: 0.78rem;
-    }
-    .form-grid {
-      display: grid;
-      gap: 10px;
-    }
-    .auth-field {
-      display: grid;
       gap: 8px;
     }
-    .auth-row {
+    .item-title { font-weight: 550; font-size: 0.92rem; }
+    .item-meta { color: var(--text-dim); font-size: 0.82rem; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+      background: var(--bg-soft);
+      border: 1px solid var(--border);
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .pill[data-tone="good"] { color: var(--success); border-color: rgba(127, 176, 131, 0.25); background: rgba(127, 176, 131, 0.08); }
+    .pill[data-tone="warn"] { color: var(--warn); border-color: rgba(212, 163, 75, 0.25); background: rgba(212, 163, 75, 0.08); }
+    .pill[data-tone="bad"] { color: var(--accent-red); border-color: rgba(212, 120, 106, 0.25); background: rgba(212, 120, 106, 0.08); }
+    .cmd-grid {
+      display: grid;
+      grid-template-columns: 1.3fr 0.7fr;
+      gap: 14px;
+    }
+    .cmd-box {
+      display: grid;
+      gap: 10px;
+    }
+    .cmd-box textarea {
+      width: 100%;
+      min-height: 80px;
+      resize: vertical;
+      padding: 12px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      color: var(--text);
+      outline: none;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+    .cmd-box textarea::placeholder { color: var(--text-dim); }
+    .cmd-box textarea:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(212, 163, 75, 0.12);
+    }
+    .cmd-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .cmd-quick {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+    .preview-box {
+      padding: 12px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      min-height: 80px;
+      font-size: 0.85rem;
+    }
+    .preview-box[data-tone="muted"] { color: var(--text-dim); }
+    .preview-box[data-tone="good"] { color: var(--success); }
+    .preview-box[data-tone="warn"] { color: var(--warn); }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-soft);
+      color: var(--text);
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 120ms, border-color 120ms;
+      white-space: nowrap;
+    }
+    .btn:hover { background: var(--bg-hover); border-color: var(--border-strong); }
+    .btn:active { transform: scale(0.98); }
+    .btn:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(212, 163, 75, 0.2);
+    }
+    .btn-primary {
+      background: rgba(212, 163, 75, 0.15);
+      border-color: rgba(212, 163, 75, 0.3);
+      color: var(--accent-strong);
+    }
+    .btn-primary:hover { background: rgba(212, 163, 75, 0.22); }
+    .btn-ghost {
+      background: transparent;
+      border-color: transparent;
+      color: var(--text-muted);
+    }
+    .btn-ghost:hover { background: var(--bg-soft); color: var(--text); }
+    .btn-danger {
+      background: rgba(212, 120, 106, 0.12);
+      border-color: rgba(212, 120, 106, 0.3);
+      color: var(--accent-red);
+    }
+    .btn-danger:hover { background: rgba(212, 120, 106, 0.2); }
+    .btn-sm { padding: 4px 10px; font-size: 0.75rem; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .mini-chip {
+      display: inline-flex;
+      padding: 4px 10px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: background 120ms, color 120ms;
+    }
+    .mini-chip:hover { background: var(--bg-soft); color: var(--text-muted); }
+    .field {
+      display: grid;
+      gap: 4px;
+    }
+    .field-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-dim);
+    }
+    .field input, .field select {
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      color: var(--text);
+      outline: none;
+      font-size: 0.88rem;
+    }
+    .field input::placeholder { color: var(--text-dim); }
+    .field input:focus, .field select:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(212, 163, 75, 0.12);
+    }
+    .field select { cursor: pointer; }
+    .field-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 10px;
     }
-    .auth-actions {
+    .field-actions {
       display: flex;
       flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 4px;
+      gap: 6px;
     }
     .log {
       display: grid;
-      gap: 10px;
+      gap: 6px;
       font-family: var(--font-mono);
-      font-size: 0.8rem;
-      color: var(--text-muted);
+      font-size: 0.75rem;
+      color: var(--text-dim);
     }
     .log-line {
-      border-left: 2px solid rgba(127, 201, 141, 0.4);
-      padding-left: 12px;
+      border-left: 2px solid rgba(127, 176, 131, 0.35);
+      padding-left: 10px;
     }
-    .auth-shell {
-      display: grid;
-      gap: 12px;
+    .auth-panel { display: grid; gap: 14px; }
+    .token-row { display: flex; gap: 6px; align-items: center; }
+    .collapse-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-card);
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 120ms;
     }
-    .signature {
-      margin-top: 8px;
+    .collapse-toggle:hover { background: var(--bg-hover); }
+    .collapse-toggle::after {
+      content: "\u25BC";
+      font-size: 0.65rem;
       color: var(--text-dim);
-      font-size: 0.8rem;
+      transition: transform 200ms;
     }
+    .collapse-toggle[aria-expanded="true"]::after {
+      transform: rotate(180deg);
+    }
+    .collapse-body {
+      display: none;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 var(--radius) var(--radius);
+      background: var(--bg-card);
+    }
+    .collapse-body.open { display: grid; gap: 16px; }
+    .collapse-group {
+      display: grid;
+      gap: 0;
+    }
+    .collapse-group:not(:first-child) { margin-top: 12px; }
+    .subtle { color: var(--text-muted); font-size: 0.85rem; }
+    .tiny { color: var(--text-dim); font-size: 0.72rem; }
     .hidden { display: none !important; }
-    @media (max-width: 1120px) {
-      .masthead, .grid, .hero-top, .metric-grid, .two-col, .auth-row {
-        grid-template-columns: 1fr;
-      }
-      .status-rail { justify-self: stretch; width: 100%; }
+    .stack { display: grid; gap: 10px; }
+    .gap-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    pre { margin: 0; white-space: pre-wrap; word-break: break-word; }
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: 20px;
+      align-items: start;
     }
-    @media (max-width: 720px) {
-      .shell { padding: 18px 12px 34px; }
-      .panel { padding: 16px; border-radius: 20px; }
-      h1 { font-size: clamp(2.4rem, 10vw, 3.4rem); }
-      .actions, .quick-actions, .auth-actions { gap: 8px; }
+    .main-col { display: grid; gap: 20px; }
+    .side-col { display: grid; gap: 20px; }
+    @media (max-width: 1024px) {
+      .storyboard { grid-template-columns: 1fr; }
+      .dashboard-grid { grid-template-columns: 1fr; }
+      .side-col { display: grid; gap: 20px; }
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+      .story-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 768px) {
+      .shell { padding: 16px 12px 32px; }
+      .masthead {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+      }
+      .status-bar { width: 100%; }
+      .cmd-grid { grid-template-columns: 1fr; }
+      .list-grid { grid-template-columns: 1fr; }
+      .field-row { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+      .story-rail { grid-template-columns: 1fr; }
+      .panel { padding: 14px; }
+    }
+    @media (max-width: 480px) {
+      .metrics { grid-template-columns: 1fr 1fr; }
     }
   </style>
 </head>
@@ -419,497 +569,484 @@ def render_frontend_shell_html() -> str:
   <div class="shell" data-shell-root="true">
     <header class="masthead">
       <div class="brand">
-        <p class="eyebrow">FastAPI backend + API-first frontend</p>
-        <h1>__APP_TITLE__</h1>
-        <p class="lede">__APP_SUBTITLE__</p>
-        <div class="signature">Legacy compatibility workspace: <code>/gradio</code></div>
+        <div class="brand-mark" aria-hidden="true">S</div>
+        <div class="brand-text">
+          <h1>__APP_TITLE__</h1>
+          <p class="lede">__APP_SUBTITLE__</p>
+        </div>
       </div>
-      <div class="status-rail">
-        <div class="rail-card">
-          <div class="rail-label">Runtime</div>
-          <div class="rail-value"><span class="pill" id="runtime-pill" data-tone="warn">Loading runtime…</span><span id="runtime-detail" class="subtle">Fetching public metadata.</span></div>
-        </div>
-        <div class="rail-card">
-          <div class="rail-label">Household</div>
-          <div class="rail-value"><span class="pill" id="household-pill">Not connected</span><span id="household-detail" class="subtle">Sign in or register a device to unlock household-scoped data.</span></div>
-        </div>
-        <div class="rail-card">
-          <div class="rail-label">Health</div>
-          <div class="rail-value"><span class="pill" id="health-pill" data-tone="warn">Checking…</span><span id="health-detail" class="subtle">PWA shell + API readiness.</span></div>
-        </div>
+      <div class="status-bar">
+        <span class="status-dot" data-tone="warn" id="runtime-pill">Loading</span>
+        <span class="status-dot" data-tone="warn" id="household-pill">Not connected</span>
+        <span class="status-dot" data-tone="warn" id="health-pill">Checking</span>
       </div>
     </header>
 
-    <main class="grid">
-      <section class="panel hero" aria-labelledby="command-title">
-        <div>
-          <h2 id="command-title">Command surface</h2>
-          <p class="panel-subtitle">Type a request, preview the parser result, then execute against the household-scoped backend. This replaces the old “demo-only” interaction path with a real API contract.</p>
+    <section class="storyboard" aria-labelledby="story-title">
+      <div class="panel story-panel">
+        <div class="story-panel-inner">
+          <div class="story-kicker">Today</div>
+          <h2 class="story-title" id="story-title">Loading your household story.</h2>
+          <p class="story-copy" id="story-copy">We are turning pantry, shopping, and planning into one quick pass so the next move is obvious.</p>
+          <div class="story-badges" id="story-badges">
+            <span class="pill" data-tone="warn">Waiting for dashboard data</span>
+          </div>
         </div>
-        <div class="hero-top">
-          <div class="command-card">
-            <div class="command-field">
-              <textarea id="command-input" rows="4" placeholder="Add milk and bread to the shopping list, then show me what is running low."></textarea>
-              <div class="actions">
-                <button class="button primary" id="preview-btn" type="button">Preview</button>
-                <button class="button" id="execute-btn" type="button">Execute</button>
-                <button class="button ghost" id="clear-btn" type="button">Clear</button>
+      </div>
+      <div class="story-rail" aria-label="Quick actions">
+        <button class="story-tile" type="button" data-quick-command="What should I buy today?">
+          <div class="story-tile-head">
+            <div class="story-tile-title">Buy now</div>
+            <span class="pill" id="story-buy-pill">—</span>
+          </div>
+          <div class="story-tile-note" id="story-buy-note">See the tightest restock gaps first.</div>
+        </button>
+        <button class="story-tile" type="button" data-quick-command="What should I use first?">
+          <div class="story-tile-head">
+            <div class="story-tile-title">Use first</div>
+            <span class="pill" id="story-use-pill">—</span>
+          </div>
+          <div class="story-tile-note" id="story-use-note">Turn near-expiry items into dinner before they drift.</div>
+        </button>
+        <button class="story-tile" type="button" data-quick-command="What can I cook from what I have?">
+          <div class="story-tile-head">
+            <div class="story-tile-title">Cook tonight</div>
+            <span class="pill" id="story-cook-pill">—</span>
+          </div>
+          <div class="story-tile-note" id="story-cook-note">Push today’s pantry into something easy.</div>
+        </button>
+        <button class="story-tile" type="button" data-quick-command="Show me the best deal and what is sold out.">
+          <div class="story-tile-head">
+            <div class="story-tile-title">Explore</div>
+            <span class="pill" id="story-explore-pill">—</span>
+          </div>
+          <div class="story-tile-note" id="story-explore-note">Compare, search, and inspect the oddball signals.</div>
+        </button>
+      </div>
+    </section>
+
+    <div class="dashboard-grid">
+
+      <div class="main-col">
+        <section class="panel" aria-labelledby="cmd-title">
+          <div class="panel-header">
+            <h2 id="cmd-title">Command</h2>
+            <span class="tiny" id="preview-mode">parse-only</span>
+          </div>
+          <div class="cmd-grid">
+            <div class="cmd-box">
+              <textarea id="command-input" rows="3" placeholder="Add milk and bread to the shopping list, then show me what is running low."></textarea>
+              <div class="cmd-actions">
+                <button class="btn btn-primary" id="preview-btn" type="button">Preview</button>
+                <button class="btn" id="execute-btn" type="button">Execute</button>
+                <button class="btn btn-ghost" id="clear-btn" type="button">Clear</button>
               </div>
-              <div class="quick-actions" aria-label="Quick commands">
+              <div class="cmd-quick">
                 <button class="mini-chip" type="button" data-quick-command="Add milk to the shopping list.">Milk</button>
                 <button class="mini-chip" type="button" data-quick-command="Log bread as purchased.">Log purchase</button>
                 <button class="mini-chip" type="button" data-quick-command="What should I buy today?">Ask</button>
                 <button class="mini-chip" type="button" data-quick-command="Mark tomatoes as consumed.">Use up</button>
               </div>
             </div>
-          </div>
-          <div class="command-card">
-            <div class="section-title">
-              <h3>Preview</h3>
-              <span class="tiny" id="preview-mode">parse-only</span>
-            </div>
-            <div class="preview" id="preview-box" data-tone="muted">Start typing a command to see how the parser routes it.</div>
-            <div class="tiny" style="margin-top:10px;">
-              Contract: <code>/api/v1/command/preview</code> → <code>/api/v1/command/execute</code> ·
-              History: <code>/api/v1/command/recent</code>
+            <div>
+              <div class="preview-box" id="preview-box" data-tone="muted">Start typing a command to see how the parser routes it.</div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <aside class="panel auth-shell" aria-labelledby="connect-title">
-        <div>
-          <h2 id="connect-title">Connect a household</h2>
-          <p class="panel-subtitle">Register a device, log back in, or paste an existing bearer token to drive the household-scoped API.</p>
-        </div>
-        <div class="form-grid">
-          <div class="auth-row">
-            <label class="auth-field">
-              <span class="tiny">Device ID</span>
-              <input id="device-id" autocomplete="off" placeholder="shopstack-web">
-            </label>
-            <label class="auth-field">
-              <span class="tiny">Device secret</span>
-              <input id="device-secret" autocomplete="off" placeholder="paste or generate a long secret">
-            </label>
+        <section class="panel" aria-labelledby="dash-title">
+          <div class="panel-header">
+            <h2 id="dash-title">Household</h2>
+            <span class="tiny" id="household-meta">Connect to see your data</span>
           </div>
-          <div class="auth-row">
-            <label class="auth-field">
-              <span class="tiny">Household name</span>
-              <input id="household-name" autocomplete="off" placeholder="Default Household">
-            </label>
-            <label class="auth-field">
-              <span class="tiny">Household ID (optional)</span>
-              <input id="household-id" autocomplete="off" placeholder="hh_default">
-            </label>
+          <div class="metrics" id="metric-grid">
+            <div class="metric"><div class="label">Pantry</div><div class="value">—</div></div>
+            <div class="metric"><div class="label">Use soon</div><div class="value">—</div></div>
+            <div class="metric"><div class="label">Low items</div><div class="value">—</div></div>
+            <div class="metric"><div class="label">Recent buys</div><div class="value">—</div></div>
           </div>
-          <div class="auth-actions">
-            <button class="button primary" id="register-btn" type="button">Register</button>
-            <button class="button" id="login-btn" type="button">Login</button>
-          </div>
-          <label class="auth-field">
-            <span class="tiny">Bearer token override</span>
-            <input id="token-input" autocomplete="off" placeholder="Paste an existing token here">
-          </label>
-          <div class="auth-actions">
-            <button class="button" id="use-token-btn" type="button">Use token</button>
-            <button class="button ghost" id="forget-token-btn" type="button">Forget session</button>
-          </div>
-          <div class="auth-field">
-            <span class="tiny">Known households</span>
-            <select id="household-select">
-              <option value="">Connect first</option>
-            </select>
-          </div>
-          <div class="auth-actions">
-            <button class="button" id="switch-btn" type="button">Switch household</button>
-            <button class="button ghost" id="refresh-btn" type="button">Refresh data</button>
-          </div>
-          <div class="tiny">
-            Auth: <code>/api/v1/auth/register</code>, <code>/api/v1/auth/login</code> ·
-            Household: <code>/api/v1/household</code>
-          </div>
-        </div>
-      </aside>
+        </section>
 
-      <section class="panel" aria-labelledby="dashboard-title">
-        <div class="section-title">
-          <h3 id="dashboard-title">Household snapshot</h3>
-          <span class="tiny">From <code>/api/v1/dashboard/today</code></span>
-        </div>
-        <div class="metric-grid" id="metric-grid">
-          <div class="metric"><div class="label">Pantry</div><div class="value">—</div></div>
-          <div class="metric"><div class="label">Use soon</div><div class="value">—</div></div>
-          <div class="metric"><div class="label">Low items</div><div class="value">—</div></div>
-          <div class="metric"><div class="label">Recent buys</div><div class="value">—</div></div>
-        </div>
-        <div class="signature" id="household-meta">Waiting for a household-scoped token.</div>
-      </section>
-
-      <section class="panel" aria-labelledby="inventory-title">
-        <div class="section-title">
-          <h3 id="inventory-title">Inventory</h3>
-          <span class="tiny">From <code>/api/v1/inventory/lots</code></span>
-        </div>
-        <div class="stack">
-          <div class="auth-row">
-            <label class="auth-field">
-              <span class="tiny">Canonical name</span>
-              <input id="inventory-canonical" autocomplete="off" placeholder="milk">
-            </label>
-            <label class="auth-field">
-              <span class="tiny">Display name</span>
-              <input id="inventory-display" autocomplete="off" placeholder="Whole milk">
-            </label>
-          </div>
-          <div class="auth-row">
-            <label class="auth-field">
-              <span class="tiny">Quantity</span>
-              <input id="inventory-qty" autocomplete="off" placeholder="1">
-            </label>
-            <label class="auth-field">
-              <span class="tiny">Unit</span>
-              <input id="inventory-unit" autocomplete="off" placeholder="L">
-            </label>
-          </div>
-          <div class="auth-row">
-            <label class="auth-field">
-              <span class="tiny">Storage location</span>
-              <input id="inventory-location" autocomplete="off" placeholder="fridge">
-            </label>
-            <label class="auth-field">
-              <span class="tiny">Category</span>
-              <input id="inventory-category" autocomplete="off" placeholder="dairy">
-            </label>
-          </div>
-          <div class="auth-actions">
-            <button class="button primary" id="inventory-add-btn" type="button">Add inventory</button>
-            <button class="button ghost" id="inventory-refresh-btn" type="button">Refresh inventory</button>
-          </div>
-          <div class="item">
-            <div class="item-row">
-              <div class="item-title">Decision explain</div>
-              <span class="pill" id="decision-pill" data-tone="warn">idle</span>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <section class="panel" aria-labelledby="inv-title">
+            <div class="panel-header">
+              <h3 id="inv-title">Inventory</h3>
+              <span class="panel-badge" id="decision-pill" data-tone="warn">idle</span>
             </div>
-            <div class="preview" id="decision-box" data-tone="muted">Click an inventory item or search result to inspect why it was classified.</div>
-          </div>
-          <div class="stack" id="inventory-list"></div>
-        </div>
-      </section>
-
-      <section class="panel" aria-labelledby="shopping-title">
-        <div class="section-title">
-          <h3 id="shopping-title">Shopping list</h3>
-          <span class="tiny">From <code>/api/v1/shopping/active</code></span>
-        </div>
-        <div class="stack">
-          <div class="auth-row">
-            <label class="auth-field">
-              <span class="tiny">List goal</span>
-              <input id="shopping-goal" autocomplete="off" placeholder="Stock up for the week">
-            </label>
-            <label class="auth-field">
-              <span class="tiny">Items (comma separated)</span>
-              <input id="shopping-items" autocomplete="off" placeholder="milk, bread, tomatoes">
-            </label>
-          </div>
-          <div class="auth-actions">
-            <button class="button primary" id="shopping-create-btn" type="button">Create shopping list</button>
-            <button class="button" id="shopping-complete-btn" type="button">Complete active list</button>
-            <button class="button" id="shopping-mark-purchased-btn" type="button">Mark selected purchased</button>
-            <button class="button ghost" id="shopping-refresh-btn" type="button">Refresh shopping</button>
-          </div>
-          <div class="item">
-            <div class="item-row">
-              <div class="item-title" id="shopping-list-title">Active list</div>
-              <span class="pill" id="shopping-pill">idle</span>
-            </div>
-            <div class="item-meta" id="shopping-goal-text">No shopping list loaded yet.</div>
-          </div>
-          <div class="stack" id="shopping-list"></div>
-        </div>
-      </section>
-
-      <section class="panel" aria-labelledby="search-title">
-        <div class="section-title">
-          <h3 id="search-title">Search</h3>
-          <span class="tiny">Global and inventory search</span>
-        </div>
-        <div class="stack">
-          <div class="auth-row">
-            <label class="auth-field">
-              <span class="tiny">Query</span>
-              <input id="search-query" autocomplete="off" placeholder="milk">
-            </label>
-            <label class="auth-field">
-              <span class="tiny">Voice transcript</span>
-              <input id="voice-text" autocomplete="off" placeholder="Add milk and bread">
-            </label>
-          </div>
-          <div class="tiny">Global search spans lists, recipes, and actions. Inventory search falls back to semantic matching when available.</div>
-          <div class="auth-actions">
-            <button class="button primary" id="search-global-btn" type="button">Global search</button>
-            <button class="button" id="search-inventory-btn" type="button">Inventory search</button>
-            <button class="button ghost" id="voice-intent-btn" type="button">Parse voice intent</button>
-          </div>
-          <div class="item">
-            <div class="item-row">
-              <div class="item-title">Global results</div>
-              <span class="pill" id="search-pill">idle</span>
-            </div>
-            <div class="stack" id="search-global-list"></div>
-          </div>
-          <div class="item">
-            <div class="item-row">
-              <div class="item-title">Inventory results</div>
-              <span class="pill">semantic</span>
-            </div>
-            <div class="stack" id="search-inventory-list"></div>
-          </div>
-          <div class="preview" id="voice-box" data-tone="muted">Voice intent will appear here.</div>
-        </div>
-      </section>
-
-      <section class="panel" aria-labelledby="intel-title">
-        <div class="section-title">
-          <h3 id="intel-title">Intelligence</h3>
-          <span class="tiny">Recurring plan and meal plan</span>
-        </div>
-        <div class="stack">
-          <div class="auth-actions">
-            <label class="auth-field">
-              <span class="tiny">Recurring window</span>
-              <input id="recurring-window" autocomplete="off" type="number" min="0" max="30" value="7">
-            </label>
-            <label class="auth-field">
-              <span class="tiny">Meal plan days</span>
-              <input id="mealplan-days" autocomplete="off" type="number" min="1" max="28" value="7">
-            </label>
-            <button class="button primary" id="recurring-btn" type="button">Load recurring plan</button>
-            <button class="button" id="mealplan-btn" type="button">Load meal plan</button>
-            <button class="button ghost" id="intel-refresh-btn" type="button">Refresh intelligence</button>
-          </div>
-          <div class="item">
-            <div class="item-row">
-              <div class="item-title">Recurring plan</div>
-              <span class="pill" id="recurring-pill">idle</span>
-            </div>
-            <div class="item-meta" id="recurring-summary">No recurring plan loaded.</div>
-            <div class="stack" id="recurring-list"></div>
-          </div>
-          <div class="item">
-            <div class="item-row">
-              <div class="item-title">Meal plan</div>
-              <span class="pill" id="mealplan-pill">idle</span>
-            </div>
-            <div class="item-meta" id="mealplan-summary">No meal plan loaded.</div>
-            <div class="stack" id="mealplan-list"></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="panel" aria-labelledby="ops-title">
-        <div class="section-title">
-          <h3 id="ops-title">Operations</h3>
-          <span class="tiny">Runtime, privacy, corrections, undo</span>
-        </div>
-        <div class="two-col">
-          <div class="stack">
-            <div class="item">
-              <div class="item-row">
-                <div class="item-title">Runtime diagnostics</div>
-                <span class="pill" id="runtime-diagnostics-pill">idle</span>
-              </div>
-              <div class="item-meta" id="runtime-diagnostics-summary">No runtime diagnostics loaded.</div>
-              <div class="stack" id="runtime-diagnostics-list"></div>
-              <div class="auth-actions">
-                <button class="button primary" id="runtime-refresh-btn" type="button">Refresh runtime</button>
-              </div>
-              <div class="tiny">API: <code>/api/v1/meta/runtime</code></div>
-            </div>
-            <div class="item">
-              <div class="item-row">
-                <div class="item-title">Privacy retention</div>
-                <span class="pill" id="privacy-pill">idle</span>
-              </div>
-              <div class="item-meta" id="privacy-summary">No retention summary loaded.</div>
-              <div class="stack" id="privacy-list"></div>
-              <div class="auth-row">
-                <label class="auth-field">
-                  <span class="tiny">Privacy profile</span>
-                  <select id="privacy-profile">
-                    <option value="balanced">Balanced defaults</option>
-                    <option value="strict">Strict privacy</option>
-                    <option value="shared">Household sharing</option>
-                  </select>
+            <div class="stack">
+              <div class="field-row">
+                <label class="field">
+                  <span class="field-label">Item</span>
+                  <input id="inventory-canonical" autocomplete="off" placeholder="milk">
                 </label>
-                <div class="auth-actions" style="align-self:end;">
-                  <button class="button primary" id="privacy-apply-profile-btn" type="button">Apply profile</button>
-                </div>
-              </div>
-              <div class="tiny" id="privacy-profile-summary">Balanced defaults keeps the current household defaults: 30-day traces, 90-day community pool, and local locale persistence.</div>
-              <div class="auth-row">
-                <label class="auth-field">
-                  <span class="tiny">Setting</span>
-                  <select id="privacy-key">
-                    <option value="retention.trace_ttl_days">Trace TTL</option>
-                    <option value="retention.community_pool_retention_days">Community pool</option>
-                    <option value="retention.voice_memo_retention_days">Voice memos</option>
-                    <option value="retention.sms_registry_retention_days">SMS registry</option>
-                    <option value="retention.backup_retention_days">Backups</option>
-                    <option value="retention.locale_persistence">Locale persistence</option>
-                    <option value="retention.community_optin">Community opt-in</option>
-                  </select>
-                </label>
-                <label class="auth-field">
-                  <span class="tiny">Value</span>
-                  <input id="privacy-value" autocomplete="off" placeholder="30, 0, or 1">
+                <label class="field">
+                  <span class="field-label">Name</span>
+                  <input id="inventory-display" autocomplete="off" placeholder="Whole milk">
                 </label>
               </div>
-              <div class="auth-row">
-                <label class="auth-field">
-                  <span class="tiny">Purge confirm</span>
-                  <input id="privacy-confirm" autocomplete="off" placeholder="PURGE">
+              <div class="field-row">
+                <label class="field">
+                  <span class="field-label">Qty</span>
+                  <input id="inventory-qty" autocomplete="off" placeholder="1">
                 </label>
-                <div class="auth-actions" style="align-self:end;">
-                  <button class="button primary" id="privacy-update-btn" type="button">Update retention</button>
-                  <button class="button danger" id="privacy-purge-btn" type="button">Purge household data</button>
-                </div>
+                <label class="field">
+                  <span class="field-label">Unit</span>
+                  <input id="inventory-unit" autocomplete="off" placeholder="L">
+                </label>
               </div>
-              <div class="auth-actions">
-                <button class="button primary" id="privacy-refresh-btn" type="button">Refresh privacy</button>
-                <button class="button ghost" id="undo-btn" type="button">Undo last mutation</button>
+              <div class="field-row">
+                <label class="field">
+                  <span class="field-label">Location</span>
+                  <input id="inventory-location" autocomplete="off" placeholder="fridge">
+                </label>
+                <label class="field">
+                  <span class="field-label">Category</span>
+                  <input id="inventory-category" autocomplete="off" placeholder="dairy">
+                </label>
               </div>
-              <div class="tiny">API: <code>/api/v1/account/privacy/retention-summary</code> · <code>/api/v1/account/privacy/update-retention</code> · <code>/api/v1/account/privacy/purge</code> · <code>/api/v1/account/undo</code></div>
+              <div class="field-actions">
+                <button class="btn btn-primary" id="inventory-add-btn" type="button">Add</button>
+                <button class="btn btn-ghost" id="inventory-refresh-btn" type="button">Refresh</button>
+              </div>
+              <div class="preview-box" id="decision-box" data-tone="muted" style="min-height:auto;padding:10px;">Click an item to inspect why it was classified.</div>
+              <div class="stack" id="inventory-list"></div>
             </div>
-          </div>
-          <div class="stack">
-            <div class="item">
-              <div class="item-row">
-                <div class="item-title">Corrections</div>
-                <span class="pill" id="corrections-pill">idle</span>
-              </div>
-              <div class="item-meta" id="corrections-summary">No corrections loaded.</div>
-              <div class="auth-row">
-                <label class="auth-field">
-                  <span class="tiny">Canonical name</span>
-                  <input id="correction-canonical" autocomplete="off" placeholder="milk">
-                </label>
-                <label class="auth-field">
-                  <span class="tiny">Was action</span>
-                  <input id="correction-was-action" autocomplete="off" placeholder="buy">
-                </label>
-              </div>
-              <div class="auth-row">
-                <label class="auth-field">
-                  <span class="tiny">Should be action</span>
-                  <input id="correction-should-action" autocomplete="off" placeholder="use_soon">
-                </label>
-                <label class="auth-field">
-                  <span class="tiny">Reason</span>
-                  <input id="correction-reason" autocomplete="off" placeholder="We usually finish it faster">
-                </label>
-              </div>
-              <div class="auth-actions">
-                <button class="button primary" id="correction-create-btn" type="button">Record correction</button>
-                <button class="button ghost" id="corrections-refresh-btn" type="button">Refresh corrections</button>
-              </div>
-              <div class="tiny">API: <code>/api/v1/corrections</code></div>
-              <div class="stack" id="corrections-list"></div>
-            </div>
-          </div>
-        </div>
-      </section>
+          </section>
 
-      <section class="panel" aria-labelledby="trace-title">
-        <div class="section-title">
-          <h3 id="trace-title">Traces</h3>
-          <span class="tiny">Audit log and redacted export</span>
+          <section class="panel" aria-labelledby="shopping-list-title">
+            <div class="panel-header">
+              <h3 id="shopping-list-title">Shopping list</h3>
+              <span class="panel-badge" id="shopping-pill">idle</span>
+            </div>
+            <div class="stack">
+              <div class="field">
+                <span class="field-label">Goal</span>
+                <input id="shopping-goal" autocomplete="off" placeholder="Stock up for the week">
+              </div>
+              <div class="field">
+                <span class="field-label">Items</span>
+                <input id="shopping-items" autocomplete="off" placeholder="milk, bread, tomatoes">
+              </div>
+              <div class="field-actions">
+                <button class="btn btn-primary" id="shopping-create-btn" type="button">Create</button>
+                <button class="btn" id="shopping-complete-btn" type="button">Complete</button>
+                <button class="btn" id="shopping-mark-purchased-btn" type="button">Mark purchased</button>
+                <button class="btn btn-ghost" id="shopping-refresh-btn" type="button">Refresh</button>
+              </div>
+              <div class="tiny" id="shopping-goal-text">No shopping list loaded yet.</div>
+              <div class="stack" id="shopping-list"></div>
+            </div>
+          </section>
         </div>
-        <div class="stack">
-          <div class="auth-row">
-            <label class="auth-field">
-              <span class="tiny">Search</span>
-              <input id="trace-search" autocomplete="off" placeholder="milk">
-            </label>
-            <label class="auth-field">
-              <span class="tiny">Input type filter</span>
-              <input id="trace-type" autocomplete="off" placeholder="command">
-            </label>
-          </div>
-          <div class="auth-actions">
-            <button class="button primary" id="trace-refresh-btn" type="button">Refresh traces</button>
-          </div>
-          <div class="item">
-            <div class="item-row">
-              <div class="item-title">Recent traces</div>
-              <span class="pill" id="trace-pill">idle</span>
-            </div>
-            <div class="item-meta" id="trace-summary">No traces loaded.</div>
-            <div class="stack" id="trace-list"></div>
-          </div>
-          <div class="item">
-            <div class="item-row">
-              <div class="item-title">Trace detail</div>
-              <span class="pill">redacted</span>
-            </div>
-            <div class="preview" id="trace-detail" data-tone="muted">Pick a trace to inspect the payload.</div>
-          </div>
-          <div class="item">
-            <div class="item-row">
-              <div class="item-title">Trace export</div>
-              <span class="pill" id="trace-export-pill">idle</span>
-            </div>
-            <div class="preview" id="trace-export" data-tone="muted">Redacted JSONL export will appear here.</div>
-          </div>
-          <div class="tiny">API: <code>/api/v1/traces</code> · <code>/api/v1/traces/{trace_id}</code> · <code>/api/v1/traces/{trace_id}/export</code></div>
-        </div>
-      </section>
 
-      <section class="panel" aria-labelledby="history-title">
-        <div class="section-title">
-          <h3 id="history-title">Recent commands</h3>
-          <span class="tiny">Trace-backed history</span>
-        </div>
-        <div class="stack" id="history-list">
-          <div class="item">
-            <div class="item-title">No commands yet</div>
-            <div class="item-meta">Execute a command to populate household history.</div>
+        <section class="panel" aria-labelledby="lists-title">
+          <div class="panel-header">
+            <h2 id="lists-title">Quick lists</h2>
+            <span class="panel-badge" id="api-status" data-tone="warn">idle</span>
           </div>
-        </div>
-      </section>
-
-      <section class="panel" aria-labelledby="lists-title">
-        <div class="section-title">
-          <h3 id="lists-title">Useful lists</h3>
-          <span class="tiny">Use soon, low items, and recent purchases</span>
-        </div>
-        <div class="two-col">
-          <div class="stack">
-            <div class="item">
-              <div class="item-row"><div class="item-title">Use soon</div><div class="pill" id="use-soon-count">0</div></div>
+          <div class="list-grid">
+            <div class="list-group">
+              <div class="list-group-title">Use soon <span class="pill" id="use-soon-count">0</span></div>
               <div class="stack" id="use-soon-list"></div>
             </div>
-            <div class="item">
-              <div class="item-row"><div class="item-title">Low inventory</div><div class="pill" id="low-count">0</div></div>
+            <div class="list-group">
+              <div class="list-group-title">Low inventory <span class="pill" id="low-count">0</span></div>
               <div class="stack" id="low-list"></div>
             </div>
-          </div>
-          <div class="stack">
-            <div class="item">
-              <div class="item-row"><div class="item-title">Recent purchases</div><div class="pill" id="recent-count">0</div></div>
+            <div class="list-group">
+              <div class="list-group-title">Recent purchases <span class="pill" id="recent-count">0</span></div>
               <div class="stack" id="recent-list"></div>
             </div>
-            <div class="item">
-              <div class="item-row"><div class="item-title">API trace</div><div class="pill" id="api-status" data-tone="warn">idle</div></div>
-              <div class="log" id="event-log">
-                <div class="log-line">Load the page to fetch public runtime metadata.</div>
+            <div class="list-group">
+              <div class="list-group-title">Recent commands</div>
+              <div class="stack" id="history-list"></div>
+            </div>
+          </div>
+          <div class="log" id="event-log" style="margin-top:14px;">
+            <div class="log-line">Load the page to fetch public runtime metadata.</div>
+          </div>
+        </section>
+      </div>
+
+      <div class="side-col">
+        <section class="panel" aria-labelledby="connect-title">
+          <div class="panel-header">
+            <h2 id="connect-title">Connect</h2>
+          </div>
+          <div class="auth-panel">
+            <div class="field-row">
+              <label class="field">
+                <span class="field-label">Device ID</span>
+                <input id="device-id" autocomplete="off" placeholder="shopstack-web">
+              </label>
+              <label class="field">
+                <span class="field-label">Secret</span>
+                <input id="device-secret" autocomplete="off" placeholder="paste or generate">
+              </label>
+            </div>
+            <div class="field-row">
+              <label class="field">
+                <span class="field-label">Household</span>
+                <input id="household-name" autocomplete="off" placeholder="Default Household">
+              </label>
+              <label class="field">
+                <span class="field-label">ID (optional)</span>
+                <input id="household-id" autocomplete="off" placeholder="hh_default">
+              </label>
+            </div>
+            <div class="field-actions">
+              <button class="btn btn-primary" id="register-btn" type="button">Register</button>
+              <button class="btn" id="login-btn" type="button">Login</button>
+            </div>
+            <div class="token-row">
+              <input id="token-input" autocomplete="off" placeholder="Paste a bearer token" style="flex:1;padding:8px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text);outline:none;font-size:0.85rem;">
+              <button class="btn" id="use-token-btn" type="button" style="flex-shrink:0;">Use</button>
+              <button class="btn btn-ghost" id="forget-token-btn" type="button" style="flex-shrink:0;">Clear</button>
+            </div>
+            <div class="field-row">
+              <label class="field">
+                <span class="field-label">Switch household</span>
+                <select id="household-select">
+                  <option value="">Connect first</option>
+                </select>
+              </label>
+              <div class="field-actions" style="align-self:end;">
+                <button class="btn" id="switch-btn" type="button">Switch</button>
+                <button class="btn btn-ghost" id="refresh-btn" type="button">Refresh</button>
               </div>
             </div>
           </div>
+        </section>
+
+        <section class="panel" aria-labelledby="search-title">
+          <div class="panel-header">
+            <h2 id="search-title">Search</h2>
+          </div>
+          <div class="stack">
+            <div class="field-row">
+              <label class="field">
+                <span class="field-label">Query</span>
+                <input id="search-query" autocomplete="off" placeholder="milk">
+              </label>
+              <label class="field">
+                <span class="field-label">Voice</span>
+                <input id="voice-text" autocomplete="off" placeholder="Add milk and bread">
+              </label>
+            </div>
+            <div class="field-actions">
+              <button class="btn btn-primary" id="search-global-btn" type="button">Global</button>
+              <button class="btn" id="search-inventory-btn" type="button">Inventory</button>
+              <button class="btn btn-ghost" id="voice-intent-btn" type="button">Voice</button>
+            </div>
+            <div class="item">
+              <div class="item-row">
+                <div class="item-title">Global results</div>
+                <span class="pill" id="search-global-pill">idle</span>
+              </div>
+              <div class="stack" id="search-global-list"></div>
+            </div>
+            <div class="item">
+              <div class="item-row">
+                <div class="item-title">Inventory results</div>
+                <span class="pill" id="search-inventory-pill">idle</span>
+              </div>
+              <div class="stack" id="search-inventory-list"></div>
+            </div>
+            <div class="preview-box" id="voice-box" data-tone="muted" style="min-height:auto;padding:10px;">Voice intent will appear here.</div>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="intel-title">
+          <div class="panel-header">
+            <h2 id="intel-title">Intelligence</h2>
+          </div>
+          <div class="stack">
+            <div class="field-row">
+              <label class="field">
+                <span class="field-label">Window (days)</span>
+                <input id="recurring-window" autocomplete="off" type="number" min="0" max="30" value="7">
+              </label>
+              <label class="field">
+                <span class="field-label">Meal plan (days)</span>
+                <input id="mealplan-days" autocomplete="off" type="number" min="1" max="28" value="7">
+              </label>
+            </div>
+            <div class="field-actions">
+              <button class="btn btn-primary" id="recurring-btn" type="button">Recurring</button>
+              <button class="btn" id="mealplan-btn" type="button">Meal plan</button>
+              <button class="btn btn-ghost" id="intel-refresh-btn" type="button">Refresh</button>
+            </div>
+            <div class="item">
+              <div class="item-row">
+                <div class="item-title">Recurring plan</div>
+                <span class="pill" id="recurring-pill">idle</span>
+              </div>
+              <div class="item-meta" id="recurring-summary">No recurring plan loaded.</div>
+              <div class="stack" id="recurring-list"></div>
+            </div>
+            <div class="item">
+              <div class="item-row">
+                <div class="item-title">Meal plan</div>
+                <span class="pill" id="mealplan-pill">idle</span>
+              </div>
+              <div class="item-meta" id="mealplan-summary">No meal plan loaded.</div>
+              <div class="stack" id="mealplan-list"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div style="margin-top:20px;">
+      <button class="collapse-toggle" id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings-body">
+        Settings &amp; advanced
+      </button>
+      <div class="collapse-body" id="settings-body">
+        <div class="collapse-group">
+          <div class="panel" style="border-radius:var(--radius);">
+            <div class="panel-header">
+              <h3>Runtime</h3>
+              <span class="panel-badge" id="runtime-diagnostics-pill">idle</span>
+            </div>
+            <div class="item-meta" id="runtime-diagnostics-summary">No runtime diagnostics loaded.</div>
+            <div class="stack" id="runtime-diagnostics-list"></div>
+            <div class="field-actions" style="margin-top:10px;">
+              <button class="btn" id="runtime-refresh-btn" type="button">Refresh</button>
+            </div>
+          </div>
+
+          <div class="panel" style="border-radius:var(--radius);">
+            <div class="panel-header">
+              <h3>Privacy</h3>
+              <span class="panel-badge" id="privacy-pill">idle</span>
+            </div>
+            <div class="item-meta" id="privacy-summary">No retention summary loaded.</div>
+            <div class="stack" id="privacy-list"></div>
+            <div class="field-row" style="margin-top:10px;">
+              <label class="field">
+                <span class="field-label">Profile</span>
+                <select id="privacy-profile">
+                  <option value="balanced">Balanced</option>
+                  <option value="strict">Strict</option>
+                  <option value="shared">Shared</option>
+                </select>
+              </label>
+              <div class="field-actions" style="align-self:end;">
+                <button class="btn btn-primary" id="privacy-apply-profile-btn" type="button">Apply</button>
+              </div>
+            </div>
+            <div class="tiny" id="privacy-profile-summary">Balanced defaults: 30-day traces, 90-day community pool, local locale persistence.</div>
+            <div class="field-row" style="margin-top:10px;">
+              <label class="field">
+                <span class="field-label">Setting</span>
+                <select id="privacy-key">
+                  <option value="retention.trace_ttl_days">Trace TTL</option>
+                  <option value="retention.community_pool_retention_days">Community pool</option>
+                  <option value="retention.voice_memo_retention_days">Voice memos</option>
+                  <option value="retention.sms_registry_retention_days">SMS registry</option>
+                  <option value="retention.backup_retention_days">Backups</option>
+                  <option value="retention.locale_persistence">Locale persistence</option>
+                  <option value="retention.community_optin">Community opt-in</option>
+                </select>
+              </label>
+              <label class="field">
+                <span class="field-label">Value</span>
+                <input id="privacy-value" autocomplete="off" placeholder="30, 0, or 1">
+              </label>
+            </div>
+            <div class="field-row">
+              <label class="field">
+                <span class="field-label">Purge confirm</span>
+                <input id="privacy-confirm" autocomplete="off" placeholder="PURGE">
+              </label>
+              <div class="field-actions" style="align-self:end;">
+                <button class="btn btn-primary" id="privacy-update-btn" type="button">Update</button>
+                <button class="btn btn-danger" id="privacy-purge-btn" type="button">Purge</button>
+              </div>
+            </div>
+            <div class="field-actions" style="margin-top:10px;">
+              <button class="btn" id="privacy-refresh-btn" type="button">Refresh</button>
+              <button class="btn btn-ghost" id="undo-btn" type="button">Undo last</button>
+            </div>
+          </div>
+
+          <div class="panel" style="border-radius:var(--radius);">
+            <div class="panel-header">
+              <h3>Corrections</h3>
+              <span class="panel-badge" id="corrections-pill">idle</span>
+            </div>
+            <div class="item-meta" id="corrections-summary">No corrections loaded.</div>
+            <div class="stack" id="corrections-list"></div>
+            <div class="field-row" style="margin-top:10px;">
+              <label class="field">
+                <span class="field-label">Item</span>
+                <input id="correction-canonical" autocomplete="off" placeholder="milk">
+              </label>
+              <label class="field">
+                <span class="field-label">Was</span>
+                <input id="correction-was-action" autocomplete="off" placeholder="buy">
+              </label>
+            </div>
+            <div class="field-row">
+              <label class="field">
+                <span class="field-label">Should be</span>
+                <input id="correction-should-action" autocomplete="off" placeholder="use_soon">
+              </label>
+              <label class="field">
+                <span class="field-label">Reason</span>
+                <input id="correction-reason" autocomplete="off" placeholder="We finish it faster">
+              </label>
+            </div>
+            <div class="field-actions" style="margin-top:10px;">
+              <button class="btn btn-primary" id="correction-create-btn" type="button">Record</button>
+              <button class="btn btn-ghost" id="corrections-refresh-btn" type="button">Refresh</button>
+            </div>
+          </div>
+
+          <div class="panel" style="border-radius:var(--radius);">
+            <div class="panel-header">
+              <h3>Traces</h3>
+              <span class="panel-badge" id="trace-pill">idle</span>
+            </div>
+            <div class="item-meta" id="trace-summary">No traces loaded.</div>
+            <div class="field-row">
+              <label class="field">
+                <span class="field-label">Search</span>
+                <input id="trace-search" autocomplete="off" placeholder="milk">
+              </label>
+              <label class="field">
+                <span class="field-label">Type</span>
+                <input id="trace-type" autocomplete="off" placeholder="command">
+              </label>
+            </div>
+            <div class="field-actions" style="margin-top:10px;">
+              <button class="btn" id="trace-refresh-btn" type="button">Refresh</button>
+            </div>
+            <div class="stack" id="trace-list"></div>
+            <div class="item">
+              <div class="item-row">
+                <div class="item-title">Detail</div>
+                <span class="pill">redacted</span>
+              </div>
+              <div class="preview-box" id="trace-detail" data-tone="muted" style="min-height:auto;padding:10px;">Pick a trace to inspect.</div>
+            </div>
+            <div class="item">
+              <div class="item-row">
+                <div class="item-title">Export</div>
+                <span class="panel-badge" id="trace-export-pill">idle</span>
+              </div>
+              <div class="preview-box" id="trace-export" data-tone="muted" style="min-height:auto;padding:10px;">Redacted JSONL export will appear here.</div>
+            </div>
+          </div>
         </div>
-      </section>
-    </main>
+      </div>
+    </div>
+
+    <div style="margin-top:24px; padding-top:16px; border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;flex-wrap:wrap;gap:8px;">
+      <span class="tiny" id="runtime-detail"></span>
+      <span class="tiny" id="household-detail"></span>
+      <span class="tiny" id="health-detail"></span>
+    </div>
   </div>
 
   <script>
@@ -929,6 +1066,17 @@ def render_frontend_shell_html() -> str:
       clearBtn: document.getElementById('clear-btn'),
       previewBox: document.getElementById('preview-box'),
       previewMode: document.getElementById('preview-mode'),
+      storyTitle: document.getElementById('story-title'),
+      storyCopy: document.getElementById('story-copy'),
+      storyBadges: document.getElementById('story-badges'),
+      storyBuyPill: document.getElementById('story-buy-pill'),
+      storyUsePill: document.getElementById('story-use-pill'),
+      storyCookPill: document.getElementById('story-cook-pill'),
+      storyExplorePill: document.getElementById('story-explore-pill'),
+      storyBuyNote: document.getElementById('story-buy-note'),
+      storyUseNote: document.getElementById('story-use-note'),
+      storyCookNote: document.getElementById('story-cook-note'),
+      storyExploreNote: document.getElementById('story-explore-note'),
       deviceId: document.getElementById('device-id'),
       deviceSecret: document.getElementById('device-secret'),
       householdName: document.getElementById('household-name'),
@@ -969,7 +1117,8 @@ def render_frontend_shell_html() -> str:
       searchGlobalBtn: document.getElementById('search-global-btn'),
       searchInventoryBtn: document.getElementById('search-inventory-btn'),
       voiceIntentBtn: document.getElementById('voice-intent-btn'),
-      searchPill: document.getElementById('search-pill'),
+      searchGlobalPill: document.getElementById('search-global-pill'),
+      searchInventoryPill: document.getElementById('search-inventory-pill'),
       searchGlobalList: document.getElementById('search-global-list'),
       searchInventoryList: document.getElementById('search-inventory-list'),
       voiceBox: document.getElementById('voice-box'),
@@ -1166,7 +1315,92 @@ def render_frontend_shell_html() -> str:
       `;
     }
 
+    function renderTodayStory(data) {
+      if (!data) {
+        if (els.storyTitle) {
+          els.storyTitle.textContent = 'Loading your household story.';
+        }
+        if (els.storyCopy) {
+          els.storyCopy.textContent = 'We are turning pantry, shopping, and planning into one quick pass so the next move is obvious.';
+        }
+        if (els.storyBadges) {
+          els.storyBadges.innerHTML = '<span class="pill" data-tone="warn">Waiting for dashboard data</span>';
+        }
+        if (els.storyBuyPill) els.storyBuyPill.textContent = '—';
+        if (els.storyUsePill) els.storyUsePill.textContent = '—';
+        if (els.storyCookPill) els.storyCookPill.textContent = '—';
+        if (els.storyExplorePill) els.storyExplorePill.textContent = '—';
+        if (els.storyBuyNote) els.storyBuyNote.textContent = 'See the tightest restock gaps first.';
+        if (els.storyUseNote) els.storyUseNote.textContent = 'Turn near-expiry items into dinner before they drift.';
+        if (els.storyCookNote) els.storyCookNote.textContent = 'Push today’s pantry into something easy.';
+        if (els.storyExploreNote) els.storyExploreNote.textContent = 'Compare, search, and inspect the oddball signals.';
+        return;
+      }
+
+      const pantry = Number(data.pantry_count ?? 0);
+      const useSoon = Number(data.use_soon_count ?? 0);
+      const low = Number(data.low_items_count ?? 0);
+      const recent = Number(data.recent_purchases_count ?? 0);
+      const plural = (n) => `${n} item${n === 1 ? '' : 's'}`;
+      const badges = [
+        [plural(pantry), 'good'],
+        [useSoon ? `${plural(useSoon)} to use first` : 'No use-first pressure', useSoon ? 'warn' : 'good'],
+        [low ? `${plural(low)} to buy` : 'No urgent gaps', low ? 'warn' : 'good'],
+        [recent ? `${plural(recent)} recently bought` : 'No recent buys', recent ? 'good' : 'warn'],
+      ];
+      let headline = 'The household is steady, so explore before you buy.';
+      let story = `You have ${pantry} pantry ${pantry === 1 ? 'item' : 'items'} and room to browse.`;
+      if (useSoon > 0) {
+        headline = 'Use what you have before it slips.';
+        story = `${useSoon} ${useSoon === 1 ? 'item is' : 'items are'} ready to use first, which makes tonight a good night to cook from home.`;
+      } else if (low > 0) {
+        headline = 'Restock the gaps without making a giant list.';
+        story = `${low} ${low === 1 ? 'item is' : 'items are'} running low, so compare before you buy and keep the basket tight.`;
+      } else if (recent > 0) {
+        headline = 'The loop is calm, which is perfect for a playful pass.';
+        story = `${recent} ${recent === 1 ? 'buy is' : 'buys are'} already logged, so the next move can be cook, compare, or just browse.`;
+      }
+      if (els.storyTitle) {
+        els.storyTitle.textContent = headline;
+      }
+      if (els.storyCopy) {
+        els.storyCopy.textContent = story;
+      }
+      if (els.storyBadges) {
+        els.storyBadges.innerHTML = badges.map(([label, tone]) => `<span class="pill" data-tone="${tone}">${esc(label)}</span>`).join('');
+      }
+      if (els.storyBuyPill) {
+        els.storyBuyPill.textContent = low ? plural(low) : 'steady';
+        els.storyBuyPill.dataset.tone = low ? 'warn' : 'good';
+      }
+      if (els.storyUsePill) {
+        els.storyUsePill.textContent = useSoon ? plural(useSoon) : 'calm';
+        els.storyUsePill.dataset.tone = useSoon ? 'warn' : 'good';
+      }
+      if (els.storyCookPill) {
+        els.storyCookPill.textContent = pantry ? plural(pantry) : 'open';
+        els.storyCookPill.dataset.tone = pantry ? 'good' : 'warn';
+      }
+      if (els.storyExplorePill) {
+        els.storyExplorePill.textContent = recent ? 'browse' : 'search';
+        els.storyExplorePill.dataset.tone = 'good';
+      }
+      if (els.storyBuyNote) {
+        els.storyBuyNote.textContent = low ? `Build the next basket from ${plural(low)}.` : 'No urgent restock pressure, so you can keep the basket slim.';
+      }
+      if (els.storyUseNote) {
+        els.storyUseNote.textContent = useSoon ? `Use ${plural(useSoon)} first and keep the fridge honest.` : 'Nothing urgent needs to be eaten today.';
+      }
+      if (els.storyCookNote) {
+        els.storyCookNote.textContent = pantry ? `Turn ${plural(pantry)} in the pantry into dinner or snacks.` : 'Open the recipe flow when you want a dinner idea.';
+      }
+      if (els.storyExploreNote) {
+        els.storyExploreNote.textContent = recent ? `Recent buys are in the record; compare, search, and keep learning.` : 'Compare, search, and inspect the oddball signals.';
+      }
+    }
+
     function renderDashboard(data) {
+      renderTodayStory(data);
       const metrics = [
         ['Pantry', data.pantry_count ?? 0],
         ['Use soon', data.use_soon_count ?? 0],
@@ -1264,8 +1498,8 @@ def render_frontend_shell_html() -> str:
           </div>
           <div class="item-meta">${esc((item.quantity ?? '1') + ' ' + (item.unit || 'unit'))} · ${esc(item.storage_location_name || item.storage_location_id || 'unplaced')}</div>
           <div class="tiny">${esc(item.category || 'uncategorized')} · ${esc(item.estimated_use_by_date || item.purchase_date || '')}</div>
-          <div class="auth-actions">
-            <button class="button ghost" type="button" data-explain-name="${esc(item.canonical_name || '')}">Explain decision</button>
+          <div class="field-actions">
+            <button class="btn btn-ghost" type="button" data-explain-name="${esc(item.canonical_name || '')}">Explain decision</button>
           </div>
         </div>
       `).join('') + `
@@ -1311,6 +1545,22 @@ def render_frontend_shell_html() -> str:
       return Array.from(document.querySelectorAll('[data-shopping-item-id]:checked'))
         .map((el) => el.getAttribute('data-shopping-item-id') || '')
         .filter(Boolean);
+    }
+
+    function renderSearchStatus(data, fallbackLabel) {
+      if (!data) {
+        return fallbackLabel || 'idle';
+      }
+      if (data.search_mode) {
+        if (data.search_mode === 'inventory-semantic') {
+          return data.semantic_active ? 'semantic' : 'text fallback';
+        }
+        if (data.search_mode === 'inventory-text') {
+          return 'text fallback';
+        }
+        return data.search_mode;
+      }
+      return fallbackLabel || 'idle';
     }
 
     function renderSearchResults(target, data, emptyLabel) {
@@ -1595,9 +1845,9 @@ def render_frontend_shell_html() -> str:
           </div>
           <div class="item-meta">${esc(item.final_response || '')}</div>
           <div class="tiny">${esc(item.timestamp || '')} · ${esc(item.human_confirmation || 'unconfirmed')}</div>
-          <div class="auth-actions">
-            <button class="button primary" type="button" data-trace-id="${esc(item.trace_id || '')}" data-trace-action="detail">View detail</button>
-            <button class="button ghost" type="button" data-trace-id="${esc(item.trace_id || '')}" data-trace-action="export">Export</button>
+          <div class="field-actions">
+            <button class="btn btn-primary" type="button" data-trace-id="${esc(item.trace_id || '')}" data-trace-action="detail">View detail</button>
+            <button class="btn btn-ghost" type="button" data-trace-id="${esc(item.trace_id || '')}" data-trace-action="export">Export</button>
           </div>
         </div>
       `).join('');
@@ -1733,6 +1983,18 @@ def render_frontend_shell_html() -> str:
       renderRetentionSummary(null);
       renderCorrections(null);
       renderTraces(null);
+      if (els.searchGlobalList) {
+        els.searchGlobalList.innerHTML = '';
+      }
+      if (els.searchInventoryList) {
+        els.searchInventoryList.innerHTML = '';
+      }
+      if (els.searchGlobalPill) {
+        setPill(els.searchGlobalPill, 'idle', 'warn');
+      }
+      if (els.searchInventoryPill) {
+        setPill(els.searchInventoryPill, 'idle', 'warn');
+      }
       if (els.privacyValue) {
         els.privacyValue.value = '';
       }
@@ -1748,6 +2010,7 @@ def render_frontend_shell_html() -> str:
       if (els.mealplanDays) {
         els.mealplanDays.value = '7';
       }
+      renderTodayStory(null);
     }
 
     async function refreshPublicState() {
@@ -1852,10 +2115,10 @@ def render_frontend_shell_html() -> str:
       try {
         const data = await requestJson(`/search/global?q=${encodeURIComponent(q)}`, {}, true);
         renderSearchResults(els.searchGlobalList, data, 'No global results');
-        setPill(els.searchPill, 'global', 'good');
+        setPill(els.searchGlobalPill, renderSearchStatus(data, 'global'), 'good');
         log(`Global search completed for "${q}".`, 'good');
       } catch (err) {
-        setPill(els.searchPill, 'error', 'bad');
+        setPill(els.searchGlobalPill, 'error', 'bad');
         log(`Global search failed: ${err.message}`, 'bad');
       }
     }
@@ -1869,10 +2132,11 @@ def render_frontend_shell_html() -> str:
       try {
         const data = await requestJson(`/search/inventory?q=${encodeURIComponent(q)}`, {}, true);
         renderSearchResults(els.searchInventoryList, data, 'No inventory results');
-        setPill(els.searchPill, 'inventory', 'good');
+        const inventoryLabel = data && data.search_mode ? renderSearchStatus(data, 'inventory') : 'inventory';
+        setPill(els.searchInventoryPill, inventoryLabel, 'good');
         log(`Inventory search completed for "${q}".`, 'good');
       } catch (err) {
-        setPill(els.searchPill, 'error', 'bad');
+        setPill(els.searchInventoryPill, 'error', 'bad');
         log(`Inventory search failed: ${err.message}`, 'bad');
       }
     }

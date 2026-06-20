@@ -5,6 +5,12 @@
 **Baseline (2026-06-08):** 619 tests, 0 failures *(historical — suite is now 3152)*
 **Current (2026-06-15):** 3152 tests collected via `pytest tests/ --collect-only -q`. Run `pytest tests/ --collect-only -q` for the latest.
 
+### Addendum (2026-06-19) — exploration-first home story
+- ✅ `shopstack/ui/frontend_shell.py` now opens with a narrative "today story" panel and four action tiles: buy now, use first, cook tonight, explore.
+- ✅ `shopstack/ui/screens/dashboard.py` now surfaces the Market Map teaser and next-step cards in the first home block so exploration is visible immediately.
+- ✅ Updated shell/dashboard tests to assert the new home story and teaser copy.
+- ✅ Validation: `uv run pytest tests/test_frontend_shell.py tests/test_views.py tests/test_app.py -q` passed (64 passed, 1 warning).
+
 ### Addendum (2026-06-15) — Pass 14 comprehensive sweep
 
 Closed in Pass 14:

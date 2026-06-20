@@ -310,14 +310,14 @@ def analyze_shelf_scene(
     Accepts at least one of ``image_path``, ``video_path``, ``audio_path``.
     When ``video_path`` is provided, up to ``max_frames`` frames are
     extracted at regular intervals (see :func:`_collect_frame_paths`)
-    and the first frame is used as the source image for detection,
-    segmentation, and OCR. ``max_frames`` is clamped to ``[1, 50]``
-    to bound per-scan latency and storage.
+    and every frame is merged into one household-memory result. The
+    first frame anchors the annotated preview, while later frames catch
+    objects that were briefly visible during the sweep. ``max_frames``
+    is clamped to ``[1, 50]`` to bound per-scan latency and storage.
 
     The returned ``ShelfIntelligenceResult`` carries the full provenance:
-    ``image_path``, ``video_path``, ``audio_path`` (resolved after
-    first-frame extraction), ``frame_paths`` (the full list of frames
-    the system analyzed), and ``frame_count`` (the size of that list).
+    ``image_path``, ``video_path``, ``audio_path``, ``frame_paths``
+    (video frames only), and ``frame_count`` (the size of that list).
     """
     safe_max_frames = _clamp_max_frames(max_frames)
     scene = _normalize_scene_type(scene_type)
@@ -333,34 +333,21 @@ def analyze_shelf_scene(
         result.warnings.append("No image, video, or audio input provided.")
         return result
 
-    # When the caller passes a video path, prefer its first frame as the
-    # source image so downstream detection/segmentation/OCR all run on
-    # the same scene. If extraction fails, fall back to no-image mode.
-    source_image = image_path
-    frame_paths: list[str] = []
-    if not source_image and video_path:
-        source_image = _first_frame_from_video(video_path)
-        if source_image:
-            result.image_path = source_image
-            frame_paths.append(source_image)
-    elif image_path:
-        frame_paths.append(image_path)
-
+    frame_paths: list[str] = _collect_frame_paths(image_path, video_path, max_frames=safe_max_frames)
+    if not frame_paths and video_path:
+        fallback_frame = _first_frame_from_video(video_path)
+        if fallback_frame:
+            frame_paths = [fallback_frame]
+    if frame_paths and not image_path:
+        result.image_path = frame_paths[0]
+    if image_path and not result.image_path:
+        result.image_path = image_path
     if video_path:
         result.video_path = video_path
-        extracted_frames = _collect_frame_paths(None, video_path, max_frames=safe_max_frames)
-        result.frame_paths = extracted_frames
-        result.frame_count = len(extracted_frames)
+        result.frame_paths = frame_paths
+        result.frame_count = len(frame_paths)
 
-    detections: list[dict[str, Any]] = []
-    segments: list[dict[str, Any]] = []
-    ocr_payload: dict[str, Any] = {}
     transcript: dict[str, Any] | None = None
-
-    if source_image:
-        detections = _safe_detection(providers, source_image)
-        segments = _safe_segmentation(providers, source_image)
-        ocr_payload = _safe_ocr(providers, source_image)
 
     if audio_path and hasattr(providers, "stt"):
         try:
@@ -377,39 +364,64 @@ def analyze_shelf_scene(
         except Exception:
             transcript = None
 
-    if source_image and audio_path:
+    speech_intent = _build_speech_intent(transcript, scene)
+    frame_records: list[dict[str, Any]] = []
+    all_detections: list[dict[str, Any]] = []
+    best_ocr_payload: dict[str, Any] = {}
+    best_ocr_confidence = -1.0
+    primary_frame_image = frame_paths[0] if frame_paths else result.image_path
+    primary_detections: list[dict[str, Any]] = []
+    used_promptable = False
+    used_detection = False
+    used_segmentation = False
+
+    for index, frame_path in enumerate(frame_paths or ([result.image_path] if result.image_path else [])):
+        frame_detections, frame_segments, frame_ocr, promptable_used = _run_frame_perception(
+            providers,
+            frame_path,
+            speech_intent,
+        )
+        if not primary_detections:
+            primary_detections = list(frame_detections)
+            primary_frame_image = frame_path
+        frame_records.append(
+            {
+                "frame_path": frame_path,
+                "detections": frame_detections,
+                "segments": frame_segments,
+                "ocr": frame_ocr,
+                "frame_tag": _frame_tag(frame_path, index),
+            }
+        )
+        all_detections.extend(frame_detections)
+        used_promptable = used_promptable or promptable_used
+        used_detection = used_detection or bool(frame_detections)
+        used_segmentation = used_segmentation or bool(frame_segments)
+        ocr_confidence = float(frame_ocr.get("confidence", 0.0) or 0.0)
+        if frame_ocr and ocr_confidence >= best_ocr_confidence:
+            best_ocr_confidence = ocr_confidence
+            best_ocr_payload = frame_ocr
+
+    if primary_frame_image and audio_path:
         result.perception_mode = "multimodal"
-    elif source_image:
+    elif primary_frame_image:
         result.perception_mode = "vision"
     else:
         result.perception_mode = "speech"
 
-    speech_intent = _build_speech_intent(transcript, scene)
-
-    if detections and segments:
+    if used_promptable:
+        result.perception_mode = "promptable_segmentation"
+    elif used_detection and used_segmentation:
         result.perception_mode = "detection_segmentation"
-    elif detections:
+    elif used_detection:
         result.perception_mode = "detection_only"
-    elif source_image and ocr_payload:
+    elif primary_frame_image and best_ocr_payload:
         result.perception_mode = "ocr_only"
 
-    promptable_segments = _safe_promptable_segmentation(providers, source_image or "", detections, speech_intent)
-    if promptable_segments:
-        segments = promptable_segments
-        result.perception_mode = "promptable_segmentation"
-    elif source_image and not detections and speech_intent.canonical_items:
-        grounded_detections = _safe_grounding(providers, source_image, speech_intent.canonical_items)
-        if grounded_detections:
-            detections = grounded_detections
-            promptable_segments = _safe_promptable_segmentation(providers, source_image, detections, speech_intent)
-            if promptable_segments:
-                segments = promptable_segments
-                result.perception_mode = "promptable_segmentation"
+    if result.frame_count > 1 and result.perception_mode != "speech":
+        result.perception_mode = f"video_{result.perception_mode}"
 
-    if source_image and detections and not result.annotated_image_path:
-        result.annotated_image_path = _annotate_home_scan(source_image, detections, providers)
-
-    scene = _infer_scene_type(scene, speech_intent, detections, ocr_payload)
+    scene = _infer_scene_type(scene, speech_intent, all_detections, best_ocr_payload)
     result.scene_type = scene
     result.scene_label = _SCENE_LABELS.get(scene, "Other")
     result.speech_intent = speech_intent
@@ -427,16 +439,21 @@ def analyze_shelf_scene(
                     source="speech",
                 )
             )
-    if ocr_payload:
-        _populate_ocr_findings(result, ocr_payload)
+    if best_ocr_payload:
+        _populate_ocr_findings(result, best_ocr_payload)
 
-    instances = _build_instances(
-        detections=detections,
-        segments=segments,
-        ocr_payload=ocr_payload,
-        speech_intent=speech_intent,
-        scene=scene,
-    )
+    instances: list[VisibleItemInstance] = []
+    for record in frame_records:
+        instances.extend(
+            _build_instances(
+                detections=record["detections"],
+                segments=record["segments"],
+                ocr_payload=record["ocr"],
+                speech_intent=speech_intent,
+                scene=scene,
+                frame_tag=record["frame_tag"],
+            )
+        )
     result.instances = instances
     if not instances and speech_intent.canonical_items:
         result.instances = [
@@ -448,7 +465,7 @@ def analyze_shelf_scene(
                 detection_confidence=speech_intent.confidence,
                 quantity_estimate=QuantityEstimate(value=1.0, unit="unit", confidence=speech_intent.confidence, method="speech"),
                 zone_guess=result.scene_label,
-                notes=["speech_only_instance"],
+                notes=["speech_only_instance", "frame:speech"],
             )
             for item in speech_intent.canonical_items
         ]
@@ -458,7 +475,7 @@ def analyze_shelf_scene(
     result.aggregates = aggregates
     result.inventory_matches = [InventoryMatch.model_validate(match) for match in _build_inventory_matches(aggregates, inventory, scene, user_id)]
     result.proposed_actions = _build_actions(result, inventory, scene, user_id)
-    result.confidence_summary = _build_confidence_summary(result, detections, ocr_payload, transcript)
+    result.confidence_summary = _build_confidence_summary(result, all_detections, best_ocr_payload, transcript)
     result.warnings.extend(_scene_warnings(scene, result))
     result.corrections_needed = _build_corrections(result)
     # ── Condition / damage detection hook (Task 4) ──
@@ -482,6 +499,9 @@ def analyze_shelf_scene(
             # Best-effort: never let the condition hook break the scan.
             logger = __import__("logging").getLogger(__name__)
             logger.debug("condition hook failed: %s", exc)
+    if primary_frame_image and primary_detections and not result.annotated_image_path:
+        result.annotated_image_path = _annotate_home_scan(primary_frame_image, primary_detections, providers)
+
     return result
 
 
@@ -748,6 +768,7 @@ def _build_instances(
     ocr_payload: dict[str, Any],
     speech_intent: SpeechIntent,
     scene: ShelfSceneType,
+    frame_tag: str = "",
 ) -> list[VisibleItemInstance]:
     instances: list[VisibleItemInstance] = []
     ocr_name = normalize_item_name(
@@ -788,6 +809,7 @@ def _build_instances(
             instance_id=uuid4().hex[:12],
             canonical_name=canonical_name,
             display_name=canonical_name.replace("_", " ").title(),
+            source_label=frame_tag.removeprefix("frame:") if frame_tag else "",
             bbox=list(detection.get("bbox") or []),
             mask_ref=str(seg.get("mask") or seg.get("mask_path") or "") or None,
             detection_confidence=float(detection.get("confidence", 0.0) or 0.0),
@@ -804,7 +826,12 @@ def _build_instances(
             label_text=label_text,
             expiry_date=ocr_expiry,
             zone_guess=_SCENE_LABELS.get(scene, "Other"),
-            notes=[f"segment_score:{seg.get('score', 0.0)}"] if seg else [],
+            notes=(
+                [f"segment_score:{seg.get('score', 0.0)}"]
+                if seg
+                else []
+            )
+            + ([frame_tag] if frame_tag else []),
         )
         instances.append(instance)
 
@@ -814,6 +841,7 @@ def _build_instances(
                 instance_id=uuid4().hex[:12],
                 canonical_name=ocr_name,
                 display_name=ocr_name.replace("_", " ").title(),
+                source_label=frame_tag.removeprefix("frame:") if frame_tag else "",
                 bbox=[],
                 mask_ref=None,
                 detection_confidence=ocr_confidence,
@@ -830,7 +858,7 @@ def _build_instances(
                 label_text=str(ocr_payload.get("raw_text", "") or ocr_name.replace("_", " ")),
                 expiry_date=ocr_expiry,
                 zone_guess=_SCENE_LABELS.get(scene, "Other"),
-                notes=["ocr_only_instance"],
+                notes=(["ocr_only_instance"] + ([frame_tag] if frame_tag else [])),
             )
         )
 
@@ -844,6 +872,7 @@ def _build_instances(
                     instance_id=uuid4().hex[:12],
                     canonical_name=canonical_name,
                     display_name=canonical_name.replace("_", " ").title(),
+                    source_label=frame_tag.removeprefix("frame:") if frame_tag else "",
                     bbox=[],
                     mask_ref=None,
                     detection_confidence=speech_intent.confidence,
@@ -858,7 +887,7 @@ def _build_instances(
                     freshness_visual_score=None,
                     label_text=speech_intent.translated_text,
                     zone_guess=_SCENE_LABELS.get(scene, "Other"),
-                    notes=["speech_only_signal"],
+                    notes=(["speech_only_signal"] + ([frame_tag] if frame_tag else [])),
                 )
             )
 
@@ -880,16 +909,21 @@ def _aggregate_instances(instances: list[VisibleItemInstance]) -> list[Aggregate
             default_location = group[0].zone_guess
         estimated_quantity = 0.0
         unit = group[0].quantity_estimate.unit if group[0].quantity_estimate else "unit"
+        frame_tags: set[str] = set()
         for inst in group:
             estimated_quantity += inst.quantity_estimate.value or 0.0
             if inst.matched_inventory_lot_id:
                 lot_ids.append(inst.matched_inventory_lot_id)
+            for note in inst.notes:
+                if note.startswith("frame:"):
+                    frame_tags.add(note.split(":", 1)[1])
 
         aggregates.append(
             AggregatedVisibleItem(
                 canonical_name=canonical_name,
                 display_name=canonical_name.replace("_", " ").title(),
                 count=len(group),
+                frame_hits=len(frame_tags) or len(group),
                 estimated_quantity=round(estimated_quantity, 3),
                 unit=unit,
                 confidence=round(sum(confidence_values) / len(confidence_values), 2) if confidence_values else 0.0,
@@ -1059,6 +1093,8 @@ def _scene_warnings(scene: ShelfSceneType, result: ShelfIntelligenceResult) -> l
         warnings.append("No visible items detected.")
     if scene == ShelfSceneType.AUTO:
         warnings.append("Scene type was inferred automatically.")
+    if result.frame_count > 1:
+        warnings.append(f"Video sweep merged {result.frame_count} frame(s).")
     if result.speech_intent and result.speech_intent.action == "correct":
         warnings.append("Speech correction detected; review the changed item names.")
     return warnings

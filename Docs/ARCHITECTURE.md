@@ -1,6 +1,6 @@
 # ShopStack Architecture
 
-> **Last updated:** 2026-06-15
+> **Last updated:** 2026-06-18
 > **Version:** 0.1.0
 > **Purpose:** Comprehensive architectural reference for the ShopStack shopping intelligence platform.
 
@@ -513,8 +513,8 @@ Pre-commit hook runs `tools/sync-readme-stats` to keep README test counts curren
 
 ## 16. FastAPI /api/v1 Layer
 
-Pass 26 (2026-06-17) introduced a **versioned REST API** mounted on Gradio's
-embedded FastAPI instance. The API lives alongside the Gradio UI on the same
+Pass 26 (2026-06-17) introduced a **versioned REST API** mounted on the
+FastAPI host. The API lives alongside the FastAPI frontend shell on the same
 server/port — no separate deployment needed.
 
 ### 16.1 Mount Point
@@ -524,8 +524,8 @@ All routes are declared as FastAPI ``APIRouter`` instances in
 ``shopstack/api/v1/mount.py::mount_v1_routes()``. The mount is:
 
 - **Idempotent** — duplicate routes are caught and logged, not raised.
-- **Post-launch safe** — called both inside ``with gr.Blocks()`` and
-  from the post-launch hook (Gradio recreates ``app.app`` on launch).
+- **Post-launch safe** — called both during app assembly and from the
+  post-launch hook when the host rebuilds its route layer.
 
 ### 16.2 Router Map
 
@@ -541,7 +541,7 @@ All routes are declared as FastAPI ``APIRouter`` instances in
 | ``/search`` | ``search_router`` | Bearer | global, inventory, voice-intent |
 | ``/traces`` | ``traces_router`` | Bearer | list, get, export |
 | ``/intelligence`` | ``intelligence_router`` | Bearer | decision explain, recurring plan, meal plan |
-| ``/account`` | ``account_router`` | Bearer | privacy, undo, store-mode toggle |
+| ``/account`` | ``account_router`` | Bearer | privacy, undo, store-mode toggle, privacy profiles |
 | ``/corrections`` | ``corrections_router`` | Bearer | list, create corrections |
 | ``/sms`` | ``sms_router`` | Public (Twilio-signed) | webhook |
 
@@ -573,14 +573,15 @@ Key details:
 
 ### 16.5 Frontend Shell
 
-``shopstack/api/v1/frontend_shell.py`` renders a **standalone HTML/CSS frontend**
-served by FastAPI routes (not Gradio blocks). It communicates entirely through
-the ``/api/v1/*`` REST endpoints and provides:
+``shopstack/ui/frontend_shell.py`` renders a **standalone HTML/CSS frontend**
+served by FastAPI routes. It communicates entirely through the ``/api/v1/*``
+REST endpoints and provides:
 
 - Full device auth flow
 - Dashboard, inventory, shopping, search CRUD
 - Intelligence panels, privacy controls, trace viewer
-- Store mode (in-store check-off with progress bar)
+- Search mode transparency via ``search_mode``, ``semantic_active``,
+  ``match_type``, and ``expanded_queries``
 - Mobile-responsive dark theme
 
 ## 17. shopstack-mobile (React Native / Expo)

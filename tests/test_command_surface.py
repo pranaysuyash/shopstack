@@ -213,3 +213,37 @@ class TestDispatchHandlerContract:
         assert result.success
         assert result.action == "ask"
         assert intent.raw == "what did we buy last week?"
+
+
+class TestBatchPreviewEmptyBoundary:
+    """``batch_preview('')`` boundary test — empty input returns empty preview.
+
+    ``_preview_for_intent`` is the internal helper behind
+    ``POST /api/v1/command/preview``.  The HTTP layer rejects empty
+    text at the schema level (422), but the internal function must
+    gracefully produce an "unknown" preview with an empty summary.
+    """
+
+    def test_batch_preview_empty_string(self):
+        from shopstack.api.v1.routers.command import _preview_for_intent
+
+        result = _preview_for_intent("")
+        assert result.original_text == ""
+        assert result.intent.action == "unknown"
+        assert result.intent.canonical_name == ""
+        assert result.intent.raw_text == ""
+        assert result.would_mutate is False
+        assert result.route_kind == "unknown"
+        assert result.summary == ""
+
+    def test_batch_preview_whitespace_only(self):
+        from shopstack.api.v1.routers.command import _preview_for_intent
+
+        result = _preview_for_intent("   ")
+        assert result.original_text == "   "
+        assert result.intent.action == "unknown"
+        assert result.intent.canonical_name == ""
+        assert result.intent.raw_text == "   "
+        assert result.would_mutate is False
+        assert result.route_kind == "unknown"
+        assert result.summary == ""

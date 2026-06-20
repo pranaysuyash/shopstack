@@ -39,31 +39,38 @@ def test_frontend_shell_is_the_root_surface():
         assert "text/html" in root.headers.get("content-type", "")
         body = root.text
         assert 'data-shell-root="true"' in body
-        assert "/api/v1/command/preview" in body
-        assert "/api/v1/command/execute" in body
-        assert "/api/v1/dashboard/today" in body
-        assert "/api/v1/auth/register" in body
-        assert "/api/v1/inventory/lots" in body
-        assert "/api/v1/shopping/active" in body
+        assert "story-title" in body
+        assert "story-buy-pill" in body
+        assert "story-use-pill" in body
+        assert "story-cook-pill" in body
+        assert "story-explore-pill" in body
+        assert "What should I buy today?" in body
+        assert "What should I use first?" in body
+        assert "What can I cook from what I have?" in body
+        assert "Show me the best deal and what is sold out." in body
+        assert "/command/preview" in body
+        assert "/command/execute" in body
+        assert "/dashboard/today" in body
+        assert "/auth/register" in body
+        assert "/inventory/lots" in body
+        assert "/shopping/active" in body
         assert "shopping-mark-purchased-btn" in body
-        assert "/api/v1/meta/runtime" in body
-        assert "/api/v1/account/privacy/retention-summary" in body
+        assert "/meta/runtime" in body
+        assert "/account/privacy/retention-summary" in body
         assert "privacy-profile" in body
         assert "privacy-apply-profile-btn" in body
         assert "privacy-profile-summary" in body
         assert "privacy-update-btn" in body
         assert "privacy-purge-btn" in body
-        assert "/api/v1/corrections" in body
-        assert "/api/v1/account/undo" in body
-        assert "/api/v1/traces" in body
+        assert "/corrections" in body
+        assert "/account/undo" in body
+        assert "/traces" in body
         assert "/search/global" in body
+        assert "search-global-pill" in body
+        assert "search-inventory-pill" in body
         assert "/intelligence/recurring" in body
         assert "recurring-window" in body
         assert "mealplan-days" in body
-        assert "/gradio" in body
-
-        gradio = client.get("/gradio")
-        assert gradio.status_code == 200
     finally:
         db.close()
         import app as app_module

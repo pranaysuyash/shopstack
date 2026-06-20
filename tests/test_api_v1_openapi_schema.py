@@ -159,6 +159,8 @@ class TestPathCoverage:
         # ── account ──
         ("post", "/api/v1/account/privacy/purge"),
         ("get", "/api/v1/account/privacy/retention-summary"),
+        ("get", "/api/v1/account/privacy/profiles"),
+        ("post", "/api/v1/account/privacy/apply-profile"),
         ("post", "/api/v1/account/privacy/update-retention"),
         ("post", "/api/v1/account/undo"),
         ("post", "/api/v1/account/store-mode/toggle"),

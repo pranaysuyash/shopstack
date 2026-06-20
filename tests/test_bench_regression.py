@@ -106,6 +106,52 @@ class TestBaselineIntegrity:
         assert baseline["ocr_devanagari"]["accuracy"] < 0.20
 
 
+class TestModalBenchmarkArtifactTruth:
+    def test_committed_modal_artifacts_cover_the_current_shelf_lanes(self):
+        promptable_path = Path("benchmarks/modal/results/promptable_segmentation_v1.jsonl")
+        grounding_path = Path("benchmarks/modal/results/grounding_v1.jsonl")
+        segmentation_path = Path("benchmarks/modal/results/segmentation_v1.jsonl")
+        segmentation_summary_path = Path("benchmarks/modal/results/segmentation_v1.md")
+
+        for path in (promptable_path, grounding_path, segmentation_path, segmentation_summary_path):
+            assert path.exists(), f"Expected benchmark artifact missing: {path}"
+
+        promptable_candidates = {
+            json.loads(line)["candidate"]
+            for line in promptable_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        }
+        grounding_candidates = {
+            json.loads(line)["candidate"]
+            for line in grounding_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        }
+        segmentation_candidates = {
+            json.loads(line)["candidate"]
+            for line in segmentation_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        }
+
+        assert {"sam2.1_b", "mobile_sam", "GroundingDINO+SAM2", "RF-DETR-Seg-L", "SAM3"} <= promptable_candidates
+        assert {"qwen3-vl-grounding", "grounding-dino", "rf-detr"} <= grounding_candidates
+        assert {"rmbg-2.0", "birefnet", "birefnet-general", "rmbg-1.4-legacy"} <= segmentation_candidates
+
+    def test_rmbg_2_is_benchmarked_not_gated(self):
+        from shopstack.model_registry import MODEL_REGISTRY
+
+        rmbg_2 = next(entry for entry in MODEL_REGISTRY if entry.model_id == "rmbg-2.0")
+        assert rmbg_2.status == "candidate"
+        assert "benchmark" in rmbg_2.notes.lower()
+        assert "gated" not in rmbg_2.notes.lower()
+
+        catalog_text = Path("Docs/MODEL_CATALOG.md").read_text(encoding="utf-8")
+        catalog_line = next(
+            line for line in catalog_text.splitlines() if line.startswith("| `rmbg-2.0`")
+        )
+        assert "GATED" not in catalog_line
+        assert "benchmark" in catalog_line.lower()
+
+
 class TestRegressionDetection:
     def test_higher_is_better_no_regression(self):
         """Accuracy at or above baseline-tolerance passes."""

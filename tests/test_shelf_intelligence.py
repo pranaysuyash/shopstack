@@ -64,6 +64,11 @@ def test_analyze_shelf_scene_returns_structured_home_scan(providers, tool_regist
         ],
     )
     monkeypatch.setattr(
+        providers.grounding,
+        "ground",
+        lambda _path, _prompt: {"found": False, "bbox": [], "confidence": 0.0, "label": ""},
+    )
+    monkeypatch.setattr(
         providers.ocr,
         "extract",
         lambda _path: {
@@ -151,6 +156,59 @@ def test_analyze_shelf_scene_renders_local_annotation_when_provider_fails(
     assert result.annotated_image_path
     assert result.annotated_image_path != str(image_path)
     assert Path(result.annotated_image_path).exists()
+
+
+def test_analyze_shelf_scene_merges_multi_frame_video_sweeps(
+    providers,
+    tool_registry,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "shopstack.services.shelf_intelligence._collect_frame_paths",
+        lambda image_path, video_path, max_frames=6: ["/tmp/frame_a.png", "/tmp/frame_b.png"],
+    )
+    monkeypatch.setattr(
+        "shopstack.services.shelf_intelligence._first_frame_from_video",
+        lambda _path: "/tmp/frame_a.png",
+    )
+
+    def fake_detect(path: str):
+        if path.endswith("frame_a.png"):
+            return [{"label": "milk", "confidence": 0.91, "bbox": [0.1, 0.1, 0.3, 0.3], "class_id": 0}]
+        return [{"label": "bread", "confidence": 0.89, "bbox": [0.55, 0.2, 0.8, 0.4], "class_id": 0}]
+
+    monkeypatch.setattr(providers.object_detection, "detect", fake_detect)
+    monkeypatch.setattr(
+        providers.grounding,
+        "ground",
+        lambda _path, _prompt: {"found": False, "bbox": [], "confidence": 0.0, "label": ""},
+    )
+    monkeypatch.setattr(
+        providers.segmentation,
+        "segment",
+        lambda _path: [{"label": "foreground", "score": 0.5, "mask": "mask", "bbox": [0.1, 0.1, 0.3, 0.3]}],
+    )
+    monkeypatch.setattr(providers.promptable_segmentation, "segment_with_prompts", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(
+        providers.ocr,
+        "extract",
+        lambda _path: {"product_name": "", "confidence": 0.0, "raw_text": ""},
+    )
+
+    result = analyze_shelf_scene(
+        None,
+        "/tmp/video_sweep.mp4",
+        None,
+        "fridge",
+        providers,
+        tool_registry.inventory,
+        user_id="",
+    )
+
+    assert result.frame_count == 2
+    assert result.perception_mode == "video_detection_segmentation"
+    assert {agg.canonical_name for agg in result.aggregates} == {"milk", "bread"}
+    assert all(agg.frame_hits == 1 for agg in result.aggregates)
 
 
 # ───────────────────────────────────────────────────────────────────────

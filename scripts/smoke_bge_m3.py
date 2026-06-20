@@ -149,6 +149,9 @@ def main() -> int:
             ("dahi",  "curd"),
             ("chawal","rice"),
             ("aloo",  "potato"),
+            ("anda",  "eggs"),
+            ("pyaaz", "onion"),
+            ("tamatar", "tomato"),
         ]
         for hindi_query, expected_en in hindi_pairs:
             result = service.semantic_find_inventory_compatible(hindi_query, user_id=household)
