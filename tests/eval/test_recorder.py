@@ -11,8 +11,6 @@ Cover:
 from __future__ import annotations
 
 import json
-import sys
-import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -20,12 +18,8 @@ import pytest
 
 from shopstack.eval import (
     CAP_PLANNER_TOOL_CALLING,
-    OUTCOME_EMPTY,
     OUTCOME_EXCEPTION,
-    OUTCOME_PARSE_ERROR,
     OUTCOME_SUCCESS,
-    SHAPE_RAW,
-    SHAPE_TEXT,
     SHAPE_TOOL_CALLS,
     CheckResult,
     JsonlSink,
@@ -34,7 +28,6 @@ from shopstack.eval import (
     SqliteSink,
     record_model_call,
 )
-
 
 # ── Helpers ───────────────────────────────────────────────────────────
 
@@ -93,6 +86,11 @@ def test_model_call_record_round_trip_dict():
         cost_usd=0.001,
     )
     rec.eval_check_results = [CheckResult("parse_success", True, 1.0, "ok")]
+    rec.execution = {
+        "status": "completed",
+        "tool_calls_executed": 1,
+        "tool_runs": [{"tool": "respond", "status": "respond"}],
+    }
     d = rec.to_dict()
     # Round-trip via JSON
     raw = json.dumps(d)
@@ -101,6 +99,7 @@ def test_model_call_record_round_trip_dict():
     assert d2["code_route"] == "planner.engine:42"
     assert d2["prompt"] == "hello world"
     assert d2["eval_check_results"][0]["check"] == "parse_success"
+    assert d2["execution"]["status"] == "completed"
 
 
 def test_short_summary_compact():
@@ -109,6 +108,7 @@ def test_short_summary_compact():
     assert set(s.keys()) == {
         "record_id", "started_at", "domain_route", "code_route",
         "capability", "model", "latency_ms", "outcome", "eval_passed", "eval_score",
+        "execution_status",
     }
     assert s["domain_route"] == "planner"
 
@@ -166,6 +166,21 @@ def test_record_model_call_handles_bytes_output(tmp_path):
         rec.set_output(b"\x00\x01\x02" * 100)
     assert rec.record.output.startswith("<bytes len=")
     assert rec.record.output_length == 300
+
+
+def test_record_model_call_serializes_structured_output_and_redacts_execution(tmp_path):
+    _make_recorder(tmp_path)
+    with record_model_call(domain_route="planner") as rec:
+        rec.set_output({"tool_calls": [{"tool": "respond", "args": {"message": "ok"}}]})
+        rec.set_execution({
+            "status": "completed",
+            "operator_note": "email a@b.com",
+            "tool_runs": [{"tool": "respond", "status": "respond"}],
+        })
+
+    assert rec.record.output.startswith('{"tool_calls"')
+    assert "[REDACTED_EMAIL]" in json.dumps(rec.record.execution)
+    assert rec.record.short_summary()["execution_status"] == "completed"
 
 
 def test_record_model_call_set_outcome_coerces_unknown(tmp_path):

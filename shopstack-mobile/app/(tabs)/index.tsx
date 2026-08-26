@@ -1,45 +1,50 @@
 import { useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
-import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
-import { getTodaySnapshot } from '../../src/api/dashboard';
+import {
+  View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator,
+} from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useToday } from '../../src/hooks';
+import { TodayStory, ActionTile, EmptyState, Card, Skeleton, DecisionBanner } from '../../src/components/composite';
+import { semantic, spacing, typography } from '../../src/theme';
 
-interface StatCardProps {
-  title: string;
-  count: number;
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-}
-
-function StatCard({ title, count, icon, color }: StatCardProps) {
-  return (
-    <View style={[styles.card, { borderLeftColor: color }]}>
-      <Ionicons name={icon} size={24} color={color} />
-      <Text style={[styles.count, { color }]}>{count}</Text>
-      <Text style={styles.cardTitle}>{title}</Text>
-    </View>
-  );
-}
-
-export default function DashboardScreen() {
-  const { data, isLoading, isRefetching, refetch } = useQuery({
-    queryKey: ['dashboard', 'today'],
-    queryFn: getTodaySnapshot,
-    staleTime: 15_000,
-  });
+export default function HomeScreen() {
+  const router = useRouter();
+  const { data, isLoading, isRefetching, refetch } = useToday();
 
   useFocusEffect(
     useCallback(() => {
       refetch();
-    }, [])
+    }, [refetch])
   );
+
+  const storyItems =
+    (data?.use_soon_items ?? []).map((it: Record<string, unknown>) => ({
+      canonical_name: String(it.canonical_name || it.display_name || ''),
+      display_name: String(it.display_name || it.canonical_name || ''),
+      action: 'use_soon',
+      reason: 'Use soon to avoid waste',
+    })) || [];
+
+  const lowItems = (data?.low_items ?? []) as Record<string, unknown>[];
+  const topDecision =
+    storyItems.length > 0
+      ? { action: 'use_soon', title: `Use ${storyItems[0].display_name} first`, reason: 'It will spoil soon' }
+      : lowItems.length > 0
+        ? { action: 'buy', title: `Restock ${String(lowItems[0].display_name || lowItems[0].canonical_name || 'low item')}`, reason: 'Running low' }
+        : null;
 
   if (isLoading && !data) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#6366f1" />
-      </View>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <Skeleton width={140} height={24} style={{ marginBottom: spacing[2] }} />
+        <Skeleton width={260} height={36} style={{ marginBottom: spacing[6] }} />
+        <Skeleton height={120} style={{ marginHorizontal: spacing[4], marginBottom: spacing[5] }} />
+        <View style={styles.grid}>
+          <Skeleton height={120} style={{ flex: 1, minWidth: '30%' }} />
+          <Skeleton height={120} style={{ flex: 1, minWidth: '30%' }} />
+          <Skeleton height={120} style={{ flex: 1, minWidth: '30%' }} />
+        </View>
+      </ScrollView>
     );
   }
 
@@ -48,92 +53,91 @@ export default function DashboardScreen() {
       style={styles.container}
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#818cf8" />
+        <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={semantic.primary} />
       }
     >
-      <Text style={styles.header}>Today</Text>
-      <Text style={styles.subheader}>Your household snapshot</Text>
+      <Text style={styles.greeting}>Good day,</Text>
+      <Text style={styles.title}>What should we do today?</Text>
+
+      {topDecision ? (
+        <DecisionBanner
+          action={topDecision.action}
+          title={topDecision.title}
+          reason={topDecision.reason}
+          onPress={() =>
+            router.push(topDecision.action === 'buy' ? '/shopping' : '/inventory')
+          }
+        />
+      ) : null}
 
       <View style={styles.grid}>
-        <StatCard
-          title="In Pantry"
-          count={data?.pantry_count ?? 0}
-          icon="cube-outline"
-          color="#6366f1"
+        <ActionTile
+          icon="cart-outline"
+          title="Buy"
+          subtitle="Restock"
+          color={semantic.primary}
+          onPress={() => router.push('/shopping')}
         />
-        <StatCard
-          title="Use Soon"
-          count={data?.use_soon_count ?? 0}
-          icon="alert-circle-outline"
-          color="#f59e0b"
+        <ActionTile
+          icon="time-outline"
+          title="Use"
+          subtitle="Avoid waste"
+          color={semantic.warning}
+          onPress={() => router.push('/inventory')}
         />
-        <StatCard
-          title="Low Items"
-          count={data?.low_items_count ?? 0}
-          icon="warning-outline"
-          color="#ef4444"
-        />
-        <StatCard
-          title="Recent Buys"
-          count={data?.recent_purchases_count ?? 0}
-          icon="receipt-outline"
-          color="#22c55e"
+        <ActionTile
+          icon="restaurant-outline"
+          title="Cook"
+          subtitle="Tonight"
+          color={semantic.terracotta[500]}
+          onPress={() => router.push('/recipes')}
         />
       </View>
 
-      {data?.use_soon_items && data.use_soon_items.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Use Soon</Text>
-          {data.use_soon_items.slice(0, 5).map((item: Record<string, unknown>, i: number) => (
-            <View key={i} style={styles.itemRow}>
-              <Ionicons name="time-outline" size={16} color="#f59e0b" />
-              <Text style={styles.itemText}>
-                {String(item?.display_name || item?.canonical_name || 'Item')}
-              </Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {data?.low_items && data.low_items.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Running Low</Text>
-          {data.low_items.slice(0, 5).map((item: Record<string, unknown>, i: number) => (
-            <View key={i} style={styles.itemRow}>
-              <Ionicons name="caret-down-outline" size={16} color="#ef4444" />
-              <Text style={styles.itemText}>
-                {String(item?.display_name || item?.canonical_name || 'Item')}
-              </Text>
-            </View>
-          ))}
-        </View>
+      {storyItems.length > 0 ? (
+        <TodayStory
+          kicker="Top actions"
+          headline="Use these first"
+          items={storyItems}
+        />
+) : (
+          <Card elevated style={styles.emptyCard}>
+            <EmptyState
+              motif
+              title="Pantry's empty. That's a fresh start."
+              message={ `Tap "Add first item" and we'll learn what you cook, when you shop, and what to remind you about.` }
+              action={{ label: 'Add first item', onPress: () => router.push('/inventory') }}
+            />
+          </Card>
       )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f0f23' },
-  content: { padding: 16, paddingTop: 60 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f0f23' },
-  header: { fontSize: 28, fontWeight: '700', color: '#e0e0ff' },
-  subheader: { fontSize: 14, color: '#8888bb', marginBottom: 24 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 },
-  card: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: '#1a1a3e',
-    borderRadius: 12,
-    padding: 16,
-    borderLeftWidth: 3,
-    borderWidth: 1,
-    borderColor: '#2a2a5e',
-    gap: 4,
+  container: { flex: 1, backgroundColor: semantic.background },
+  content: { paddingTop: 64, paddingBottom: 32 },
+  greeting: {
+    fontSize: typography.sizes.base.size,
+    color: semantic.textSecondary,
+    paddingHorizontal: spacing[4],
   },
-  count: { fontSize: 32, fontWeight: '700', marginTop: 4 },
-  cardTitle: { fontSize: 12, color: '#8888bb', fontWeight: '500' },
-  section: { backgroundColor: '#1a1a3e', borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#2a2a5e' },
-  sectionTitle: { fontSize: 16, fontWeight: '600', color: '#e0e0ff', marginBottom: 12 },
-  itemRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#2a2a5e' },
-  itemText: { fontSize: 14, color: '#c0c0dd', flex: 1 },
+  title: {
+    fontSize: typography.sizes['3xl'].size,
+    fontWeight: typography.weight.bold,
+    color: semantic.textPrimary,
+    lineHeight: typography.sizes['3xl'].lineHeight,
+    paddingHorizontal: spacing[4],
+    marginBottom: spacing[5],
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing[3],
+    paddingHorizontal: spacing[4],
+    marginBottom: spacing[5],
+  },
+  emptyCard: {
+    marginHorizontal: spacing[4],
+  },
 });

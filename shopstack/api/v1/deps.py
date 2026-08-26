@@ -26,6 +26,7 @@ checks the request-scoped state first, falling back to
 from __future__ import annotations
 
 import logging
+from collections.abc import Generator
 from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, Request, status
@@ -150,4 +151,24 @@ def require_household(
     return ctx
 
 
-__all__ = ["HouseholdContext", "require_household"]
+def db_transaction_cleanup() -> Generator[None]:
+    """Ensure no uncommitted transaction is leaked by the worker thread.
+
+    FastAPI sync routes run in a pooled `anyio` worker thread. If an
+    exception is raised after a SQLite `execute` but before `commit`,
+    the uncommitted transaction stays open, holding the WAL write lock
+    indefinitely (breaking other requests and test teardown).
+    This yield dependency guarantees a rollback on exit.
+    """
+    try:
+        yield
+    finally:
+        from shopstack.app_context import db
+        try:
+            # Safe to call rollback even if no transaction is open.
+            db.conn.rollback()
+        except Exception:
+            pass
+
+
+__all__ = ["HouseholdContext", "db_transaction_cleanup", "require_household"]

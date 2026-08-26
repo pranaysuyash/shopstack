@@ -23,13 +23,16 @@ _IS_INSTRUMENTED: bool = False
 
 
 def is_otel_available() -> bool:
-    """Return True if the ``opentelemetry`` package is importable.
+    """Return True if the tracing API and SDK are importable.
 
-    Used to gate initialization so we don't try to import the SDK
-    when the optional ``[otel]`` extra isn't installed.
+    ``opentelemetry-api`` is a base dependency, while the SDK is optional.
+    Check the modules that :func:`setup_tracing` actually imports so a
+    lightweight install degrades to the documented no-op span behavior.
     """
     try:
-        import opentelemetry  # noqa: F401
+        from opentelemetry import trace  # noqa: F401
+        from opentelemetry.sdk.resources import Resource  # noqa: F401
+        from opentelemetry.sdk.trace import TracerProvider  # noqa: F401
         return True
     except ImportError:
         return False
@@ -70,7 +73,7 @@ def setup_tracing(
         return None
 
     from opentelemetry import trace
-    from opentelemetry.sdk.resources import Resource, SERVICE_NAME
+    from opentelemetry.sdk.resources import SERVICE_NAME, Resource
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
@@ -85,7 +88,9 @@ def setup_tracing(
     # test process never blocks on unreachable collector retries.
     if otlp_endpoint:
         try:
-            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+                OTLPSpanExporter,
+            )
             exporter = OTLPSpanExporter(endpoint=otlp_endpoint, headers=(("phoenix-project", project),))
             provider.add_span_processor(BatchSpanProcessor(exporter))
         except Exception as e:

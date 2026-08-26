@@ -27,32 +27,34 @@ attaches them to the Gradio app's FastAPI instance under
 """
 from __future__ import annotations
 
-from .meta import router as meta_router
-from .auth_router import router as auth_router
-from .inventory import router as inventory_router
-from .household import router as household_router
-from .shopping import router as shopping_router
-from .dashboard import router as dashboard_router
-from .command import router as command_router
-from .search import router as search_router
-from .traces import router as traces_router
-from .intelligence import router as intelligence_router
 from .account import router as account_router
-from .sms import router as sms_router
+from .auth_router import router as auth_router
+from .command import router as command_router
 from .corrections import router as corrections_router
+from .dashboard import router as dashboard_router
+from .household import router as household_router
+from .intelligence import router as intelligence_router
+from .inventory import router as inventory_router
+from .meta import router as meta_router
+from .portability import router as portability_router
+from .search import router as search_router
+from .shopping import router as shopping_router
+from .sms import router as sms_router
+from .traces import router as traces_router
 
 __all__ = [
-    "meta_router",
-    "auth_router",
-    "inventory_router",
-    "household_router",
-    "shopping_router",
-    "dashboard_router",
-    "command_router",
-    "search_router",
-    "traces_router",
-    "intelligence_router",
     "account_router",
+    "auth_router",
+    "command_router",
     "corrections_router",
+    "dashboard_router",
+    "household_router",
+    "intelligence_router",
+    "inventory_router",
+    "meta_router",
+    "portability_router",
+    "search_router",
+    "shopping_router",
     "sms_router",
+    "traces_router",
 ]

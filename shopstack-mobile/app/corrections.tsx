@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { listCorrections, createCorrection } from '../src/api/corrections';
 import type { CorrectionItemWire } from '../src/api/types';
+import { semantic, spacing } from '../src/theme';
 
 export default function CorrectionsScreen() {
   const queryClient = useQueryClient();
@@ -33,10 +34,7 @@ export default function CorrectionsScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['corrections'] });
       setShowCreate(false);
-      setName('');
-      setWas('');
-      setShould('');
-      setReason('');
+      setName(''); setWas(''); setShould(''); setReason('');
     },
     onError: (err: Error) => Alert.alert('Error', err.message),
   });
@@ -51,9 +49,7 @@ export default function CorrectionsScreen() {
           </Text>
         </View>
       </View>
-      <Text style={styles.correctionDetail}>
-        {item.was_action} → {item.should_be_action}
-      </Text>
+      <Text style={styles.correctionDetail}>{item.was_action} → {item.should_be_action}</Text>
       <Text style={styles.source}>{item.source} · {item.timestamp ? new Date(item.timestamp).toLocaleDateString() : ''}</Text>
     </View>
   );
@@ -61,7 +57,7 @@ export default function CorrectionsScreen() {
   if (isLoading && !data) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#6366f1" />
+        <ActivityIndicator size="large" color={semantic.primary} />
       </View>
     );
   }
@@ -73,16 +69,16 @@ export default function CorrectionsScreen() {
       <View style={styles.headerRow}>
         <Text style={styles.header}>Corrections</Text>
         <TouchableOpacity onPress={() => setShowCreate(!showCreate)}>
-          <Ionicons name={showCreate ? 'close' : 'add'} size={24} color="#818cf8" />
+          <Ionicons name={showCreate ? 'close' : 'add'} size={24} color={semantic.primary} />
         </TouchableOpacity>
       </View>
 
       {showCreate && (
         <View style={styles.form}>
-          <TextInput style={styles.input} placeholder="Item name" placeholderTextColor="#666" value={name} onChangeText={setName} />
-          <TextInput style={styles.input} placeholder="What the system did (was_action)" placeholderTextColor="#666" value={was} onChangeText={setWas} />
-          <TextInput style={styles.input} placeholder="What it should have done" placeholderTextColor="#666" value={should} onChangeText={setShould} />
-          <TextInput style={styles.input} placeholder="Reason (optional)" placeholderTextColor="#666" value={reason} onChangeText={setReason} />
+          <TextInput style={styles.input} placeholder="Item name" placeholderTextColor={semantic.textTertiary} value={name} onChangeText={setName} />
+          <TextInput style={styles.input} placeholder="What the system did (was_action)" placeholderTextColor={semantic.textTertiary} value={was} onChangeText={setWas} />
+          <TextInput style={styles.input} placeholder="What it should have done" placeholderTextColor={semantic.textTertiary} value={should} onChangeText={setShould} />
+          <TextInput style={styles.input} placeholder="Reason (optional)" placeholderTextColor={semantic.textTertiary} value={reason} onChangeText={setReason} />
           <TouchableOpacity
             style={[styles.saveBtn, (!name || !was || !should || createMutation.isPending) && styles.disabled]}
             onPress={() => createMutation.mutate()}
@@ -97,11 +93,11 @@ export default function CorrectionsScreen() {
         data={corrections}
         keyExtractor={(item) => item.event_id}
         renderItem={renderItem}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#818cf8" />}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={semantic.primary} />}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons name="git-network-outline" size={48} color="#444" />
+            <Ionicons name="git-network-outline" size={48} color={semantic.textTertiary} />
             <Text style={styles.emptyText}>No corrections yet</Text>
           </View>
         }
@@ -111,27 +107,27 @@ export default function CorrectionsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f0f23' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f0f23' },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 60, paddingBottom: 12 },
-  header: { fontSize: 28, fontWeight: '700', color: '#e0e0ff' },
-  form: { backgroundColor: '#1a1a3e', marginHorizontal: 16, borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#2a2a5e', gap: 10 },
-  input: { backgroundColor: '#0f0f23', borderRadius: 8, padding: 12, fontSize: 14, color: '#e0e0ff', borderWidth: 1, borderColor: '#2a2a5e' },
-  saveBtn: { backgroundColor: '#6366f1', borderRadius: 8, padding: 12, alignItems: 'center' },
+  container: { flex: 1, backgroundColor: semantic.background },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: semantic.background },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing[4], paddingTop: 60, paddingBottom: 12 },
+  header: { fontSize: 28, fontWeight: '700', color: semantic.textPrimary },
+  form: { backgroundColor: semantic.surface, marginHorizontal: spacing[4], borderRadius: 12, padding: spacing[4], marginBottom: 12, borderWidth: 1, borderColor: semantic.divider, gap: 10 },
+  input: { backgroundColor: semantic.background, borderRadius: 8, padding: 12, fontSize: 14, color: semantic.textPrimary, borderWidth: 1, borderColor: semantic.divider },
+  saveBtn: { backgroundColor: semantic.primary, borderRadius: 8, padding: 12, alignItems: 'center' },
   disabled: { opacity: 0.5 },
   saveText: { color: '#fff', fontWeight: '600' },
-  list: { padding: 16, paddingTop: 0 },
-  card: { backgroundColor: '#1a1a3e', borderRadius: 10, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: '#2a2a5e' },
+  list: { padding: spacing[4], paddingTop: 0 },
+  card: { backgroundColor: semantic.surface, borderRadius: 10, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: semantic.divider },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  itemName: { fontSize: 16, fontWeight: '600', color: '#e0e0ff' },
+  itemName: { fontSize: 16, fontWeight: '600', color: semantic.textPrimary },
   badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  acceptedBadge: { backgroundColor: '#22c55e20' },
-  pendingBadge: { backgroundColor: '#f59e0b20' },
+  acceptedBadge: { backgroundColor: semantic.success + '20' },
+  pendingBadge: { backgroundColor: semantic.warning + '20' },
   badgeText: { fontSize: 11, fontWeight: '600' },
-  acceptedText: { color: '#22c55e' },
-  pendingText: { color: '#f59e0b' },
-  correctionDetail: { fontSize: 14, color: '#c0c0dd', marginBottom: 4 },
-  source: { fontSize: 12, color: '#666' },
+  acceptedText: { color: semantic.success },
+  pendingText: { color: semantic.warning },
+  correctionDetail: { fontSize: 14, color: semantic.textSecondary, marginBottom: 4 },
+  source: { fontSize: 12, color: semantic.textTertiary },
   empty: { alignItems: 'center', paddingTop: 60, gap: 8 },
-  emptyText: { fontSize: 16, color: '#666' },
+  emptyText: { fontSize: 16, color: semantic.textSecondary },
 });

@@ -1,7 +1,6 @@
 """Tests for shopstack.providers.modal_provider (Phase 6 #18)."""
 from __future__ import annotations
 
-import json
 from unittest.mock import patch
 
 import pytest
@@ -13,7 +12,6 @@ from shopstack.providers.modal_provider import (
     call_modal,
     get_modal_url,
 )
-
 
 # ── get_modal_url ─────────────────────────────────────────────────
 
@@ -97,9 +95,8 @@ def test_call_modal_propagates_http_errors():
     with patch.object(
         _post_json, "__call__",
         side_effect=RuntimeError("Modal HTTP call failed"),
-    ):
-        with pytest.raises(RuntimeError, match="Modal HTTP call failed"):
-            call_modal("https://test.modal.run", {"prompt": "x"}, stub_kind="planner")
+    ), pytest.raises(RuntimeError, match="Modal HTTP call failed"):
+        call_modal("https://test.modal.run", {"prompt": "x"}, stub_kind="planner")
 
 
 # ── ModalPlannerProvider ──────────────────────────────────────────
@@ -212,24 +209,24 @@ def test_modal_embeddings_with_url(monkeypatch):
     captured = []
     def fake_post_json(url, payload, timeout=30.0):
         captured.append(payload)
-        return {"embedding": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]}
+        return {"embeddings": [[0.1, 0.2, 0.3, 0.4], [0.5, 0.6, 0.7, 0.8]], "count": 2}
 
     monkeypatch.setattr("shopstack.providers.modal_provider._post_json", fake_post_json)
     p = ModalEmbeddingsProvider(url="https://test.modal.run")
     out = p.embed(["hello", "world"])
     assert len(out) == 2
-    assert out[0] == [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
-    assert len(captured) == 2  # one POST per text
+    assert out[0] == [0.1, 0.2, 0.3, 0.4]
+    assert len(captured) == 1  # single batch POST
 
 
-def test_modal_embeddings_handles_missing_embedding_field(monkeypatch):
+def test_modal_embeddings_handles_missing_embeddings_field(monkeypatch):
     def fake_post_json(url, payload, timeout=30.0):
-        return {"unexpected_field": "x"}  # no "embedding"
+        return {"unexpected_field": "x"}  # no "embeddings"
 
     monkeypatch.setattr("shopstack.providers.modal_provider._post_json", fake_post_json)
     p = ModalEmbeddingsProvider(url="https://test.modal.run")
     out = p.embed(["hello"])
-    assert out == [[]]  # empty list, no crash
+    assert out == []  # empty, no crash
 
 
 # ─- Registry integration ────────────────────────────────────────

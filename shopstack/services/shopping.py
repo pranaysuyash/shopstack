@@ -5,8 +5,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from shopstack.domain import normalize_item_name
 from shopstack.decisions.rules import classify_inventory_comparison
+from shopstack.domain import normalize_item_name
 from shopstack.repos.inventory import InventoryRepo
 from shopstack.services.results import (
     CompletionItem,
@@ -14,6 +14,7 @@ from shopstack.services.results import (
     PurchaseResultItem,
     ShoppingCompletionResult,
 )
+from shopstack.traces.export import create_trace
 from shopstack.tools.spec import DEFAULT_STORAGE_LOCATION
 
 if TYPE_CHECKING:
@@ -176,14 +177,13 @@ def enrich_items_with_swiggy(items: list[dict[str, Any]]) -> None:
 
 # ─── Shopping Completion Services ───
 
-from shopstack.traces.export import create_trace  # noqa: E402 — circular import
-
 
 def complete_shopping_list_service(
     list_id: str,
     inventory: InventoryRepo,
     database: Database,
     user_id: str = "",
+    purchased_item_ids: list[str] | None = None,
 ) -> ShoppingCompletionResult:
     """Complete a shopping list: convert items to inventory and mark list complete.
 
@@ -192,6 +192,7 @@ def complete_shopping_list_service(
         inventory: InventoryRepo for adding items.
         database: Database for queries and mutations.
         user_id: Household ID for scoping the trace.
+        purchased_item_ids: Optional list of specific list_item_id values checked by user.
 
     Returns a typed ShoppingCompletionResult. Use ``render_shopping_completion()``
     from ``shopstack.ui.renderers`` for Gradio HTML display.
@@ -216,13 +217,32 @@ def complete_shopping_list_service(
         )
 
     added: list[CompletionItem] = []
+    selective_mode = purchased_item_ids is not None or any(
+        item.status == "bought" for item in items
+    )
+    purchased_set = set(purchased_item_ids or [])
+
     for item in items:
         priority = item.priority or "optional"
         if priority == "avoid_buying":
             continue
+
+        if selective_mode and item.list_item_id not in purchased_set and item.status != "bought":
+            continue
+
         qty = item.requested_quantity or 1.0
         if priority == "optional":
             qty = max(qty * _OPTIONAL_QTY_FRACTION, _OPTIONAL_QTY_FLOOR)
+
+        if item.status == "bought":
+            added.append(CompletionItem(
+                canonical_name=item.canonical_name,
+                lot_id=item.linked_inventory_lots[0] if item.linked_inventory_lots else "",
+                quantity=qty,
+                unit=item.unit or "unit",
+            ))
+            continue
+
         result = _add_item(inventory,
             canonical_name=item.canonical_name.lower().strip(),
             display_name=item.canonical_name.strip(),
@@ -232,6 +252,7 @@ def complete_shopping_list_service(
             user_id=user_id,
         )
         lot_id = result.get("lot_id", "")
+        database.update_list_item(item.list_item_id, {"status": "bought"})
         added.append(CompletionItem(
             canonical_name=item.canonical_name,
             lot_id=lot_id,

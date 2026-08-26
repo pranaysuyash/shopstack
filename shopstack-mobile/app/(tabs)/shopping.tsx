@@ -1,194 +1,237 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, FlatList, TouchableOpacity,
-  RefreshControl, ActivityIndicator, Alert,
+  View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator, Alert,
 } from 'react-native';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { getActiveList, createList, completeList } from '../../src/api/shopping';
-import type { ShoppingListItemWire, ShoppingItemInput } from '../../src/api/types';
-
-const PRIORITY_COLORS: Record<string, string> = {
-  must_buy: '#ef4444',
-  optional: '#f59e0b',
-  avoid_buying: '#666',
-};
+import { useFocusEffect } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  useActiveShoppingList,
+  useCreateShoppingList,
+  useCompleteShoppingList,
+  useMarkPurchased,
+} from '../../src/hooks';
+import { ShoppingItemRow, EmptyState, Card, Button, Input } from '../../src/components';
+import { semantic, spacing, typography } from '../../src/theme';
+import type { ShoppingItemInput } from '../../src/api/types';
+import { hapticSuccess } from '../../src/utils/haptics';
 
 export default function ShoppingScreen() {
-  const router = useRouter();
-  const queryClient = useQueryClient();
+  const qc = useQueryClient();
+  const { data, isLoading, isRefetching, refetch } = useActiveShoppingList();
+  const create = useCreateShoppingList();
+  const complete = useCompleteShoppingList();
+  const markPurchased = useMarkPurchased();
   const [showCreate, setShowCreate] = useState(false);
   const [goal, setGoal] = useState('');
-  const [newItem, setNewItem] = useState('');
+  const [newItems, setNewItems] = useState('');
+  // Track which item IDs the user has checked during this shopping trip.
+  const [boughtItemIds, setBoughtItemIds] = useState<Set<string>>(new Set());
 
-  const { data, isLoading, isRefetching, refetch } = useQuery({
-    queryKey: ['shopping', 'active'],
-    queryFn: getActiveList,
-    staleTime: 10_000,
-  });
-
-  useFocusEffect(useCallback(() => { refetch(); }, []));
-
-  const createMutation = useMutation({
-    mutationFn: () => {
-      const items: ShoppingItemInput[] = newItem.trim()
-        ? newItem.split(',').map((n) => ({ canonical_name: n.trim() }))
-        : [];
-      return createList({ goal: goal.trim(), items });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['shopping'] });
-      setShowCreate(false);
-      setGoal('');
-      setNewItem('');
-    },
-    onError: (err: Error) => Alert.alert('Error', err.message),
-  });
-
-  const completeMutation = useMutation({
-    mutationFn: () => completeList(data!.list_id),
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['shopping'] });
-      Alert.alert(
-        'List Complete',
-        `${result.items_added.length} items added to inventory. ${result.items_skipped} skipped.`,
-      );
-    },
-    onError: (err: Error) => Alert.alert('Error', err.message),
-  });
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+      setBoughtItemIds(new Set());
+    }, [refetch])
+  );
 
   const hasActiveList = data && data.list_id && data.list_id.length > 0;
   const items = data?.items ?? [];
 
-  const renderItem = ({ item }: { item: ShoppingListItemWire }) => (
-    <View style={styles.itemCard}>
-      <View style={[styles.priorityDot, { backgroundColor: PRIORITY_COLORS[item.priority] || '#666' }]} />
-      <View style={styles.itemInfo}>
-        <Text style={[styles.itemName, item.status === 'bought' && styles.bought]}>
-          {item.canonical_name}
-        </Text>
-        <Text style={styles.itemDetail}>
-          {item.requested_quantity ? `${item.requested_quantity} ${item.unit || ''}` : ''}
-          {item.reason ? ` — ${item.reason}` : ''}
-        </Text>
-      </View>
-      <Text style={styles.priority}>{item.priority}</Text>
-    </View>
-  );
+  function handleCreate() {
+    const parsed: ShoppingItemInput[] = newItems
+      .split(',')
+      .map((n) => n.trim())
+      .filter(Boolean)
+      .map((canonical_name) => ({ canonical_name }));
 
-  if (isLoading && !data) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#6366f1" />
-      </View>
+    create.mutate(
+      { goal: goal.trim(), items: parsed },
+      {
+        onSuccess: () => {
+          hapticSuccess();
+          setShowCreate(false);
+          setGoal('');
+          setNewItems('');
+          setBoughtItemIds(new Set());
+        },
+      }
     );
+  }
+
+  function handleComplete() {
+    if (!data?.list_id) return;
+    complete.mutate(
+      { listId: data.list_id, boughtItemIds: Array.from(boughtItemIds) },
+      {
+        onSuccess: (result) => {
+          hapticSuccess();
+          setBoughtItemIds(new Set());
+          const added = result.items_added.length;
+          const skipped = result.items_skipped;
+          Alert.alert(
+            'List complete ✓',
+            `${added} item${added !== 1 ? 's' : ''} added to pantry.${skipped > 0 ? ` ${skipped} skipped.` : ''}`
+          );
+        },
+      }
+    );
+  }
+
+  function handleToggleBought(itemId: string, isBought: boolean) {
+    hapticSuccess();
+
+    // 1. Optimistic UI
+    qc.setQueryData(['shopping', 'active'], (old: unknown) => {
+      if (!old || typeof old !== 'object') return old;
+      const list = old as Record<string, unknown>;
+      const oldItems = (list.items ?? []) as Array<Record<string, unknown>>;
+      return {
+        ...list,
+        items: oldItems.map((it: Record<string, unknown>) =>
+          it.item_id === itemId ? { ...it, status: isBought ? 'bought' : 'pending' } : it
+        ),
+      };
+    });
+
+    // 2. Track locally
+    setBoughtItemIds((prev) => {
+      const next = new Set(prev);
+      if (isBought) next.add(itemId);
+      else next.delete(itemId);
+      return next;
+    });
+
+    // 3. Persist to backend when checking (not unchecking)
+    if (data?.list_id && isBought) {
+      markPurchased.mutate({ listId: data.list_id, itemIds: [itemId] });
+    }
   }
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <Text style={styles.header}>Shopping</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>Shop</Text>
         {!showCreate && (
-          <TouchableOpacity style={styles.addBtn} onPress={() => setShowCreate(true)}>
-            <Ionicons name="add" size={24} color="#818cf8" />
-          </TouchableOpacity>
+          <Button
+            title="New list"
+            variant="primary"
+            size="sm"
+            onPress={() => setShowCreate(true)}
+          />
         )}
       </View>
 
       {showCreate && (
-        <View style={styles.createForm}>
-          <TextInput
-            style={styles.input}
+        <Card elevated style={styles.createCard}>
+          <Input
             placeholder="Shopping goal (optional)"
-            placeholderTextColor="#666"
             value={goal}
             onChangeText={setGoal}
+            style={{ marginBottom: spacing[3] }}
           />
-          <TextInput
-            style={styles.input}
-            placeholder="Items: milk, eggs, bread (comma-separated)"
-            placeholderTextColor="#666"
-            value={newItem}
-            onChangeText={setNewItem}
+          <Input
+            placeholder="milk, eggs, bread, rice"
+            value={newItems}
+            onChangeText={setNewItems}
+            style={{ marginBottom: spacing[3] }}
           />
-          <TouchableOpacity
-            style={[styles.saveBtn, createMutation.isPending && styles.disabled]}
-            onPress={() => createMutation.mutate()}
-            disabled={createMutation.isPending}
-          >
-            <Text style={styles.saveText}>
-              {createMutation.isPending ? 'Creating...' : 'Create Shopping List'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowCreate(false)}>
-            <Text style={styles.cancelText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
+          <View style={styles.createActions}>
+            <Button
+              title={create.isPending ? 'Creating...' : 'Create List'}
+              loading={create.isPending}
+              disabled={!newItems.trim() && !goal.trim()}
+              onPress={handleCreate}
+              style={{ flex: 1 }}
+            />
+            <Button
+              title="Cancel"
+              variant="ghost"
+              onPress={() => setShowCreate(false)}
+            />
+          </View>
+        </Card>
       )}
 
-      {!hasActiveList && !showCreate && (
-        <View style={styles.empty}>
-          <Ionicons name="cart-outline" size={48} color="#444" />
-          <Text style={styles.emptyText}>No active shopping list</Text>
-          <Text style={styles.emptySubtext}>Tap + to create one</Text>
+      {isLoading && !data ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={semantic.primary} />
         </View>
+      ) : !hasActiveList ? (
+        <EmptyState
+          motif
+          title="No list started."
+          message={"Tap \"New list\" and tell us what you need - or just paste a note."}
+          action={{ label: 'New list', onPress: () => setShowCreate(true) }}
+        />
+      ) : (
+        <FlatList
+          data={items}
+          keyExtractor={(item) => item.item_id}
+          renderItem={({ item }) => <ShoppingItemRow item={item} onToggleBought={handleToggleBought} />}
+          refreshControl={
+            <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={semantic.primary} />
+          }
+          contentContainerStyle={styles.list}
+          ListHeaderComponent={
+            data!.goal ? (
+              <Text style={styles.goal}>{data!.goal}</Text>
+            ) : null
+          }
+        />
       )}
 
       {hasActiveList && (
-        <>
-          {data!.goal ? <Text style={styles.goal}>🎯 {data!.goal}</Text> : null}
-          <FlatList
-            data={items}
-            keyExtractor={(item) => item.item_id}
-            renderItem={renderItem}
-            refreshControl={
-              <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#818cf8" />
-            }
-            contentContainerStyle={styles.list}
+        <View style={styles.bottomBar}>
+          <Button
+            title={complete.isPending ? 'Completing...' : `Complete list → Pantry${boughtItemIds.size > 0 ? ` (${boughtItemIds.size})` : ''}`}
+            loading={complete.isPending}
+            onPress={handleComplete}
+            variant="primary"
+            size="lg"
           />
-          <View style={styles.bottomBar}>
-            <TouchableOpacity
-              style={styles.completeBtn}
-              onPress={() => completeMutation.mutate()}
-              disabled={completeMutation.isPending}
-            >
-              <Text style={styles.completeText}>
-                {completeMutation.isPending ? 'Completing...' : 'Complete List → Pantry'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </>
+        </View>
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f0f23' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f0f23' },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 60, paddingBottom: 12 },
-  header: { fontSize: 28, fontWeight: '700', color: '#e0e0ff' },
-  addBtn: { padding: 8 },
-  createForm: { backgroundColor: '#1a1a3e', marginHorizontal: 16, borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#2a2a5e', gap: 12 },
-  input: { backgroundColor: '#0f0f23', borderRadius: 8, padding: 12, fontSize: 14, color: '#e0e0ff', borderWidth: 1, borderColor: '#2a2a5e' },
-  saveBtn: { backgroundColor: '#6366f1', borderRadius: 8, padding: 12, alignItems: 'center' },
-  disabled: { opacity: 0.5 },
-  saveText: { color: '#fff', fontWeight: '600' },
-  cancelText: { color: '#8888bb', textAlign: 'center', padding: 8 },
-  goal: { fontSize: 14, color: '#22c55e', paddingHorizontal: 16, paddingBottom: 8, fontWeight: '500' },
-  list: { padding: 16, paddingTop: 0 },
-  itemCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a3e', borderRadius: 10, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: '#2a2a5e' },
-  priorityDot: { width: 4, height: 32, borderRadius: 2, marginRight: 12 },
-  itemInfo: { flex: 1 },
-  itemName: { fontSize: 16, fontWeight: '600', color: '#e0e0ff' },
-  bought: { textDecorationLine: 'line-through', color: '#666' },
-  itemDetail: { fontSize: 12, color: '#8888bb', marginTop: 2 },
-  priority: { fontSize: 11, color: '#666', fontWeight: '500', textTransform: 'uppercase' },
-  bottomBar: { padding: 16, borderTopWidth: 1, borderTopColor: '#2a2a5e' },
-  completeBtn: { backgroundColor: '#22c55e', borderRadius: 10, padding: 16, alignItems: 'center' },
-  completeText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  empty: { alignItems: 'center', paddingTop: 80, gap: 8 },
-  emptyText: { fontSize: 18, color: '#666', fontWeight: '600' },
-  emptySubtext: { fontSize: 14, color: '#555' },
+  container: { flex: 1, backgroundColor: semantic.background },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing[4],
+    paddingTop: 64,
+    paddingBottom: spacing[3],
+  },
+  title: {
+    fontSize: typography.sizes['2xl'].size,
+    fontWeight: typography.weight.bold,
+    color: semantic.textPrimary,
+  },
+  createCard: {
+    marginHorizontal: spacing[4],
+    marginBottom: spacing[4],
+    padding: spacing[4],
+  },
+  createActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+  },
+  goal: {
+    fontSize: typography.sizes.sm.size,
+    color: semantic.textSecondary,
+    marginHorizontal: spacing[4],
+    marginBottom: spacing[2],
+  },
+  list: { paddingBottom: spacing[4] },
+  bottomBar: {
+    padding: spacing[4],
+    borderTopWidth: 1,
+    borderTopColor: semantic.divider,
+    backgroundColor: semantic.surface,
+  },
 });

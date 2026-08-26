@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch, mock_open
-
-import pytest
+from unittest.mock import MagicMock, mock_open, patch
 
 from shopstack.config import Settings
 from shopstack.providers.registry import ProviderRegistry
@@ -50,12 +48,11 @@ class TestOpenAIProviderInit:
 
     def test_not_available_when_api_key_missing(self):
         """OpenAIProvider should not be available without an API key."""
-        with _mock_openai_available():
-            with _mock_missing_api_key():
-                provider = _get_openai_provider()
-                assert not provider.available
-                assert provider.error is not None
-                assert "api key" in (provider.error or "").lower()
+        with _mock_openai_available(), _mock_missing_api_key():
+            provider = _get_openai_provider()
+            assert not provider.available
+            assert provider.error is not None
+            assert "api key" in (provider.error or "").lower()
 
     def test_available_with_key_and_deps(self):
         """OpenAIProvider should be available with API key and package installed."""
@@ -136,6 +133,7 @@ class TestOpenAIProviderComplete:
                 assert result["model"] == "gpt-4o"
                 assert "usage" in result
                 assert "cost" in result
+                assert provider.last_completion_meta["model"] == "gpt-4o"
                 call_kwargs = mock_client.chat.completions.create.call_args[1]
                 assert call_kwargs["max_tokens"] == 50
                 assert call_kwargs["temperature"] == 0.5
@@ -156,6 +154,65 @@ class TestOpenAIProviderComplete:
                 provider = _get_openai_provider(api_key="sk-test-key")
                 result = provider.complete("Hi", model="gpt-4o-mini")
                 assert result["model"] == "gpt-4o-mini"
+
+    def test_complete_gpt5_uses_completion_token_parameter(self):
+        """GPT-5 family models use the current completion token parameter."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Hi"
+        mock_response.usage = MagicMock()
+        mock_response.usage.prompt_tokens = 2
+        mock_response.usage.completion_tokens = 3
+        mock_client.chat.completions.create.return_value = mock_response
+
+        with _mock_openai_available():
+            with patch("openai.OpenAI", return_value=mock_client):
+                provider = _get_openai_provider(api_key="sk-test-key")
+                provider.complete("Hi", model="gpt-5.6-luna", max_tokens=64)
+
+        call_kwargs = mock_client.chat.completions.create.call_args[1]
+        assert call_kwargs["max_completion_tokens"] == 64
+        assert "max_tokens" not in call_kwargs
+        assert "temperature" not in call_kwargs
+
+    def test_plan_preserves_parser_diagnostics_for_compatibility_response(self):
+        """A prose fallback remains list-compatible but is diagnosable upstream."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "plain prose, not an action plan"
+        mock_response.usage = MagicMock()
+        mock_response.usage.prompt_tokens = 2
+        mock_response.usage.completion_tokens = 5
+        mock_client.chat.completions.create.return_value = mock_response
+
+        with _mock_openai_available():
+            with patch("openai.OpenAI", return_value=mock_client):
+                provider = _get_openai_provider(api_key="sk-test-key")
+                result = provider.plan({"prompt": "plan", "question": "plan"})
+
+        assert result == [{"tool": "respond", "args": {"message": "plain prose, not an action plan"}}]
+        assert provider.last_plan_diagnostics["status"] == "fallback_respond"
+
+    def test_plan_uses_bounded_budget_for_nested_tool_arguments(self):
+        """Planner output budget leaves room for nested shopping-list JSON."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = (
+            '[{"tool":"create_or_update_shopping_list","args":{"items":[]}}]'
+        )
+        mock_response.usage = MagicMock(prompt_tokens=2, completion_tokens=3)
+        mock_client.chat.completions.create.return_value = mock_response
+
+        with _mock_openai_available():
+            with patch("openai.OpenAI", return_value=mock_client):
+                provider = _get_openai_provider(api_key="sk-test-key", model="gpt-5.6-luna")
+                provider.plan({"prompt": "plan", "question": "plan"})
+
+        call_kwargs = mock_client.chat.completions.create.call_args[1]
+        assert call_kwargs["max_completion_tokens"] == 256
 
     def test_complete_api_error(self):
         """complete() returns error dict on API failure."""
@@ -340,15 +397,14 @@ class TestOpenAIRegistryWiring:
 
     def test_openai_backend_not_available_without_key(self):
         """OpenAI backend is not available when key is missing (deps mocked)."""
-        with _mock_openai_available():
-            with _mock_missing_api_key():
-                settings = Settings(
-                    _env_file=None,
-                    off_the_grid=False,
-                    planner_backend="openai",
-                )
-                registry = ProviderRegistry(settings)
-                planner = registry.planner
-                assert planner is not None
-                assert not planner.available
-                assert "api key" in (planner.error or "").lower()
+        with _mock_openai_available(), _mock_missing_api_key():
+            settings = Settings(
+                _env_file=None,
+                off_the_grid=False,
+                planner_backend="openai",
+            )
+            registry = ProviderRegistry(settings)
+            planner = registry.planner
+            assert planner is not None
+            assert not planner.available
+            assert "api key" in (planner.error or "").lower()

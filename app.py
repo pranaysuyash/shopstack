@@ -16,10 +16,12 @@ from shopstack.app_context import (
     tools,
 )
 from shopstack.services.health_mount import mount_health_endpoint
+from shopstack.services.onboarding import should_show_onboarding
 from shopstack.ui.pwa_mount import mount_pwa_static
 from shopstack.ui.security_middleware import (
     install_permissions_policy_middleware,
 )
+from shopstack.ui.tabs.onboarding import build_onboarding_wizard
 
 
 def build_app(
@@ -41,6 +43,7 @@ def build_app(
 
 if __name__ == "__main__":
     import argparse
+
     import uvicorn
 
     from shopstack.server import build_fastapi_app
@@ -65,12 +68,14 @@ __all__ = [
     "APP_DESCRIPTION",
     "APP_NAME",
     "build_app",
+    "build_onboarding_wizard",
     "current_user_id",
     "db",
-    "planner",
-    "providers",
-    "tools",
+    "install_permissions_policy_middleware",
     "mount_health_endpoint",
     "mount_pwa_static",
-    "install_permissions_policy_middleware",
+    "planner",
+    "providers",
+    "should_show_onboarding",
+    "tools",
 ]

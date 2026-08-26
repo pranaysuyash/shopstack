@@ -16,7 +16,6 @@ learning loop:
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any
 
 import pytest
 
@@ -34,7 +33,6 @@ from shopstack.services.feedback import (
     summarize_corrections,
     validate_correction,
 )
-
 
 # ── Fake DB ────────────────────────────────────────────────────────
 
@@ -371,7 +369,7 @@ class TestGetCorrectionsForItem:
 
 class TestSummarizeCorrections:
     def test_empty_corrections(self):
-        assert summarize_corrections([]) == "No corrections recorded."
+        assert summarize_corrections([]) == "No corrections recorded. Try reconciling an item to generate one."
 
     def test_one_correction(self):
         c = CorrectionEvent(correction_type="preference", 

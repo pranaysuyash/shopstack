@@ -22,7 +22,7 @@ import gradio as gr
 logger = logging.getLogger(__name__)
 
 
-def mount_v1_routes(gradio_app: gr.Blocks) -> None:  # noqa: ANN001
+def mount_v1_routes(gradio_app: gr.Blocks) -> None:
     """Mount the v1 surface + alias the old endpoints.
 
     Idempotent. Logs but never raises.
@@ -36,17 +36,18 @@ def mount_v1_routes(gradio_app: gr.Blocks) -> None:  # noqa: ANN001
     from .routers import (
         account_router,
         auth_router,
-        dashboard_router,
         command_router,
+        corrections_router,
+        dashboard_router,
         household_router,
         intelligence_router,
         inventory_router,
         meta_router,
-        corrections_router,
+        portability_router,
         search_router,
-        traces_router,
         shopping_router,
         sms_router,
+        traces_router,
     )
 
     # The routers each declare their own prefix ("/meta", "/auth",
@@ -65,10 +66,18 @@ def mount_v1_routes(gradio_app: gr.Blocks) -> None:  # noqa: ANN001
         (intelligence_router, "/api/v1"),
         (account_router, "/api/v1"),
         (corrections_router, "/api/v1"),
+        (portability_router, "/api/v1"),
         (sms_router, "/api/v1"),
     ):
         try:
-            fastapi_app.include_router(router, prefix=prefix)
+            from fastapi import Depends
+
+            from shopstack.api.v1.deps import db_transaction_cleanup
+            fastapi_app.include_router(
+                router,
+                prefix=prefix,
+                dependencies=[Depends(db_transaction_cleanup)],
+            )
             logger.info("v1 router mounted under %s", prefix)
         except Exception as exc:  # noqa: BLE001
             logger.warning("v1 router %s mount failed: %s", prefix, exc)
@@ -98,6 +107,43 @@ def mount_v1_routes(gradio_app: gr.Blocks) -> None:  # noqa: ANN001
     except Exception as exc:  # noqa: BLE001
         logger.debug("idempotency middleware mount failed: %s", exc)
 
+    # ── 4. legacy /api/* aliases (Sunset-tagged) ───────────
+    # These flat paths exist for backward-compat with external
+    # orchestrators.  They are thin clones of the versioned
+    # endpoints and are NOT documented in OpenAPI.
+    try:
+        from starlette.routing import Route as _Route
+
+        def _clone_route(src_route: _Route, new_path: str) -> _Route:
+            return _Route(
+                new_path,
+                endpoint=src_route.endpoint,
+                methods=list(src_route.methods or []),
+                name=f"legacy_{src_route.name or 'route'}",
+                include_in_schema=False,
+            )
+
+        _legacy_aliases = [
+            (meta_router,        "/meta/whoami",              "/api/whoami"),
+            (account_router,     "/account/undo",             "/api/undo"),
+            (account_router,     "/account/privacy/retention-summary", "/api/retention_summary"),
+            (account_router,     "/account/privacy/purge",    "/api/purge_user_data"),
+            (corrections_router, "/corrections",              "/api/corrections"),
+            (intelligence_router, "/intelligence/recurring",  "/api/recurring"),
+            (intelligence_router, "/intelligence/mealplan",   "/api/mealplan"),
+            (search_router,      "/search/global",            "/api/global_search"),
+        ]
+        for src_router, internal_path, alias_path in _legacy_aliases:
+            target = next(
+                (r for r in src_router.routes
+                 if isinstance(r, _Route) and r.path == internal_path),
+                None,
+            )
+            if target is not None:
+                fastapi_app.routes.append(_clone_route(target, alias_path))
+                logger.debug("legacy alias %s → %s", alias_path, internal_path)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("legacy alias block failed: %s", exc)
 
 
 # ── internal ──────────────────────────────────────────────────
@@ -111,5 +157,6 @@ def _get_fastapi_app(gradio_app: gr.Blocks) -> Any:
     we return ``None`` and the caller skips the mount.
     """
     return getattr(gradio_app, "app", None)
+
 
 __all__ = ["mount_v1_routes"]

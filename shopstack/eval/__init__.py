@@ -13,14 +13,6 @@ Two complementary layers:
 
 See ``Docs/architecture/MODEL_OUTPUT_EVAL.md`` for the design.
 """
-from shopstack.eval.bench_results import (
-    BASELINE_PATH,
-    BenchmarkResult,
-    RegressionReport,
-    check_regression,
-    load_baseline,
-    save_result,
-)
 from shopstack.eval.aggregator import (
     DEFAULT_ROUTE_BASELINE_PATH,
     DEFAULT_TOLERANCE,
@@ -34,6 +26,14 @@ from shopstack.eval.aggregator import (
     route_regression_report,
     save_route_baseline,
 )
+from shopstack.eval.bench_results import (
+    BASELINE_PATH,
+    BenchmarkResult,
+    RegressionReport,
+    check_regression,
+    load_baseline,
+    save_result,
+)
 from shopstack.eval.checks import (
     DEFAULT_COST_BUDGET_USD,
     DEFAULT_DUPLICATE_THRESHOLD,
@@ -44,6 +44,7 @@ from shopstack.eval.checks import (
     DEFAULT_MODEL_CONTEXT_TOKENS,
     EvalCheckRegistry,
     check_cost_budget,
+    check_execution_success,
     check_latency_budget,
     check_length_sanity,
     check_non_duplicate,
@@ -61,13 +62,14 @@ from shopstack.eval.recorder import (
     CAP_STT,
     CAP_TTS,
     CAP_VISION_PRODUCT_RECOGNITION,
-    OUTCOMES,
     OUTCOME_BLOCKED,
     OUTCOME_EMPTY,
     OUTCOME_EXCEPTION,
     OUTCOME_PARSE_ERROR,
     OUTCOME_SUCCESS,
     OUTCOME_TIMEOUT,
+    OUTCOME_TOOL_FAILURE,
+    OUTCOMES,
     SHAPE_BYTES,
     SHAPE_RAW,
     SHAPE_STRUCTURED,
@@ -116,6 +118,7 @@ __all__ = [
     "OUTCOME_PARSE_ERROR",
     "OUTCOME_SUCCESS",
     "OUTCOME_TIMEOUT",
+    "OUTCOME_TOOL_FAILURE",
     "SHAPE_BYTES",
     "SHAPE_RAW",
     "SHAPE_STRUCTURED",
@@ -133,6 +136,7 @@ __all__ = [
     "DEFAULT_MODEL_CONTEXT_TOKENS",
     "EvalCheckRegistry",
     "check_cost_budget",
+    "check_execution_success",
     "check_latency_budget",
     "check_length_sanity",
     "check_non_duplicate",

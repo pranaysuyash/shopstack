@@ -4,7 +4,7 @@ import json
 import logging
 import sqlite3
 import threading
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -12,24 +12,24 @@ from shopstack.config import settings
 from shopstack.schemas.models import (
     CorrectionEvent,  # 2026-06-15 — Recent corrections panel
     FindFeedback,
+    HouseholdLocation,
     HouseholdObject,
     InventoryEvent,
     InventoryLot,
-    HouseholdLocation,
     MovementEvent,
     ObjectNote,
     ObjectSighting,
-    new_id,
+    PreferenceSignal,
     PriceObservation,
     PurchaseEvent,
+    ReconciliationEvent,
     ShoppingList,
     ShoppingListItem,
     Store,
+    ToolCall as _ToolCall,
     Trace,
-    ReconciliationEvent,
-    PreferenceSignal,
+    new_id,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -47,19 +47,63 @@ class Database:
         # Each thread opens its own connection to the same file;
         # WAL mode serialises writes across them.
         self._local = threading.local()
+        self._connections: list[sqlite3.Connection] = []
+        self._connections_lock = threading.Lock()
         self._init_lock = threading.Lock()
         self._init_db()
 
     @property
     def conn(self) -> sqlite3.Connection:
         c = getattr(self._local, "conn", None)
+
+        # Fast check if the connection was forcefully closed from another thread
+        if c is not None:
+            try:
+                c.isolation_level
+            except sqlite3.ProgrammingError:
+                c = None
+
         if c is None:
-            c = sqlite3.connect(self.db_path, check_same_thread=True)
+            # Must set check_same_thread=False so the main thread can force-close
+            # leaked connections from background threads during test teardown.
+            c = sqlite3.connect(self.db_path, check_same_thread=False)
             c.row_factory = sqlite3.Row
             c.execute("PRAGMA journal_mode=WAL")
             c.execute("PRAGMA foreign_keys=ON")
             self._local.conn = c
+            with self._connections_lock:
+                self._connections.append(c)
         return c
+
+    def force_close_all_connections(self) -> None:
+        """Force-close all created connections to reclaim leaked WAL write locks.
+
+        Used primarily during test teardown to forcefully abort uncommitted
+        transactions left open by failing anyio worker threads.
+        """
+        with self._connections_lock:
+            for c in self._connections:
+                try:
+                    c.close()
+                except Exception:
+                    pass
+            self._connections.clear()
+
+        # Clear the calling thread's reference if present.
+        if hasattr(self._local, "conn"):
+            del self._local.conn
+
+    def __del__(self) -> None:
+        """Ensure all connections are explicitly closed when the Database instance is GC'd.
+
+        This prevents leaked WAL write locks from tests or services that locally
+        instantiate `Database(path)` and let it fall out of scope, as CPython's
+        sqlite3.Connection GC does not guarantee transaction rollback.
+        """
+        try:
+            self.force_close_all_connections()
+        except Exception:
+            pass
 
     def _init_db(self) -> None:
         c = self.conn
@@ -470,6 +514,7 @@ class Database:
         self._migrate_market_snapshot_schema()
         self._migrate_add_user_scoping()
         self._migrate_backfill_household_owners()
+        self._migrate_inventory_nutrition_column()
         self._seed_locations()
         self._seed_default_household()
         self._apply_trace_retention_policy()
@@ -525,6 +570,15 @@ class Database:
             )
         if rows:
             self.conn.commit()
+
+    def _migrate_inventory_nutrition_column(self) -> None:
+        rows = self.conn.execute("PRAGMA table_info(inventory_lots)").fetchall()
+        existing_cols = {r["name"] for r in rows}
+        if "nutrition_per_100g" not in existing_cols:
+            try:
+                self.conn.execute("ALTER TABLE inventory_lots ADD COLUMN nutrition_per_100g TEXT")
+            except sqlite3.OperationalError:
+                pass
 
     # ── Active household tracking ────────────────────────────────
 
@@ -962,18 +1016,21 @@ class Database:
                (lot_id, canonical_name, display_name, category, quantity, unit,
                 storage_location_id, purchase_date, estimated_use_by_date,
                 label_expiry_date, opened_date, price_paid, currency,
-                source_event_id, confidence, image_crop_path, status, created_at, updated_at, user_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                source_event_id, confidence, image_crop_path, nutrition_per_100g,
+                status, created_at, updated_at, user_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 lot.lot_id, lot.canonical_name, lot.display_name, lot.category,
                 lot.quantity, lot.unit, lot.storage_location_id,
                 _d(lot.purchase_date), _d(lot.estimated_use_by_date),
                 _d(lot.label_expiry_date), _d(lot.opened_date),
                 lot.price_paid, lot.currency, lot.source_event_id,
-                lot.confidence, lot.image_crop_path, lot.status,
-                 lot.created_at.isoformat(), lot.updated_at.isoformat(),
-                 target_household,
-             ),
+                lot.confidence, lot.image_crop_path,
+                json.dumps(lot.nutrition_per_100g) if lot.nutrition_per_100g else None,
+                lot.status,
+                lot.created_at.isoformat(), lot.updated_at.isoformat(),
+                target_household,
+            ),
         )
         self.conn.commit()
         # Register for undo (Phase 12 R3.1). The inverse is
@@ -1005,7 +1062,7 @@ class Database:
         fields = ["canonical_name", "display_name", "category", "quantity", "unit",
                   "storage_location_id", "purchase_date", "estimated_use_by_date",
                   "label_expiry_date", "opened_date", "price_paid", "currency",
-                  "confidence", "image_crop_path", "status", "user_id"]
+                  "confidence", "image_crop_path", "nutrition_per_100g", "status", "user_id"]
         set_clauses = []
         vals = []
         for f in fields:
@@ -2032,7 +2089,7 @@ class Database:
     # --- Market Snapshot Records ---
 
     def save_market_snapshot(self, snapshot) -> bool:
-        from shopstack.market.schema import NormalizedMarketRecord, MarketSnapshot
+        from shopstack.market.schema import MarketSnapshot, NormalizedMarketRecord
         if not isinstance(snapshot, MarketSnapshot):
             return False
 
@@ -2050,7 +2107,7 @@ class Database:
                 len(snapshot.normalized_records),
                 json.dumps(snapshot.analytics or {}, sort_keys=True),
                 snapshot.analytics.get("freshness", "unknown") if isinstance(snapshot.analytics, dict) else "unknown",
-                datetime.now(timezone.utc).isoformat(),
+                datetime.now(UTC).isoformat(),
             ),
         )
         self.conn.execute("DELETE FROM market_record_components WHERE record_id IN (SELECT record_id FROM market_records WHERE snapshot_id = ?)", (snapshot.snapshot_id,))
@@ -2289,28 +2346,13 @@ class Database:
         return records
 
     def close(self) -> None:
-        c = getattr(self._local, "conn", None)
-        if c is not None:
-            c.close()
-            self._local.conn = None
+        self.force_close_all_connections()
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
         self.close()
-
-    def __del__(self):
-        # Defensive cleanup: ensure sqlite connections are closed even if callers
-        # forget an explicit ``close()`` (important during module reloads and
-        # test teardown paths that recreate app_context).
-        try:
-            self.close()
-        except Exception:
-            # Never raise during finalization; mirror sqlite's permissive close
-            # semantics when objects are already partially torn down.
-            pass
-
 
 def _d(dt: date | str | None) -> str | None:
     if dt is None:
@@ -2321,6 +2363,13 @@ def _d(dt: date | str | None) -> str | None:
 
 
 def _row_to_lot(row: sqlite3.Row) -> InventoryLot:
+    raw_nutrition = row["nutrition_per_100g"] if "nutrition_per_100g" in row.keys() else None
+    nutrition: dict | None = None
+    if raw_nutrition and isinstance(raw_nutrition, str):
+        try:
+            nutrition = json.loads(raw_nutrition)
+        except (json.JSONDecodeError, TypeError):
+            nutrition = None
     return InventoryLot(
         lot_id=row["lot_id"], canonical_name=row["canonical_name"],
         display_name=row["display_name"], category=row["category"],
@@ -2332,7 +2381,8 @@ def _row_to_lot(row: sqlite3.Row) -> InventoryLot:
         opened_date=_parse_d(row["opened_date"]),
         price_paid=row["price_paid"], currency=row["currency"],
         source_event_id=row["source_event_id"], confidence=row["confidence"],
-        image_crop_path=row["image_crop_path"], status=row["status"],
+        image_crop_path=row["image_crop_path"],
+        nutrition_per_100g=nutrition, status=row["status"],
         user_id=row["user_id"] if "user_id" in row.keys() else "",
         created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else datetime.now(),
         updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else datetime.now(),
@@ -2566,9 +2616,6 @@ def _row_to_find_feedback(row: sqlite3.Row) -> FindFeedback:
         notes=row["notes"],
         timestamp=datetime.fromisoformat(row["timestamp"]) if row["timestamp"] else datetime.now(),
     )
-
-
-from shopstack.schemas.models import ToolCall as _ToolCall  # noqa: E402 — circular import
 
 
 def _coerce_tool_call_payload(d: dict) -> dict:

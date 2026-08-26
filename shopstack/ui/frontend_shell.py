@@ -29,37 +29,84 @@ def render_frontend_shell_html() -> str:
   <title>__APP_TITLE__</title>
   <meta name="description" content="__APP_SUBTITLE__">
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#1a1814">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400..700&family=Rubik:wght@300..700&family=JetBrains+Mono:wght@400..600&display=swap" rel="stylesheet">
+  <meta name="theme-color" content="#6F8A6A">
   <style>
+    /* ShopStack Warm Pantry Tokens — aligned with shopstack-mobile/src/theme/tokens.ts */
     :root {
-      --bg: #121410;
-      --bg-elevated: #1a1c17;
-      --bg-card: #1e211b;
-      --bg-soft: #282b24;
-      --bg-hover: #2a2d26;
-      --text: #eee8db;
-      --text-muted: #bbb09e;
-      --text-dim: #887e6e;
-      --accent: #d4a34b;
-      --accent-strong: #edc880;
-      --accent-cool: #6f8a6a;
-      --accent-red: #d4786a;
-      --success: #7fb083;
-      --warn: #d4a34b;
-      --border: rgba(212, 163, 75, 0.1);
-      --border-strong: rgba(212, 163, 75, 0.2);
-      --border-focus: rgba(237, 200, 128, 0.5);
-      --radius: 8px;
+      /* Palette */
+      --paper-50: #FFFCF7; --paper-100: #FFF8ED; --paper-200: #F5EDE0; --paper-300: #EBE2D5;
+      --paper-400: #D8CFC2; --paper-500: #A8A199; --paper-600: #6B655F; --paper-700: #4A4641;
+      --paper-800: #2E2C28; --paper-900: #1A1814;
+      --green-50: #F1F8F0; --green-100: #DDEEDD; --green-200: #B6D5B4; --green-300: #8EB98C;
+      --green-400: #6F8A6A; --green-500: #4F6B4C; --green-600: #3B5239; --green-700: #2A3D28;
+      --green-800: #1E2B1D; --green-900: #121A12;
+      --terracotta-50: #FFF4EE; --terracotta-100: #FFE3D5; --terracotta-200: #FFC7AA;
+      --terracotta-300: #FFA47C; --terracotta-400: #E58555; --terracotta-500: #C96B3E;
+      --terracotta-600: #A3502E; --terracotta-700: #7F3A20; --terracotta-800: #5C2815;
+      --terracotta-900: #3B160B;
+      --amber-50: #FFFBEB; --amber-100: #FEF3C7; --amber-200: #FDE68A; --amber-300: #FCD34D;
+      --amber-400: #D4A34B; --amber-500: #B58430; --amber-600: #966520; --amber-700: #714B17;
+      --amber-800: #523612; --amber-900: #33210B;
+      --berry-400: #DC4444; --berry-500: #B91C1C;
+      --espresso-400: #8B7A6A; --espresso-500: #6B5D50; --espresso-600: #4F443A;
+      --espresso-700: #3A3129; --espresso-800: #271F1A; --espresso-900: #1A1512;
+
+      /* Semantic */
+      --bg: var(--paper-50);
+      --bg-elevated: var(--paper-100);
+      --bg-card: #FFFFFF;
+      --bg-soft: var(--paper-100);
+      --bg-hover: var(--paper-200);
+      --text: var(--espresso-800);
+      --text-muted: var(--espresso-500);
+      --text-dim: var(--espresso-400);
+      --accent: var(--amber-400);
+      --accent-strong: var(--amber-500);
+      --accent-cool: var(--green-400);
+      --accent-red: var(--terracotta-500);
+      --success: var(--green-500);
+      --warn: var(--amber-400);
+      --border: var(--paper-300);
+      --border-strong: var(--paper-400);
+      --border-focus: rgba(111, 138, 106, 0.5);
+      --radius: 10px;
       --radius-sm: 6px;
       --radius-pill: 999px;
-      --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
-      --shadow-lg: 0 4px 12px rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.25);
-      --font-display: "Sora", system-ui, sans-serif;
-      --font-body: "Rubik", system-ui, sans-serif;
-      --font-mono: "JetBrains Mono", ui-monospace, monospace;
+      --shadow: 0 1px 2px rgba(26, 24, 20, 0.06), 0 1px 3px rgba(26, 24, 20, 0.08);
+      --shadow-lg: 0 4px 12px rgba(26, 24, 20, 0.08), 0 2px 4px rgba(26, 24, 20, 0.06);
+      --font-display: Georgia, "Times New Roman", serif;
+      --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+      /* Decision badges */
+      --badge-buy: var(--green-500);
+      --badge-buy-fg: var(--paper-50);
+      --badge-use-soon: var(--amber-100);
+      --badge-use-soon-fg: var(--espresso-800);
+      --badge-skip: var(--paper-200);
+      --badge-skip-fg: var(--espresso-500);
+      --badge-compare: var(--paper-200);
+      --badge-compare-fg: var(--espresso-500);
+      --badge-confirm: var(--terracotta-500);
+      --badge-confirm-fg: var(--paper-50);
+      --badge-watch: var(--green-100);
+      --badge-watch-fg: var(--espresso-800);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: var(--paper-900);
+        --bg-elevated: var(--paper-800);
+        --bg-card: var(--paper-800);
+        --bg-soft: var(--paper-700);
+        --bg-hover: var(--paper-700);
+        --text: var(--paper-100);
+        --text-muted: var(--paper-400);
+        --text-dim: var(--paper-500);
+        --border: rgba(212, 163, 75, 0.12);
+        --border-strong: rgba(212, 163, 75, 0.18);
+        --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+        --shadow-lg: 0 4px 12px rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.25);
+      }
     }
     * { box-sizing: border-box; }
     html, body {
@@ -94,10 +141,10 @@ def render_frontend_shell_html() -> str:
     .brand-mark {
       width: 32px; height: 32px;
       border-radius: var(--radius);
-      background: linear-gradient(135deg, var(--accent), var(--accent-cool));
+      background: var(--accent-cool);
       display: flex; align-items: center; justify-content: center;
       font-family: var(--font-display); font-weight: 700; font-size: 1rem;
-      color: #121410; flex-shrink: 0;
+      color: var(--paper-50); flex-shrink: 0;
     }
     .brand-text h1 {
       margin: 0;
@@ -128,17 +175,9 @@ def render_frontend_shell_html() -> str:
     .story-panel {
       position: relative;
       overflow: hidden;
-      background:
-        radial-gradient(circle at top right, rgba(212, 163, 75, 0.16), transparent 38%),
-        radial-gradient(circle at 12% 18%, rgba(111, 138, 106, 0.14), transparent 30%),
-        var(--bg-card);
-    }
-    .story-panel::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(120deg, rgba(255,255,255,0.02), transparent 30%, rgba(255,255,255,0.015));
-      pointer-events: none;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
     }
     .story-panel-inner {
       position: relative;
@@ -183,7 +222,7 @@ def render_frontend_shell_html() -> str:
       text-align: left;
       border: 1px solid var(--border);
       border-radius: calc(var(--radius) + 2px);
-      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      background: var(--bg-card);
       color: var(--text);
       padding: 14px;
       min-height: 132px;
@@ -192,7 +231,7 @@ def render_frontend_shell_html() -> str:
     .story-tile:hover {
       transform: translateY(-1px);
       border-color: var(--border-strong);
-      background: rgba(255,255,255,0.03);
+      background: var(--bg-soft);
     }
     .story-tile-head {
       display: flex;
@@ -234,6 +273,26 @@ def render_frontend_shell_html() -> str:
     .status-dot[data-tone="good"]::before { background: var(--success); }
     .status-dot[data-tone="warn"]::before { background: var(--warn); }
     .status-dot[data-tone="bad"]::before { background: var(--accent-red); }
+
+    /* Decision badge system — aligned with mobile decision tokens */
+    .decision {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      border-radius: var(--radius-pill);
+      font-size: 0.75rem;
+      font-weight: 600;
+      white-space: nowrap;
+      border: 1px solid transparent;
+    }
+    .decision-buy { background: var(--badge-buy); color: var(--badge-buy-fg); }
+    .decision-use-soon { background: var(--badge-use-soon); color: var(--badge-use-soon-fg); border-color: var(--amber-200); }
+    .decision-skip { background: var(--badge-skip); color: var(--badge-skip-fg); border-color: var(--paper-300); }
+    .decision-compare { background: var(--badge-compare); color: var(--badge-compare-fg); border-color: var(--paper-300); }
+    .decision-confirm { background: var(--badge-confirm); color: var(--badge-confirm-fg); }
+    .decision-watch { background: var(--badge-watch); color: var(--badge-watch-fg); border-color: var(--green-200); }
+    .decision-unknown { background: var(--bg-soft); color: var(--text-dim); border-color: var(--border); }
     .panel {
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -263,9 +322,9 @@ def render_frontend_shell_html() -> str:
       color: var(--text-dim);
       border: 1px solid var(--border);
     }
-    .panel-badge[data-tone="good"] { color: var(--success); border-color: rgba(127, 176, 131, 0.25); }
-    .panel-badge[data-tone="warn"] { color: var(--warn); border-color: rgba(212, 163, 75, 0.25); }
-    .panel-badge[data-tone="bad"] { color: var(--accent-red); border-color: rgba(212, 120, 106, 0.25); }
+    .panel-badge[data-tone="good"] { color: var(--success); border-color: var(--green-200); background: var(--green-50); }
+    .panel-badge[data-tone="warn"] { color: var(--warn); border-color: var(--amber-200); background: var(--amber-50); }
+    .panel-badge[data-tone="bad"] { color: var(--accent-red); border-color: var(--terracotta-200); background: var(--terracotta-50); }
     .metrics {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -333,9 +392,9 @@ def render_frontend_shell_html() -> str:
       color: var(--text-muted);
       white-space: nowrap;
     }
-    .pill[data-tone="good"] { color: var(--success); border-color: rgba(127, 176, 131, 0.25); background: rgba(127, 176, 131, 0.08); }
-    .pill[data-tone="warn"] { color: var(--warn); border-color: rgba(212, 163, 75, 0.25); background: rgba(212, 163, 75, 0.08); }
-    .pill[data-tone="bad"] { color: var(--accent-red); border-color: rgba(212, 120, 106, 0.25); background: rgba(212, 120, 106, 0.08); }
+    .pill[data-tone="good"] { color: var(--success); border-color: var(--green-200); background: var(--green-50); }
+    .pill[data-tone="warn"] { color: var(--warn); border-color: var(--amber-200); background: var(--amber-50); }
+    .pill[data-tone="bad"] { color: var(--accent-red); border-color: var(--terracotta-200); background: var(--terracotta-50); }
     .cmd-grid {
       display: grid;
       grid-template-columns: 1.3fr 0.7fr;
@@ -1193,11 +1252,11 @@ def render_frontend_shell_html() -> str:
       line.className = 'log-line';
       line.textContent = message;
       if (tone === 'good') {
-        line.style.borderLeftColor = 'rgba(127, 201, 141, 0.8)';
+        line.style.borderLeftColor = 'var(--success)';
       } else if (tone === 'warn') {
-        line.style.borderLeftColor = 'rgba(208, 163, 92, 0.85)';
+        line.style.borderLeftColor = 'var(--warn)';
       } else if (tone === 'bad') {
-        line.style.borderLeftColor = 'rgba(207, 95, 95, 0.9)';
+        line.style.borderLeftColor = 'var(--accent-red)';
       }
       els.eventLog.prepend(line);
       while (els.eventLog.children.length > 8) {
@@ -2870,4 +2929,4 @@ def shell_root(request: Request) -> HTMLResponse:
     )
 
 
-__all__ = ["router", "render_frontend_shell_html"]
+__all__ = ["render_frontend_shell_html", "router"]

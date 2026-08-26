@@ -1,17 +1,24 @@
 import { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { setToken, getDeviceId, getDeviceSecret, generateDeviceId, generateDeviceSecret, setActiveHouseholdId, setDeviceId, setDeviceSecret } from '../../src/storage/token';
+import {
+  getDeviceId, getDeviceSecret, generateDeviceId, generateDeviceSecret,
+  setActiveHouseholdId, setDeviceId, setDeviceSecret,
+} from '../../src/storage/token';
+import { useAuth } from '../../src/storage/AuthContext';
 import { loginDevice } from '../../src/api/auth';
+import { Button, Card } from '../../src/components';
+import { semantic, spacing, typography } from '../../src/theme';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [apiUrl, setApiUrl] = useState('http://localhost:7860');
+  // signIn() stores the token AND reactively flips isAuthenticated in RootLayout
+  // so router.replace('/') is no longer needed to swap the navigator stack.
+  const { signIn } = useAuth();
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
 
-  // On mount, check if stored device credentials exist.
-  // If they do, try logging in automatically. If not, redirect to register.
+  // Auto-login if valid stored credentials exist
   useEffect(() => {
     (async () => {
       const existingDeviceId = await getDeviceId();
@@ -23,9 +30,9 @@ export default function LoginScreen() {
             device_id: existingDeviceId,
             device_secret: existingSecret,
           });
-          await setToken(result.token);
           await setActiveHouseholdId(result.household_id);
-          router.replace('/');
+          // signIn persists token + notifies AuthContext → RootLayout re-renders to (tabs)
+          await signIn(result.token);
           return;
         } catch {
           // Stored credentials no longer valid — show login form
@@ -50,62 +57,48 @@ export default function LoginScreen() {
         device_secret: deviceSecret,
       });
 
-      await setToken(result.token);
-      await setDeviceId(deviceId);
-      await setDeviceSecret(deviceSecret);
       await setActiveHouseholdId(result.household_id);
-
-      // Force reload to trigger auth gate
-      router.replace('/');
+      await signIn(result.token);
     } catch (err: unknown) {
-      // Not registered yet — navigate to register
       const msg = err instanceof Error ? err.message : 'Unknown error';
       if (msg.includes('unknown_device') || msg.includes('401')) {
         router.push('/(auth)/register');
       } else {
-        Alert.alert('Connection Error', `Could not reach the server at ${apiUrl}.\n${msg}`);
+        Alert.alert('Connection Error', `Could not reach the server.\n${msg}`);
       }
     } finally {
       setLoading(false);
     }
   }
 
+  if (checking) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color={semantic.primary} />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <View style={styles.card}>
+      <Card style={styles.card}>
         <Text style={styles.title}>ShopStack</Text>
-        <Text style={styles.subtitle}>Know what is at home</Text>
+        <Text style={styles.subtitle}>Your home, understood.</Text>
 
-        <Text style={styles.label}>Server URL</Text>
-        <TextInput
-          style={styles.input}
-          value={apiUrl}
-          onChangeText={setApiUrl}
-          placeholder="http://localhost:7860"
-          placeholderTextColor="#666"
-          autoCapitalize="none"
-          autoCorrect={false}
+        <Button
+          title={loading ? 'Connecting...' : 'Connect this device'}
+          loading={loading}
+          onPress={handleNewDeviceLogin}
+          size="lg"
+          style={{ marginBottom: spacing[4] }}
         />
 
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleNewDeviceLogin}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Register New Device & Login</Text>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.linkButton}
+        <Button
+          title="Create a household"
+          variant="ghost"
           onPress={() => router.push('/(auth)/register')}
-        >
-          <Text style={styles.linkText}>Set up a new household</Text>
-        </TouchableOpacity>
-      </View>
+        />
+      </Card>
     </View>
   );
 }
@@ -115,67 +108,26 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0f0f23',
-    padding: 24,
+    backgroundColor: semantic.background,
+    padding: spacing[6],
   },
   card: {
     width: '100%',
     maxWidth: 400,
-    backgroundColor: '#1a1a3e',
-    borderRadius: 16,
-    padding: 32,
-    borderWidth: 1,
-    borderColor: '#2a2a5e',
+    padding: spacing[8],
+    alignItems: 'center',
   },
   title: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#e0e0ff',
+    fontSize: typography.sizes['3xl'].size,
+    fontWeight: typography.weight.bold,
+    color: semantic.textPrimary,
     textAlign: 'center',
-    marginBottom: 4,
+    marginBottom: spacing[1],
   },
   subtitle: {
-    fontSize: 14,
-    color: '#8888bb',
+    fontSize: typography.sizes.base.size,
+    color: semantic.textSecondary,
     textAlign: 'center',
-    marginBottom: 32,
-  },
-  label: {
-    fontSize: 13,
-    color: '#aaaacc',
-    marginBottom: 8,
-    fontWeight: '600',
-  },
-  input: {
-    backgroundColor: '#0f0f23',
-    borderWidth: 1,
-    borderColor: '#2a2a5e',
-    borderRadius: 10,
-    padding: 14,
-    fontSize: 16,
-    color: '#e0e0ff',
-    marginBottom: 20,
-  },
-  button: {
-    backgroundColor: '#6366f1',
-    borderRadius: 10,
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  linkButton: {
-    alignItems: 'center',
-  },
-  linkText: {
-    color: '#818cf8',
-    fontSize: 14,
+    marginBottom: spacing[8],
   },
 });

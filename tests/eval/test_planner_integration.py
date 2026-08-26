@@ -6,20 +6,20 @@ capability, and outcome.
 """
 from __future__ import annotations
 
-import tempfile
-from pathlib import Path
+import json
 from types import SimpleNamespace
 
 import pytest
 
 from shopstack.eval import (
     CAP_PLANNER_TOOL_CALLING,
-    ModelCallRecorder,
+    OUTCOME_PARSE_ERROR,
     OUTCOME_SUCCESS,
+    OUTCOME_TOOL_FAILURE,
     SHAPE_TOOL_CALLS,
+    ModelCallRecorder,
     SqliteSink,
 )
-from shopstack.eval.checks import EvalCheckRegistry
 
 
 class _RecordingCheck:
@@ -29,7 +29,6 @@ class _RecordingCheck:
         self.calls: list = []
 
     def __call__(self, record, history, **kwargs):
-        from shopstack.eval import CheckResult
         self.calls.append(record.record_id)
         return self._result
 
@@ -163,8 +162,8 @@ def test_planner_process_records_exception_outcome(tmp_path):
     mock_registry = SimpleNamespace(planner=mock_provider)
 
     from shopstack.persistence.database import Database
-    from shopstack.tools.registry import ToolRegistry
     from shopstack.planner.engine import PlannerEngine
+    from shopstack.tools.registry import ToolRegistry
 
     db = Database(db_path=str(tmp_path / "shop.db"))
     tools = ToolRegistry(db)
@@ -178,3 +177,98 @@ def test_planner_process_records_exception_outcome(tmp_path):
     assert len(rows) == 1
     assert rows[0]["outcome"] == OUTCOME_EXCEPTION
     assert "provider blew up" in rows[0]["error"]
+
+
+def _make_engine(tmp_path, provider, recorder_registry=None):
+    from shopstack.persistence.database import Database
+    from shopstack.planner.engine import PlannerEngine
+    from shopstack.tools.registry import ToolRegistry
+
+    sqlite = SqliteSink(tmp_path / "test.db")
+    ModelCallRecorder.reset_instance()
+    ModelCallRecorder._instance = ModelCallRecorder(
+        jsonl_sink=_NoOpJsonl(),
+        sqlite_sink=sqlite,
+        check_registry=recorder_registry or _NoOpRegistry(),
+    )
+    db = Database(db_path=str(tmp_path / "shop.db"))
+    tools = ToolRegistry(db)
+    engine = PlannerEngine(
+        db=db,
+        tool_registry=tools,
+        provider_registry=SimpleNamespace(planner=provider),
+    )
+    engine._cost_tracker = SimpleNamespace(over_budget=False)  # type: ignore[attr-defined]
+    return engine, tools, sqlite
+
+
+def test_planner_structured_rejects_parser_fallback_and_records_parse_error(tmp_path):
+    provider = SimpleNamespace(
+        plan=lambda _payload: {
+            "text": "not structured output",
+            "model": "mock-malformed",
+        },
+        available=True,
+        name="mock_eval_provider",
+        backend="mock",
+        model_id="mock-malformed",
+    )
+    engine, _tools, sqlite = _make_engine(tmp_path, provider)
+
+    result = engine.process_structured("find something")
+
+    assert result["type"] == "error"
+    assert "valid action plan" in result["error"]
+    row = sqlite.query(domain_route="planner")[0]
+    assert row["outcome"] == OUTCOME_PARSE_ERROR
+    assert json.loads(row["execution_meta"])["status"] == "parse_failed"
+
+
+def test_planner_records_tool_failure_separately_from_provider_success(tmp_path, monkeypatch):
+    provider = SimpleNamespace(
+        plan=lambda _payload: {
+            "tool_calls": [{"tool": "find_item", "args": {"query": "milk"}}],
+            "model": "mock-tool-failure",
+        },
+        available=True,
+        name="mock_eval_provider",
+        backend="mock",
+        model_id="mock-tool-failure",
+    )
+    engine, tools, sqlite = _make_engine(tmp_path, provider)
+    monkeypatch.setattr(
+        tools,
+        "execute",
+        lambda _tool, **_args: {"success": False, "error": "fixture unavailable"},
+    )
+
+    result = engine.process_structured("find milk")
+
+    assert result["type"] == "tool_calls"
+    assert result["outcomes"][0]["success"] is False
+    row = sqlite.query(domain_route="planner")[0]
+    assert row["outcome"] == OUTCOME_TOOL_FAILURE
+    execution = json.loads(row["execution_meta"])
+    assert execution["status"] == "partial_failure"
+    assert execution["tool_calls_failed"] == 1
+
+
+def test_planner_records_respond_execution_as_completed(tmp_path):
+    provider = SimpleNamespace(
+        plan=lambda _payload: {
+            "tool_calls": [{"tool": "respond", "args": {"message": "hello"}}],
+            "model": "mock-respond",
+        },
+        available=True,
+        name="mock_eval_provider",
+        backend="mock",
+        model_id="mock-respond",
+    )
+    engine, _tools, sqlite = _make_engine(tmp_path, provider)
+
+    result = engine.process_structured("say hello")
+
+    assert result["type"] == "tool_calls"
+    row = sqlite.query(domain_route="planner")[0]
+    assert row["outcome"] == OUTCOME_SUCCESS
+    assert json.loads(row["execution_meta"])["status"] == "completed"

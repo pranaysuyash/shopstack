@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+
 from pydantic_settings import BaseSettings
 
 
@@ -56,6 +57,16 @@ class Settings(BaseSettings):
     grounding_backend: str = "grounding_dino"
     image_gen_backend: str = "svg"
     embeddings_backend: str = "nomic"
+
+    # Modal Labs cloud GPU provider URLs (set these to use remote GPU inference)
+    # Format: https://<workspace>--<app>-<func>.modal.run
+    modal_planner_url: str = ""
+    modal_vision_url: str = ""
+    modal_ocr_url: str = ""
+    modal_embeddings_url: str = ""
+    modal_stt_url: str = ""
+    modal_tts_url: str = ""
+    modal_segmentation_url: str = ""
     # Phase 11 #1.7: was "minicpm5" but MiniCPM5Provider does not declare
     # ``tool_call_parser`` in its capabilities (it only does text+planning).
     # The registry would fall through to MockToolCallParser anyway. Default

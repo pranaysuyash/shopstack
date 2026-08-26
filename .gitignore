@@ -55,3 +55,15 @@ AGENTS.md
 benchmarks/modal/
 benchmarks/model_lab/
 shopstack/model_lab/
+
+# One-off local investigation residue. Keep these exact filenames out of
+# future snapshots without hiding legitimate project scripts.
+/collected_tests.txt
+/patch.py
+/patch2.py
+/patch3.py
+/patch4.py
+/patch_inventory.py
+/raise_exc.py
+/revert.py
+/revert_test.py

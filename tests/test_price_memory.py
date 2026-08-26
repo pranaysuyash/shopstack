@@ -10,12 +10,10 @@ Covers:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
-from typing import Any
 
 import pytest
-
 
 # ── Mock database that returns PriceObservation-like objects ────────────────
 
@@ -86,8 +84,11 @@ def db():
 
 @pytest.fixture
 def service(db):
+    from datetime import date
+
     from shopstack.services.price_memory import PriceMemoryService
-    return PriceMemoryService(db)
+    # Reference date matching the mock data base date (2026-06-09)
+    return PriceMemoryService(db, reference_date=date(2026, 6, 9))
 
 
 # ── PriceSummary tests ─────────────────────────────────────────────────────
@@ -172,7 +173,7 @@ class TestPriceHistory:
 
 
 class TestDealScore:
-    def test_great_deal(self, service):
+    def test_great_deal_potato(self, service):
         """35% below historical avg should be 'great'."""
         # Coriander historical avg ~₹17.6, current ₹8 → ~55% below → great
         deal = service.score_deal("coriander", current_price=8, per_kg=None)
@@ -220,7 +221,7 @@ class TestDealScore:
 class TestTopDeals:
     def test_top_deals_from_snapshot(self, service):
         """Build a mock snapshot and get top deals."""
-        from shopstack.market.schema import NormalizedMarketRecord, MarketSnapshot
+        from shopstack.market.schema import MarketSnapshot, NormalizedMarketRecord
 
         records = [
             NormalizedMarketRecord(

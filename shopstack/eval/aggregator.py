@@ -29,11 +29,10 @@ from __future__ import annotations
 import json
 import logging
 import math
-import statistics
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from shopstack.eval.recorder import (
     OUTCOME_BLOCKED,
@@ -42,6 +41,7 @@ from shopstack.eval.recorder import (
     OUTCOME_PARSE_ERROR,
     OUTCOME_SUCCESS,
     OUTCOME_TIMEOUT,
+    OUTCOME_TOOL_FAILURE,
     ModelCallRecord,
 )
 from shopstack.eval.storage import SqliteSink
@@ -61,6 +61,7 @@ FAILURE_OUTCOMES = {
     OUTCOME_TIMEOUT,
     OUTCOME_EXCEPTION,
     OUTCOME_BLOCKED,
+    OUTCOME_TOOL_FAILURE,
 }
 
 
@@ -150,10 +151,21 @@ def _row_to_record(row: dict[str, Any]) -> ModelCallRecord:
         cost_usd=float(row.get("cost_usd") or 0.0),
         outcome=row.get("outcome", OUTCOME_SUCCESS),
         error=row.get("error", ""),
+        execution=_parse_execution(row.get("execution_meta")),
         eval_passed=bool(row.get("eval_passed")),
         eval_score=float(row.get("eval_score") or 0.0),
         eval_check_results=checks,
     )
+
+
+def _parse_execution(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    try:
+        parsed = json.loads(value or "{}")
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
 
 
 def aggregate_records(
@@ -372,8 +384,8 @@ __all__ = [
     "DEFAULT_ROUTE_BASELINE_PATH",
     "DEFAULT_TOLERANCE",
     "FAILURE_OUTCOMES",
-    "RouteStats",
     "RouteRegression",
+    "RouteStats",
     "aggregate_by_route",
     "aggregate_records",
     "load_route_baseline",

@@ -73,6 +73,7 @@ export interface InventoryLot {
   price_paid?: number;
   currency: string;
   confidence: number;
+  nutrition_per_100g?: Record<string, number> | null;
   status: string;
 }
 
@@ -90,6 +91,7 @@ export interface AddInventoryLotRequest {
   currency?: string;
   confidence?: number;
   category?: string;
+  nutrition_per_100g?: Record<string, number> | null;
 }
 
 export interface ConsumeInventoryRequest {
@@ -165,6 +167,10 @@ export interface CompleteShoppingListResponse {
   items_skipped: number;
   goal: string;
   message: string;
+}
+
+export interface CompleteShoppingListRequest {
+  purchased_item_ids?: string[];
 }
 
 export interface MarkPurchasedItemWire {
@@ -331,6 +337,26 @@ export interface MealPlanDayWire {
   ingredients_missing: string[];
   confidence: string;
   rationale: string;
+}
+
+export interface RecipeIngredientWire {
+  canonical_name: string;
+  quantity: number;
+  unit: string;
+}
+
+export interface RecipeDetailResponse {
+  recipe_id: string;
+  name: string;
+  cuisine: string;
+  dietary: string[];
+  prep_minutes: number;
+  cook_minutes: number;
+  serves: number;
+  tags: string[];
+  ingredients: RecipeIngredientWire[];
+  instructions: string[];
+  found: boolean;
 }
 
 export interface MealPlanResponse {

@@ -1,0 +1,10 @@
+FROM python:3.12-slim
+
+RUN pip install --upgrade pip
+
+# Common ML dependencies
+RUN pip install torch>=2.5.0 transformers>=4.55.0 accelerate>=1.5.0 \
+    sentencepiece>=0.2.0 huggingface-hub>=0.30.0 numpy>=2.0.0 \
+    pillow>=11.0.0 requests>=2.32.0 tqdm>=4.67.0
+
+ENV HF_HUB_ENABLE_HF_TRANSFER=1

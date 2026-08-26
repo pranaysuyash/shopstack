@@ -11,10 +11,10 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "NutritionInfo",
     "NutritionSummary",
-    "load_nutrition_reference",
-    "get_nutrition_info",
-    "get_inventory_nutrition_summary",
     "format_nutrition_html",
+    "get_inventory_nutrition_summary",
+    "get_nutrition_info",
+    "load_nutrition_reference",
     "lookup_nutrition_html",
 ]
 
@@ -143,6 +143,22 @@ def get_nutrition_info(name: str) -> NutritionInfo | None:
     )
 
 
+def _extract_from_lot_nutrition(nutrition: dict) -> dict[str, float]:
+    """Extract macros from a per-lot ``nutrition_per_100g`` dict (OFF format).
+
+    Keys follow Open Food Facts ``nutriments`` naming (``energy-kcal_100g``,
+    ``proteins_100g``, ``carbohydrates_100g``, ``fat_100g``, ``fiber_100g``).
+    Missing keys default to 0.
+    """
+    return {
+        "calories_kcal": float(nutrition.get("energy-kcal_100g", nutrition.get("energy_100g", 0)) or 0),
+        "protein_g": float(nutrition.get("proteins_100g", nutrition.get("proteins", 0)) or 0),
+        "carbs_g": float(nutrition.get("carbohydrates_100g", nutrition.get("carbohydrates", 0)) or 0),
+        "fat_g": float(nutrition.get("fat_100g", nutrition.get("fat", 0)) or 0),
+        "fiber_g": float(nutrition.get("fiber_100g", 0) or 0),
+    }
+
+
 def get_inventory_nutrition_summary(database: Any, user_id: str = "") -> NutritionSummary:
     _ensure_loaded()
     assert _cache is not None
@@ -157,19 +173,27 @@ def get_inventory_nutrition_summary(database: Any, user_id: str = "") -> Nutriti
     total_fat = 0.0
 
     for lot in inventory:
-        info = get_nutrition_info(lot.canonical_name)
-        if info is None:
-            info = get_nutrition_info(lot.display_name)
-        if info is None:
-            missing.append(lot.display_name or lot.canonical_name)
-            continue
-
         multiplier = lot.quantity / 100.0 if lot.quantity > 0 else 0.0
 
-        item_cal = info.calories_kcal * multiplier
-        item_pro = info.protein_g * multiplier
-        item_carb = info.carbs_g * multiplier
-        item_fat = info.fat_g * multiplier
+        # Prefer per-lot nutrition from barcode lookup over static reference.
+        if lot.nutrition_per_100g:
+            macros = _extract_from_lot_nutrition(lot.nutrition_per_100g)
+            item_cal = macros["calories_kcal"] * multiplier
+            item_pro = macros["protein_g"] * multiplier
+            item_carb = macros["carbs_g"] * multiplier
+            item_fat = macros["fat_g"] * multiplier
+        else:
+            info = get_nutrition_info(lot.canonical_name)
+            if info is None:
+                info = get_nutrition_info(lot.display_name)
+            if info is None:
+                missing.append(lot.display_name or lot.canonical_name)
+                continue
+
+            item_cal = info.calories_kcal * multiplier
+            item_pro = info.protein_g * multiplier
+            item_carb = info.carbs_g * multiplier
+            item_fat = info.fat_g * multiplier
 
         total_cal += item_cal
         total_pro += item_pro
@@ -199,7 +223,8 @@ def get_inventory_nutrition_summary(database: Any, user_id: str = "") -> Nutriti
 def format_nutrition_html(summary: NutritionSummary) -> str:
     from html import escape
 
-    from shopstack.ui import card as ui_card, render_metric
+    from shopstack.ui import card as ui_card
+    from shopstack.ui import render_metric
 
     disclaimer = (
         "<div style='margin-top:16px;padding:8px 12px;border-radius:6px;"
@@ -261,7 +286,8 @@ def format_nutrition_html(summary: NutritionSummary) -> str:
 def lookup_nutrition_html(query: str) -> str:
     from html import escape
 
-    from shopstack.ui import card as ui_card, render_metric, badge_html
+    from shopstack.ui import badge_html, render_metric
+    from shopstack.ui import card as ui_card
 
     if not query or not query.strip():
         return "<div style='color:var(--text-dim);'>Type an item name to look up nutrition facts.</div>"

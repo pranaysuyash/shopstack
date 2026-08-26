@@ -85,6 +85,7 @@ class InventoryLot(BaseModel):
     source_event_id: str = ""
     confidence: float = 1.0
     image_crop_path: str | None = None
+    nutrition_per_100g: dict | None = None
     status: ItemStatus = "active"
     user_id: str = ""
     created_at: datetime = Field(default_factory=datetime.now)
@@ -502,7 +503,7 @@ class InventoryEvent(BaseModel):
     source: str = "manual"  # manual / shopping_list / reconciliation / scan / system
     notes: str | None = None
 
-    def get_undo_event(self) -> "InventoryEvent | None":
+    def get_undo_event(self) -> InventoryEvent | None:
         """Build the inverse of this event, or ``None`` if it cannot be undone.
 
         The returned event describes the mutation that, if applied, would

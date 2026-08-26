@@ -12,9 +12,8 @@ narrow trace aggregator for the Memory tab.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from html import escape
-from typing import Any
 
 from shopstack.app_context import current_user_id, db
 from shopstack.services.timeline import (
@@ -40,6 +39,7 @@ def timeline_view(
     return safe_render_html(
         lambda: _timeline_view_inner(cn, lid, d),
         user_message="Could not load timeline",
+        fail_user_message="Something went wrong",
         help_tab="memory",
         icon="📋",
     )
@@ -52,7 +52,7 @@ def _timeline_view_inner(
 ) -> str:
     """Inner render for the Unified Timeline."""
     days = max(1, int(days or 30))
-    since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
+    since = datetime.now(UTC).replace(tzinfo=None) - timedelta(days=days)
     user_id = current_user_id() or ""
     query = TimelineQuery(
         canonical_name=(canonical_name or "").strip(),
@@ -106,8 +106,8 @@ def set_timeline_window(window_days: int) -> str:
 
 
 __all__ = [
-    "timeline_view",
+    "set_timeline_window",
     "timeline_for_canonical",
     "timeline_for_lot",
-    "set_timeline_window",
+    "timeline_view",
 ]

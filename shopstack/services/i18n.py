@@ -178,7 +178,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
          "empty.analytics.body": "After a few weeks of adding items, scanning receipts, and recording purchases, you'll see trends here. ShopStack will suggest what to buy more of, what's about to expire, and where to find savings.",
          "empty.consumption.title": "Predictions build with use",
          "empty.consumption.body": "ShopStack learns what you use and when. After a couple of weeks of adds, consumes, and reconciliations, you'll see forecasts here for what's about to run out.",
-         "empty.activity.title": "Activity log is empty",
+         "empty.activity.title": "Your activity log — start adding items",
          "empty.activity.body": "Every add, consume, move, scan, and parse appears here. Start with one item and watch the log fill in.",
          # Empty-state CTAs
         "empty.cta.add_items": "Add your first items",

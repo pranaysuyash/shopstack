@@ -1,32 +1,38 @@
 from __future__ import annotations
 
-from html import escape
 import logging
+import time as _time
+from html import escape
+from typing import Any
 
-from shopstack.app_context import APP_DESCRIPTION, APP_NAME, db, tools, current_user_id
+from shopstack.app_context import APP_DESCRIPTION, APP_NAME, current_user_id, db, tools
 from shopstack.services.dashboard import build_dashboard_state
+from shopstack.services.waste_coach import render_waste_coach_html
+from shopstack.ui.components.cards import (
+    badge_html,
+    render_action_grid,
+    render_hero_panel,
+)
 from shopstack.ui.components.cards import card as ui_card
-from shopstack.ui.components.cards import badge_html
-from shopstack.ui.components.cards import render_action_grid, render_hero_panel
 from shopstack.ui.components.primitives import (
     home_card,
-    item_row,
     last_updated_stamp,
     stat_card,
 )
+from shopstack.ui.errors import safe_render_html
 from shopstack.ui.renderers import (
     render_cadence_insights,
-    render_waste_warnings,
-    render_price_drops,
     render_cook_tonight,
+    render_price_drops,
     render_seasonal,
+    render_waste_warnings,
 )
-from shopstack.services.waste_coach import render_waste_coach_html
 from shopstack.ui.renderers.decision_cards import (
-    render_restock_predictions,
-    render_price_deals,
     render_best_store,
+    render_needs_confirmation,
     render_optimized_basket_summary,
+    render_price_deals,
+    render_restock_predictions,
     # 2026-06-15 (Pass 17+18): Migrated from the legacy
     # `shopstack.decisions.render_what_changed` /
     # `render_needs_confirmation` shims (which took ``db`` and
@@ -34,14 +40,7 @@ from shopstack.ui.renderers.decision_cards import (
     # pre-fetched data; we fetch here. Pass 18 DELETED the legacy
     # shim entirely, so the canonical path is the only path.
     render_what_changed,
-    render_needs_confirmation,
 )
-from shopstack.ui.renderers.image_cards import (
-    cards_to_grid,
-    render_decision_card as render_svg_decision_card,
-    render_shopping_summary_card as render_svg_summary,
-)
-from shopstack.ui.errors import safe_render_html
 from shopstack.ui.screens.other import inventory_alerts, what_is_in_fridge_now
 
 logger = logging.getLogger(__name__)
@@ -102,16 +101,16 @@ def today_dashboard():
 def _today_dashboard_inner():
     uid = current_user_id()
     from shopstack.decisions import (
-        render_decision_panel,
-        render_market_basket,
-        render_inventory_overview,
-        render_my_list_panel,
         render_compare_panel,
         # 2026-06-15 (Pass 17+18): render_what_changed and
         # render_needs_confirmation are now imported from the
         # canonical decision_cards module at the top of the file.
         # Pass 18 DELETED the legacy shim, so the only path
         # forward is the canonical signatures.
+        render_decision_panel,
+        render_inventory_overview,
+        render_market_basket,
+        render_my_list_panel,
     )
 
     state = build_dashboard_state(db, tools.inventory, user_id=uid)
@@ -528,7 +527,6 @@ def _render_today_empty_hints(state, ds) -> str:
 
 # ── Market graph cache (separate from dashboard state — used by
 # the Compare sub-tab and the intelligence screen too).
-import time as _time
 _MGRAPH_TTL = 60  # seconds
 _mgraph_cache: dict[str, tuple[float, Any]] = {}
 
@@ -632,7 +630,7 @@ def _render_market_next_steps(graph) -> str:
     if graph.summary.get("buy", 0):
         actions.append(
             {
-                "label": "Build basket",
+                "label": "Open Groceries",
                 "subtitle": "Turn buy items into the list",
                 "tab_id": "basket",
                 "tone": "default" if graph.summary.get("use_soon", 0) else "primary",

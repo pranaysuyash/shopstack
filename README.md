@@ -35,7 +35,7 @@ The default mock providers let you build and test the full app without loading a
 | **ShopAgent** | Reasoning: buy/skip/use-soon/compare decisions |
 | **Sources** | Retailer datasets (Swiggy Instamart + future) |
 
-See `Docs/SHOPSTACK_PRODUCT_ARCHITECTURE.md` for full details.
+See `Docs/ARCHITECTURE.md` for the full system architecture and `Docs/SERVICES_ARCHITECTURE.md` for the service layer.
 
 ## Frontend Shell
 
@@ -84,12 +84,12 @@ Run `uv run pytest tests/ --collect-only -q` for the current test count.
 ## Current Verified by Code Inspection
 
 As of the current code inspection, the following metrics are verified:
-- **26 Database Tables, 2 Views, 2 Triggers, 9 Indexes**: `app_config`, `condition_events`, `correction_events`, `find_feedback`, `household_locations`, `household_members`, `household_objects`, `households`, `inventory_events`, `inventory_lots`, `market_record_components`, `market_records`, `market_snapshots`, `movement_events`, `negative_memory`, `object_notes`, `object_sightings`, `person_associations`, `preference_signals`, `price_observations`, `purchase_events`, `reconciliation_events`, `shopping_list_items`, `shopping_lists`, `stores`, `traces` (Tables), `price_history`, `agent_traces` (Views).
-- **12 Tools**: Including `semantic_find_item`.
+- **26 Database Tables, 2 Views, 2 Triggers, 10 Indexes**: `app_config`, `condition_events`, `correction_events`, `find_feedback`, `household_locations`, `household_members`, `household_objects`, `households`, `inventory_events`, `inventory_lots`, `market_record_components`, `market_records`, `market_snapshots`, `movement_events`, `negative_memory`, `object_notes`, `object_sightings`, `person_associations`, `preference_signals`, `price_observations`, `purchase_events`, `reconciliation_events`, `shopping_list_items`, `shopping_lists`, `stores`, `traces` (Tables), `price_history`, `agent_traces` (Views).
+- **17 Tools**: Including `semantic_find_item`.
 
 *Note: For the canonical current-state metrics, run `python3 scripts/repo_truth.py`. The README is updated when new tables/tabs/tools are added; do not hand-maintain these numbers.*
 
-**Engineering Mandate:** Do not narrow scope to hackathon/MVP. ShopStack is designed as a long-term, bold, and comprehensive intelligence platform. Follow `motto_v3.md` principles exactly.
+**Engineering Mandate:** Do not narrow scope to hackathon/MVP. ShopStack is designed as a long-term, bold, and comprehensive intelligence platform. Follow `motto_v5.md` principles exactly.
 
 ## Project Structure
 
@@ -98,7 +98,7 @@ shopstack/
   __init__.py
   _version.py               # v0.1.0
   config.py                 # Settings (pydantic-settings, env prefix SHOPSTACK_)
-  model_registry.py         # 16 candidate model entries (all ≤32B total)
+  model_registry.py         # 58 model entries (10 active / 46 candidate / 2 rejected; all ≤32B total active)
   schemas/
     models.py               # All Pydantic domain models (14+ classes, 16 enums)
   providers/
@@ -106,13 +106,13 @@ shopstack/
     mock_providers.py       # Full mock implementations for all 11 (Indian/Hinglish data)
     registry.py             # ProviderRegistry factory wired to Settings
   persistence/
-    database.py             # SQLite Database (WAL, 26 tables, 2 views, 2 triggers, 9 indexes, full CRUD)
+    database.py             # SQLite Database (WAL, 26 tables, 2 views, 2 triggers, 10 indexes, full CRUD)
   services/                 # Business logic services (decision engine, shopping, dashboard, preferences, freshness)
   tools/
-    registry.py             # ToolRegistry — 12 tools executing against Database
+    registry.py             # ToolRegistry — 17 tools executing against Database
   traces/
     export.py               # Trace creation, JSONL export, PII redaction
-  data_sources/             # Data source adapters for market snapshots and external feeds
+  market/sources/           # Data source adapters for market snapshots and external feeds
   ui/                       # (reserved)
   configs/                  # (reserved)
 
@@ -125,13 +125,13 @@ benchmarks/                 # pytest benchmark suite (9 latency markers)
 
 ```
 FastAPI host (shopstack/server.py)
-  → ToolRegistry (12 tools, validates args, calls Database)
-    → Database (SQLite WAL, 26 tables, 2 views, 2 triggers, 9 indexes)
+  → ToolRegistry (17 tools, validates args, calls Database)
+    → Database (SQLite WAL, 26 tables, 2 views, 2 triggers, 10 indexes)
   → ProviderRegistry (wired from Settings)
     → MockProviders (default — 11 interfaces, all offline)
     → Market services (market source registry load + snapshot status helpers in `shopstack.services.market_sources`)
   → Settings (pydantic-settings, env-overridable)
-  → ModelRegistry (16 candidates, not loaded by default)
+  → ModelRegistry (58 entries, not loaded by default)
 ```
 
 ### 11 Provider Interfaces
@@ -150,7 +150,7 @@ FastAPI host (shopstack/server.py)
 | `EmbeddingsProvider` | Returns random 384-d vectors |
 | `ImageEditProvider` | Returns a dummy edited image path |
 
-### 12 Tools
+### 17 Tools
 
 | Tool | Purpose |
 |------|---------|
@@ -166,10 +166,15 @@ FastAPI host (shopstack/server.py)
 | `get_use_soon_items` | Get items expiring or aging soon |
 | `get_next_buy_suggestions` | Get suggestions for what to buy next |
 | `export_anonymized_trace` | Export an anonymized agent trace |
+| `undo_last_inventory_change` | Undo the most recent change (add, consume, or move) to an inventory item |
+| `calculate_nutrition` | Look up nutrition (calories, protein, carbs, fat) for a food item by name |
+| `check_price_drop` | Report items whose current market price is 15%+ below their historical median |
+| `find_substitute` | Suggest category or ingredient substitutes for a sold-out or unavailable item |
+| `get_weather_recommendation` | Recommend whether to shop in-store, order delivery, or delay based on weather |
 
-### 10 Database Tables
+### 26 Database Tables
 
-`inventory_lots`, `purchase_events`, `shopping_lists`, `shopping_list_items`, `household_locations`, `movement_events`, `price_observations`, `stores`, `traces`, `app_config`
+Core tables (the full set of 26 is enumerated in *Current Verified by Code Inspection* above): `inventory_lots`, `purchase_events`, `shopping_lists`, `shopping_list_items`, `household_locations`, `movement_events`, `price_observations`, `stores`, `traces`, `app_config`
 
 Compatibility aliases: `price_history` and `agent_traces` are exposed as read/delete-compatible views for older docs, tests, and scripts.
 
@@ -261,30 +266,50 @@ The schema is the **canonical API contract** between the backend and the mobile 
 
 ## shopstack-mobile (React Native / Expo)
 
-`shopstack-mobile/` is a **React Native (Expo) app** that consumes the `/api/v1` REST API — giving ShopStack a native mobile interface alongside the FastAPI frontend shell.
+`shopstack-mobile/` is a **React Native (Expo) app** that consumes the `/api/v1` REST API — giving ShopStack a native mobile interface alongside the FastAPI frontend shell. It is the **primary household-facing entry point**: used in kitchens and stores, offline-first, and designed around decisions (buy/skip/use-soon/compare) rather than data tables.
 
 ### Architecture
 
 ```
 shopstack-mobile/
-├── app/                    # expo-router file-based navigation
-│   ├── _layout.tsx         # Root: auth gate + React Query provider
-│   ├── (auth)/             # Login, Register
-│   ├── (tabs)/             # Today, Pantry, Shopping, Search, More
-│   ├── intelligence.tsx    # Recurring plan + meal plan
-│   ├── account.tsx         # Privacy, undo, server info
-│   ├── traces.tsx          # Command history
-│   ├── corrections.tsx     # Corrections
-│   └── store-mode.tsx      # In-store check-off mode
+├── app/                          # expo-router file-based navigation
+│   ├── _layout.tsx               # Root: persisted React Query + auth gate
+│   ├── (auth)/                   # Login, Register
+│   ├── (tabs)/                   # Home, Pantry, Shop, Cook, Trips, More
+│   │   ├── index.tsx             # Decision-first dashboard
+│   │   ├── inventory.tsx         # Pantry quick-add + staple chips
+│   │   ├── shopping.tsx          # Active list + completion
+│   │   ├── recipes.tsx           # Cook tonight + missing-to-list
+│   │   ├── trips.tsx             # Trip signals + low/use-soon items
+│   │   ├── more.tsx              # Settings + account
+│   │   └── search.tsx            # Search page reached via floating action
+│   ├── login.tsx                 # Token-aligned auth
+│   └── register.tsx              # Token-aligned auth
 └── src/
+    ├── theme/tokens.ts           # Warm Pantry design tokens
+    ├── components/               # Primitives + composites
+    │   ├── primitives/
+    │   └── composite/
+    ├── hooks/                    # TanStack Query data layer
     ├── api/
-    │   ├── types.ts        # TypeScript interfaces (70+ types)
-    │   ├── client.ts       # HTTP client with Bearer token injection
-    │   ├── auth.ts         # Device registration & auth
-    │   ├── *.ts            # 9 endpoint modules (inventory, shopping, ...)
+    │   ├── types.ts              # TypeScript interfaces (70+ types)
+    │   ├── client.ts             # HTTP client with Bearer token injection
+    │   ├── auth.ts               # Device registration & auth
+    │   └── *.ts                  # Endpoint modules
     └── storage/
-        └── token.ts        # expo-secure-store wrapper
+        └── token.ts              # expo-secure-store wrapper
 ```
+
+### Primary navigation (6 tabs)
+
+| Tab | Purpose |
+|-----|---------|
+| Home | Decision banner: today's dominant action + 3 story tiles |
+| Pantry | Quick-add, offline status, staple chips, pantry rows |
+| Shop | Active shopping list, check-off, complete |
+| Cook | Meal-plan / recipe cards; add missing ingredients to list |
+| Trips | Trip recommendations, ranked low/use-soon items |
+| More | Settings, account, privacy, traces |
 
 ### Key decisions
 
@@ -292,23 +317,26 @@ shopstack-mobile/
 |---|---|
 | Framework | Expo managed workflow (no bare RN needed for HTTP CRUD) |
 | Nav | expo-router (file-based, deep links built-in) |
-| Caching | TanStack React Query (stale-while-revalidate) |
+| Caching | TanStack React Query + secure offline persistence |
 | Auth tokens | expo-secure-store (hardware-backed on iOS/Android) |
-| Screens | 12 screens covering every /api/v1 endpoint |
+| Design system | Warm Pantry Intelligence: cream paper, olive, terracotta, amber; system fonts; light-first |
+| Quick-add intelligence | `/api/v1/command/execute` when online, local fallback offline |
+| Search | Floating action button across all tabs, not a top-level tab |
 
 ### Setup
 
 ```bash
 cd shopstack-mobile
 npm install
-npx expo start    # Scan QR with Expo Go, or press 'w' for web
+npm run typecheck     # Verify TypeScript before running
+npx expo start        # Scan QR with Expo Go, or press 'w' for web
 ```
 
 See `shopstack-mobile/README.md` for full details.
 
 ## Frontend Shell (FastAPI HTML UI)
 
-`shopstack/ui/frontend_shell.py` renders a **standalone HTML/CSS frontend** served by FastAPI. It provides:
+`shopstack/ui/frontend_shell.py` renders a **standalone HTML/CSS frontend** served by FastAPI. It now shares the same Warm Pantry token system as `shopstack-mobile` (light-first with dark mode support, system fonts, olive/amber/terracotta palette) and provides:
 
 - Full auth flow (login, register, device management)
 - Dashboard view (today's snapshot)
@@ -319,7 +347,7 @@ See `shopstack-mobile/README.md` for full details.
 - Privacy controls (retention, purge, undo)
 - Trace history viewer
 - Store mode (check-off items while shopping)
-- Mobile-responsive dark theme
+- Mobile-responsive light-first theme with system fonts only
 
 The frontend shell is loaded through FastAPI routes and communicates entirely through the `/api/v1/*` REST endpoints.
 

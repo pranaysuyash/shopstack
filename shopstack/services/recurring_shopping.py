@@ -45,11 +45,11 @@ produces a list of the existing type.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Any
 
-from shopstack.schemas.models import DecisionEvidence, DecisionResult
 from shopstack.decisions import detect_purchase_cadence
+from shopstack.schemas.models import DecisionEvidence, DecisionResult
 
 logger = logging.getLogger(__name__)
 
@@ -267,7 +267,7 @@ def summarize_plan(plan: list[DecisionResult]) -> str:
     """
     count = len(plan)
     if count == 0:
-        return "No items due in your usual rhythm right now."
+        return "No items due in your usual rhythm right now. Add a few regular purchases to get predictions."
     if count == 1:
         return "1 item due in your usual rhythm."
     return f"{count} items due in your usual rhythm."
@@ -320,6 +320,7 @@ def mark_bought(
     HTTP endpoint, and Today tab button all call it.
     """
     from datetime import datetime
+
     from shopstack.schemas.models import PurchaseEvent
 
     canonical = (canonical_name or "").lower().strip()

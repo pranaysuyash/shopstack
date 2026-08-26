@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { getActiveList } from '../src/api/shopping';
 import { toggleStoreMode } from '../src/api/account';
 import type { ShoppingListItemWire } from '../src/api/types';
+import { semantic, spacing } from '../src/theme';
 
 export default function StoreModeScreen() {
   const queryClient = useQueryClient();
@@ -46,7 +47,7 @@ export default function StoreModeScreen() {
   if (isLoading && !data) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#6366f1" />
+        <ActivityIndicator size="large" color={semantic.primary} />
       </View>
     );
   }
@@ -54,7 +55,7 @@ export default function StoreModeScreen() {
   if (!hasActiveList) {
     return (
       <View style={styles.centered}>
-        <Ionicons name="cart-outline" size={48} color="#444" />
+        <Ionicons name="cart-outline" size={48} color={semantic.textTertiary} />
         <Text style={styles.emptyText}>No active shopping list</Text>
         <Text style={styles.emptySubtext}>Create one in the Shopping tab</Text>
       </View>
@@ -72,7 +73,7 @@ export default function StoreModeScreen() {
         <View style={[styles.checkbox, isBought && styles.checkboxChecked]}>
           {isBought && <Ionicons name="checkmark" size={16} color="#fff" />}
           {toggling === item.item_id && !isBought && (
-            <ActivityIndicator size="small" color="#818cf8" />
+            <ActivityIndicator size="small" color={semantic.primary} />
           )}
         </View>
         <View style={styles.itemInfo}>
@@ -106,7 +107,7 @@ export default function StoreModeScreen() {
         keyExtractor={(item) => item.item_id}
         renderItem={renderItem}
         refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#818cf8" />
+          <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={semantic.primary} />
         }
         contentContainerStyle={styles.list}
         ListHeaderComponent={
@@ -117,7 +118,7 @@ export default function StoreModeScreen() {
         ListFooterComponent={
           bought.length > 0 && pending.length === 0 ? (
             <View style={styles.allDone}>
-              <Ionicons name="checkmark-circle" size={48} color="#22c55e" />
+              <Ionicons name="checkmark-circle" size={48} color={semantic.success} />
               <Text style={styles.allDoneText}>All done!</Text>
             </View>
           ) : null
@@ -128,25 +129,25 @@ export default function StoreModeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f0f23' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f0f23', gap: 8, padding: 24 },
-  headerSection: { padding: 16, paddingTop: 60, paddingBottom: 8 },
-  header: { fontSize: 28, fontWeight: '700', color: '#e0e0ff', marginBottom: 16 },
-  progressBar: { height: 6, backgroundColor: '#1a1a3e', borderRadius: 3, marginBottom: 6 },
-  progressFill: { height: '100%', backgroundColor: '#22c55e', borderRadius: 3 },
-  progressText: { fontSize: 13, color: '#8888bb', textAlign: 'right' },
-  list: { padding: 16, paddingTop: 0 },
-  sectionLabel: { fontSize: 13, fontWeight: '600', color: '#666', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginTop: 8 },
-  item: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a3e', borderRadius: 10, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: '#2a2a5e' },
-  itemBought: { opacity: 0.5, borderColor: '#22c55e40' },
-  checkbox: { width: 28, height: 28, borderRadius: 8, borderWidth: 2, borderColor: '#444', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  checkboxChecked: { backgroundColor: '#22c55e', borderColor: '#22c55e' },
+  container: { flex: 1, backgroundColor: semantic.background },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: semantic.background, gap: 8, padding: 24 },
+  headerSection: { padding: spacing[4], paddingTop: 60, paddingBottom: 8, backgroundColor: semantic.surface, borderBottomWidth: 1, borderBottomColor: semantic.divider },
+  header: { fontSize: 28, fontWeight: '700', color: semantic.textPrimary, marginBottom: 16 },
+  progressBar: { height: 6, backgroundColor: semantic.divider, borderRadius: 3, marginBottom: 6 },
+  progressFill: { height: '100%', backgroundColor: semantic.success, borderRadius: 3 },
+  progressText: { fontSize: 13, color: semantic.textSecondary, textAlign: 'right' },
+  list: { padding: spacing[4], paddingTop: 0 },
+  sectionLabel: { fontSize: 13, fontWeight: '600', color: semantic.textSecondary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginTop: 8 },
+  item: { flexDirection: 'row', alignItems: 'center', backgroundColor: semantic.surface, borderRadius: 10, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: semantic.divider },
+  itemBought: { opacity: 0.5, borderColor: semantic.success + '40' },
+  checkbox: { width: 28, height: 28, borderRadius: 8, borderWidth: 2, borderColor: semantic.divider, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  checkboxChecked: { backgroundColor: semantic.success, borderColor: semantic.success },
   itemInfo: { flex: 1 },
-  itemName: { fontSize: 16, fontWeight: '600', color: '#e0e0ff' },
-  itemNameBought: { textDecorationLine: 'line-through', color: '#666' },
-  itemQty: { fontSize: 13, color: '#8888bb', marginTop: 2 },
-  emptyText: { fontSize: 18, color: '#666', fontWeight: '600' },
-  emptySubtext: { fontSize: 14, color: '#555' },
+  itemName: { fontSize: 16, fontWeight: '600', color: semantic.textPrimary },
+  itemNameBought: { textDecorationLine: 'line-through', color: semantic.textTertiary },
+  itemQty: { fontSize: 13, color: semantic.textSecondary, marginTop: 2 },
+  emptyText: { fontSize: 18, color: semantic.textSecondary, fontWeight: '600' },
+  emptySubtext: { fontSize: 14, color: semantic.textTertiary },
   allDone: { alignItems: 'center', paddingTop: 40, gap: 8 },
-  allDoneText: { fontSize: 20, fontWeight: '700', color: '#22c55e' },
+  allDoneText: { fontSize: 20, fontWeight: '700', color: semantic.success },
 });

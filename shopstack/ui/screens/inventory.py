@@ -14,15 +14,17 @@ from shopstack.ui.components.cards import empty_state, list_to_table
 from shopstack.ui.components.decorators import aria_live_screen
 from shopstack.ui.components.primitives import (
     form_error,
+    home_card,
     item_row,
     toast,
     toast_floating,
-    home_card,
 )
 
 logger = logging.getLogger(__name__)
 
-from shopstack.data.seed_demo import DEMO_SEED_INVENTORY  # noqa: E402 — data module, must follow logger
+from shopstack.data.seed_demo import (  # noqa: E402
+    DEMO_SEED_INVENTORY,
+)
 
 
 def _user_id() -> str:
@@ -217,8 +219,8 @@ def add_purchase_form(
                 after={"canonical_name": item_name.lower(), "quantity": qty, "unit": item_unit, "action": "purchased"},
                 description=f"Added {item_name} to pantry",
             )
-        except Exception:
-            pass
+        except Exception as e:
+            raise e
     if price > 0 and store:
         tools.record_price_observation(
             canonical_name=item_name.lower(),
@@ -344,8 +346,8 @@ def add_purchase_batch(raw_batch: str) -> str:
                     after={"canonical_name": name.lower().strip(), "quantity": qty, "unit": unit, "action": "batch_purchased"},
                     description=f"Batch added {name.strip()}",
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                raise e
         added.append(f"{escape(name)} ({escape(str(lot_id)[:8])})")
 
     if not added:

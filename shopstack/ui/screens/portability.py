@@ -3,12 +3,15 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from html import escape
 from pathlib import Path
 
 from shopstack.app_context import db
-from shopstack.portability import export_json, export_csv_inventory, import_json, import_csv
-
+from shopstack.portability import (
+    export_csv_inventory,
+    export_json,
+    import_csv,
+    import_json,
+)
 from shopstack.traces.export import _redact_obj, _redact_text
 
 
@@ -73,6 +76,7 @@ def import_data_file(file_path: str | Path | object | None) -> str:
     return safe_render_html(
         lambda: _import_data_file_inner(file_path),
         user_message="Could not import data file",
+        fail_user_message="Import failed",
         help_tab="today",
     )
 

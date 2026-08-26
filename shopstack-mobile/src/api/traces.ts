@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { TraceListResponse, TraceDetailResponse } from './types';
+import type { TraceListResponse, TraceDetailResponse, CommandHistoryResponse } from './types';
 
 export async function listTraces(
   params?: { limit?: number; search?: string; input_type_filter?: string },
@@ -16,4 +16,8 @@ export async function exportTrace(traceId: string, redact = true): Promise<{ tra
     `/api/v1/traces/${encodeURIComponent(traceId)}/export`,
     { redact: redact ? 'true' : 'false' },
   );
+}
+
+export async function getCommandHistory(params?: { limit?: number }): Promise<CommandHistoryResponse> {
+  return api.get<CommandHistoryResponse>('/api/v1/command/history', params);
 }

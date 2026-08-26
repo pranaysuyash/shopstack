@@ -16,7 +16,9 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      "react-native-gesture-handler",
+      "react-native-reanimated"
     ]
   }
 }

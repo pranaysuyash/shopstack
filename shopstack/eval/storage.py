@@ -22,8 +22,9 @@ import json
 import logging
 import sqlite3
 import threading
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from shopstack.eval.recorder import ModelCallRecord
 
@@ -37,7 +38,7 @@ DEFAULT_JSONL_PATH = _REPO_ROOT / ".model_call_records.jsonl"
 
 # DDL — the canonical table shape. Bump the suffix in
 # ``eval_records_schema_version`` whenever columns change.
-EVAL_RECORDS_SCHEMA_VERSION = 1
+EVAL_RECORDS_SCHEMA_VERSION = 2
 EVAL_RECORDS_DDL = """
 CREATE TABLE IF NOT EXISTS model_call_records (
     record_id          TEXT PRIMARY KEY,
@@ -62,6 +63,7 @@ CREATE TABLE IF NOT EXISTS model_call_records (
     cost_usd           REAL DEFAULT 0.0,
     outcome            TEXT NOT NULL DEFAULT 'success',
     error              TEXT DEFAULT '',
+    execution_meta     TEXT DEFAULT '{}',
     eval_passed        INTEGER NOT NULL DEFAULT 1,
     eval_score         REAL DEFAULT 1.0,
     eval_check_results TEXT DEFAULT '[]',
@@ -103,6 +105,7 @@ def _row_to_columns(record: ModelCallRecord) -> tuple:
         record.cost_usd,
         record.outcome,
         record.error,
+        json.dumps(record.execution, default=str, ensure_ascii=False),
         1 if record.eval_passed else 0,
         record.eval_score,
         json.dumps([c.to_dict() for c in record.eval_check_results]),
@@ -117,9 +120,9 @@ INSERT OR REPLACE INTO model_call_records (
     model, backend, provider_name,
     prompt, output, prompt_length, output_length,
     latency_ms, input_tokens, output_tokens, cost_usd,
-    outcome, error, eval_passed, eval_score, eval_check_results,
+    outcome, error, execution_meta, eval_passed, eval_score, eval_check_results,
     schema_version
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 
@@ -199,6 +202,14 @@ class SqliteSink:
     def _ensure_schema(self, conn: sqlite3.Connection) -> None:
         with self._init_lock:
             conn.executescript(EVAL_RECORDS_DDL)
+            columns = {
+                row[1]
+                for row in conn.execute("PRAGMA table_info(model_call_records)").fetchall()
+            }
+            if "execution_meta" not in columns:
+                conn.execute(
+                    "ALTER TABLE model_call_records ADD COLUMN execution_meta TEXT DEFAULT '{}'"
+                )
             conn.commit()
 
     def write(self, record: ModelCallRecord) -> None:

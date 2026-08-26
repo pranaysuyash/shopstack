@@ -34,7 +34,6 @@ This test:
 
 from __future__ import annotations
 
-import sys
 from unittest.mock import patch
 
 
@@ -93,11 +92,11 @@ class TestOnboardingSubmission:
     """submit_onboarding should set the completion flag."""
 
     def test_submit_sets_completion_flag(self):
-        from shopstack.services.onboarding import (
-            submit_onboarding,
-            is_onboarding_complete,
-        )
         from shopstack.app_context import db
+        from shopstack.services.onboarding import (
+            is_onboarding_complete,
+            submit_onboarding,
+        )
 
         # Set up: a fresh household with no prior onboarding
         TEST = "onboarding_wiring_test"
@@ -160,17 +159,16 @@ class TestOnboardingWiringInApp:
     def test_app_sets_wizard_visibility_on_load(self):
         """The app.load handler must set the wizard's visibility."""
         from pathlib import Path
-        app_py = Path("app.py").read_text()
-        # Look for the app.load that wires the wizard
-        assert "_show_onboarding_if_first_run" in app_py, (
-            "app.py must define _show_onboarding_if_first_run to "
+        # The wiring lives in shopstack/app_builder.py, not the facade app.py
+        builder_py = Path("shopstack/app_builder.py").read_text()
+        assert "_show_onboarding_if_first_run" in builder_py, (
+            "shopstack/app_builder.py must define _show_onboarding_if_first_run to "
             "auto-show the wizard on first page load if onboarding "
             "is incomplete."
         )
-        # And it should be wired via app.load
         assert (
-            "app.load" in app_py
-            and "_show_onboarding_if_first_run" in app_py
+            "app.load" in builder_py
+            and "_show_onboarding_if_first_run" in builder_py
         ), "The _show_onboarding_if_first_run helper must be wired via app.load."
 
 
@@ -187,8 +185,8 @@ class TestOnboardingSkipTracking:
 
     def test_is_onboarding_skipped_default_false(self):
         """A fresh household has not skipped yet."""
-        from shopstack.services.onboarding import is_onboarding_skipped
         from shopstack.app_context import db
+        from shopstack.services.onboarding import is_onboarding_skipped
         TEST = "onb_skip_test_1"
         orig_active = db.active_household_id
         try:
@@ -208,11 +206,11 @@ class TestOnboardingSkipTracking:
 
     def test_mark_onboarding_skipped_sets_flag(self):
         """mark_onboarding_skipped flips the flag to True."""
+        from shopstack.app_context import db
         from shopstack.services.onboarding import (
             is_onboarding_skipped,
             mark_onboarding_skipped,
         )
-        from shopstack.app_context import db
         TEST = "onb_skip_test_2"
         orig_active = db.active_household_id
         try:
@@ -234,12 +232,12 @@ class TestOnboardingSkipTracking:
 
     def test_reset_onboarding_skip_clears_flag(self):
         """reset_onboarding_skip flips the flag back to False."""
+        from shopstack.app_context import db
         from shopstack.services.onboarding import (
             is_onboarding_skipped,
             mark_onboarding_skipped,
             reset_onboarding_skip,
         )
-        from shopstack.app_context import db
         TEST = "onb_skip_test_3"
         orig_active = db.active_household_id
         try:
@@ -262,10 +260,10 @@ class TestOnboardingSkipTracking:
 
     def test_should_show_onboarding_composite(self):
         """should_show_onboarding = (not complete) AND (not skipped)."""
+        from shopstack.app_context import db
         from shopstack.services.onboarding import (
             should_show_onboarding,
         )
-        from shopstack.app_context import db
         TEST = "onb_composite_test"
         orig_active = db.active_household_id
         try:
@@ -381,7 +379,6 @@ class TestOnboardingGateButtonCustomOnclick:
     def test_gate_button_uses_custom_onclick(self):
         """Static check: the gate's button doesn't tab-jump to reconcile."""
         from shopstack.ui.screens.dashboard import _render_onboarding_gate
-        from shopstack.services.cookbook import Recipe  # any dummy obj
         # The gate is a server-rendered HTML string; we just need any
         # args that don't raise. Mock the state + ds.
         class _State:

@@ -31,14 +31,11 @@ What it covers:
 
 from __future__ import annotations
 
-import importlib
-import sys
 import warnings
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-
 
 # ─── Module import smoke (catches accidental renames/deletions) ─────
 
@@ -48,10 +45,10 @@ class TestModuleImportSmoke:
 
     def test_recipe_text_screen_imports(self):
         from shopstack.ui.screens.recipe_text import (
-            recipe_text_to_shopping_list,
-            recipe_text_add_missing_to_list,
-            recipe_image_to_text,
             _existing_list_canonical_names,
+            recipe_image_to_text,
+            recipe_text_add_missing_to_list,
+            recipe_text_to_shopping_list,
         )
         assert callable(recipe_text_to_shopping_list)
         assert callable(recipe_text_add_missing_to_list)
@@ -61,9 +58,9 @@ class TestModuleImportSmoke:
     def test_cookbook_screen_imports(self):
         from shopstack.ui.screens.cookbook import (
             cookbook_browse,
-            cookbook_view_recipe,
-            cookbook_shop_missing,
             cookbook_cuisine_choices,
+            cookbook_shop_missing,
+            cookbook_view_recipe,
         )
         assert callable(cookbook_browse)
         assert callable(cookbook_view_recipe)
@@ -72,9 +69,9 @@ class TestModuleImportSmoke:
 
     def test_shopping_share_imports(self):
         from shopstack.ui.screens.shopping import (
-            shopping_list_share,
-            _shopping_list_share_text,
             _shopping_list_share_html,
+            _shopping_list_share_text,
+            shopping_list_share,
         )
         assert callable(shopping_list_share)
         assert callable(_shopping_list_share_text)
@@ -82,8 +79,8 @@ class TestModuleImportSmoke:
 
     def test_receipt_txt_export_imports(self):
         from shopstack.services.receipt import (
-            export_receipt_txt,
             _receipt_txt_body,
+            export_receipt_txt,
         )
         from shopstack.ui.screens.receipt import receipt_export_txt
         assert callable(export_receipt_txt)
@@ -108,12 +105,12 @@ class TestModuleImportSmoke:
             assert callable(fn)
 
     def test_header_indicator_imports(self):
-        from shopstack.ui.header import household_indicator_html, header_block
+        from shopstack.ui.header import header_block, household_indicator_html
         assert callable(household_indicator_html)
         assert callable(header_block)
 
     def test_cards_custom_onclick_imports(self):
-        from shopstack.ui.components.cards import render_action_tile, render_action_grid
+        from shopstack.ui.components.cards import render_action_grid, render_action_tile
         assert callable(render_action_tile)
         assert callable(render_action_grid)
 
@@ -128,7 +125,6 @@ class TestFreshnessDeprecationTightened:
     """
 
     def test_zero_internal_freshness_callers(self):
-        from pathlib import Path
         shopstack = Path("shopstack")
         # Count across the whole shopstack/ tree
         offenders = []
@@ -155,8 +151,9 @@ class TestUseSoonViewAliasStable:
     """
 
     def test_alias_still_works(self):
-        from shopstack.ui.screens import use_soon_view
         import warnings
+
+        from shopstack.ui.screens import use_soon_view
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             result = use_soon_view(days=3)
@@ -167,7 +164,6 @@ class TestUseSoonViewAliasStable:
         itself, the deprecation message, the import in __init__,
         the __all__ entry, and this regression test file.
         """
-        from pathlib import Path
         shopstack = Path("shopstack")
         offenders = []
         # Allowed locations
@@ -327,6 +323,7 @@ class TestCustomOnclickXSSEscape:
     def test_html_attribute_is_well_formed(self):
         """The resulting HTML should parse without errors."""
         from html.parser import HTMLParser
+
         from shopstack.ui.components.cards import render_action_tile
         result = render_action_tile(
             label="X", subtitle="x", tab_id="",
@@ -348,8 +345,8 @@ class TestShareListPublicAPISurface:
     def test_all_three_symbols_importable(self):
         from shopstack.ui.screens import shopping_list_share
         from shopstack.ui.screens.shopping import (
-            _shopping_list_share_text,
             _shopping_list_share_html,
+            _shopping_list_share_text,
         )
         assert callable(shopping_list_share)
         assert callable(_shopping_list_share_text)
@@ -400,8 +397,9 @@ class TestReceiptAppNameImport:
     def test_receipt_txt_body_uses_app_name(self):
         """Verify the .txt body actually uses APP_NAME (regression
         catch for the 'NameError' we hit when APP_NAME wasn't imported)."""
-        from shopstack.services.receipt import ReceiptResult, _receipt_txt_body
         from datetime import date
+
+        from shopstack.services.receipt import ReceiptResult, _receipt_txt_body
         result = ReceiptResult(
             merchant="Test", purchase_date=date(2026, 6, 13),
             lines=[], total=0.0, raw_text="",
@@ -419,8 +417,9 @@ class TestOnboardingWiringRegression:
     """The wizard wiring must still work end-to-end."""
 
     def test_build_onboarding_wizard_returns_handle(self):
-        from shopstack.ui.screens.onboarding import build_onboarding_wizard
         import inspect
+
+        from shopstack.ui.screens.onboarding import build_onboarding_wizard
         sig = inspect.signature(build_onboarding_wizard)
         assert sig.return_annotation is not type(None), (
             "build_onboarding_wizard must return a handle (not None)"
@@ -428,7 +427,6 @@ class TestOnboardingWiringRegression:
 
     def test_app_contains_wiring_call(self):
         """Static check: app.py must still call build_onboarding_wizard."""
-        from pathlib import Path
         app_py = Path("app.py").read_text()
         assert "build_onboarding_wizard" in app_py
         assert "should_show_onboarding" in app_py, (
@@ -466,10 +464,6 @@ class TestAppBuildsCleanly:
 
     def test_app_imports_without_error(self):
         """Static import (no `__pycache__` reset needed)."""
-        # Use the importlib mechanism to reload the app fresh
-        for mod_name in list(sys.modules):
-            if mod_name == "app" or mod_name.startswith("shopstack."):
-                del sys.modules[mod_name]
         import app  # noqa: F401
 
     def test_app_call_to_build_app_does_not_crash(self):

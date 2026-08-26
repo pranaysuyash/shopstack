@@ -25,8 +25,6 @@ existing decision-card render path.
 """
 from __future__ import annotations
 
-from typing import Any
-
 from shopstack.schemas.models import DecisionResult
 from shopstack.services.recurring_shopping import summarize_plan
 
@@ -78,7 +76,7 @@ def render_recurring_plan_html(
 def render_recurring_plan_text(plan: list[DecisionResult]) -> str:
     """Render the plan as plain text (CLI --human mode)."""
     if not plan:
-        return "No items due in your usual rhythm right now."
+        return "No items due in your usual rhythm right now. Add more recurring purchases to see predictions."
     lines = [f"Your shopping rhythm ({len(plan)} items due):"]
     for d in plan:
         days_phrase = ""

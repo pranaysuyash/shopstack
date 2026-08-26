@@ -17,7 +17,6 @@ single-purchase items, long intervals, etc.).
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
-from typing import Any
 
 import pytest
 
@@ -33,7 +32,6 @@ from shopstack.services.recurring_shopping import (
     build_recurring_shopping_plan,
     summarize_plan,
 )
-
 
 # ── Fake DB for testing (no real SQLite needed) ────────────────────
 
@@ -258,7 +256,7 @@ class TestBuildRecurringShoppingPlanOutput:
 
 class TestSummarizePlan:
     def test_empty_plan_summarizes_to_no_items(self):
-        assert summarize_plan([]) == "No items due in your usual rhythm right now."
+        assert summarize_plan([]) == "No items due in your usual rhythm right now. Add a few regular purchases to get predictions."
 
     def test_one_item_summarizes_to_one(self):
         from shopstack.schemas.models import DecisionResult

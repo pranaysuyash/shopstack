@@ -28,7 +28,7 @@ are the source of truth for *contract*.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -74,7 +74,7 @@ class ApiError(ApiModel):
         description="Optional context. Shape is per-error-code.",
     )
     timestamp: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
+        default_factory=lambda: datetime.now(UTC).isoformat(),
         description="Server-side ISO 8601 timestamp (UTC).",
     )
 
@@ -191,6 +191,10 @@ class InventoryLot(ApiModel):
     price_paid: float | None = None
     currency: str = "INR"
     confidence: float = 1.0
+    nutrition_per_100g: dict | None = Field(
+        default=None,
+        description="Per-100g nutrition data from barcode lookup (Open Food Facts `nutriments`).",
+    )
     status: str = "active"
 
 
@@ -225,6 +229,12 @@ class AddInventoryLotRequest(ApiModel):
     currency: str = Field(default="INR", max_length=8)
     confidence: float = Field(default=1.0, ge=0, le=1)
     category: str = Field(default="", max_length=100)
+    nutrition_per_100g: dict | None = Field(
+        default=None,
+        description="Per-100g nutrition data from barcode lookup (Open Food Facts `nutriments`). "
+        "Keys follow OFF naming: `energy-kcal_100g`, `proteins_100g`, `carbohydrates_100g`, "
+        "`fat_100g`, `fiber_100g`, etc.",
+    )
 
 
 class ConsumeInventoryRequest(ApiModel):
@@ -330,7 +340,7 @@ class DashboardSnapshot(ApiModel):
 
     household_id: str
     timestamp: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+        default_factory=lambda: datetime.now(UTC).isoformat()
     )
     pantry_count: int = 0
     use_soon_count: int = 0
@@ -366,9 +376,14 @@ class CompleteShoppingListRequest(ApiModel):
     """``POST /api/v1/shopping/lists/{id}/complete`` body.
 
     Empty body is accepted; the endpoint completes the list as-is.
+    If `purchased_item_ids` is provided, only those items (and items already marked bought)
+    are converted to inventory.
     """
 
-    pass
+    purchased_item_ids: list[str] | None = Field(
+        default=None,
+        description="Optional list of list_item_id values that were checked/purchased.",
+    )
 
 
 class CompleteShoppingListResponse(ApiModel):
@@ -581,6 +596,30 @@ class MealPlanDayWire(ApiModel):
     ingredients_missing: list[str] = Field(default_factory=list)
     confidence: str = "low"
     rationale: str = ""
+
+
+class RecipeIngredientWire(ApiModel):
+    """One ingredient line in a recipe."""
+
+    canonical_name: str
+    quantity: float = 1.0
+    unit: str = "unit"
+
+
+class RecipeDetailResponse(ApiModel):
+    """``GET /api/v1/intelligence/recipes/{recipe_id}`` response."""
+
+    recipe_id: str
+    name: str
+    cuisine: str = ""
+    dietary: list[str] = Field(default_factory=list)
+    prep_minutes: int = 0
+    cook_minutes: int = 0
+    serves: int = 2
+    tags: list[str] = Field(default_factory=list)
+    ingredients: list[RecipeIngredientWire] = Field(default_factory=list)
+    instructions: list[str] = Field(default_factory=list)
+    found: bool = True
 
 
 class MealPlanResponse(ApiModel):
@@ -849,6 +888,8 @@ __all__ = [
     "RecurringPlanResponse",
     "MealPlanDayWire",
     "MealPlanResponse",
+    "RecipeIngredientWire",
+    "RecipeDetailResponse",
     # Account / Privacy / Undo
     "PurgeDataResponse",
     "UndoRequest",

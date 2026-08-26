@@ -29,14 +29,15 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 
 from shopstack.api.v1.deps import HouseholdContext, require_household
 from shopstack.api.v1.schemas import (
-    ApiError,
     DecisionExplanationWire,
     MealPlanDayWire,
     MealPlanResponse,
+    RecipeDetailResponse,
+    RecipeIngredientWire,
     RecurringPlanItemWire,
     RecurringPlanResponse,
 )
@@ -70,6 +71,8 @@ def decision_explain_endpoint(
     from shopstack.services.dashboard import build_dashboard_state
     from shopstack.services.explainability import (
         explain_decision as _explain,
+    )
+    from shopstack.services.explainability import (
         explanation_to_dict,
     )
 
@@ -208,6 +211,50 @@ def meal_plan(
         return MealPlanResponse(
             summary=f"Error: {exc}", days=days, count=0,
         )
+
+
+@router.get(
+    "/recipes/{recipe_id}",
+    response_model=RecipeDetailResponse,
+    summary="Get full recipe details by ID",
+)
+def recipe_detail(
+    recipe_id: str,
+    ctx: HouseholdContext = Depends(require_household),
+) -> RecipeDetailResponse:
+    """Return the full recipe for ``recipe_id`` including ingredients and instructions.
+
+    Used by the mobile Cook tab to show a detail sheet for a suggested meal.
+    """
+    from shopstack.services.recipes import get_recipe
+
+    recipe = get_recipe(recipe_id)
+    if recipe is None:
+        return RecipeDetailResponse(
+            recipe_id=recipe_id,
+            name="Recipe not found",
+            found=False,
+        )
+    return RecipeDetailResponse(
+        recipe_id=recipe.id,
+        name=recipe.name,
+        cuisine=recipe.cuisine,
+        dietary=recipe.dietary,
+        prep_minutes=recipe.prep_minutes,
+        cook_minutes=recipe.cook_minutes,
+        serves=recipe.serves,
+        tags=recipe.tags,
+        ingredients=[
+            RecipeIngredientWire(
+                canonical_name=ing.canonical_name,
+                quantity=ing.quantity,
+                unit=ing.unit,
+            )
+            for ing in recipe.ingredients
+        ],
+        instructions=recipe.instructions,
+        found=True,
+    )
 
 
 # ── internal helpers ────────────────────────────────────────────────

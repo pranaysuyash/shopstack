@@ -30,6 +30,7 @@ from shopstack.api.v1.deps import HouseholdContext, require_household
 from shopstack.api.v1.schemas import (
     AddShoppingItemsRequest,
     ApiError,
+    CompleteShoppingListRequest,
     CompleteShoppingListResponse,
     CompletionItemWire,
     CreateShoppingListRequest,
@@ -233,6 +234,7 @@ def _reload(db: Any, list_id: str) -> ShoppingListWire:
 )
 def complete_list(
     list_id: str,
+    body: CompleteShoppingListRequest = None,
     ctx: HouseholdContext = Depends(require_household),
 ) -> CompleteShoppingListResponse:
     """Close out a shopping list into inventory.
@@ -260,6 +262,7 @@ def complete_list(
         inventory=inventory,
         database=db,
         user_id=ctx.household_id,
+        purchased_item_ids=(body.purchased_item_ids if body else None),
     )
 
     return CompleteShoppingListResponse(

@@ -25,12 +25,12 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "PriceHistory",
-    "PriceSummary",
-    "DealScore",
-    "StorePriceRanking",
     "BestStoreResult",
+    "DealScore",
+    "PriceHistory",
     "PriceMemoryService",
+    "PriceSummary",
+    "StorePriceRanking",
     "build_price_memory_service",
 ]
 
@@ -187,8 +187,9 @@ class PriceMemoryService:
         best = service.get_best_store(["tomato", "onion", "rice"])
     """
 
-    def __init__(self, db: Any):
+    def __init__(self, db: Any, reference_date: date | None = None):
         self._db = db
+        self._reference_date = reference_date or date.today()
 
     # ── Single-product queries ──────────────────────────────────────
 
@@ -231,7 +232,7 @@ class PriceMemoryService:
     def get_history(self, canonical_name: str, days: int = _FULL_WINDOW_DAYS) -> PriceHistory:
         """Get full price history with trend analysis."""
         observations = self._query_observations(canonical_name, days)
-        recent_cutoff = date.today() - timedelta(days=_RECENT_WINDOW_DAYS)
+        recent_cutoff = self._reference_date - timedelta(days=_RECENT_WINDOW_DAYS)
 
         all_prices = []
         recent_prices = []
@@ -508,7 +509,7 @@ class PriceMemoryService:
         try:
             from shopstack.schemas.models import PriceObservation
 
-            cutoff = date.today() - timedelta(days=days)
+            cutoff = self._reference_date - timedelta(days=days)
             all_obs = []
 
             # 1. Pull receipt observations
@@ -527,7 +528,7 @@ class PriceMemoryService:
                     records = self._db.get_records_by_canonical(canonical_name)
                     for r in records:
                         # Parse date safely
-                        obs_date = date.today()
+                        obs_date = self._reference_date
                         if r.captured_at:
                             try:
                                 obs_date = date.fromisoformat(r.captured_at[:10])

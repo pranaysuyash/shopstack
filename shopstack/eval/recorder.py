@@ -35,16 +35,16 @@ whether or not the recorder works.
 from __future__ import annotations
 
 import inspect
+import json
 import logging
 import re
 import time
 import uuid
-from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Iterator
+from datetime import UTC, datetime
+from typing import Any
 
-from shopstack.eval.redact import redact_field, redact_text
+from shopstack.eval.redact import redact_text
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,7 @@ OUTCOME_PARSE_ERROR = "parse_error"
 OUTCOME_TIMEOUT = "timeout"
 OUTCOME_EXCEPTION = "exception"
 OUTCOME_BLOCKED = "blocked"
+OUTCOME_TOOL_FAILURE = "tool_failure"
 OUTCOMES = {
     OUTCOME_SUCCESS,
     OUTCOME_EMPTY,
@@ -63,6 +64,7 @@ OUTCOMES = {
     OUTCOME_TIMEOUT,
     OUTCOME_EXCEPTION,
     OUTCOME_BLOCKED,
+    OUTCOME_TOOL_FAILURE,
 }
 
 
@@ -124,7 +126,7 @@ class ModelCallRecord:
     user_id: str = ""
     household_id: str = ""
     started_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+        default_factory=lambda: datetime.now(UTC).isoformat()
     )
 
     # Route — both fields per the stacked-route design
@@ -153,6 +155,7 @@ class ModelCallRecord:
     # Outcome
     outcome: str = OUTCOME_SUCCESS
     error: str = ""
+    execution: dict[str, Any] = field(default_factory=dict)
 
     # Eval verdict (filled by the recorder after capture)
     eval_passed: bool = True
@@ -175,6 +178,7 @@ class ModelCallRecord:
             "model": self.model,
             "latency_ms": self.latency_ms,
             "outcome": self.outcome,
+            "execution_status": (self.execution or {}).get("status", ""),
             "eval_passed": self.eval_passed,
             "eval_score": self.eval_score,
         }
@@ -190,7 +194,7 @@ class _ActiveCall:
 
     def __init__(
         self,
-        recorder: "ModelCallRecorder",
+        recorder: ModelCallRecorder,
         record: ModelCallRecord,
     ) -> None:
         self._recorder = recorder
@@ -203,7 +207,7 @@ class _ActiveCall:
         # want the timestamp to be the *start* of the call, not the
         # creation of the dataclass. For most uses these are within
         # microseconds; we still expose this hook for future precision.
-        self.record.started_at = datetime.now(timezone.utc).isoformat()
+        self.record.started_at = datetime.now(UTC).isoformat()
 
     def set_prompt(self, prompt: str) -> None:
         """Set the redacted prompt and its length."""
@@ -229,9 +233,30 @@ class _ActiveCall:
             self.record.output_length = len(output)
             return
 
-        text = output if isinstance(output, str) else str(output)
+        if isinstance(output, str):
+            text = output
+        else:
+            try:
+                # Structured provider payloads need JSON syntax so the
+                # parse evaluator measures the wire shape, not repr(...).
+                text = json.dumps(output, default=str, ensure_ascii=False, sort_keys=True)
+            except (TypeError, ValueError):
+                text = str(output)
         self.record.output = redact_text(text)
         self.record.output_length = len(text)
+
+    def set_execution(self, execution: dict[str, Any] | None) -> None:
+        """Attach a redacted, JSON-serializable summary of the agent run."""
+        if not execution:
+            self.record.execution = {}
+            return
+        try:
+            payload = json.loads(
+                redact_text(json.dumps(execution, default=str, ensure_ascii=False))
+            )
+            self.record.execution = payload if isinstance(payload, dict) else {}
+        except (TypeError, ValueError, json.JSONDecodeError):
+            self.record.execution = {"status": "unserializable"}
 
     def set_usage(
         self,
@@ -287,7 +312,7 @@ class _ActiveCall:
     # :meth:`finish` (which is idempotent for the typical case; the
     # record is the same instance both inside and outside the block).
 
-    def __enter__(self) -> "_ActiveCall":
+    def __enter__(self) -> _ActiveCall:
         # Resolve the code route here, AFTER the user's ``with`` block
         # is established but BEFORE the call site executes. At this
         # moment the stack is:
@@ -400,7 +425,7 @@ class ModelCallRecorder:
     instantiate its own recorder and pass it to the call sites.
     """
 
-    _instance: "ModelCallRecorder | None" = None
+    _instance: ModelCallRecorder | None = None
 
     def __init__(
         self,
@@ -409,15 +434,15 @@ class ModelCallRecorder:
         check_registry: Any | None = None,
     ) -> None:
         # Imports are deferred to keep the recorder import-cheap.
+        from shopstack.eval.checks import default_registry
         from shopstack.eval.storage import JsonlSink, SqliteSink
-        from shopstack.eval.checks import EvalCheckRegistry, default_registry
 
         self._jsonl = jsonl_sink or JsonlSink()
         self._sqlite = sqlite_sink or SqliteSink()
         self._checks: Any = check_registry or default_registry()
 
     @classmethod
-    def instance(cls) -> "ModelCallRecorder":
+    def instance(cls) -> ModelCallRecorder:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
@@ -509,18 +534,15 @@ def record_model_call(
 
 
 __all__ = [
-    "CAP_PLANNER_TOOL_CALLING",
-    "CAP_VISION_PRODUCT_RECOGNITION",
-    "CAP_STT",
-    "CAP_TTS",
-    "CAP_OCR_RECEIPT",
     "CAP_EMBEDDINGS",
-    "CAP_SEGMENTATION",
     "CAP_GROUNDING",
     "CAP_IMAGE_GEN",
-    "CheckResult",
-    "ModelCallRecord",
-    "ModelCallRecorder",
+    "CAP_OCR_RECEIPT",
+    "CAP_PLANNER_TOOL_CALLING",
+    "CAP_SEGMENTATION",
+    "CAP_STT",
+    "CAP_TTS",
+    "CAP_VISION_PRODUCT_RECOGNITION",
     "OUTCOMES",
     "OUTCOME_BLOCKED",
     "OUTCOME_EMPTY",
@@ -528,11 +550,15 @@ __all__ = [
     "OUTCOME_PARSE_ERROR",
     "OUTCOME_SUCCESS",
     "OUTCOME_TIMEOUT",
+    "OUTCOME_TOOL_FAILURE",
     "SHAPE_BYTES",
     "SHAPE_RAW",
     "SHAPE_STRUCTURED",
     "SHAPE_TEXT",
     "SHAPE_TOOL_CALLS",
     "VALID_SHAPES",
+    "CheckResult",
+    "ModelCallRecord",
+    "ModelCallRecorder",
     "record_model_call",
 ]

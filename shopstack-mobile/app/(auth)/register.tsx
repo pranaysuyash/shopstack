@@ -1,9 +1,14 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { setToken, setDeviceId, setDeviceSecret, generateDeviceId, generateDeviceSecret, setActiveHouseholdId, setApiBaseUrl } from '../../src/storage/token';
+import {
+  setToken, setDeviceId, setDeviceSecret, generateDeviceId, generateDeviceSecret,
+  setActiveHouseholdId, setApiBaseUrl,
+} from '../../src/storage/token';
 import { registerDevice } from '../../src/api/auth';
 import { setCachedBaseUrl } from '../../src/api/client';
+import { Button, Input, Card } from '../../src/components';
+import { semantic, spacing, typography } from '../../src/theme';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -47,49 +52,41 @@ export default function RegisterScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.card}>
+      <Card style={styles.card}>
         <Text style={styles.title}>New Household</Text>
         <Text style={styles.subtitle}>Set up ShopStack on this device</Text>
 
-        <Text style={styles.label}>Server URL</Text>
-        <TextInput
-          style={styles.input}
+        <Input
+          placeholder="http://localhost:7860"
           value={apiUrl}
           onChangeText={setApiUrl}
-          placeholder="http://localhost:7860"
-          placeholderTextColor="#666"
           autoCapitalize="none"
           autoCorrect={false}
+          style={{ marginBottom: spacing[4] }}
         />
 
-        <Text style={styles.label}>Household Name</Text>
-        <TextInput
-          style={styles.input}
+        <Input
+          placeholder="My Home"
           value={householdName}
           onChangeText={setHouseholdName}
-          placeholder="My Home"
-          placeholderTextColor="#666"
+          style={{ marginBottom: spacing[6] }}
         />
 
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
+        <Button
+          title={loading ? 'Registering...' : 'Register &amp; Connect'}
+          loading={loading}
+          disabled={!householdName.trim()}
           onPress={handleRegister}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Register & Connect</Text>
-          )}
-        </TouchableOpacity>
+          size="lg"
+          style={{ marginBottom: spacing[4] }}
+        />
 
-        <TouchableOpacity
-          style={styles.linkButton}
+        <Button
+          title="Already registered? Log in"
+          variant="ghost"
           onPress={() => router.push('/(auth)/login')}
-        >
-          <Text style={styles.linkText}>Already registered? Log in</Text>
-        </TouchableOpacity>
-      </View>
+        />
+      </Card>
     </View>
   );
 }
@@ -99,67 +96,25 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0f0f23',
-    padding: 24,
+    backgroundColor: semantic.background,
+    padding: spacing[6],
   },
   card: {
     width: '100%',
     maxWidth: 400,
-    backgroundColor: '#1a1a3e',
-    borderRadius: 16,
-    padding: 32,
-    borderWidth: 1,
-    borderColor: '#2a2a5e',
+    padding: spacing[8],
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#e0e0ff',
+    fontSize: typography.sizes['2xl'].size,
+    fontWeight: typography.weight.bold,
+    color: semantic.textPrimary,
     textAlign: 'center',
-    marginBottom: 4,
+    marginBottom: spacing[1],
   },
   subtitle: {
-    fontSize: 14,
-    color: '#8888bb',
+    fontSize: typography.sizes.base.size,
+    color: semantic.textSecondary,
     textAlign: 'center',
-    marginBottom: 32,
-  },
-  label: {
-    fontSize: 13,
-    color: '#aaaacc',
-    marginBottom: 8,
-    fontWeight: '600',
-  },
-  input: {
-    backgroundColor: '#0f0f23',
-    borderWidth: 1,
-    borderColor: '#2a2a5e',
-    borderRadius: 10,
-    padding: 14,
-    fontSize: 16,
-    color: '#e0e0ff',
-    marginBottom: 20,
-  },
-  button: {
-    backgroundColor: '#6366f1',
-    borderRadius: 10,
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  linkButton: {
-    alignItems: 'center',
-  },
-  linkText: {
-    color: '#818cf8',
-    fontSize: 14,
+    marginBottom: spacing[6],
   },
 });

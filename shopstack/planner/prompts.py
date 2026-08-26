@@ -229,8 +229,8 @@ def build_system_prompt(db: Any, tool_registry: ToolRegistry | None = None, comp
     tool_descriptions = _format_tool_descriptions(tool_registry, compact=compact_tools)
     contract_signature = _tool_set_signature(tool_registry)
     contract_block = _tool_contract_block(tool_registry)
-    prompt = SYSTEM_PROMPT.replace("{{tool_descriptions}}", tool_descriptions).replace(
-        "{{inventory_context}}", inventory_context
+    prompt = SYSTEM_PROMPT.replace("{tool_descriptions}", tool_descriptions).replace(
+        "{inventory_context}", inventory_context
     )
     return (
         f"{prompt}\n\nTool contract version: {contract_signature}\n"

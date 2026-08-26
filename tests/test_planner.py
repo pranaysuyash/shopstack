@@ -1,11 +1,10 @@
 from __future__ import annotations
 
+from shopstack.persistence.database import Database
+from shopstack.planner.engine import PlannerEngine
 from shopstack.planner.parser import extract_json, parse_tool_calls
 from shopstack.planner.prompts import build_planner_prompt, format_inventory_context
-from shopstack.planner.engine import PlannerEngine
-from shopstack.persistence.database import Database
 from shopstack.schemas.models import InventoryLot
-
 
 # ─── Parser tolerance tests ───────────────────────────────────────
 
@@ -264,9 +263,9 @@ class TestPlannerEngine:
     def test_process_escapes_provider_response_text(self):
         from shopstack.config import Settings
         from shopstack.persistence.database import Database
+        from shopstack.planner.engine import PlannerEngine
         from shopstack.providers.registry import ProviderRegistry
         from shopstack.tools.registry import ToolRegistry
-        from shopstack.planner.engine import PlannerEngine
 
         class FakePlanner:
             available = True
@@ -297,6 +296,8 @@ class TestPlannerEngine:
         assert "\"tool_schema_version\": \"1.1\"" in prompt
         assert "\"name\": \"compare_visible_item_to_inventory\"" in prompt
         assert "must_buy/optional/avoid_buying" in prompt
+        assert "find_item(" in prompt
+        assert "Inventory is empty." in prompt
 
     def test_process_blocks_write_tool_calls_when_writes_disabled(self, db, tool_registry):
         from shopstack.config import Settings

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import os
 import tempfile
-from typing import Iterator
+from collections.abc import Iterator
 
 import pytest
 
@@ -49,8 +49,8 @@ def v1_app(db_handle):
     from fastapi import FastAPI
 
     from shopstack import app_context
-    from shopstack.api.v1.routers.corrections import router as corrections_router
     from shopstack.api.v1 import auth as auth_mod
+    from shopstack.api.v1.routers.corrections import router as corrections_router
 
     auth_mod.ensure_auth_table(db_handle)
 
@@ -84,6 +84,7 @@ def _seed_correction(db_handle, canonical_name: str = "milk",
                      household: str = "hh_corrections"):
     """Record a correction event directly in the DB for GET tests."""
     from datetime import datetime
+
     from shopstack.schemas.models import CorrectionEvent
 
     event = CorrectionEvent(
@@ -125,7 +126,7 @@ class TestListCorrections:
         )
         assert r.status_code == 200
         body = r.json()
-        assert body["summary"] == "No corrections recorded."
+        assert body["summary"] == "No corrections recorded. Try reconciling an item to generate one."
         assert body["count"] == 0
         assert body["items"] == []
 
@@ -182,9 +183,8 @@ class TestListCorrections:
     def test_respects_accepted_only_param(self, client, db_handle):
         # Seed two events, mark one as accepted via mark_correction_accepted
         # (record_correction_event hardcodes accepted=0 in INSERT).
-        uid = "hh_corrections"
         e1 = _seed_correction(db_handle, "milk", "buy", "skip")
-        e2 = _seed_correction(db_handle, "rice", "buy", "use_soon")
+        _seed_correction(db_handle, "rice", "buy", "use_soon")
         db_handle.mark_correction_accepted(e1.event_id, accepted=True)
 
         token = _issue(db_handle)

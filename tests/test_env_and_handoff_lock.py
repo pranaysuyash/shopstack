@@ -37,13 +37,9 @@ This test locks in BOTH surfaces:
 
 from __future__ import annotations
 
-import os
-import re
-import sys
 from pathlib import Path
 
 import pytest
-
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -133,7 +129,6 @@ class TestEnvLoadingLocks:
         object, env file). The actual reading is done by
         huggingface_hub which loads the .env file itself.
         """
-        from pathlib import Path
         # Verify HF_TOKEN is at least in the .env file
         env_text = (REPO / ".env").read_text()
         assert "HF_TOKEN" in env_text, (
@@ -364,10 +359,6 @@ class TestEnvAndConfigIntegration:
         """Importing app with .env loaded should not raise."""
         # The .env is already loaded (via pydantic_settings).
         # Just verify app imports.
-        # Clear cached modules to force a fresh import
-        for mod_name in list(sys.modules):
-            if mod_name == "app" or mod_name.startswith("shopstack."):
-                del sys.modules[mod_name]
         import app  # noqa: F401
 
     def test_settings_singleton_is_loaded(self):
@@ -470,13 +461,7 @@ class TestDatabaseSeedLocationsRegression:
 
     def test_database_module_parses(self):
         """shopstack.persistence.database must import without SyntaxError.
-
-        The .pyc cache may be stale; force a re-import.
         """
-        import sys
-        for mod_name in list(sys.modules):
-            if mod_name.startswith("shopstack.persistence") or mod_name == "shopstack.persistence.database":
-                del sys.modules[mod_name]
         import shopstack.persistence.database  # noqa: F401
 
     def test_canonical_18_locations_in_source(self):

@@ -159,8 +159,6 @@ def _bench_provider(
         ]
         top_title = titles[0] if titles else "—"
         top_score = results[0].get("confidence", 0.0) if results else 0.0
-        match_type = results[0].get("match_type", "none") if results else "none"
-
         if expected in titles:
             correct += 1
             correct_by_cat[category] = correct_by_cat.get(category, 0) + 1
@@ -202,7 +200,7 @@ def _print_summary(results: dict[str, dict], bge_load_s: float, nomic_load_s: fl
 
     dim_bge = bge.get("dim", "n/a")
     dim_nomic = nomic.get("dim", "n/a")
-    print(f"  ║  {'Embedding dim':<30} {str(dim_bge):<18} {str(dim_nomic):<18}║")
+    print(f"  ║  {'Embedding dim':<30} {dim_bge!s:<18} {dim_nomic!s:<18}║")
     print(f"  ║  {'Parameters (M)':<30} {'600':<18} {'137':<18}║")
 
     bge_avail = bge.get("available", False)

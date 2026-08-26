@@ -6,9 +6,9 @@ import time
 from typing import Any
 
 from shopstack.cost_tracker import estimate_cost_usd, estimate_model_tier
-logger = logging.getLogger(__name__)
+from shopstack.prompts.vision import OPENAI_DESCRIBE_PROMPT
 
-from shopstack.prompts.vision import OPENAI_DESCRIBE_PROMPT  # noqa: E402
+logger = logging.getLogger(__name__)
 
 
 def _check_deps() -> tuple[bool, str]:
@@ -36,6 +36,8 @@ class OpenAIProvider:
         self._embedding_model = embedding_model
         self._available = False
         self._error: str | None = None
+        self.last_plan_diagnostics: dict[str, Any] = {}
+        self.last_completion_meta: dict[str, Any] = {}
         self._init_client()
 
     def _init_client(self) -> None:
@@ -66,8 +68,10 @@ class OpenAIProvider:
         from shopstack.tracing import trace_call
 
         if not self._available:
-            return {"error": self._error or "OpenAI not available", "model": self.name}
+            self.last_completion_meta = {"error": self._error or "OpenAI not available", "model": self.name}
+            return self.last_completion_meta
         model = kwargs.get("model", self._model)
+        max_tokens = kwargs.get("max_tokens", 512)
         tier = estimate_model_tier(len(prompt))
         with trace_call("llm.complete", attributes={
             "model": model,
@@ -77,12 +81,16 @@ class OpenAIProvider:
         }) as span:
             try:
                 t0 = time.monotonic()
-                resp = self._client.chat.completions.create(
-                    model=model,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=kwargs.get("temperature", 0.7),
-                    max_tokens=kwargs.get("max_tokens", 512),
-                )
+                request_kwargs = {
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                }
+                if str(model).lower().startswith("gpt-5"):
+                    request_kwargs["max_completion_tokens"] = max_tokens
+                else:
+                    request_kwargs["max_tokens"] = max_tokens
+                    request_kwargs["temperature"] = kwargs.get("temperature", 0.7)
+                resp = self._client.chat.completions.create(**request_kwargs)
                 elapsed_ms = round((time.monotonic() - t0) * 1000, 1)
                 usage = dict(resp.usage) if resp.usage else {}
                 in_tok = int(usage.get("prompt_tokens", 0) or 0)
@@ -92,16 +100,18 @@ class OpenAIProvider:
                 span.set_attribute("output_tokens", out_tok)
                 span.set_attribute("cost_usd", cost)
                 span.set_attribute("latency_ms", elapsed_ms)
-                return {
+                self.last_completion_meta = {
                     "text": resp.choices[0].message.content,
                     "model": model,
                     "usage": usage,
                     "cost": {"usd": cost, "tier": tier, "latency_ms": elapsed_ms},
                 }
+                return self.last_completion_meta
             except Exception as e:
                 logger.warning("OpenAI completion failed", exc_info=True)
                 span.record_exception(e)
-                return {"error": str(e), "model": self.name}
+                self.last_completion_meta = {"error": str(e), "model": model}
+                return self.last_completion_meta
 
     def analyze_image(self, image_path: str, prompt: str = "") -> dict[str, Any]:
         from shopstack.tracing import trace_call
@@ -178,10 +188,11 @@ class OpenAIProvider:
                 return [[0.0] * 128 for _ in texts]
 
     def plan(self, context: dict[str, Any] | str) -> list[dict[str, Any]]:
-        from shopstack.tracing import trace_call
         from shopstack.planner.parser import parse_tool_calls_with_diagnostics
+        from shopstack.tracing import trace_call
 
         if not self._available:
+            self.last_plan_diagnostics = {"status": "unavailable", "items_output": 0}
             return [{"tool": "respond", "args": {"message": self._error or "OpenAI not available"}}]
 
         with trace_call("llm.plan", attributes={
@@ -194,8 +205,10 @@ class OpenAIProvider:
                 if not isinstance(text, str):
                     text = ""
                 if not text:
+                    self.last_plan_diagnostics = {"status": "empty", "items_output": 0}
                     return [{"tool": "respond", "args": {"message": ""}}]
                 tool_calls, diagnostics = parse_tool_calls_with_diagnostics(text)
+                self.last_plan_diagnostics = diagnostics
                 if (len(tool_calls) == 1
                     and tool_calls[0]["tool"] == "respond"
                     and "No structured data" in tool_calls[0]["args"].get("message", "")):
@@ -203,9 +216,12 @@ class OpenAIProvider:
                 return tool_calls
 
             prompt = context.get("prompt") or context.get("question") or ""
-            max_tokens = context.get("max_tokens", 128)
+            # 128 is enough for a single tool call but can truncate nested
+            # shopping-list arguments before the JSON document closes.
+            max_tokens = context.get("max_tokens", 256)
             temperature = context.get("temperature", 0.0)
             if not prompt:
+                self.last_plan_diagnostics = {"status": "empty", "items_output": 0}
                 return [{"tool": "respond", "args": {"message": ""}}]
 
             result = self.complete(prompt, max_tokens=max_tokens, temperature=temperature)
@@ -213,8 +229,10 @@ class OpenAIProvider:
             if not isinstance(text, str):
                 text = ""
             if not text:
+                self.last_plan_diagnostics = {"status": "empty", "items_output": 0}
                 return [{"tool": "respond", "args": {"message": ""}}]
             tool_calls, diagnostics = parse_tool_calls_with_diagnostics(text)
+            self.last_plan_diagnostics = diagnostics
             if (len(tool_calls) == 1
                 and tool_calls[0]["tool"] == "respond"
                 and "No structured data" in tool_calls[0]["args"].get("message", "")):

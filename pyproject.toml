@@ -83,3 +83,9 @@ reportMissingImports = "warning"
 
 [tool.ruff]
 target-version = "py314"
+
+[tool.ruff.lint]
+# Keep the repository's established, import-safe baseline explicit.  The
+# commit hook runs Ruff in the staged snapshot, so this must not depend on
+# version-specific implicit defaults.
+select = ["E4", "E7", "E9", "F"]

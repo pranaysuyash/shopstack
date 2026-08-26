@@ -23,7 +23,6 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import Field
 
 from shopstack.api.v1.deps import HouseholdContext, require_household
 from shopstack.api.v1.schemas import (
@@ -50,6 +49,16 @@ def _lot_to_wire(lot: dict[str, Any], location_name: str = "") -> InventoryLot:
     because the DB had a NULL where the schema expected a
     string.
     """
+    import json as _json
+
+    raw_nutrition = lot.get("nutrition_per_100g")
+    nutrition: dict | None = None
+    if raw_nutrition and isinstance(raw_nutrition, str):
+        try:
+            nutrition = _json.loads(raw_nutrition)
+        except (_json.JSONDecodeError, TypeError):
+            nutrition = None
+
     return InventoryLot(
         lot_id=lot.get("lot_id", "") or "",
         canonical_name=lot.get("canonical_name", "") or "",
@@ -66,6 +75,7 @@ def _lot_to_wire(lot: dict[str, Any], location_name: str = "") -> InventoryLot:
         price_paid=lot.get("price_paid"),
         currency=lot.get("currency", "INR") or "INR",
         confidence=float(lot.get("confidence") if lot.get("confidence") is not None else 1.0),
+        nutrition_per_100g=nutrition,
         status=lot.get("status", "active") or "active",
     )
 
@@ -119,7 +129,7 @@ def list_lots(
         "SELECT lot_id, canonical_name, display_name, category, "
         "quantity, unit, storage_location_id, purchase_date, "
         "estimated_use_by_date, label_expiry_date, opened_date, "
-        "price_paid, currency, confidence, status "
+        "price_paid, currency, confidence, nutrition_per_100g, status "
         "FROM inventory_lots WHERE user_id = ?"
     )
     params: list[Any] = [ctx.household_id]
@@ -167,7 +177,7 @@ def get_lot(
         "SELECT lot_id, canonical_name, display_name, category, "
         "quantity, unit, storage_location_id, purchase_date, "
         "estimated_use_by_date, label_expiry_date, opened_date, "
-        "price_paid, currency, confidence, status "
+        "price_paid, currency, confidence, nutrition_per_100g, status "
         "FROM inventory_lots WHERE lot_id = ? AND user_id = ?",
         (lot_id, ctx.household_id),
     )
@@ -264,7 +274,7 @@ def consume_lot(
         "SELECT lot_id, canonical_name, display_name, category, "
         "quantity, unit, storage_location_id, purchase_date, "
         "estimated_use_by_date, label_expiry_date, opened_date, "
-        "price_paid, currency, confidence, status "
+        "price_paid, currency, confidence, nutrition_per_100g, status "
         "FROM inventory_lots WHERE lot_id = ? AND user_id = ?",
         (lot_id, ctx.household_id),
     )
@@ -302,9 +312,8 @@ def add_lot(
     """
     from datetime import date
 
-    from shopstack.schemas.models import InventoryLot as DomainLot
-
     from shopstack.app_context import db
+    from shopstack.schemas.models import InventoryLot as DomainLot
 
     lot = DomainLot(
         canonical_name=body.canonical_name,
@@ -354,7 +363,7 @@ def add_lot(
         "SELECT lot_id, canonical_name, display_name, category, "
         "quantity, unit, storage_location_id, purchase_date, "
         "estimated_use_by_date, label_expiry_date, opened_date, "
-        "price_paid, currency, confidence, status "
+        "price_paid, currency, confidence, nutrition_per_100g, status "
         "FROM inventory_lots WHERE lot_id = ? AND user_id = ?",
         (lot.lot_id, ctx.household_id),
     )

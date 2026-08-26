@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from shopstack.config import Settings
+from shopstack.providers.image_gen_provider import FluxImageProvider
 from shopstack.providers.interfaces import (
     EmbeddingsProvider,
     GroundingProvider,
@@ -18,11 +20,10 @@ from shopstack.providers.interfaces import (
     TTSProvider,
     VisionProvider,
 )
-
 from shopstack.providers.mock_providers import (
+    MockDetectionProvider,
     MockEmbeddingsProvider,
     MockGroundingProvider,
-    MockDetectionProvider,
     MockOCRProvider,
     MockPlannerProvider,
     MockSegmentationProvider,
@@ -32,8 +33,6 @@ from shopstack.providers.mock_providers import (
     MockUnifiedProvider,
     MockVisionProvider,
 )
-
-from shopstack.providers.image_gen_provider import FluxImageProvider
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +91,54 @@ def _load_modal():
     try:
         from shopstack.providers.modal_provider import ModalPlannerProvider
         return ModalPlannerProvider
+    except ImportError:
+        return None
+
+
+def _load_modal_vision():
+    try:
+        from shopstack.providers.modal_provider import ModalVisionProvider
+        return ModalVisionProvider
+    except ImportError:
+        return None
+
+
+def _load_modal_ocr():
+    try:
+        from shopstack.providers.modal_provider import ModalOCRProvider
+        return ModalOCRProvider
+    except ImportError:
+        return None
+
+
+def _load_modal_embeddings():
+    try:
+        from shopstack.providers.modal_provider import ModalEmbeddingsProvider
+        return ModalEmbeddingsProvider
+    except ImportError:
+        return None
+
+
+def _load_modal_stt():
+    try:
+        from shopstack.providers.modal_provider import ModalSTTProvider
+        return ModalSTTProvider
+    except ImportError:
+        return None
+
+
+def _load_modal_tts():
+    try:
+        from shopstack.providers.modal_provider import ModalTTSProvider
+        return ModalTTSProvider
+    except ImportError:
+        return None
+
+
+def _load_modal_segmentation():
+    try:
+        from shopstack.providers.modal_provider import ModalSegmentationProvider
+        return ModalSegmentationProvider
     except ImportError:
         return None
 
@@ -186,7 +233,9 @@ def _load_rmbg():
 
 def _load_birefnet():
     try:
-        from shopstack.providers.segmentation_provider import BiRefNetSegmentationProvider
+        from shopstack.providers.segmentation_provider import (
+            BiRefNetSegmentationProvider,
+        )
         return BiRefNetSegmentationProvider
     except ImportError:
         return None
@@ -234,7 +283,9 @@ def _load_grounding_dino():
 
 def _load_promptable_segmentation():
     try:
-        from shopstack.providers.promptable_segmentation_provider import UltralyticsPromptableSegmentationProvider
+        from shopstack.providers.promptable_segmentation_provider import (
+            UltralyticsPromptableSegmentationProvider,
+        )
         return UltralyticsPromptableSegmentationProvider
     except ImportError:
         return None
@@ -302,6 +353,54 @@ _PROVIDER_SPECS: dict[str, _ProviderSpec] = {
             "url": getattr(s, "modal_planner_url", "") or "",
         },
         unavailable_msg="Modal provider not available (modal_provider import failed), falling back to mock",
+        supports_off_grid=False,
+    ),
+    "modal_vision": _ProviderSpec(
+        loader=lambda: _load_modal_vision(),
+        kwargs_fn=lambda s: {
+            "url": getattr(s, "modal_vision_url", "") or "",
+        },
+        unavailable_msg="Modal Vision provider not available, falling back to mock",
+        supports_off_grid=False,
+    ),
+    "modal_ocr": _ProviderSpec(
+        loader=lambda: _load_modal_ocr(),
+        kwargs_fn=lambda s: {
+            "url": getattr(s, "modal_ocr_url", "") or "",
+        },
+        unavailable_msg="Modal OCR provider not available, falling back to mock",
+        supports_off_grid=False,
+    ),
+    "modal_embeddings": _ProviderSpec(
+        loader=lambda: _load_modal_embeddings(),
+        kwargs_fn=lambda s: {
+            "url": getattr(s, "modal_embeddings_url", "") or "",
+        },
+        unavailable_msg="Modal Embeddings provider not available, falling back to mock",
+        supports_off_grid=False,
+    ),
+    "modal_stt": _ProviderSpec(
+        loader=lambda: _load_modal_stt(),
+        kwargs_fn=lambda s: {
+            "url": getattr(s, "modal_stt_url", "") or "",
+        },
+        unavailable_msg="Modal STT provider not available, falling back to mock",
+        supports_off_grid=False,
+    ),
+    "modal_tts": _ProviderSpec(
+        loader=lambda: _load_modal_tts(),
+        kwargs_fn=lambda s: {
+            "url": getattr(s, "modal_tts_url", "") or "",
+        },
+        unavailable_msg="Modal TTS provider not available, falling back to mock",
+        supports_off_grid=False,
+    ),
+    "modal_segmentation": _ProviderSpec(
+        loader=lambda: _load_modal_segmentation(),
+        kwargs_fn=lambda s: {
+            "url": getattr(s, "modal_segmentation_url", "") or "",
+        },
+        unavailable_msg="Modal Segmentation provider not available, falling back to mock",
         supports_off_grid=False,
     ),
     "sensevoice": _ProviderSpec(
@@ -464,7 +563,7 @@ class ProviderRegistry:
             self._blocked_backends[name] = backend
             mock = self._mock_for(name)
             if mock is not None:
-                setattr(mock, "backend", backend)
+                mock.backend = backend
             return mock
         real = _try_real_provider(backend, self._settings)
         if real:
@@ -476,7 +575,7 @@ class ProviderRegistry:
         mock = self._mock_for(name)
         if mock is not None and backend not in {"", "mock", "mocked"}:
             self._fallback_backends[name] = backend
-            setattr(mock, "backend", backend)
+            mock.backend = backend
         return mock
 
     def _mock_for(self, name: str) -> Any:

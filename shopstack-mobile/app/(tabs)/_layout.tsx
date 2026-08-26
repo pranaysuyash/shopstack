@@ -1,78 +1,87 @@
 import { Tabs } from 'expo-router';
+import { StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { View, Text, StyleSheet } from 'react-native';
+import { semantic, spacing, typography } from '../../src/theme';
+import { SearchFab } from '../../src/components/composite/SearchFab';
+
+type TabName = 'index' | 'inventory' | 'shopping' | 'recipes' | 'trips' | 'more';
+
+const TABS: { name: TabName; label: string; icon: keyof typeof Ionicons.glyphMap; activeIcon: keyof typeof Ionicons.glyphMap }[] = [
+  { name: 'index', label: 'Home', icon: 'home-outline', activeIcon: 'home' },
+  { name: 'inventory', label: 'Pantry', icon: 'basket-outline', activeIcon: 'basket' },
+  { name: 'shopping', label: 'Shop', icon: 'cart-outline', activeIcon: 'cart' },
+  { name: 'recipes', label: 'Cook', icon: 'restaurant-outline', activeIcon: 'restaurant' },
+  { name: 'trips', label: 'Trips', icon: 'map-outline', activeIcon: 'map' },
+];
 
 export default function TabsLayout() {
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: '#818cf8',
-        tabBarInactiveTintColor: '#666',
-        tabBarLabelStyle: styles.tabLabel,
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Today',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
-          ),
+    <View style={styles.container}>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: styles.tabBar,
+          tabBarActiveTintColor: semantic.primary,
+          tabBarInactiveTintColor: semantic.textTertiary,
+          tabBarShowLabel: true,
+          tabBarLabelStyle: styles.label,
         }}
-      />
-      <Tabs.Screen
-        name="inventory"
-        options={{
-          title: 'Pantry',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="cube-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="shopping"
-        options={{
-          title: 'Shopping',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="cart-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="search"
-        options={{
-          title: 'Search',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="search-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="more"
-        options={{
-          title: 'More',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="ellipsis-horizontal" size={size} color={color} />
-          ),
-        }}
-      />
-    </Tabs>
+      >
+        {TABS.map((tab) => (
+          <Tabs.Screen
+            key={tab.name}
+            name={tab.name}
+            options={{
+              title: tab.label,
+              tabBarIcon: ({ color, focused, size }) => (
+                <Ionicons
+                  name={focused ? tab.activeIcon : tab.icon}
+                  size={size}
+                  color={color}
+                />
+              ),
+            }}
+          />
+        ))}
+        <Tabs.Screen
+          name="more"
+          options={{
+            title: 'More',
+            tabBarIcon: ({ color, focused, size }) => (
+              <Ionicons
+                name={focused ? 'ellipsis-horizontal' : 'ellipsis-horizontal'}
+                size={size}
+                color={color}
+              />
+            ),
+          }}
+        />
+      </Tabs>
+      <SearchFab />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: '#1a1a3e',
-    borderTopColor: '#2a2a5e',
-    borderTopWidth: 1,
-    paddingBottom: 4,
-    paddingTop: 4,
-    height: 60,
+  container: {
+    flex: 1,
   },
-  tabLabel: {
-    fontSize: 11,
-    fontWeight: '600',
+  tabBar: {
+    backgroundColor: semantic.surface,
+    borderTopWidth: 1,
+    borderTopColor: semantic.divider,
+    paddingTop: spacing[2],
+    paddingBottom: spacing[3],
+    height: 84,
+    elevation: 8,
+    shadowColor: semantic.shadow,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+  },
+  label: {
+    fontSize: typography.sizes.xs.size,
+    fontWeight: typography.weight.medium,
+    marginTop: 2,
   },
 });

@@ -1,13 +1,18 @@
 import { useState } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, FlatList, TouchableOpacity,
-  ActivityIndicator,
+  View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { searchInventory } from '../../src/api/search';
+import { Input, Card, EmptyState } from '../../src/components';
+import { semantic, spacing, typography } from '../../src/theme';
 import type { SearchResultWire } from '../../src/api/types';
 
+const SUGGESTIONS = ['milk', 'rice', 'eggs', 'dal', 'bread', 'onion'];
+
 export default function SearchScreen() {
+  const router = useRouter();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResultWire[]>([]);
   const [loading, setLoading] = useState(false);
@@ -30,95 +35,122 @@ export default function SearchScreen() {
   }
 
   const renderItem = ({ item }: { item: SearchResultWire }) => (
-    <View style={styles.resultCard}>
-      <View style={styles.resultInfo}>
-        <Text style={styles.resultTitle}>{item.title}</Text>
-        <Text style={styles.resultMeta}>{item.meta}</Text>
+    <Card style={styles.resultCard} padded={false}>
+      <View style={styles.resultInner}>
+        <View style={styles.resultText}>
+          <Text style={styles.resultTitle}>{item.title}</Text>
+          <Text style={styles.resultMeta}>{item.meta}</Text>
+        </View>
+        <Text style={styles.score}>{(item.score * 100).toFixed(0)}%</Text>
       </View>
-      <Text style={styles.score}>{(item.score * 100).toFixed(0)}%</Text>
-    </View>
+    </Card>
   );
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Search</Text>
-
-      <View style={styles.searchBar}>
-        <Ionicons name="search" size={18} color="#666" style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search inventory..."
-          placeholderTextColor="#666"
-          value={query}
-          onChangeText={handleSearch}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        {query.length > 0 && (
-          <TouchableOpacity onPress={() => handleSearch('')}>
-            <Ionicons name="close-circle" size={18} color="#666" />
-          </TouchableOpacity>
-        )}
+      <View style={styles.header}>
+        <Text style={styles.title}>Search</Text>
       </View>
 
-      <View style={styles.quickRow}>
-        <TouchableOpacity style={styles.quickBtn} onPress={() => handleSearch('milk')}>
-          <Text style={styles.quickText}>🥛 Milk</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.quickBtn} onPress={() => handleSearch('rice')}>
-          <Text style={styles.quickText}>🍚 Rice</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.quickBtn} onPress={() => handleSearch('eggs')}>
-          <Text style={styles.quickText}>🥚 Eggs</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.quickBtn} onPress={() => handleSearch('dal')}>
-          <Text style={styles.quickText}>🫘 Dal</Text>
-        </TouchableOpacity>
+      <Input
+        icon="search-outline"
+        placeholder="Search pantry, recipes, history..."
+        value={query}
+        onChangeText={handleSearch}
+        autoCapitalize="none"
+        autoCorrect={false}
+        style={styles.searchInput}
+      />
+
+      <View style={styles.suggestions}>
+        {SUGGESTIONS.map((s) => (
+          <TouchableOpacity
+            key={s}
+            style={styles.suggestionChip}
+            onPress={() => handleSearch(s)}
+          >
+            <Text style={styles.suggestionText}>{s}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color="#6366f1" style={{ marginTop: 40 }} />
-      ) : (
+        <ActivityIndicator size="large" color={semantic.primary} style={styles.loader} />
+      ) : query.length > 0 ? (
         <FlatList
           data={results}
           keyExtractor={(_, i) => String(i)}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
           ListEmptyComponent={
-            query.length > 0 ? (
-              <View style={styles.empty}>
-                <Text style={styles.emptyText}>No results for "{query}"</Text>
-              </View>
-            ) : null
+            <EmptyState
+              icon="search-outline"
+              title={`"${query}" didn't match anything.`}
+              message="Check spelling, try a broader term, or tap + to add it to your pantry."
+            />
           }
         />
-      )}
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f0f23', padding: 16, paddingTop: 60 },
-  header: { fontSize: 28, fontWeight: '700', color: '#e0e0ff', marginBottom: 16 },
-  searchBar: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a3e',
-    borderRadius: 12, padding: 4, borderWidth: 1, borderColor: '#2a2a5e',
+  container: { flex: 1, backgroundColor: semantic.background, paddingTop: 64, paddingHorizontal: spacing[4] },
+  header: { marginBottom: spacing[4] },
+  title: {
+    fontSize: typography.sizes['2xl'].size,
+    fontWeight: typography.weight.bold,
+    color: semantic.textPrimary,
   },
-  searchIcon: { paddingHorizontal: 10 },
-  searchInput: { flex: 1, padding: 12, fontSize: 16, color: '#e0e0ff' },
-  quickRow: { flexDirection: 'row', gap: 8, marginTop: 16, marginBottom: 16, flexWrap: 'wrap' },
-  quickBtn: { backgroundColor: '#1a1a3e', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: '#2a2a5e' },
-  quickText: { fontSize: 13, color: '#c0c0dd' },
-  list: { paddingBottom: 20 },
+  searchInput: {
+    marginBottom: spacing[3],
+  },
+  suggestions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing[2],
+    marginBottom: spacing[4],
+  },
+  suggestionChip: {
+    backgroundColor: semantic.surfaceElevated,
+    borderWidth: 1,
+    borderColor: semantic.border,
+    borderRadius: 999,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
+  },
+  suggestionText: {
+    fontSize: typography.sizes.sm.size,
+    color: semantic.textSecondary,
+    textTransform: 'capitalize',
+  },
+  loader: { marginTop: spacing[10] },
+  list: { paddingBottom: spacing[4] },
   resultCard: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#1a1a3e', borderRadius: 10, padding: 14, marginBottom: 8,
-    borderWidth: 1, borderColor: '#2a2a5e',
+    marginBottom: spacing[3],
+    overflow: 'hidden',
   },
-  resultInfo: { flex: 1 },
-  resultTitle: { fontSize: 16, fontWeight: '600', color: '#e0e0ff' },
-  resultMeta: { fontSize: 12, color: '#8888bb', marginTop: 2 },
-  score: { fontSize: 14, fontWeight: '700', color: '#818cf8', marginLeft: 12 },
-  empty: { alignItems: 'center', paddingTop: 40 },
-  emptyText: { fontSize: 16, color: '#666' },
+  resultInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing[4],
+  },
+  resultText: { flex: 1, paddingRight: spacing[3] },
+  resultTitle: {
+    fontSize: typography.sizes.base.size,
+    fontWeight: typography.weight.semibold,
+    color: semantic.textPrimary,
+  },
+  resultMeta: {
+    fontSize: typography.sizes.sm.size,
+    color: semantic.textSecondary,
+    marginTop: 2,
+  },
+  score: {
+    fontSize: typography.sizes.sm.size,
+    fontWeight: typography.weight.bold,
+    color: semantic.primary,
+  },
 });

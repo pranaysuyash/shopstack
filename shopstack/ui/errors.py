@@ -39,7 +39,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Callable
+from collections.abc import Callable
 
 from shopstack.ui.components.primitives import branded_error_shell
 
@@ -53,6 +53,7 @@ def safe_render_html(
     help_tab: str = "today",
     icon: str = "⚠️",
     retry_label: str = "Retry",
+    fail_user_message: str | None = None,
 ) -> str:
     """Run ``fn`` and return its HTML. If it raises, return a
     :func:`branded_error_shell` with a generated error id and
@@ -97,7 +98,7 @@ def safe_render_html(
             f"Message: {exc}"
         )
         return branded_error_shell(
-            message=user_message,
+            message=fail_user_message or user_message,
             detail=detail,
             icon=icon,
             retry_label=retry_label,

@@ -7,13 +7,20 @@ from html import escape
 from typing import Any
 
 from shopstack.config import settings
-from shopstack.cost_tracker import CostRecord, CostTracker, estimate_cost_usd, estimate_model_tier
+from shopstack.cost_tracker import (
+    CostRecord,
+    CostTracker,
+    estimate_cost_usd,
+    estimate_model_tier,
+)
 from shopstack.eval.recorder import (
     CAP_PLANNER_TOOL_CALLING,
     OUTCOME_EMPTY,
     OUTCOME_EXCEPTION,
+    OUTCOME_BLOCKED,
     OUTCOME_PARSE_ERROR,
     OUTCOME_SUCCESS,
+    OUTCOME_TOOL_FAILURE,
     SHAPE_TOOL_CALLS,
     record_model_call,
 )
@@ -106,6 +113,7 @@ class PlannerEngine:
                     })
                     planner_call_ms = round((time.monotonic() - started) * 1000, 2)
                     tool_calls, parser_meta = self._parse_tool_calls_from_result(result)
+                    parser_meta = self._merge_provider_parser_diagnostics(provider, parser_meta)
                     provider_meta = self._provider_call_meta(
                         provider,
                         result=result,
@@ -181,15 +189,22 @@ class PlannerEngine:
                 backend=provider_meta.get("backend", ""),
                 provider_name=provider_meta.get("provider", ""),
             )
-            if not tool_calls:
-                rec.set_outcome(OUTCOME_PARSE_ERROR, "no tool calls parsed")
+            parser_failed = self._parser_failed(parser_meta, tool_calls)
+            if parser_failed:
+                execution_meta = self._parse_failure_execution(tool_calls)
+                outcomes = []
+                rec.set_execution(execution_meta)
+                rec.set_outcome(OUTCOME_PARSE_ERROR, self._parser_error(parser_meta))
             else:
-                rec.set_outcome(OUTCOME_SUCCESS)
+                outcomes, execution_meta = self._execute_tool_calls(tool_calls)
+                rec.set_execution(execution_meta)
+                self._set_execution_outcome(rec, execution_meta)
 
         # End of with block — __exit__ persists the record.
         provider_meta["parser"] = parser_meta
-        outcomes, execution_meta = self._execute_tool_calls(tool_calls)
         provider_meta["execution"] = execution_meta
+        if self._parser_failed(parser_meta, tool_calls):
+            return _stat_card(body_html="Planner could not produce a valid action plan. Please rephrase the request.")
         # kept intentionally for UI/debug surfacing through raw trace consumers
         return self._format_outcomes(outcomes, question)
 
@@ -231,6 +246,7 @@ class PlannerEngine:
                     })
                     planner_call_ms = round((time.monotonic() - started) * 1000, 2)
                     tool_calls, parser_meta = self._parse_tool_calls_from_result(result)
+                    parser_meta = self._merge_provider_parser_diagnostics(provider, parser_meta)
                     provider_meta = self._provider_call_meta(
                         provider,
                         result=result,
@@ -292,7 +308,7 @@ class PlannerEngine:
             except Exception as e:
                 logger.warning("Planner call failed", exc_info=True)
                 rec.set_outcome(OUTCOME_EXCEPTION, str(e))
-                return {"error": f"Planner error: {str(e)}", "type": "error"}
+                return {"error": f"Planner error: {e!s}", "type": "error"}
 
             # Feed provider metadata into the o/p eval record.
             rec.set_output(result if "result" in locals() else plan_result)
@@ -304,18 +320,31 @@ class PlannerEngine:
                 backend=provider_meta.get("backend", ""),
                 provider_name=provider_meta.get("provider", ""),
             )
-            if not tool_calls:
-                rec.set_outcome(OUTCOME_PARSE_ERROR, "no tool calls parsed")
+            parser_failed = self._parser_failed(parser_meta, tool_calls)
+            if parser_failed:
+                execution_meta = self._parse_failure_execution(tool_calls)
+                outcomes = []
+                rec.set_execution(execution_meta)
+                rec.set_outcome(OUTCOME_PARSE_ERROR, self._parser_error(parser_meta))
             else:
-                rec.set_outcome(OUTCOME_SUCCESS)
+                outcomes, execution_meta = self._execute_tool_calls(tool_calls)
+                rec.set_execution(execution_meta)
+                self._set_execution_outcome(rec, execution_meta)
 
         # End of with block — __exit__ persists the record.
-        if not tool_calls:
-            return {"error": "Planner returned an empty response.", "type": "error"}
-
-        outcomes, execution_meta = self._execute_tool_calls(tool_calls)
         provider_meta["parser"] = parser_meta
         provider_meta["execution"] = execution_meta
+
+        if self._parser_failed(parser_meta, tool_calls):
+            return {
+                "error": "Planner could not produce a valid action plan. Please rephrase the request.",
+                "type": "error",
+                "debug": {
+                    "provider": provider_meta,
+                    "parser": parser_meta,
+                    "execution": execution_meta,
+                },
+            }
 
         return {
             "tool_calls": tool_calls,
@@ -327,6 +356,59 @@ class PlannerEngine:
                 "execution": execution_meta,
             },
         }
+
+    @staticmethod
+    def _parser_failed(parser_meta: dict[str, Any], tool_calls: list[dict[str, Any]]) -> bool:
+        if not tool_calls:
+            return True
+        if parser_meta.get("status") in {
+            "fallback_respond",
+            "invalid_root_type",
+            "invalid_items",
+            "empty",
+            "unavailable",
+        }:
+            return True
+        return int(parser_meta.get("items_output", 0) or 0) == 0
+
+    @staticmethod
+    def _merge_provider_parser_diagnostics(
+        provider: Any,
+        parser_meta: dict[str, Any],
+    ) -> dict[str, Any]:
+        provider_diagnostics = getattr(provider, "last_plan_diagnostics", None)
+        if not isinstance(provider_diagnostics, dict) or not provider_diagnostics:
+            return parser_meta
+        merged = dict(parser_meta)
+        merged["provider_plan"] = provider_diagnostics
+        merged.update(provider_diagnostics)
+        merged["source"] = f"{parser_meta.get('source', 'planner')}:provider_diagnostics"
+        return merged
+
+    @staticmethod
+    def _parser_error(parser_meta: dict[str, Any]) -> str:
+        return str(parser_meta.get("error") or parser_meta.get("status") or "no tool calls parsed")
+
+    @staticmethod
+    def _parse_failure_execution(tool_calls: list[dict[str, Any]]) -> dict[str, Any]:
+        return {
+            "status": "parse_failed",
+            "tool_calls_requested": len(tool_calls),
+            "tool_calls_executed": 0,
+            "tool_calls_failed": 0,
+            "tool_calls_truncated": 0,
+            "tool_runs": [],
+            "cost_blocked": False,
+        }
+
+    @staticmethod
+    def _set_execution_outcome(rec: Any, execution_meta: dict[str, Any]) -> None:
+        if execution_meta.get("cost_blocked"):
+            rec.set_outcome(OUTCOME_BLOCKED, "cost_budget_exceeded")
+        elif execution_meta.get("tool_calls_failed", 0):
+            rec.set_outcome(OUTCOME_TOOL_FAILURE, "one or more tool calls failed")
+        else:
+            rec.set_outcome(OUTCOME_SUCCESS)
 
     @property
     def session_cost(self) -> dict[str, Any]:
@@ -360,13 +442,18 @@ class PlannerEngine:
     ) -> dict[str, Any]:
         if result is None:
             result = {}
+        result_type = type(raw_output if raw_output is not None else result).__name__
+        metadata_result = result
+        if not isinstance(metadata_result, dict):
+            provider_completion = getattr(provider, "last_completion_meta", None)
+            metadata_result = provider_completion if isinstance(provider_completion, dict) else {}
         usage: dict[str, Any] = {}
-        if isinstance(result, dict):
-            usage = result.get("usage") or {}
+        if isinstance(metadata_result, dict):
+            usage = metadata_result.get("usage") or {}
             if not isinstance(usage, dict):
                 usage = {}
 
-        cost_payload = result.get("cost") if isinstance(result, dict) else {}
+        cost_payload = metadata_result.get("cost") if isinstance(metadata_result, dict) else {}
         if not isinstance(cost_payload, dict):
             cost_payload = {}
 
@@ -381,6 +468,8 @@ class PlannerEngine:
         model_key = None
         if isinstance(result, dict):
             model_key = result.get("model") or result.get("model_key")
+        if not model_key and isinstance(metadata_result, dict):
+            model_key = metadata_result.get("model") or metadata_result.get("model_key")
         if not model_key:
             model_key = getattr(provider, "_model", None)
         if not model_key:
@@ -418,7 +507,7 @@ class PlannerEngine:
             "output_tokens": output_tokens,
             "usage": usage,
             "cost_usd": cost_payload.get("usd"),
-            "raw_output_type": type(raw_output if raw_output is not None else result).__name__,
+            "raw_output_type": result_type,
         }
 
     def _record_cost(self, model_key: str, input_tokens: int, output_tokens: int, latency_ms: float | None = None) -> None:
@@ -522,6 +611,7 @@ class PlannerEngine:
                     "error": self._cost_blocked_reason(),
                 }],
                 {
+                    "status": "cost_blocked",
                     "tool_calls_requested": len(tool_calls),
                     "tool_calls_executed": 0,
                     "tool_calls_failed": 0,
@@ -534,6 +624,7 @@ class PlannerEngine:
         results: list[dict[str, Any]] = []
         limited = tool_calls[: self.MAX_TOOL_CALLS_PER_RUN]
         execution: dict[str, Any] = {
+            "status": "pending",
             "tool_calls_requested": len(tool_calls),
             "tool_calls_executed": 0,
             "tool_calls_failed": 0,
@@ -676,6 +767,14 @@ class PlannerEngine:
                 })
                 break
 
+        if execution["cost_blocked"]:
+            execution["status"] = "cost_blocked"
+        elif execution["tool_calls_failed"]:
+            execution["status"] = "partial_failure"
+        elif execution["tool_calls_truncated"]:
+            execution["status"] = "truncated"
+        else:
+            execution["status"] = "completed"
         return results, execution
 
     def _cost_guarded(self) -> bool:

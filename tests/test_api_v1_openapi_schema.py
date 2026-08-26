@@ -24,12 +24,9 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
 # Import from the source module directly (not the lazy wrappers in
 # ``shopstack.api.v1.__init__``) to avoid any circular-import risk.
 from shopstack.api.v1.openapi import openapi_schema, openapi_schema_json
-
 
 # ── Tests ──────────────────────────────────────────────────────────────
 
@@ -156,6 +153,7 @@ class TestPathCoverage:
         ("get", "/api/v1/intelligence/decision/{name}/explain"),
         ("get", "/api/v1/intelligence/recurring"),
         ("get", "/api/v1/intelligence/mealplan"),
+        ("get", "/api/v1/intelligence/recipes/{recipe_id}"),
         # ── account ──
         ("post", "/api/v1/account/privacy/purge"),
         ("get", "/api/v1/account/privacy/retention-summary"),
@@ -408,7 +406,8 @@ class TestSchemaStability:
 
     def test_schema_importable_from_package(self) -> None:
         """Both functions are importable from ``shopstack.api.v1``."""
-        from shopstack.api.v1 import openapi_schema as _s, openapi_schema_json as _j
+        from shopstack.api.v1 import openapi_schema as _s
+        from shopstack.api.v1 import openapi_schema_json as _j
         assert callable(_s), "openapi_schema import failed"
         assert callable(_j), "openapi_schema_json import failed"
 

@@ -12,21 +12,20 @@ Cover every check in :mod:`shopstack.eval.checks`:
 """
 from __future__ import annotations
 
-import pytest
-
 from shopstack.eval import (
     CAP_PLANNER_TOOL_CALLING,
-    CheckResult,
-    ModelCallRecord,
     SHAPE_BYTES,
     SHAPE_RAW,
     SHAPE_STRUCTURED,
     SHAPE_TEXT,
     SHAPE_TOOL_CALLS,
+    CheckResult,
+    ModelCallRecord,
 )
 from shopstack.eval.checks import (
     EvalCheckRegistry,
     check_cost_budget,
+    check_execution_success,
     check_latency_budget,
     check_length_sanity,
     check_non_duplicate,
@@ -285,9 +284,19 @@ def test_non_duplicate_different_prompts_pass():
 # ── Registry ──────────────────────────────────────────────────────────
 
 
-def test_default_registry_runs_all_six_checks():
+def test_execution_success_distinguishes_completed_and_failed_runs():
+    completed = _record(execution={"status": "completed"})
+    failed = _record(execution={"status": "partial_failure", "tool_calls_failed": 1})
+    parse_failed = _record(execution={"status": "parse_failed"})
+
+    assert check_execution_success(completed).passed is True
+    assert check_execution_success(failed).passed is False
+    assert check_execution_success(parse_failed).score == 0.0
+
+
+def test_default_registry_runs_all_seven_checks():
     reg = default_registry()
-    names = [c.name for c in reg._checks]  # noqa: SLF001 - testing internals
+    names = [c.name for c in reg._checks]
     assert names == [
         "parse_success",
         "latency_budget",
@@ -295,6 +304,7 @@ def test_default_registry_runs_all_six_checks():
         "cost_budget",
         "tokens_within_context",
         "non_duplicate",
+        "execution_success",
     ]
 
 

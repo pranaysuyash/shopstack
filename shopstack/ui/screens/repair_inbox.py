@@ -106,7 +106,7 @@ def _repair_inbox_view_inner(severity: str) -> str:
         occ = item.occurrences
         # Confirm-status badge
         confirm_badge = (
-            f"<span style='font-size:0.625rem;background:var(--green);color:#fff;padding:2px 6px;border-radius:8px;margin-left:6px;'>confirmed</span>"
+            "<span style='font-size:0.625rem;background:var(--green);color:#fff;padding:2px 6px;border-radius:8px;margin-left:6px;'>confirmed</span>"
             if item.user_confirmed
             else f"<span style='font-size:0.625rem;background:var(--amber);color:#fff;"
             f"padding:2px 6px;border-radius:8px;margin-left:6px;'>{item.pending_user_confirmation} pending</span>"
@@ -122,7 +122,7 @@ def _repair_inbox_view_inner(severity: str) -> str:
                 f"<div style='font-size:0.75rem;margin-top:4px;'>📍 {escape(item.location_name or 'unknown')} · "
                 f"<strong>Action:</strong> {escape(action_label)}</div>"
                 f"{('<div style=\"font-size:0.6875rem;color:var(--text-dim);margin-top:4px;font-style:italic;\">'
-                  f'\"' + escape(item.latest_description) + '\"</div>') if item.latest_description else ''}"
+                  '\"' + escape(item.latest_description) + '\"</div>') if item.latest_description else ''}"
             ),
         ))
     return "".join(parts)
@@ -152,9 +152,9 @@ def report_damage(
     # Validate the lot exists
     lot = db.get_inventory_lot(lot_id.strip())
     if not lot:
-        return f"<div style='color:var(--red);'>Item not found: {escape(lot_id[:12])}</div>"
+        return f"<div style='color:var(--red);'>Unknown lot: {escape(lot_id[:12])}</div>"
     try:
-        event_id = record_condition_event(
+        record_condition_event(
             db,
             lot_id=lot_id.strip(),
             kind=kind.strip(),
@@ -178,7 +178,7 @@ def confirm_condition_event(event_id: str) -> str:
     ok = db.confirm_condition_event(event_id.strip())
     if not ok:
         return f"<div style='color:var(--red);'>Failed to confirm event {escape(event_id[:12])}.</div>"
-    return f"<div style='color:var(--green);'>Confirmed issue.</div>"
+    return "<div style='color:var(--green);'>Confirmed issue.</div>"
 
 
 @aria_live_screen()
@@ -189,7 +189,7 @@ def close_condition_event(event_id: str) -> str:
     ok = db.close_condition_event(event_id.strip())
     if not ok:
         return f"<div style='color:var(--red);'>Failed to close event {escape(event_id[:12])}.</div>"
-    return f"<div style='color:var(--green);'>Issue resolved and closed.</div>"
+    return "<div style='color:var(--green);'>Issue resolved and closed.</div>"
 
 
 @aria_live_screen()
@@ -200,13 +200,13 @@ def delete_condition_event(event_id: str) -> str:
     ok = db.delete_condition_event(event_id.strip())
     if not ok:
         return f"<div style='color:var(--red);'>Failed to delete event {escape(event_id[:12])}.</div>"
-    return f"<div style='color:var(--green);'>Issue removed.</div>"
+    return "<div style='color:var(--green);'>Issue removed.</div>"
 
 
 __all__ = [
+    "close_condition_event",
+    "confirm_condition_event",
+    "delete_condition_event",
     "repair_inbox_view",
     "report_damage",
-    "confirm_condition_event",
-    "close_condition_event",
-    "delete_condition_event",
 ]

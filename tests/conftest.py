@@ -1,12 +1,5 @@
 from __future__ import annotations
 
-import logging
-import os
-import shutil
-import tempfile
-from pathlib import Path
-from typing import Generator
-
 # Disable pytest-xdist for the whole test session.
 #
 # xdist has a known incompatibility with the sys.modules mocking pattern
@@ -18,7 +11,6 @@ from typing import Generator
 #
 # The fix is to disable xdist: `-p no:xdist` in the test command.
 # This is added programmatically below via a pytest plugin.
-
 # Set environment variables BEFORE any shopstack imports.
 # ``shopstack.config`` instantiates ``settings = Settings()`` at module
 # import time (line 112), so the env vars must be set first or the
@@ -38,6 +30,12 @@ from typing import Generator
 # session-scoped temp FILE so all threads see the same schema. The file
 # is removed at session exit via the atexit hook below.
 import atexit
+import logging
+import os
+import shutil
+import tempfile
+from collections.abc import Generator
+from pathlib import Path
 
 _SESSION_DB_FD, _SESSION_DB_PATH = tempfile.mkstemp(
     suffix=".db", prefix="shopstack_test_session_"
@@ -69,14 +67,15 @@ os.environ.setdefault("SHOPSTACK_EMBEDDINGS_BACKEND", "mock")
 os.environ.setdefault("SHOPSTACK_IMAGE_EDIT_BACKEND", "mock")
 os.environ.setdefault("SHOPSTACK_IMAGE_GEN_BACKEND", "mock")
 
-import pytest
-from unittest.mock import patch
+from unittest.mock import patch  # noqa: E402
 
-from shopstack.config import Settings
-from shopstack.persistence.database import Database
-from shopstack.planner.engine import PlannerEngine
-from shopstack.providers.registry import ProviderRegistry
-from shopstack.tools.registry import ToolRegistry
+import pytest  # noqa: E402
+
+from shopstack.config import Settings  # noqa: E402
+from shopstack.persistence.database import Database  # noqa: E402
+from shopstack.planner.engine import PlannerEngine  # noqa: E402
+from shopstack.providers.registry import ProviderRegistry  # noqa: E402
+from shopstack.tools.registry import ToolRegistry  # noqa: E402
 
 # ── Stale __pycache__ reset ───────────────────────────────────────────
 # Drift across passes can leave ``__pycache__/`` directories out of sync
@@ -211,20 +210,35 @@ def app(_app_session):
     break every screen that filters by household.
     """
     app_mod = _app_session
+
+    # Release any WAL write locks leaked by failing background threads
+    # (e.g. from anyio FastAPI workers or ThreadPoolExecutor) during the last test.
+    app_mod.db.force_close_all_connections()
+
     conn = app_mod.db.conn
     conn.execute("PRAGMA foreign_keys = OFF")
     for table in _APP_DATA_TABLES:
         conn.execute(f"DELETE FROM {table}")
+    conn.commit()
     conn.execute("PRAGMA foreign_keys = ON")
     conn.commit()
     app_mod.db._seed_locations()
     app_mod.db._seed_default_household()
     app_mod.db.active_household_id = "default_household"
+    from shopstack.app_context import _current_household_id
+    _current_household_id.set(None)
+    # Reset the undo ledger singleton so stale entries from prior tests
+    # don't leak into the current test's assertions.
+    try:
+        from shopstack.services.undo_ledger import reset_ledger
+        reset_ledger()
+    except Exception:
+        pass
     return app_mod
 
 
 @pytest.fixture()
-def db_path() -> Generator[str, None, None]:
+def db_path() -> Generator[str]:
     path = ""
     try:
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
@@ -235,7 +249,7 @@ def db_path() -> Generator[str, None, None]:
 
 
 @pytest.fixture(scope="module")
-def live_app_db_path() -> Generator[str, None, None]:
+def live_app_db_path() -> Generator[str]:
     """Canonical module-scoped temp DB path for live-app browser tests.
 
     The canonical pattern for any test that needs a real Gradio app
@@ -307,8 +321,12 @@ def settings(db_path: str) -> Settings:
 
 
 @pytest.fixture()
-def db(settings: Settings) -> Database:
-    return Database(settings.db_path)
+def db(settings: Settings):
+    db_inst = Database(settings.db_path)
+    try:
+        yield db_inst
+    finally:
+        db_inst.force_close_all_connections()
 
 
 @pytest.fixture()
@@ -421,3 +439,14 @@ def pytest_unconfigure(config):
     logging.getLogger(__name__).debug(
         "pytest_unconfigure: session ended; cache state preserved for next invocation"
     )
+
+def pytest_collection_modifyitems(config, items):
+    """Exclude standalone tests unless explicitly requested via -m standalone."""
+    # If the user explicitly requested standalone tests, do not exclude them
+    if "standalone" in config.getoption("-m"):
+        return
+
+    skip_standalone = pytest.mark.skip(reason="standalone tests must be run isolated (use -m standalone)")
+    for item in items:
+        if "standalone" in item.keywords:
+            item.add_marker(skip_standalone)

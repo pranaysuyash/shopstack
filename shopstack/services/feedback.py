@@ -344,7 +344,7 @@ def summarize_corrections(corrections: list[CorrectionEvent]) -> str:
     """One-line summary of a corrections list (for CLI/UI)."""
     count = len(corrections)
     if count == 0:
-        return "No corrections recorded."
+        return "No corrections recorded. Try reconciling an item to generate one."
     if count == 1:
         c = corrections[0]
         return (

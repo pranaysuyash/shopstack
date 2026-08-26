@@ -25,19 +25,19 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from collections import deque
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable
+from typing import Any
 
 from shopstack.eval.recorder import (
-    CheckResult,
-    ModelCallRecord,
     SHAPE_BYTES,
     SHAPE_RAW,
     SHAPE_STRUCTURED,
     SHAPE_TEXT,
     SHAPE_TOOL_CALLS,
+    CheckResult,
+    ModelCallRecord,
 )
 
 logger = logging.getLogger(__name__)
@@ -248,7 +248,7 @@ def check_non_duplicate(
     exact match is too strict (whitespace / time-of-day noise).
     """
     if not record.prompt:
-        return CheckResult("non_duplicate", True, 1.0, "no prompt to compare")
+        return CheckResult("non_duplicate", True, 1.0, "not_available: prompt is None")
 
     # Build a fingerprint of the current prompt
     fp = (len(record.prompt), record.prompt[:200])
@@ -257,7 +257,7 @@ def check_non_duplicate(
 
     count = 1
     try:
-        from datetime import datetime, timezone
+        from datetime import datetime
         current_dt = datetime.fromisoformat(record.started_at)
     except (TypeError, ValueError):
         current_dt = None
@@ -283,6 +283,41 @@ def check_non_duplicate(
     return CheckResult(
         "non_duplicate", True, 1.0,
         f"prompt fingerprint seen {count}× in window",
+    )
+
+
+def check_execution_success(
+    record: ModelCallRecord,
+    history: Iterable[ModelCallRecord] = (),
+) -> CheckResult:
+    """Ensure the agentic execution phase did not hide tool failures."""
+    execution = record.execution or {}
+    if not execution:
+        return CheckResult(
+            "execution_success", True, 1.0,
+            "not_available: no execution summary",
+        )
+
+    status = str(execution.get("status", "unknown"))
+    failed = int(execution.get("tool_calls_failed", 0) or 0)
+    truncated = int(execution.get("tool_calls_truncated", 0) or 0)
+    if status in {"completed", "responded"} and failed == 0 and truncated == 0:
+        return CheckResult("execution_success", True, 1.0, status)
+    if status == "parse_failed":
+        return CheckResult(
+            "execution_success", False, 0.0,
+            "parser rejected the provider output",
+        )
+    if status == "cost_blocked":
+        return CheckResult(
+            "execution_success", False, 0.0,
+            "run blocked by cost budget",
+        )
+    return CheckResult(
+        "execution_success",
+        False,
+        0.0 if failed else 0.5,
+        f"status={status}, failed={failed}, truncated={truncated}",
     )
 
 
@@ -353,6 +388,7 @@ def default_registry() -> EvalCheckRegistry:
     reg.register("cost_budget", check_cost_budget)
     reg.register("tokens_within_context", check_tokens_within_context)
     reg.register("non_duplicate", check_non_duplicate)
+    reg.register("execution_success", check_execution_success)
     return reg
 
 
@@ -366,6 +402,7 @@ __all__ = [
     "DEFAULT_MODEL_CONTEXT_TOKENS",
     "EvalCheckRegistry",
     "check_cost_budget",
+    "check_execution_success",
     "check_latency_budget",
     "check_length_sanity",
     "check_non_duplicate",

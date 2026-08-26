@@ -255,8 +255,18 @@ class ModalEmbeddingsProvider:
     def embed(self, texts: list[str]) -> list[list[float]]:
         """Compute embeddings for ``texts`` via the Modal endpoint.
 
-        Falls back to per-text stub embeddings when no URL is set.
+        Batches all texts into one request when a real URL is configured;
+        falls back to per-text stub embeddings when URL is empty.
         """
+        if not texts:
+            return []
+        if self.url:
+            payload = {"model": self.model, "texts": texts}
+            resp = call_modal(self.url, payload, stub_kind="embeddings")
+            raw = resp.get("embeddings", [])
+            if not isinstance(raw, list):
+                return []
+            return [[float(x) for x in emb] for emb in raw if isinstance(emb, list)]
         out: list[list[float]] = []
         for t in texts:
             payload = {"model": self.model, "text": t}
@@ -266,6 +276,102 @@ class ModalEmbeddingsProvider:
                 emb = []
             out.append([float(x) for x in emb])
         return out
+
+
+class ModalOCRProvider:
+    """OCR provider backed by a Modal-deployed OCR model."""
+
+    name = "modal_ocr"
+    model_id = "modal-ocr-v1"
+    parameter_count = 0.0
+    capabilities: set[str] = {"ocr", "remote", "gpu"}
+    supports_off_grid = False
+
+    def __init__(self, url: str = "", *, model: str = "glm-ocr"):
+        self.url = url
+        self.model = model
+
+    def load(self) -> None:
+        pass
+
+    def healthcheck(self) -> bool:
+        return True
+
+    def extract_text(self, image_path: str) -> dict[str, Any]:
+        payload = {"model": self.model, "image_path": image_path}
+        return call_modal(self.url, payload, stub_kind="ocr")
+
+
+class ModalSTTProvider:
+    """Speech-to-text provider backed by a Modal-deployed STT model."""
+
+    name = "modal_stt"
+    model_id = "modal-stt-v1"
+    parameter_count = 0.0
+    capabilities: set[str] = {"stt", "remote", "gpu"}
+    supports_off_grid = False
+
+    def __init__(self, url: str = "", *, model: str = "sense-voice"):
+        self.url = url
+        self.model = model
+
+    def load(self) -> None:
+        pass
+
+    def healthcheck(self) -> bool:
+        return True
+
+    def transcribe(self, audio_path: str) -> dict[str, Any]:
+        payload = {"model": self.model, "audio_path": audio_path}
+        return call_modal(self.url, payload, stub_kind="stt")
+
+
+class ModalTTSProvider:
+    """Text-to-speech provider backed by a Modal-deployed TTS model."""
+
+    name = "modal_tts"
+    model_id = "modal-tts-v1"
+    parameter_count = 0.0
+    capabilities: set[str] = {"tts", "remote", "gpu"}
+    supports_off_grid = False
+
+    def __init__(self, url: str = "", *, model: str = "qwen3-tts"):
+        self.url = url
+        self.model = model
+
+    def load(self) -> None:
+        pass
+
+    def healthcheck(self) -> bool:
+        return True
+
+    def synthesize(self, text: str) -> dict[str, Any]:
+        payload = {"model": self.model, "text": text}
+        return call_modal(self.url, payload, stub_kind="tts")
+
+
+class ModalSegmentationProvider:
+    """Segmentation provider backed by a Modal-deployed segmentation model."""
+
+    name = "modal_segmentation"
+    model_id = "modal-segmentation-v1"
+    parameter_count = 0.0
+    capabilities: set[str] = {"segmentation", "remote", "gpu"}
+    supports_off_grid = False
+
+    def __init__(self, url: str = "", *, model: str = "birefnet"):
+        self.url = url
+        self.model = model
+
+    def load(self) -> None:
+        pass
+
+    def healthcheck(self) -> bool:
+        return True
+
+    def segment(self, image_path: str) -> dict[str, Any]:
+        payload = {"model": self.model, "image_path": image_path}
+        return call_modal(self.url, payload, stub_kind="segmentation")
 
 
 # ─── Public API ───────────────────────────────────────────────────

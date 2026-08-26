@@ -12,8 +12,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -84,8 +82,8 @@ def test_readme_has_hf_metadata():
     """README.md should have HF Spaces metadata block (per AI-4)."""
     content = (PROJECT_ROOT / "README.md").read_text()
     # The HF metadata block is a YAML frontmatter at the top
-    assert "sdk: gradio" in content or "app_file: app.py" in content, (
-        "README.md missing HF Spaces metadata block (sdk: gradio, "
+    assert "sdk: gradio" in content or "sdk: docker" in content or "app_file: app.py" in content, (
+        "README.md missing HF Spaces metadata block (sdk: gradio/docker, "
         "app_file: app.py). Per AI-4, this is required for HF "
         "Spaces auto-detection."
     )
