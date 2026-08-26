@@ -206,6 +206,8 @@ def test_dark_mode_toggle_persistence(tmp_path: Path) -> None:
             # With no localStorage value and no system preference match,
             # data-theme should be None (no explicit attribute).
             # localStorage may also be null on first visit.
+            assert initial_theme in (None, "light")
+            assert initial_ls in (None, "light")
 
             # ── Step 4: Toggle to dark ──────────────────────────────────────
             page.evaluate("toggleTheme()")
@@ -466,4 +468,78 @@ def test_browser_hydration(tmp_path: Path) -> None:
     print(
         f"[browser-hydration] OK — {len(collected)} console messages "
         f"(0 errors), screenshot at {screenshot_path}"
+    )
+
+
+def test_global_search_palette_hydration(tmp_path: Path) -> None:
+    """Verify the command palette opens and hydrates in a real browser.
+
+    This complements the HTML and JavaScript contract tests with a live
+    browser check for the existing global-search surface.
+    """
+    from app import build_app
+
+    app = build_app()
+    port = _find_free_port()
+
+    def _serve() -> None:
+        app.launch(
+            server_port=port,
+            prevent_thread_lock=True,
+            inbrowser=False,
+            quiet=True,
+        )
+
+    t = threading.Thread(target=_serve, daemon=True)
+    t.start()
+    base_url = f"http://127.0.0.1:{port}"
+    _wait_for_server(base_url)
+    js_errors: list[str] = []
+
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True)
+            page: Page = browser.new_page()
+
+            def _on_console(msg: ConsoleMessage) -> None:
+                if msg.type == "error":
+                    js_errors.append(msg.text)
+
+            def _on_pageerror(err: Any) -> None:
+                js_errors.append(str(err))
+
+            page.on("console", _on_console)
+            page.on("pageerror", _on_pageerror)
+            # Gradio keeps an active event connection, so networkidle is not
+            # a stable readiness condition for this application.
+            page.goto(base_url, wait_until="load", timeout=30_000)
+            page.wait_for_timeout(1000)
+
+            overlay = page.locator("#ss-global-search-overlay")
+            overlay.wait_for(state="attached", timeout=10_000)
+            search_input = page.locator("#ss-global-search-input")
+            search_input.wait_for(state="attached", timeout=5_000)
+            page.evaluate("window.showGlobalSearch && window.showGlobalSearch()")
+            page.wait_for_timeout(200)
+            is_open = page.evaluate(
+                "document.getElementById('ss-global-search-overlay')"
+                ".getAttribute('data-open')"
+            )
+            assert is_open == "true", (
+                f"Palette should be open after showGlobalSearch(), got {is_open!r}"
+            )
+            search_input.fill("milk")
+            page.wait_for_timeout(500)
+            screenshot_path = tmp_path / "global_search_palette.png"
+            page.screenshot(path=str(screenshot_path))
+            browser.close()
+    finally:
+        try:
+            app.close()
+        except Exception:
+            pass
+
+    assert not js_errors, (
+        f"Global search palette produced {len(js_errors)} console errors: "
+        f"{js_errors[:3]}"
     )

@@ -7,10 +7,9 @@ and again from the post-launch hook (Gradio recreates
 The mount is idempotent — duplicate routes are caught and
 logged but do not raise.
 
-All legacy HTTP endpoints have been ported to versioned
-``/api/v1/*`` routers. The ``_mount_aliases`` function that
-provided backward-compat Sunset-tagged aliases was removed
-in Pass 26 (2026-06-17).
+The versioned routers are canonical. A small set of compatibility aliases
+remains for the existing Gradio shell and external local tooling; aliases
+must preserve FastAPI dependency resolution and are excluded from OpenAPI.
 """
 from __future__ import annotations
 
@@ -23,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 def mount_v1_routes(gradio_app: gr.Blocks) -> None:
-    """Mount the v1 surface + alias the old endpoints.
+    """Mount the v1 surface plus its compatibility aliases.
 
     Idempotent. Logs but never raises.
     """
@@ -112,15 +111,53 @@ def mount_v1_routes(gradio_app: gr.Blocks) -> None:
     # orchestrators.  They are thin clones of the versioned
     # endpoints and are NOT documented in OpenAPI.
     try:
-        from starlette.routing import Route as _Route
+        from fastapi import Depends
+        from fastapi.routing import APIRoute
 
-        def _clone_route(src_route: _Route, new_path: str) -> _Route:
-            return _Route(
+        from shopstack.api.v1.deps import db_transaction_cleanup
+        from shopstack.api.v1.routers.search import legacy_search_global
+
+        def _clone_route(
+            src_route: APIRoute,
+            new_path: str,
+            *,
+            endpoint: Any | None = None,
+        ) -> APIRoute:
+            """Clone an API route without dropping FastAPI semantics.
+
+            A plain Starlette ``Route`` bypasses dependency injection. That
+            is unsafe for aliases whose endpoint declares authentication or
+            request parsing dependencies, so preserve the complete API route
+            contract and bind overrides to the mounted FastAPI app.
+            """
+            return APIRoute(
                 new_path,
-                endpoint=src_route.endpoint,
-                methods=list(src_route.methods or []),
+                endpoint or src_route.endpoint,
+                response_model=src_route.response_model,
+                status_code=src_route.status_code,
+                tags=src_route.tags,
+                dependencies=[Depends(db_transaction_cleanup), *src_route.dependencies],
+                summary=src_route.summary,
+                description=src_route.description,
+                response_description=src_route.response_description,
+                responses=src_route.responses,
+                deprecated=src_route.deprecated,
                 name=f"legacy_{src_route.name or 'route'}",
+                methods=list(src_route.methods or []),
+                operation_id=None,
+                response_model_include=src_route.response_model_include,
+                response_model_exclude=src_route.response_model_exclude,
+                response_model_by_alias=src_route.response_model_by_alias,
+                response_model_exclude_unset=src_route.response_model_exclude_unset,
+                response_model_exclude_defaults=src_route.response_model_exclude_defaults,
+                response_model_exclude_none=src_route.response_model_exclude_none,
                 include_in_schema=False,
+                response_class=src_route.response_class,
+                dependency_overrides_provider=fastapi_app,
+                callbacks=src_route.callbacks,
+                openapi_extra=src_route.openapi_extra,
+                generate_unique_id_function=src_route.generate_unique_id_function,
+                strict_content_type=src_route.strict_content_type,
             )
 
         _legacy_aliases = [
@@ -131,16 +168,23 @@ def mount_v1_routes(gradio_app: gr.Blocks) -> None:
             (corrections_router, "/corrections",              "/api/corrections"),
             (intelligence_router, "/intelligence/recurring",  "/api/recurring"),
             (intelligence_router, "/intelligence/mealplan",   "/api/mealplan"),
-            (search_router,      "/search/global",            "/api/global_search"),
+            (search_router,      "/search/global",            "/api/global_search", legacy_search_global),
         ]
-        for src_router, internal_path, alias_path in _legacy_aliases:
+        for alias_spec in _legacy_aliases:
+            src_router, internal_path, alias_path, *endpoint_override = alias_spec
             target = next(
                 (r for r in src_router.routes
-                 if isinstance(r, _Route) and r.path == internal_path),
+                 if isinstance(r, APIRoute) and r.path == internal_path),
                 None,
             )
             if target is not None:
-                fastapi_app.routes.append(_clone_route(target, alias_path))
+                fastapi_app.routes.append(
+                    _clone_route(
+                        target,
+                        alias_path,
+                        endpoint=endpoint_override[0] if endpoint_override else None,
+                    )
+                )
                 logger.debug("legacy alias %s → %s", alias_path, internal_path)
     except Exception as exc:  # noqa: BLE001
         logger.debug("legacy alias block failed: %s", exc)

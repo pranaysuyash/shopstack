@@ -76,18 +76,46 @@ def search_global(
     The ``type:`` prefix scopes the search (e.g. ``type:recipe milk``
     searches only recipes).
     """
+    return _global_search_response(q, ctx.household_id)
+
+
+def legacy_search_global(
+    q: str = Query("", description="Search query"),
+) -> SearchResponse:
+    """Serve the Gradio command palette's pre-v1 search contract.
+
+    The palette runs inside the local Gradio UI and has no API bearer token.
+    Its identity therefore comes from the same active-household context used
+    by synchronous Gradio screens. This adapter intentionally does not weaken
+    ``/api/v1/search/global``, which remains bearer-token protected.
+    """
+    from shopstack.app_context import current_user_id
+
+    try:
+        return _global_search_response(q, current_user_id())
+    except Exception as exc:  # noqa: BLE001
+        # Search is an enhancement to the shell. A transient data-source
+        # failure must degrade to an empty palette rather than break hydration.
+        logger.warning("legacy global search failed: %s", exc)
+        return _global_search_response("", current_user_id())
+
+
+def _global_search_response(query: str, household_id: str) -> SearchResponse:
+    """Build the shared global-search wire response for both transports."""
     from shopstack.app_context import db
     from shopstack.services.global_search import SearchSources, search
 
-    results = search(
-        q,
-        sources=SearchSources(
-            database=db,
-            user_id=ctx.household_id,
-        ),
-    )
+    normalized_query = query.strip()
+    if not normalized_query:
+        results = []
+    else:
+        results = search(
+            normalized_query,
+            sources=SearchSources(database=db, user_id=household_id),
+        )
+
     return SearchResponse(
-        query=q,
+        query=normalized_query,
         search_mode="global",
         semantic_active=False,
         match_type="n/a",
@@ -198,4 +226,4 @@ def parse_voice_intent(
     )
 
 
-__all__ = ["router"]
+__all__ = ["legacy_search_global", "router"]
