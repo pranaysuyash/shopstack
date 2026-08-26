@@ -14,7 +14,6 @@ These tests verify the script:
 from __future__ import annotations
 
 import json
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -92,7 +91,7 @@ class TestRepoTruthCounts:
         for expected in [
             "household_objects", "object_sightings", "object_notes",
             "find_feedback", "negative_memory", "person_associations",
-            "condition_events", "household_members",
+            "condition_events", "household_members", "correction_events",
         ]:
             assert expected in names, (
                 f"Expected table {expected!r} in repo truth output, "
