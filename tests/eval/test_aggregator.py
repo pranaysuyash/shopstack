@@ -1,9 +1,7 @@
 """Tests for the o/p eval aggregator + regression detection (EVAL-OP-1)."""
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
-from pathlib import Path
 
 import pytest
 
@@ -13,7 +11,6 @@ from shopstack.eval import (
     SqliteSink,
 )
 from shopstack.eval.aggregator import (
-    DEFAULT_TOLERANCE,
     RouteStats,
     aggregate_by_route,
     aggregate_records,

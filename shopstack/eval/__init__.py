@@ -34,6 +34,14 @@ from shopstack.eval.bench_results import (
     load_baseline,
     save_result,
 )
+from shopstack.eval.capability_matrix import (
+    CAPABILITY_DECISIONS,
+    CapabilityDecision,
+    capability_decision_rows,
+    capability_decisions,
+    get_capability_decision,
+    validate_capability_matrix,
+)
 from shopstack.eval.checks import (
     DEFAULT_COST_BUDGET_USD,
     DEFAULT_DUPLICATE_THRESHOLD,
@@ -98,6 +106,13 @@ __all__ = [
     "check_regression",
     "load_baseline",
     "save_result",
+    # capability policy catalog
+    "CAPABILITY_DECISIONS",
+    "CapabilityDecision",
+    "capability_decision_rows",
+    "capability_decisions",
+    "get_capability_decision",
+    "validate_capability_matrix",
     # per-call recorder
     "CAP_EMBEDDINGS",
     "CAP_GROUNDING",

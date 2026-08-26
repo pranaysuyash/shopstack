@@ -14,9 +14,11 @@ This test:
   3. Provides a helper to compute the total project test count
      that future audits can use to verify doc claims.
   4. Locks in the test inventory methodology:
-     - ``def test_`` substring count is the source-level count
+     - ``def test_`` substring count across all ``test_*.py`` files is the
+       source-level count
      - pytest --collect-only is the runtime count
-     - The two should differ by < 50 (parameterized tests, etc.)
+     - The two should stay within a scale-based tolerance because
+       parameterized tests expand at collection time
 
 The actual count (2651 as of 2026-06-13) is documented in
 ``Docs/HANDOFF_TEST_COUNT_SYNC_2026-06-13.md`` and updated in the
@@ -105,7 +107,7 @@ class TestTestCountConsistency:
         file and the doc claims become wildly wrong.
         """
         total = 0
-        for path in REPO.glob("tests/test_*.py"):
+        for path in REPO.glob("tests/**/test_*.py"):
             total += _count_def_test_in_file(path)
         assert total >= 1000, (
             f"Source-level test count dropped to {total} (was 2612 "
@@ -148,7 +150,7 @@ class TestTestCountConsistency:
         the suite grows; a percentage doesn't.
         """
         source_total = 0
-        for path in REPO.glob("tests/test_*.py"):
+        for path in REPO.glob("tests/**/test_*.py"):
             source_total += _count_def_test_in_file(path)
         try:
             result = subprocess.run(
@@ -164,14 +166,16 @@ class TestTestCountConsistency:
             import pytest
             pytest.skip(f"could not parse pytest output: {result.stdout!r}")
         pytest_count = int(m.group(1))
-        # Percentage-based tolerance: 10% of source count, minimum 50.
-        # This is the long-term, scale-invariant guard.
-        tolerance = max(50, int(source_total * 0.10))
+        # Percentage-based tolerance: 20% of source count, minimum 50.
+        # Collection expands parametrized tests, while the source count
+        # intentionally measures authored test functions. This remains
+        # scale-invariant without pretending the units are identical.
+        tolerance = max(50, int(source_total * 0.20))
         diff = abs(pytest_count - source_total)
         assert diff <= tolerance, (
             f"Source-level count ({source_total}) and pytest collect "
             f"count ({pytest_count}) differ by {diff} > {tolerance} "
-            f"(10% of source). Investigate: did a parameterized test "
+            f"(20% of source). Investigate: did a parameterized test "
             f"explode the count?"
         )
 

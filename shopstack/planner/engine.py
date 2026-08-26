@@ -55,16 +55,25 @@ TOOL_ACTIONS_HELP: dict[str, str] = {
 
 class PlannerEngine:
     MAX_TOOL_CALLS_PER_RUN = 8
+    _LOT_REFERENCE_TOOLS = frozenset({
+        "consume_inventory_item",
+        "move_inventory_item",
+        "update_inventory_item",
+        "undo_last_inventory_change",
+    })
 
     def __init__(
         self,
         db: Database,
         tool_registry: ToolRegistry,
         provider_registry: ProviderRegistry,
+        *,
+        allow_confirmed_writes: bool = False,
     ):
         self._db = db
         self._tools = tool_registry
         self._providers = provider_registry
+        self._allow_confirmed_writes = allow_confirmed_writes
         self._cost_tracker = CostTracker(budget_limit=settings.cost_budget_limit)
 
     @property
@@ -74,7 +83,13 @@ class PlannerEngine:
             return False
         return getattr(provider, "available", False)
 
-    def process(self, question: str, compact_tools: bool | None = None) -> str:
+    def process(
+        self,
+        question: str,
+        compact_tools: bool | None = None,
+        trace_id: str = "",
+        generation: dict[str, Any] | None = None,
+    ) -> str:
         from shopstack.planner.prompts import build_planner_prompt, build_system_prompt
 
         provider = self._providers.planner
@@ -101,6 +116,7 @@ class PlannerEngine:
             domain_route="planner",
             capability=CAP_PLANNER_TOOL_CALLING,
             capability_expected_shape=SHAPE_TOOL_CALLS,
+            trace_id=trace_id,
         ) as rec:
             rec.set_prompt(prompt)
             try:
@@ -110,6 +126,7 @@ class PlannerEngine:
                         "prompt": prompt,
                         "system": system_prompt,
                         "question": question,
+                        **(generation or {}),
                     })
                     planner_call_ms = round((time.monotonic() - started) * 1000, 2)
                     tool_calls, parser_meta = self._parse_tool_calls_from_result(result)
@@ -208,7 +225,13 @@ class PlannerEngine:
         # kept intentionally for UI/debug surfacing through raw trace consumers
         return self._format_outcomes(outcomes, question)
 
-    def process_structured(self, question: str, compact_tools: bool | None = None) -> dict[str, Any]:
+    def process_structured(
+        self,
+        question: str,
+        compact_tools: bool | None = None,
+        trace_id: str = "",
+        generation: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Process a question and return a structured dictionary instead of HTML prose."""
         from shopstack.planner.prompts import build_planner_prompt, build_system_prompt
 
@@ -229,6 +252,7 @@ class PlannerEngine:
             domain_route="planner",
             capability=CAP_PLANNER_TOOL_CALLING,
             capability_expected_shape=SHAPE_TOOL_CALLS,
+            trace_id=trace_id,
         ) as rec:
             rec.set_prompt(prompt)
 
@@ -243,6 +267,7 @@ class PlannerEngine:
                         "prompt": prompt,
                         "system": system_prompt,
                         "question": question,
+                        **(generation or {}),
                     })
                     planner_call_ms = round((time.monotonic() - started) * 1000, 2)
                     tool_calls, parser_meta = self._parse_tool_calls_from_result(result)
@@ -563,6 +588,96 @@ class PlannerEngine:
                 )
         return None
 
+    def _resolve_planner_lot_args(
+        self, tool: str, args: dict[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, Any] | None, str | None]:
+        """Resolve a user-visible item name to one unique lot for planner writes.
+
+        The public mutation tools intentionally keep ``lot_id`` as their
+        auditable target. The planner has richer context than a form field, so
+        it may translate an exact canonical/display name when there is exactly
+        one active match. This is deterministic entity resolution, not model
+        inference. Ambiguous names are rejected before any write occurs.
+        """
+        if tool not in self._LOT_REFERENCE_TOOLS or not isinstance(args, dict):
+            return args, None, None
+        reference = args.get("lot_id")
+        if not isinstance(reference, str) or not reference.strip():
+            return args, None, None
+        reference = reference.strip()
+
+        # Preserve the existing lot-id and prefix contract first.
+        lot_ids = self._db.get_inventory_lot_ids(reference)
+        if len(lot_ids) == 1:
+            if lot_ids[0] == reference:
+                return args, None, None
+            resolved = {**args, "lot_id": lot_ids[0]}
+            return resolved, {"reference": reference, "lot_id": lot_ids[0], "method": "lot_id_prefix"}, None
+        if len(lot_ids) > 1:
+            return args, None, f"Lot reference '{reference}' is ambiguous, use more characters"
+
+        normalized = reference.casefold()
+        active_lots = self._db.get_inventory(status="active")
+        matches = [
+            lot for lot in active_lots
+            if normalized in {
+                str(getattr(lot, "canonical_name", "")).casefold(),
+                str(getattr(lot, "display_name", "")).casefold(),
+            }
+        ]
+        if len(matches) == 1:
+            resolved_id = str(matches[0].lot_id)
+            resolved = {**args, "lot_id": resolved_id}
+            return resolved, {
+                "reference": reference,
+                "lot_id": resolved_id,
+                "canonical_name": matches[0].canonical_name,
+                "method": "unique_active_item_name",
+            }, None
+        if len(matches) > 1:
+            return args, None, f"Item reference '{reference}' matches multiple inventory lots"
+        return args, None, None
+
+    def _resolve_planner_location_args(
+        self, tool: str, args: dict[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, Any] | None, str | None]:
+        """Resolve a natural location phrase to one canonical location ID."""
+        if tool != "move_inventory_item" or not isinstance(args, dict):
+            return args, None, None
+        reference = args.get("to_location_id")
+        if not isinstance(reference, str) or not reference.strip():
+            return args, None, None
+
+        def normalize(value: str) -> str:
+            return " ".join(value.casefold().replace("_", " ").replace("-", " ").split())
+
+        target = normalize(reference)
+        locations = self._db.get_locations()
+        exact = [
+            location for location in locations
+            if target in {normalize(location.location_id), normalize(location.name)}
+        ]
+        candidates = exact or [
+            location for location in locations
+            if normalize(location.location_id) != "home"
+            and normalize(location.name) in target
+        ]
+        if not candidates:
+            return args, None, None
+        longest = max(len(normalize(location.name)) for location in candidates)
+        matches = [location for location in candidates if len(normalize(location.name)) == longest]
+        if len(matches) != 1:
+            return args, None, f"Location reference '{reference}' is ambiguous"
+        location = matches[0]
+        resolved_id = str(location.location_id)
+        if resolved_id == reference:
+            return args, None, None
+        return (
+            {**args, "to_location_id": resolved_id},
+            {"reference": reference, "location_id": resolved_id, "method": "canonical_location_name" if exact else "location_name_subphrase"},
+            None,
+        )
+
     def _parse_tool_calls_from_result(
         self, result: str | list[Any] | dict[str, Any]
     ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -647,7 +762,29 @@ class PlannerEngine:
             started = time.monotonic()
 
             tool = tc.get("tool", "respond")
-            args = tc.get("args", {})
+            requested_args = tc.get("args", {})
+            args, resolution, resolution_error = self._resolve_planner_lot_args(tool, requested_args)
+            args, location_resolution, location_error = self._resolve_planner_location_args(tool, args)
+            if resolution is not None:
+                run["lot_resolution"] = resolution
+            if location_resolution is not None:
+                run["location_resolution"] = location_resolution
+            resolution_error = resolution_error or location_error
+            if resolution_error is not None:
+                elapsed_ms = round((time.monotonic() - started) * 1000, 2)
+                run["status"] = "lot_resolution_failed"
+                run["error"] = resolution_error
+                run["latency_ms"] = elapsed_ms
+                execution["tool_runs"].append(run)
+                execution["tool_calls_executed"] += 1
+                execution["tool_calls_failed"] += 1
+                results.append({
+                    "tool": tool,
+                    "success": False,
+                    "error": resolution_error,
+                    "latency_ms": elapsed_ms,
+                })
+                continue
             if tool == "respond":
                 elapsed_ms = round((time.monotonic() - started) * 1000, 2)
                 run["status"] = "respond"
@@ -684,7 +821,7 @@ class PlannerEngine:
                 requires_confirmation = bool(tool_spec.needs_confirmation) or (
                     not settings.planner_allow_writes and tool != "create_or_update_shopping_list"
                 )
-                if requires_confirmation:
+                if requires_confirmation and not self._allow_confirmed_writes:
                     elapsed_ms = round((time.monotonic() - started) * 1000, 2)
                     if tool == "create_or_update_shopping_list":
                         item_count = 0
@@ -725,6 +862,8 @@ class PlannerEngine:
                     "error": outcome.get("error"),
                     "latency_ms": elapsed_ms,
                 }
+                if outcome.get("fault") is not None:
+                    result["fault"] = outcome["fault"]
                 execution["tool_calls_executed"] += 1
                 if not tool_success:
                     run["status"] = "tool_failed"

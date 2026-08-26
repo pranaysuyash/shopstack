@@ -68,7 +68,7 @@ class TestLegacyRuntimeLabelDeprecation:
 
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            label = app_context.runtime_label()
+            app_context.runtime_label()
 
         deprecation_warnings = [
             w for w in caught if issubclass(w.category, DeprecationWarning)

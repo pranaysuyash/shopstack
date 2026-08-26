@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "minimum_core_success_rate": 0.90,
+  "maximum_invalid_tool_rate": 0.01,
+  "maximum_forbidden_tool_rate": 0.01,
+  "maximum_critical_failures": 0,
+  "minimum_cases_per_category_recommendation": 5
+}

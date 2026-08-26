@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextvars
+import warnings
 from typing import Optional
 
 from shopstack.config import settings
@@ -146,17 +147,18 @@ def add_household(household_id: str, name: str) -> bool:
 
 
 def runtime_label() -> str:
-    """Return a human-readable label describing the current provider runtime.
+    """Deprecated alias for :func:`shopstack.ui.header.runtime_label`.
 
-    Uses the provider registry to determine whether real AI backends are loaded
-    or the app is running in mock mode. Safe to call at import time.
+    Keep the old import path for one release cycle while ensuring callers see
+    the canonical four-mode runtime label. The local import avoids the normal
+    ``app_context`` ↔ ``ui.header`` import cycle during module initialisation.
     """
-    try:
-        runtime = providers.get_runtime_diagnostics()
-        loaded_real = [
-            r for r in runtime.providers
-            if getattr(r, "loaded", False) and getattr(r, "backend", "") != "mock"
-        ]
-        return "Local runtime" if loaded_real else "Local mock mode"
-    except Exception:
-        return "Local runtime"
+    warnings.warn(
+        "shopstack.app_context.runtime_label() is deprecated; use "
+        "shopstack.ui.header.runtime_label() instead (DR-SS4).",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    from shopstack.ui.header import runtime_label as canonical_runtime_label
+
+    return canonical_runtime_label()

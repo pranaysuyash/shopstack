@@ -127,8 +127,6 @@ def main() -> int:
         for query, min_count in test_cases:
             result = service.semantic_find_inventory_compatible(query, user_id=household)
             results = result.get("results", [])
-            match_type = result.get("match_type", "none")
-            semantic_active = result.get("semantic_active", False)
             count = len(results)
             top_match = results[0].get("match_type", "none") if results else "none"
             top_score = results[0].get("confidence", 0.0) if results else 0.0

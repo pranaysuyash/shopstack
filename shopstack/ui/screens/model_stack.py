@@ -7,10 +7,8 @@ from typing import Any
 from shopstack.app_context import db, providers, current_user_id
 from shopstack.config import settings
 from shopstack.model_registry import (
-    MAX_ACTIVE_MODEL_PARAMS_B,
     get_registry,
     total_candidate_params,
-    validate_active_model_budget,
 )
 from shopstack.providers.runtime import collect_runtime_diagnostics, diagnostics_to_rows
 from shopstack.ui.components.cards import badge_html, card as ui_card, render_metric
@@ -392,11 +390,14 @@ def model_eval_view() -> str:
         "compared against <code>route_baseline.json</code> to surface regressions."
         "</div>"
     )
+    from shopstack.ui.screens.agent_eval import agent_eval_view
+
     return (
         intro
         + ui_card("Per-Route Stats (latest 500 records)", eval_table_html)
         + ui_card("Regression Verdicts vs Baseline", reg_table_html)
         + ui_card("Recent Records (latest 20)", recent_html)
+        + agent_eval_view()
         + "<div style='font-size:0.6875rem;color:var(--text-dim);margin-top:8px;'>"
         "Records are stored in the system database and exported as log files. "
         "Prompts and outputs are redacted at capture time."

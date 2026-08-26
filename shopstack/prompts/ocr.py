@@ -34,6 +34,13 @@ GLM_OCR_STRUCTURED_EXTRACTION_PROMPT = """{
     "batch_number": ""
 }"""
 
+RECEIPT_STRUCTURED_NORMALIZATION_PROMPT = (
+    "Extract this receipt into STRICT JSON only - no prose, no markdown.\n"
+    '{"merchant":"<merchant>","purchase_date":"<YYYY-MM-DD>","total":<number>,'
+    '"lines":[{"canonical_name":"<lowercase item>","display_name":"<item>",'
+    '"quantity":<number>,"unit":"<kg|g|ml|L|unit|dozen>","price":<number}]}'
+)
+
 # ── Registration ────────────────────────────────────────────────────────────
 
 register_prompt(
@@ -66,5 +73,16 @@ register_prompt(
         description="GLM-OCR structured field extraction template. JSON template for product metadata.",
         eval_link=None,
         tags=("ocr", "structured-extraction", "json-template"),
+    )
+)
+
+register_prompt(
+    PromptMeta(
+        name="ocr.receipt_structured_normalization",
+        version="v1",
+        date="2026-08-26",
+        description="Structured receipt normalization prompt used to compare model output with labeled text cases. Not image OCR.",
+        eval_link="Docs/evals/openai_receipt_normalization_latest.json",
+        tags=("ocr", "receipt", "structured-extraction", "normalization"),
     )
 )

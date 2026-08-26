@@ -212,7 +212,7 @@ class TestOpenAIProviderComplete:
                 provider.plan({"prompt": "plan", "question": "plan"})
 
         call_kwargs = mock_client.chat.completions.create.call_args[1]
-        assert call_kwargs["max_completion_tokens"] == 256
+        assert call_kwargs["max_completion_tokens"] == 512
 
     def test_complete_api_error(self):
         """complete() returns error dict on API failure."""
@@ -277,6 +277,27 @@ class TestOpenAIProviderAnalyzeImage:
                     call_kwargs = mock_client.chat.completions.create.call_args[1]
                     content = call_kwargs["messages"][0]["content"]
                     assert content[0]["text"] == "List all items"
+
+    def test_analyze_image_gpt5_uses_image_mime_and_completion_budget(self):
+        """GPT-5 vision calls preserve the fixture MIME type and API contract."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = '{"products": []}'
+        mock_client.chat.completions.create.return_value = mock_response
+
+        with _mock_openai_available():
+            with patch("openai.OpenAI", return_value=mock_client):
+                with patch("builtins.open", mock_open(read_data=b"png-data")):
+                    provider = _get_openai_provider(api_key="sk-test-key", model="gpt-5.6-luna")
+                    provider.analyze_image("/tmp/test.png", max_tokens=256, reasoning_effort="high")
+
+        call_kwargs = mock_client.chat.completions.create.call_args[1]
+        assert call_kwargs["max_completion_tokens"] == 256
+        assert call_kwargs["reasoning_effort"] == "high"
+        assert "max_tokens" not in call_kwargs
+        image_url = call_kwargs["messages"][0]["content"][1]["image_url"]["url"]
+        assert image_url.startswith("data:image/png;base64,")
 
 
 # ── embed() ────────────────────────────────────────────────────────────

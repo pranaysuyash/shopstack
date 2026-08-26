@@ -15,8 +15,6 @@ import json
 import sys
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 
 def test_qwen3vl_provider_public_api():
     """The Qwen3VLProvider exposes the same API as MiniCPMVProvider.
@@ -162,7 +160,7 @@ def test_config_default_vision_backend_is_qwen3vl(monkeypatch):
 
 def test_qwen3vl_detect_uses_canonical_prompt():
     """The detect() method invokes the canonical ShopStack product-shelf prompt."""
-    from shopstack.providers.vision_provider import Qwen3VLProvider, UNDERSTAND_PRODUCT_SHELF_PROMPT
+    from shopstack.providers.vision_provider import Qwen3VLProvider
 
     provider = Qwen3VLProvider.__new__(Qwen3VLProvider)
     provider._available = True
@@ -193,9 +191,10 @@ def test_qwen3vl_detect_uses_canonical_prompt():
     # Mock the Image import
     mock_image = MagicMock()
     mock_image.convert.return_value = mock_image
+    mock_torch = MagicMock()
     with patch("PIL.Image.open", return_value=mock_image), \
          patch("os.path.isfile", return_value=True), \
-         patch("torch.no_grad"):
+         patch.dict(sys.modules, {"torch": mock_torch}):
         result = provider.detect("/fake/image.png")
 
     # The detect() path always uses UNDERSTAND_PRODUCT_SHELF_PROMPT
@@ -246,9 +245,10 @@ def test_qwen3vl_ground_returns_bbox_payload():
 
     mock_image = MagicMock()
     mock_image.convert.return_value = mock_image
+    mock_torch = MagicMock()
     with patch("PIL.Image.open", return_value=mock_image), \
          patch("os.path.isfile", return_value=True), \
-         patch("torch.no_grad"):
+         patch.dict(sys.modules, {"torch": mock_torch}):
         result = provider.ground("/fake/image.png", "milk bottle")
 
     assert result["found"] is True
@@ -289,7 +289,7 @@ def test_qwen3vl_init_starts_background_pre_download(monkeypatch):
     monkeypatch.setattr(Qwen3VLProvider, "_start_pre_download", fake_start)
     monkeypatch.setattr(Qwen3VLProvider, "_init", lambda self: None)
 
-    provider = Qwen3VLProvider()
+    Qwen3VLProvider()
 
     assert started["called"] is True, (
         "Qwen3VLProvider.__init__ did not call _start_pre_download. "
@@ -523,8 +523,6 @@ def test_qwen3vl_start_pre_download_resets_cancellation_flag(monkeypatch):
 
     # Capture whether a thread was started
     started = {"v": False}
-    real_start = Qwen3VLProvider._start_pre_download
-
     def fake_start(self) -> None:
         # Don't actually start a thread — just record that the reset happened
         started["v"] = True

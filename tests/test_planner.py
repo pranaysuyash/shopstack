@@ -299,6 +299,24 @@ class TestPlannerEngine:
         assert "find_item(" in prompt
         assert "Inventory is empty." in prompt
 
+    def test_inventory_context_exposes_lot_ids_for_mutation_planning(self):
+        class FakeDB:
+            def get_inventory(self, status=None):
+                return [InventoryLot(lot_id="milk-lot-123", canonical_name="milk", display_name="Milk", quantity=2.0, unit="L", storage_location_id="fridge")]
+
+        ctx = format_inventory_context(FakeDB())
+        assert "lot_id=milk-lot-123" in ctx
+
+    def test_build_prompt_includes_canonical_mutation_routing(self):
+        db = Database(":memory:")
+        try:
+            prompt = build_planner_prompt("Use half the rice", db)
+        finally:
+            db.close()
+
+        assert "exact `lot_id` from INVENTORY CONTEXT" in prompt
+        assert "Tool results are not variables" in prompt
+
     def test_process_blocks_write_tool_calls_when_writes_disabled(self, db, tool_registry):
         from shopstack.config import Settings
         from shopstack.providers.registry import ProviderRegistry
@@ -323,3 +341,40 @@ class TestPlannerEngine:
         assert "Planner write blocked by safety policy" in result
         assert "Review and confirm this action in the relevant screen." in result
         assert len(db.get_inventory()) == 0
+
+    def test_planner_resolves_unique_item_name_to_lot_id_before_mutation(self, monkeypatch, tmp_path):
+        from types import SimpleNamespace
+
+        from shopstack.config import Settings
+        from shopstack.persistence.database import Database
+        from shopstack.planner.engine import PlannerEngine
+        from shopstack.providers.registry import ProviderRegistry
+        from shopstack.tools.registry import ToolRegistry
+
+        settings = Settings(_env_file=None, off_the_grid=True, planner_allow_writes=True)
+        db = Database(str(tmp_path / "planner-resolution.db"))
+        tools = ToolRegistry(db)
+        tools.execute(
+            "add_inventory_item",
+            canonical_name="sugar",
+            display_name="Sugar",
+            quantity=1.0,
+            unit="kg",
+            storage_location_id="pantry",
+        )
+        provider = SimpleNamespace(
+            available=True,
+            model_id="fake-resolution",
+            plan=lambda _payload: [{"tool": "move_inventory_item", "args": {"lot_id": "sugar", "to_location_id": "kitchen counter"}}],
+        )
+        providers = ProviderRegistry(settings)
+        providers.register("planner", provider)
+        monkeypatch.setattr("shopstack.planner.engine.settings.planner_allow_writes", True)
+        engine = PlannerEngine(db, tools, providers)
+
+        result = engine.process_structured("Move sugar to the kitchen")
+
+        assert result["outcomes"][0]["success"] is True
+        assert db.get_inventory(status="active")[0].storage_location_id == "kitchen"
+        assert result["debug"]["execution"]["tool_runs"][0]["lot_resolution"]["method"] == "unique_active_item_name"
+        assert result["debug"]["execution"]["tool_runs"][0]["location_resolution"]["method"] == "location_name_subphrase"

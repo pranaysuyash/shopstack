@@ -11,6 +11,7 @@ build/
 benchmarks/.bench_results.json
 .bench_results.jsonl
 .model_call_records.jsonl
+:memory:.jsonl
 benchmarks/RESULTS.md
 benchmarks/trends/*
 !benchmarks/trends/.gitkeep

@@ -151,7 +151,6 @@ def main() -> int:
         count = len(results)
         semantic_active = result.get("semantic_active", True)
         match_type = result.get("match_type", "none")
-        top_match = results[0].get("match_type", "none") if results else "none"
         top_score = results[0].get("confidence", 0.0) if results else 0.0
         top_title = (
             ((results[0].get("lot", {}) or {}).get("display_name", "?")

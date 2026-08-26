@@ -31,13 +31,12 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 
 from shopstack.api.v1.deps import HouseholdContext, require_household
 from shopstack.api.v1.schemas import (
     ApplyRetentionProfileRequest,
     ApplyRetentionProfileResponse,
-    ApiError,
     PurgeDataResponse,
     RetentionProfileListResponse,
     RetentionProfileWire,

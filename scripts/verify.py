@@ -160,7 +160,10 @@ def phase_security() -> tuple[bool, str]:
                     issues.append(line)
 
     # PEM private keys
-    result = run(["rg", "-n", "-----BEGIN", str(REPO)], timeout=10)
+    result = run(
+        ["rg", "-n", "-g", "!scripts/verify.py", "-----BEGIN", str(REPO)],
+        timeout=10,
+    )
     if result.returncode == 0 and result.stdout.strip():
         for line in result.stdout.strip().split("\n")[:5]:
             issues.append(f"PEM key: {line[:150]}")

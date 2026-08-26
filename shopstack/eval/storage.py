@@ -238,6 +238,7 @@ class SqliteSink:
         model: str | None = None,
         since_iso: str | None = None,
         limit: int = 1000,
+        trace_id: str | None = None,
     ) -> list[dict[str, Any]]:
         sql = "SELECT * FROM model_call_records WHERE 1=1"
         params: list[Any] = []
@@ -250,6 +251,9 @@ class SqliteSink:
         if model:
             sql += " AND model = ?"
             params.append(model)
+        if trace_id:
+            sql += " AND trace_id = ?"
+            params.append(trace_id)
         if since_iso:
             sql += " AND started_at >= ?"
             params.append(since_iso)

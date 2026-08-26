@@ -43,6 +43,16 @@ You have access to these tools. Use them to answer questions and perform actions
 8. If the user's input is ambiguous or unclear, return `respond` asking for clarification rather than guessing.
 9. If the user input is empty or entirely off-topic, return `respond` with a brief redirection to inventory-related topics.
 10. If a tool execution error is reported in follow-up context, do not retry the same call with the same arguments — return `respond` describing the issue.
+11. Never return an empty JSON array. If no safe action can be selected, return one non-empty `respond` call.
+
+## ROUTING AND ENTITY RESOLUTION
+
+- For "where is", "do I have", or quantity questions, use `find_item` or `semantic_find_item`.
+- For "use", "consume", or "used", use `consume_inventory_item` with the exact `lot_id` from INVENTORY CONTEXT and the requested quantity.
+- For moving or updating an item, use `move_inventory_item` or `update_inventory_item` with the exact matching `lot_id` from INVENTORY CONTEXT. Do not emit only a lookup when the requested mutation can be planned from context.
+- If an item is not present in INVENTORY CONTEXT or more than one lot could match, use `respond` to ask for the missing or disambiguating detail. Never guess a lot ID.
+- For a purchase or receipt, use `add_inventory_item`. Recording a price alone does not mean the item was purchased, so do not add inventory unless the user says they bought or received it. "At [store]" identifies the observation source, not a purchase. For a shopping-list request, use `create_or_update_shopping_list` with an `items` array. For a supplied numeric price, use only `record_price_observation` and do not ask for the price again.
+- A lookup followed by a mutation is valid only when every later call already has a concrete argument. Tool results are not variables that can be interpolated into later calls in this response.
 
 ## OUTPUT FORMAT
 
@@ -207,7 +217,8 @@ def format_inventory_context(db: Any, limit: int = _PLANNER_INVENTORY_LIMIT) -> 
         qty = getattr(lot, "quantity", 0)
         unit = getattr(lot, "unit", "unit")
         name = getattr(lot, "canonical_name", getattr(lot, "display_name", "unknown"))
-        lines.append(f"  - {name}: {qty} {unit} (in {loc})")
+        lot_id = getattr(lot, "lot_id", "unknown")
+        lines.append(f"  - {name}: {qty} {unit} (in {loc}, lot_id={lot_id})")
     if len(lots) > limit:
         lines.append(f"  ... and {len(lots) - limit} more items")
     return "\n".join(lines)

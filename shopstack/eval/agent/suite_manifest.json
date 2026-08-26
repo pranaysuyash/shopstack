@@ -1,0 +1,16 @@
+{
+  "suite": "shopstack-agent-initial",
+  "version": 1,
+  "scenario_count": 50,
+  "categories": {
+    "ST": 10,
+    "MS": 8,
+    "IC": 8,
+    "SP": 8,
+    "HI": 6,
+    "RB": 5,
+    "CL": 5
+  },
+  "source": "corpus.py",
+  "translation": "none"
+}
