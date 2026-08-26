@@ -21,7 +21,6 @@ Evidence tier: T1 (static inspection) + T2 (this test passes).
 """
 from __future__ import annotations
 
-import sqlite3
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -265,8 +264,10 @@ def test_render_recent_corrections_html_renders_rows(monkeypatch) -> None:
     assert "onion" in html
     assert "tamatar" in html
     assert "hybrid tomato" in html
-    # Two cards
-    assert html.count("correction-row") == 2
+    # Two cards. Count the row-div class with an exact match so the
+    # per-row action classes (correction-row-actions, correction-row-accept,
+    # and correction-row-reject) are not counted as cards.
+    assert html.count("class='correction-row'") == 2
 
 
 def test_memory_corrections_subtab_is_wired() -> None:
