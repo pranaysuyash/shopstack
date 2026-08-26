@@ -992,3 +992,25 @@ class TestSeedLocationsRestoration:
             "tuple list gets assigned to the variable. See the comment "
             "block at the top of _seed_locations for context."
         )
+
+
+# ── §2.5 Empty State UX: recipe tab (Pass 18) ───────────────────────
+
+
+class TestRecipeRichEmptyState:
+    """The recipe tab must use the registered rich empty state."""
+
+    def test_recipe_tab_uses_registered_rich_empty_state(self):
+        path = REPO / "shopstack" / "ui" / "tabs" / "recipe.py"
+        source = path.read_text(encoding="utf-8")
+        assert "from shopstack.services.empty_states import" in source
+        assert '"recipe.no_input"' in source
+
+    def test_recipe_preset_has_bilingual_keys(self):
+        from shopstack.services.empty_states import PRESETS
+        from shopstack.services.i18n import TRANSLATIONS
+
+        preset = PRESETS["recipe.no_input"]
+        for locale in ("en", "hi"):
+            assert preset.title_key in TRANSLATIONS[locale]
+            assert preset.body_key in TRANSLATIONS[locale]

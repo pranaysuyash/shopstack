@@ -47,6 +47,7 @@ class TestEmptyStatePresetRegistry:
         "recipes.cookbook",
         "basket.create_list.no_action",
         "parser.no_input",
+        "recipe.no_input",
         "global_search.no_results",
         "generic",
         # Added 2026-06-13 (3)
@@ -128,7 +129,7 @@ class TestPresetRendering:
         "home.dashboard", "pantry.inventory", "groceries.basket",
         "memory.recent", "memory.find_trail", "memory.analytics",
         "memory.consumption", "memory.activity_log", "recipes.cookbook",
-        "parser.no_input", "at_home.reconcile",
+        "parser.no_input", "recipe.no_input", "at_home.reconcile",
     ])
     def test_preset_renders_en(self, preset_id):
         from shopstack.services.empty_states import render, RenderOptions
@@ -143,7 +144,7 @@ class TestPresetRendering:
         "home.dashboard", "pantry.inventory", "groceries.basket",
         "memory.recent", "memory.find_trail", "memory.analytics",
         "memory.consumption", "memory.activity_log", "recipes.cookbook",
-        "parser.no_input", "at_home.reconcile",
+        "parser.no_input", "recipe.no_input", "at_home.reconcile",
     ])
     def test_preset_renders_hi(self, preset_id):
         from shopstack.services.empty_states import render, RenderOptions

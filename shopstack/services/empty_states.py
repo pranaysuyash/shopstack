@@ -256,6 +256,15 @@ PRESETS: dict[str, EmptyStatePreset] = {
         body_key="empty.parser.no_input.body",
         icon="🧠",
     ),
+    # Pass 18 §2.5: empty state for the Recipe Scan tab's
+    # "Paste ingredients or upload a recipe image" placeholder.
+    "recipe.no_input": EmptyStatePreset(
+        preset_id="recipe.no_input",
+        tier="transient",
+        title_key="empty.recipe.no_input.title",
+        body_key="empty.recipe.no_input.body",
+        icon="📖",
+    ),
     "global_search.no_results": EmptyStatePreset(
         preset_id="global_search.no_results",
         tier="transient",

@@ -171,7 +171,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # English one-liner that was at parser.py:30 before the adoption.
         "empty.parser.no_input.title": "Type a command to see the parser in action",
         "empty.parser.no_input.body": "Try a natural-language command like 'add 2 kg atta to my shopping list' or 'find the milk'. ShopStack will show the parsed intent, slots, and any entities it extracted.",
-         "empty.search.title": "No results",
+        # Pass 18 §2.5: new preset for the recipe tab's
+        # "Paste ingredients or upload a recipe image" placeholder.
+        "empty.recipe.no_input.title": "Paste a recipe to extract ingredients",
+        "empty.recipe.no_input.body": "Upload a photo of a recipe or paste ingredients (one per line, e.g. '- 2 cups rice'). ShopStack will compare against your pantry and show what's missing.",
+        "empty.search.title": "No results",
          "empty.search.body": "Try a different word, or scan a receipt to add the item to your pantry first.",
          # Added 2026-06-13: analytics, consumption, activity log
          "empty.analytics.title": "Patterns emerge with use",
@@ -362,7 +366,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # Pass 17 §2.5: Hindi for the new parser preset
         "empty.parser.no_input.title": "पार्सर देखने के लिए कोई कमांड टाइप करें",
         "empty.parser.no_input.body": "कुछ आज़माएँ — '2 किलो आटा मेरी लिस्ट में डालो' या 'दूध कहाँ है'। ShopStack intent और entities दिखाएगा।",
-         "empty.search.title": "कुछ नहीं मिला",
+        # Pass 18 §2.5: Hindi for the new recipe preset
+        "empty.recipe.no_input.title": "सामग्री निकालने के लिए रेसिपी डालें",
+        "empty.recipe.no_input.body": "रेसिपी की फोटो अपलोड करें या सामग्री पेस्ट करें। ShopStack आपकी पैंट्री से तुलना करके बताएगा क्या गायब है।",
+        "empty.search.title": "कुछ नहीं मिला",
          "empty.search.body": "कोई दूसरा शब्द आज़माएँ या पहले रसीद स्कैन करें।",
          # Added 2026-06-13: analytics, consumption, activity log (Hindi)
          "empty.analytics.title": "पैटर्न इस्तेमाल से बनते हैं",
