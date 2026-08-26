@@ -203,7 +203,7 @@ group implies that a whole stash or directory was applied.
 
 | Decision | Paths and concrete finding |
 | --- | --- |
-| `ACCEPT-HUNK` / `ADAPT-HUNK` | `shopstack/domain/unit_price.py`, `tests/domain/test_unit_price.py`: decimal quantities such as `1.5 medium` and `1,5 large` filled a current parser gap; integrated as `abbb23b`. `shopstack/services/empty_states.py`, `shopstack/services/i18n.py`, `tests/test_empty_state_coverage.py`, `tests/test_regression_guards.py`: current `recipe.py` already called `render("recipe.no_input")`, but the registry and English/Hindi keys were absent; adapted and integrated as `340de80`. |
+| `ACCEPT-HUNK` / `ADAPT-HUNK` | `shopstack/domain/unit_price.py`, `tests/domain/test_unit_price.py`: decimal quantities such as `1.5 medium` and `1,5 large` filled a current parser gap; integrated as `abbb23b`. `shopstack/services/empty_states.py`, `shopstack/services/i18n.py`, `tests/test_empty_state_coverage.py`, `tests/test_regression_guards.py`: current `recipe.py` already called `render("recipe.no_input")`, but the registry and English/Hindi keys were absent; adapted and integrated as `340de80`. `scripts/e2e_full_run.py`: retained current readiness, video, and failure reporting while adapting five compatible helper lines from stash 5 to persist the tour in session storage and discover ARIA tabs, links, and role buttons; validated by AST parse, Ruff, diff check, and the E2E script preflight; integrated as `003f3ff`. |
 | `TEST-ONLY` | `tests/test_repo_truth.py`: added the existing `correction_events` table to repository truth assertions; integrated as `3a1e2ec`. `tests/test_recent_corrections.py`: narrowed row counting to the exact row class so nested action classes do not inflate the count; integrated as `b00681e`. `tests/test_browser_hydration.py`: modernized the recovered palette flow to the current route and isolated browser timing contract; integrated with the route hardening as `c8b2d50`. |
 | `AUDIT-DERIVED` | `shopstack/api/v1/mount.py`, `shopstack/api/v1/routers/search.py`, `tests/test_api_v1_legacy_aliases.py`: not copied from a stash. The audit found that Starlette route cloning stripped FastAPI dependency and response metadata, and the browser palette called a protected search alias without auth. The APIRoute-safe clone and explicit local legacy adapter preserve the canonical v1 route while keeping protected routes protected; integrated as `c8b2d50`. |
 | `DEFER` | `shopstack/domain/inventory_alerts.py`, `tests/domain/test_inventory_alerts.py`: the stash changes day zero from `EXPIRED` to `EXPIRING_SOON` with critical severity and “expires today.” Current `check_expiry()` has no production callers, and active expiry policies are elsewhere. This is a product-contract decision, not a safe parser correction; no code was integrated. |
@@ -336,6 +336,7 @@ The integrated recovery commits on `main` are:
 3. `c8b2d50` `fix: restore safe legacy API aliases`
 4. `b00681e` `test: count correction rows precisely`
 5. `340de80` `feat: restore recipe rich empty state`
+6. `003f3ff` `test: harden E2E overlay and tab discovery`
 
 The expiry-alert hunk remains deferred because `check_expiry()` has no
 production callers and the repository has other active expiry policies.
