@@ -29,7 +29,7 @@ _PIECE_PATTERN = re.compile(
 _COMBO_PATTERN = re.compile(r"^(\d+)\s*(combo)$", re.IGNORECASE)
 _PACK_PATTERN = re.compile(r"^(\d+)\s*(pack)$", re.IGNORECASE)
 _SIZE_CLASS_PATTERN = re.compile(
-    r"^(\d+)\s*(small|medium|large)$",
+    r"^(\d+(?:\.\d+)?)\s*(small|medium|large)$",
     re.IGNORECASE,
 )
 _SIZE_CLASS_GRAM_ESTIMATES: dict[str, int] = {
@@ -78,7 +78,11 @@ class SizeParseResult:
 
 # ── Unit normalisation ────────────────────────────────────────────────────
 
-_INDIAN_DECIMAL_RE = re.compile(r"(\d),(\d{1,2})(?=\s*(?:kg|g|ml|l|liter|litre|pieces|piece|pcs|pc|combo|pack)\b|$)")
+_INDIAN_DECIMAL_RE = re.compile(
+    r"(\d),(\d{1,2})"
+    r"(?=\s*(?:kg|g|ml|l|liter|litre|pieces|piece|pcs|pc"
+    r"|combo|pack|small|medium|large)\b|$)"
+)
 
 
 def _normalize_indian_decimal(text: str) -> str:
@@ -169,14 +173,14 @@ def parse_size(raw_size: str) -> SizeParseResult:
 
     m = _SIZE_CLASS_PATTERN.match(stripped)
     if m:
-        count = int(m.group(1))
+        count = float(m.group(1))
         cls = m.group(2).lower()
-        estimated_grams = count * _SIZE_CLASS_GRAM_ESTIMATES[cls]
         est_per = _SIZE_CLASS_GRAM_ESTIMATES[cls]
+        estimated_grams = count * est_per
         return SizeParseResult(
             normalized_quantity=float(estimated_grams),
             normalized_unit="g",
-            package_count=count,
+            package_count=int(count) if count == int(count) else 1,
             is_size_class=True,
             is_weight_based=True,
             size_class=cls,

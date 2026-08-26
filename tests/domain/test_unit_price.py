@@ -68,6 +68,22 @@ class TestParseSize:
         assert r.normalized_quantity == 3000
         assert r.package_count == 2
 
+    def test_indian_decimal_size_class_small(self):
+        r = parse_size("1,5 small")
+        assert r.is_size_class
+        assert r.size_class == "small"
+        assert r.normalized_quantity == 120
+
+    def test_indian_decimal_size_class_large(self):
+        r = parse_size("1,5 large")
+        assert r.size_class == "large"
+        assert r.normalized_quantity == 270
+
+    def test_international_decimal_size_class(self):
+        r = parse_size("1.5 medium")
+        assert r.size_class == "medium"
+        assert r.normalized_quantity == 180
+
     def test_list_separator_not_converted(self):
         # A real list separator "1, 2, 3 pieces" must not be
         # wrongly converted to "1. 2. 3 pieces"
