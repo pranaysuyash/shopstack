@@ -65,6 +65,7 @@ def _dismiss(page):
         var t = document.getElementById('tour-overlay');
         if (t) { t.style.display = 'none'; t.removeAttribute('data-active'); }
         try { localStorage.setItem('shopstack.tour.shown', '1'); } catch(e) {}
+        try { sessionStorage.setItem('shopstack.tour.shown', '1'); } catch(e) {}
         var w = document.getElementById('onboarding-wizard');
         if (w) { var b = w.querySelectorAll('button');
             for (var i=0;i<b.length;i++) { if((b[i].textContent||'').indexOf('Skip')!=-1) {try{b[i].click();}catch(e){}break;} }
@@ -76,6 +77,7 @@ def _dismiss(page):
 def _click_tab(page, text):
     for sel in (
         "button[role='tab']:has-text('%s')" % text,
+        "[role='tab']:has-text('%s')" % text,
         "button:has-text('%s')" % text,
     ):
         try:
@@ -89,7 +91,10 @@ def _click_tab(page, text):
 def _click_subtab(page, text):
     for sel in (
         "button[role='tab']:has-text('%s')" % text,
+        "[role='tab']:has-text('%s')" % text,
         "button:has-text('%s')" % text,
+        "a:has-text('%s')" % text,
+        "[role='button']:has-text('%s')" % text,
     ):
         try:
             loc = page.locator(sel)
