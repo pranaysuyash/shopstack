@@ -16,10 +16,10 @@ Usage::
     from shopstack.api.v1.openapi import openapi_schema
     schema = openapi_schema()  # {"openapi": "3.0.2", "info": ..., "paths": ..., ...}
 
-**Why a standalone app (not the Gradio app's FastAPI instance):**
+**Why a standalone schema builder:**
 
-The Gradio ``app.app`` is a *running* FastAPI instance that depends on
-``app_context.db``, the Gradio context manager, and the launch lifecycle.
+The schema is generated from the native FastAPI contract and does not
+depend on application startup state or a UI framework lifecycle.
 The standalone app in this module exists *only* for schema generation —
 it has no DB, no middleware, no dependencies. FastAPI's ``get_openapi()``
 reads route declarations only (it never evaluates dependencies), so the
@@ -57,7 +57,7 @@ def _build_openapi_app() -> FastAPI:
     """Build a standalone FastAPI app with all v1 routers mounted.
 
     This app exists **only** for OpenAPI schema generation. No DB,
-    no middleware, no Gradio — just the route declarations so FastAPI
+    no middleware or UI framework, just the route declarations so FastAPI
     can derive the OpenAPI spec. Dependencies such as
     ``require_household`` are never evaluated by ``get_openapi()``.
     """
@@ -160,7 +160,7 @@ def openapi_schema() -> dict[str, Any]:
             "or /api/v1/auth/register. "
             "Pass either as an ``Authorization: Bearer <token>`` header "
             "or as a ``?token=<token>`` query parameter. "
-            "The query-string form is the escape hatch for Gradio-rendered "
+            "The query-string form is the compatibility escape hatch for "
             "clients that cannot set custom HTTP headers on fetch() calls."
         ),
     }

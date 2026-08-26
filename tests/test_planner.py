@@ -378,3 +378,36 @@ class TestPlannerEngine:
         assert db.get_inventory(status="active")[0].storage_location_id == "kitchen"
         assert result["debug"]["execution"]["tool_runs"][0]["lot_resolution"]["method"] == "unique_active_item_name"
         assert result["debug"]["execution"]["tool_runs"][0]["location_resolution"]["method"] == "location_name_subphrase"
+
+    def test_tool_validation_allows_punctuation_in_descriptive_metadata(self, db, tool_registry):
+        engine = PlannerEngine(db, tool_registry, object())
+
+        assert engine._validate_args(
+            "create_or_update_shopping_list",
+            {
+                "items": [{
+                    "canonical_name": "tomato",
+                    "reason": "Requested addition; onions are already on the active list.",
+                }],
+                "goal": "Add tomatoes without duplicating onions",
+            },
+        ) is None
+
+    def test_tool_validation_keeps_operational_and_code_checks(self, db, tool_registry):
+        engine = PlannerEngine(db, tool_registry, object())
+
+        operational_error = engine._validate_args("find_item", {"query": "milk; rm -rf"})
+        assert operational_error is not None
+        assert "suspicious pattern ';'" in operational_error
+        traversal_error = engine._validate_args(
+            "create_or_update_shopping_list",
+            {"items": [{"canonical_name": "../etc/passwd", "reason": "normal"}]},
+        )
+        assert traversal_error is not None
+        assert "suspicious pattern '../'" in traversal_error
+        code_error = engine._validate_args(
+            "create_or_update_shopping_list",
+            {"items": [{"canonical_name": "tomato", "reason": "__import__('os')"}]},
+        )
+        assert code_error is not None
+        assert "suspicious pattern '__import__'" in code_error

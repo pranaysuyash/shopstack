@@ -23,6 +23,12 @@ GLM_OCR_TEXT_EXTRACTION_PROMPT = (
     "preserving the original formatting."
 )
 
+OPENAI_RECEIPT_TEXT_EXTRACTION_PROMPT = (
+    "Extract all visible text from this receipt image. Return only the transcribed text, "
+    "preserving line breaks and the original numbers, dates, prices, and item names. "
+    "Do not summarize, infer missing values, or return JSON."
+)
+
 GLM_OCR_STRUCTURED_EXTRACTION_PROMPT = """{
     "brand": "",
     "product_name": "",
@@ -62,6 +68,17 @@ register_prompt(
         description="GLM-OCR raw text extraction prompt. Preserves original formatting.",
         eval_link=None,
         tags=("ocr", "text-extraction", "raw-text"),
+    )
+)
+
+register_prompt(
+    PromptMeta(
+        name="ocr.openai_receipt_text_extraction",
+        version="v1",
+        date="2026-08-26",
+        description="OpenAI vision prompt for raw receipt transcription before deterministic parsing.",
+        eval_link=None,
+        tags=("ocr", "receipt", "text-extraction", "openai", "vision"),
     )
 )
 

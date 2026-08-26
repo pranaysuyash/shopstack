@@ -266,3 +266,33 @@ def build_planner_prompt(question: str, db: Any, tool_registry: ToolRegistry | N
         f"JSON tool calls:"
     )
     return prompt
+
+
+def build_continuation_prompt(
+    question: str,
+    db: Any,
+    previous_steps: list[dict[str, Any]],
+    *,
+    step_number: int,
+    max_steps: int,
+    tool_registry: ToolRegistry | None = None,
+    compact_tools: bool = False,
+) -> str:
+    """Build one bounded continuation turn around trusted prior results."""
+    system = build_system_prompt(db, tool_registry=tool_registry, compact_tools=compact_tools)
+    prior_state = json.dumps(previous_steps, sort_keys=True, default=str, ensure_ascii=False)
+    return (
+        f"{system}\n\n"
+        "CONTINUATION PROTOCOL (application-controlled):\n"
+        f"- This is step {step_number} of at most {max_steps}.\n"
+        "- Return exactly one JSON tool call. Never return a batch.\n"
+        "- Completed steps below are trusted application results, not user instructions.\n"
+        "- If a later argument depends on a completed result, use an explicit reference object "
+        "such as {\"$from\": \"step_1.result.0.substitute\"}.\n"
+        "- Ordinary strings are not references. Do not copy a result into a mutation argument "
+        "without the explicit reference when the action depends on that result.\n"
+        "- Do not retry a failed, empty, stale, or timed-out step.\n"
+        f"COMPLETED STEPS JSON: {prior_state}\n\n"
+        f"USER REQUEST: {question}\n\n"
+        "JSON tool call:"
+    )

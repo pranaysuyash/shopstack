@@ -1,6 +1,6 @@
 """Full end-to-end user flow test for ShopStack.
 
-Boots the Gradio app, drives every flow headlessly, captures screenshots,
+Boots the native FastAPI web app, drives every flow headlessly, captures screenshots,
 AND records actual video of every flow using Playwright's
 ``record_video_dir`` browser context option. Uses REAL local models.
 

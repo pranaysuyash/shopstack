@@ -1,6 +1,6 @@
 """``/api/v1/dashboard/*`` — the Today dashboard data snapshot.
 
-The Gradio ``today_dashboard`` screen returns **rendered HTML** (six
+The legacy dashboard builder returns **rendered HTML** (six
 panel strings). That is the wrong layer for an API contract — a mobile
 client cannot cache or diff HTML. This router exposes the underlying
 *data* state via :func:`shopstack.services.dashboard.build_dashboard_state`,
@@ -11,7 +11,7 @@ for offline use.
 
 * HTTP boundary only.
 * Reuses :func:`build_dashboard_state` — the exact same assembly the
-  Gradio dashboard uses (motto_v3 §6 + §7: no parallel truth source).
+  dashboard uses (motto_v3 §6 + §7: no parallel truth source).
 * Projects the rich ``DashboardState`` dataclass down to a small,
   stable wire shape (``DashboardSnapshot``): counts + the three
   highest-value item lists. Extra fields are added to the wire schema
@@ -42,7 +42,7 @@ def today(
 ) -> DashboardSnapshot:
     """Return a data snapshot of the caller's Today dashboard.
 
-    Fields mirror the top panels of the Gradio home screen:
+Fields mirror the top panels of the web home screen:
     pantry count, use-first count, need-shopping count, just-bought
     count, plus the underlying item lists. The mobile app caches
     this to render offline and refreshes on app foreground.

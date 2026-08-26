@@ -2,7 +2,7 @@
 
 React Native (Expo) mobile app for **ShopStack** — the voice-first kitchen inventory and shopping assistant.
 
-Consumes the `shopstack` backend's `/api/v1` HTTP surface. The backend is a Python (Gradio + FastAPI) app; this mobile client talks to it exclusively via the versioned API contract.
+Consumes the `shopstack` backend's `/api/v1` HTTP surface. The backend is a native Python FastAPI web app; this mobile client talks to it exclusively via the versioned API contract.
 
 ## Architecture
 

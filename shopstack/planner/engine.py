@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+import uuid
 from html import escape
 from typing import Any
 
@@ -382,6 +383,275 @@ class PlannerEngine:
             },
         }
 
+    def process_continuation(
+        self,
+        question: str,
+        *,
+        max_steps: int = 3,
+        compact_tools: bool | None = None,
+        trace_id: str = "",
+        generation: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Run a bounded, one-action-per-turn planner continuation.
+
+        Unlike ``process_structured``, this method executes one proposed action,
+        gives the next model turn only the trusted intermediate result, and
+        resolves explicit ``$from`` references before tool validation. It does
+        not change production confirmation policy.
+        """
+        from shopstack.planner.continuation import (
+            BindingError,
+            CONTINUATION_PROTOCOL_VERSION,
+            action_fingerprint,
+            is_empty_result,
+            resolve_result_references,
+        )
+        from shopstack.planner.prompts import build_continuation_prompt, build_system_prompt
+
+        provider = self._providers.planner
+        if provider is None or not getattr(provider, "available", False):
+            return {"error": "Planner not available", "type": "continuation", "status": "unavailable"}
+        if compact_tools is None:
+            compact_tools = settings.planner_compact_tools
+        max_steps = max(1, min(int(max_steps), 4))
+        trace_id = trace_id or f"continuation:{uuid.uuid4().hex}"
+        steps: list[dict[str, Any]] = []
+        step_results: dict[str, dict[str, Any]] = {}
+        seen_actions: set[str] = set()
+        all_tool_calls: list[dict[str, Any]] = []
+        all_outcomes: list[dict[str, Any]] = []
+        stop_reason = ""
+        protocol_violation = False
+
+        for step_number in range(1, max_steps + 1):
+            prompt = build_continuation_prompt(
+                question,
+                self._db,
+                steps,
+                step_number=step_number,
+                max_steps=max_steps,
+                tool_registry=self._tools,
+                compact_tools=compact_tools,
+            )
+            system_prompt = build_system_prompt(
+                self._db, tool_registry=self._tools, compact_tools=compact_tools
+            )
+            step_id = f"step_{step_number}"
+            step_record: dict[str, Any] = {"step_id": step_id, "prompt_step": step_number}
+
+            with record_model_call(
+                domain_route="planner.continuation",
+                capability=CAP_PLANNER_TOOL_CALLING,
+                capability_expected_shape=SHAPE_TOOL_CALLS,
+                trace_id=f"{trace_id}:{step_id}",
+            ) as rec:
+                rec.set_prompt(prompt)
+                try:
+                    plan = self._request_planner_plan(
+                        provider,
+                        prompt=prompt,
+                        system_prompt=system_prompt,
+                        question=question,
+                        generation=generation,
+                    )
+                    tool_calls = plan["tool_calls"]
+                    parser_meta = plan["parser"]
+                    provider_meta = plan["provider"]
+                    rec.set_output(plan["raw"])
+                    rec.set_usage(
+                        input_tokens=provider_meta.get("input_tokens", 0),
+                        output_tokens=provider_meta.get("output_tokens", 0),
+                        cost_usd=provider_meta.get("cost_usd", 0.0),
+                        model=provider_meta.get("model", ""),
+                        backend=provider_meta.get("backend", ""),
+                        provider_name=provider_meta.get("provider", ""),
+                    )
+                    step_record["parser"] = parser_meta
+                    step_record["provider"] = provider_meta
+                    if self._parser_failed(parser_meta, tool_calls):
+                        stop_reason = "parse_failed"
+                        step_record["status"] = stop_reason
+                        rec.set_outcome(OUTCOME_PARSE_ERROR, self._parser_error(parser_meta))
+                        rec.set_execution({"status": stop_reason, "tool_calls_requested": len(tool_calls)})
+                        steps.append(step_record)
+                        break
+
+                    all_tool_calls.extend(tool_calls)
+                    if len(tool_calls) > 1:
+                        protocol_violation = True
+                        step_record["protocol_violation"] = "multiple_tool_calls_truncated"
+                    proposed = tool_calls[0]
+                    requested_tool = str(proposed.get("tool", "respond"))
+                    requested_args = proposed.get("args", {})
+                    if not isinstance(requested_args, dict):
+                        requested_args = {}
+                    step_record["requested_tool_call"] = {
+                        "tool": requested_tool,
+                        "args": requested_args,
+                    }
+
+                    try:
+                        resolved_args, binding_resolutions = resolve_result_references(
+                            requested_args, step_results
+                        )
+                    except BindingError as exc:
+                        stop_reason = "binding_failed"
+                        step_record["status"] = stop_reason
+                        step_record["error"] = str(exc)
+                        rec.set_outcome(OUTCOME_TOOL_FAILURE, str(exc))
+                        rec.set_execution({"status": stop_reason, "tool_calls_requested": len(tool_calls)})
+                        steps.append(step_record)
+                        break
+
+                    fingerprint = action_fingerprint(requested_tool, resolved_args)
+                    step_record["action_fingerprint"] = fingerprint
+                    step_record["binding_resolutions"] = binding_resolutions
+                    step_record["resolved_tool_call"] = {
+                        "tool": requested_tool,
+                        "args": resolved_args,
+                    }
+                    if fingerprint in seen_actions:
+                        stop_reason = "duplicate_action"
+                        step_record["status"] = stop_reason
+                        rec.set_outcome(OUTCOME_TOOL_FAILURE, stop_reason)
+                        rec.set_execution({"status": stop_reason, "tool_calls_requested": len(tool_calls)})
+                        steps.append(step_record)
+                        break
+                    seen_actions.add(fingerprint)
+
+                    outcomes, execution = self._execute_tool_calls([{
+                        "tool": requested_tool,
+                        "args": resolved_args,
+                    }])
+                    all_outcomes.extend(outcomes)
+                    step_record["outcomes"] = outcomes
+                    step_record["execution"] = execution
+                    step_record["status"] = execution.get("status", "completed")
+                    steps.append(step_record)
+                    rec.set_execution(execution)
+                    self._set_execution_outcome(rec, execution)
+
+                    outcome = outcomes[0] if outcomes else {"success": False, "error": "no outcome"}
+                    step_results[step_id] = {
+                        "tool": requested_tool,
+                        "success": bool(outcome.get("success")),
+                        "result": outcome.get("result"),
+                        "error": outcome.get("error"),
+                    }
+                    if requested_tool == "respond":
+                        stop_reason = "responded"
+                        break
+                    if not outcome.get("success"):
+                        stop_reason = "tool_failed"
+                        break
+                    tool_spec = self._tools._find_tool_spec(requested_tool)
+                    if tool_spec is not None and tool_spec.mutability == "write":
+                        stop_reason = "write_completed"
+                        break
+                    if isinstance(outcome.get("result"), dict) and outcome["result"].get("stale") is True:
+                        stop_reason = "stale_intermediate"
+                        break
+                    if is_empty_result(outcome.get("result")):
+                        stop_reason = "empty_intermediate"
+                        break
+                    if len(tool_calls) > 1:
+                        stop_reason = "multiple_calls_truncated"
+                        break
+                    if self._cost_guarded():
+                        stop_reason = "cost_blocked"
+                        break
+                except Exception as exc:
+                    logger.warning("Planner continuation step failed", exc_info=True)
+                    stop_reason = "exception"
+                    step_record["status"] = stop_reason
+                    step_record["error"] = str(exc)
+                    rec.set_outcome(OUTCOME_EXCEPTION, str(exc))
+                    rec.set_execution({"status": stop_reason, "tool_calls_requested": 0})
+                    steps.append(step_record)
+                    break
+            if stop_reason:
+                break
+
+        if not stop_reason:
+            stop_reason = "step_limit"
+        status = stop_reason
+        if protocol_violation and status == "write_completed":
+            status = "protocol_violation"
+        return {
+            "type": "continuation",
+            "status": status,
+            "protocol_version": CONTINUATION_PROTOCOL_VERSION,
+            "trace_id": trace_id,
+            "steps": steps,
+            "tool_calls": all_tool_calls,
+            "outcomes": all_outcomes,
+            "step_results": step_results,
+            "steps_executed": len(steps),
+            "max_steps": max_steps,
+        }
+
+    def _request_planner_plan(
+        self,
+        provider: Any,
+        *,
+        prompt: str,
+        system_prompt: str,
+        question: str,
+        generation: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Request and parse one planner turn for continuation mode."""
+        started = time.monotonic()
+        if hasattr(provider, "plan"):
+            raw = provider.plan({
+                "prompt": prompt,
+                "system": system_prompt,
+                "question": question,
+                **(generation or {}),
+            })
+            planner_call_ms = round((time.monotonic() - started) * 1000, 2)
+            tool_calls, parser_meta = self._parse_tool_calls_from_result(raw)
+            parser_meta = self._merge_provider_parser_diagnostics(provider, parser_meta)
+            provider_meta = self._provider_call_meta(
+                provider,
+                result=raw,
+                call_latency_ms=planner_call_ms,
+                question=question,
+                prompt=prompt,
+            )
+            return {
+                "raw": raw,
+                "tool_calls": tool_calls,
+                "parser": parser_meta,
+                "provider": provider_meta,
+            }
+
+        complete_fn = getattr(provider, "complete", None)
+        raw = complete_fn(prompt) if callable(complete_fn) else {"text": ""}
+        planner_call_ms = round((time.monotonic() - started) * 1000, 2)
+        if isinstance(raw, dict):
+            self._record_provider_cost(raw)
+            text = raw.get("text", "")
+            if not isinstance(text, str):
+                text = ""
+            parser_input: Any = text
+        else:
+            parser_input = str(raw)
+        tool_calls, parser_meta = self._parse_tool_calls_from_result(parser_input)
+        provider_meta = self._provider_call_meta(
+            provider,
+            result=raw if isinstance(raw, dict) else None,
+            raw_output=None if isinstance(raw, dict) else raw,
+            call_latency_ms=planner_call_ms,
+            question=question,
+            prompt=prompt,
+        )
+        return {
+            "raw": raw,
+            "tool_calls": tool_calls,
+            "parser": parser_meta,
+            "provider": provider_meta,
+        }
+
     @staticmethod
     def _parser_failed(parser_meta: dict[str, Any], tool_calls: list[dict[str, Any]]) -> bool:
         if not tool_calls:
@@ -549,28 +819,46 @@ class PlannerEngine:
         )
         self._cost_tracker = self._cost_tracker.add(record)
 
-    # Patterns that indicate potential injection or path traversal in tool args
+    # Patterns that indicate potential injection or path traversal in tool args.
+    # Shell metacharacters are kept separate because they are meaningful in
+    # free-form explanatory metadata such as an item's ``reason``.
     _SUSPICIOUS_ARG_PATTERNS = (
-        "../", "..\\", "/etc/", "C:\\", "|", ";", "&&", "||", "`", "$(",
-        "__import__", "eval(", "exec(", "open(", "os.", "subprocess",
+        "../", "..\\", "/etc/", "C:\\", "__import__", "eval(", "exec(",
+        "open(", "os.", "subprocess",
     )
+    _SHELL_META_PATTERNS = ("|", ";", "&&", "||", "`", "$(")
+    _DESCRIPTIVE_ARG_FIELDS = frozenset({"reason", "goal", "message", "display_name"})
 
-    def _contains_suspicious_text(self, value: Any) -> str | None:
+    def _contains_suspicious_text(
+        self, value: Any, *, allow_shell_meta: bool = False
+    ) -> str | None:
         if isinstance(value, str):
             lower_val = value.lower()
-            for pattern in self._SUSPICIOUS_ARG_PATTERNS:
+            patterns = self._SUSPICIOUS_ARG_PATTERNS
+            if not allow_shell_meta:
+                patterns += self._SHELL_META_PATTERNS
+            for pattern in patterns:
                 if pattern.lower() in lower_val:
                     return pattern
             return None
         if isinstance(value, list | tuple | set):
             for item in value:
-                match = self._contains_suspicious_text(item)
+                match = self._contains_suspicious_text(item, allow_shell_meta=allow_shell_meta)
                 if match is not None:
                     return match
             return None
         if isinstance(value, dict):
-            for item in list(value.keys()) + list(value.values()):
-                match = self._contains_suspicious_text(item)
+            for key, item in value.items():
+                field_allows_shell_meta = allow_shell_meta or (
+                    str(key) in self._DESCRIPTIVE_ARG_FIELDS
+                )
+                match = self._contains_suspicious_text(
+                    key, allow_shell_meta=allow_shell_meta
+                )
+                if match is None:
+                    match = self._contains_suspicious_text(
+                        item, allow_shell_meta=field_allows_shell_meta
+                    )
                 if match is not None:
                     return match
             return None
@@ -581,7 +869,9 @@ class PlannerEngine:
         Returns an error message string if validation fails, or None if clean.
         """
         for key, value in args.items():
-            match = self._contains_suspicious_text(value)
+            match = self._contains_suspicious_text(
+                value, allow_shell_meta=key in self._DESCRIPTIVE_ARG_FIELDS
+            )
             if match is not None:
                 return (
                     f"Rejected tool '{tool}' arg '{key}': value contains suspicious pattern '{match}'"

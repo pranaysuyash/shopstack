@@ -4,7 +4,8 @@ version = "0.1.0"
 description = "ShopStack — household shopping intelligence platform"
 requires-python = ">=3.10"
 dependencies = [
-    "gradio>=5",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
     "pydantic>=2",
     "pydantic-settings>=2",
     "pydub",
@@ -23,7 +24,7 @@ dependencies = [
 # be forced on every user.
 #
 # Install profiles:
-#   pip install shopstack              # Gradio app only (mock providers)
+#   pip install shopstack              # FastAPI web app + mock providers
 #   pip install shopstack[cloud]       # + OpenAI / HF cloud providers
 #   pip install shopstack[local-gguf]  # + llama-cpp-python for local GGUF
 #   pip install shopstack[local-mlx]   # + mlx for Apple Silicon local
@@ -51,6 +52,7 @@ dev = [
     "pytest>=9",
     "pytest-cov",
     "pytest-benchmark",
+    "ruff>=0.9",
 ]
 all = [
     "openai>=1.0",

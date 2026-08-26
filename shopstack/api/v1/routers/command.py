@@ -1,6 +1,6 @@
 """``/api/v1/command/*`` — unified command surface preview, execution, and history.
 
-The Gradio Today tab exposes a single input that merges shopping,
+The web Today surface exposes a single input that merges shopping,
 inventory, pantry, and Ask ShopStack flows. This router gives the
 same canonical behavior to HTTP clients: preview the typed command
 without executing it, dispatch through the shared service handlers,

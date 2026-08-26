@@ -13,15 +13,15 @@ forgetting the auth check.
 * Reuses :func:`shopstack.app_context.db` for the DB handle
   (avoids a second connection pool).
 
-**The Gradio-compat shim:**
+**The synchronous-service compatibility shim:**
 
 ``app_context.current_user_id()`` is the synchronous helper the
-Gradio screens use. The FastAPI layer is async, so we cannot
-*replace* it — but the v1 surface must NOT cause the Gradio
+legacy synchronous screens use. The FastAPI layer is async, so we cannot
+replace it in this boundary, but the v1 surface must not cause a
 helper to return a different value. The shim lives in
 ``shopstack.app_context`` (added separately, additively) and
 checks the request-scoped state first, falling back to
-``db.active_household_id`` for Gradio calls.
+``db.active_household_id`` for synchronous callers.
 """
 from __future__ import annotations
 
@@ -75,7 +75,7 @@ def _extract_bearer(
     Order of resolution:
     1. ``Authorization: Bearer <token>`` header (the standard)
     2. ``?token=...`` query string (escape hatch for the
-       Gradio-rendered client when JS isn't available)
+       compatibility client when JavaScript is unavailable)
 
     The query-string path is documented in the OpenAPI and
     logged at INFO so we can spot misuse.

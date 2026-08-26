@@ -26,7 +26,7 @@ both under a single ``/api/v1/search`` prefix.
 **Pattern (per motto_v3 §0.15 three-layer rule):**
 
 * HTTP boundary only.
-* Reuses the exact same service layer the Gradio UI uses.
+* Reuses the exact same service layer the web and mobile clients use.
 * No business logic leaks into the router.
 """
 from __future__ import annotations
@@ -82,11 +82,11 @@ def search_global(
 def legacy_search_global(
     q: str = Query("", description="Search query"),
 ) -> SearchResponse:
-    """Serve the Gradio command palette's pre-v1 search contract.
+    """Serve the legacy command-palette search contract.
 
-    The palette runs inside the local Gradio UI and has no API bearer token.
+    The legacy palette has no API bearer token.
     Its identity therefore comes from the same active-household context used
-    by synchronous Gradio screens. This adapter intentionally does not weaken
+    by synchronous legacy screens. This adapter intentionally does not weaken
     ``/api/v1/search/global``, which remains bearer-token protected.
     """
     from shopstack.app_context import current_user_id

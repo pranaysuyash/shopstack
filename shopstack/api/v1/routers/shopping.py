@@ -15,7 +15,7 @@ The shopping list is the second-most-touched table after inventory
 * HTTP boundary only.
 * Delegates to :class:`shopstack.repos.shopping_list.ShoppingListRepo`
   and the DB's ``create_shopping_list`` / ``add_list_item`` methods —
-  the exact same write path the Gradio UI uses (motto_v3 §6: the
+  the exact same write path the clients use (motto_v3 §6: the
   pre-existing logic is the source of truth).
 * Writes are household-scoped via ``ctx.household_id``.
 """

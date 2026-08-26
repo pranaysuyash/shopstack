@@ -7,7 +7,8 @@ setup(
     include_package_data=True,
     python_requires=">=3.10",
     install_requires=[
-        "gradio>=5",
+        "fastapi>=0.115",
+        "uvicorn[standard]>=0.30",
         "pydantic>=2",
         "pydantic-settings>=2",
         "huggingface_hub>=0.20",
@@ -21,6 +22,7 @@ setup(
             "pytest>=9",
             "pytest-cov",
             "pytest-benchmark",
+            "ruff>=0.9",
         ],
         "cloud": [
             "openai>=1.0",

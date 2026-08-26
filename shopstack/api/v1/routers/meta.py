@@ -21,8 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import gradio as gr
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 
 from shopstack.api.v1.schemas import WhoAmI
@@ -159,7 +158,7 @@ def health() -> JSONResponse:
     """Liveness probe for operators and orchestrators.
 
     Returns 200 with ``{"status": "ok", ...}`` when DB is queryable
-    and Gradio is rendering. Returns 503 with ``{"status":
+    and the web app is serving. Returns 503 with ``{"status":
     "degraded", ...}`` when DB is unreachable.
 
     The legacy ``/health/ui`` path is preserved as a Sunset alias.

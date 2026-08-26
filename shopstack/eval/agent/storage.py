@@ -74,6 +74,23 @@ class AgentEvalStorage:
         for result in results:
             self.save_case(result)
 
+    def run_metadata(self, run_id: str) -> EvalRunMetadata | None:
+        """Load one run envelope for safe continuation of an interrupted run."""
+        row = self.conn.execute(
+            "SELECT metadata_json FROM agent_eval_runs WHERE run_id = ?", (run_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        return EvalRunMetadata.model_validate(json.loads(row["metadata_json"]))
+
+    def completed_keys(self, run_id: str) -> set[tuple[str, str]]:
+        """Return durable case keys already completed for a run."""
+        rows = self.conn.execute(
+            "SELECT scenario_id, model_key FROM agent_eval_case_results WHERE run_id = ?",
+            (run_id,),
+        ).fetchall()
+        return {(row["scenario_id"], row["model_key"]) for row in rows}
+
     def runs(self, limit: int = 20) -> list[dict[str, Any]]:
         rows = self.conn.execute("SELECT * FROM agent_eval_runs ORDER BY started_at DESC LIMIT ?", (limit,)).fetchall()
         return [dict(row) for row in rows]

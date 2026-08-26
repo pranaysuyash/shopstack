@@ -5,9 +5,10 @@ import logging
 import mimetypes
 import time
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Callable
 
 from shopstack.cost_tracker import estimate_cost_usd, estimate_model_tier
+from shopstack.prompts.ocr import OPENAI_RECEIPT_TEXT_EXTRACTION_PROMPT
 from shopstack.prompts.vision import OPENAI_DESCRIBE_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -55,9 +56,44 @@ def _check_deps() -> tuple[bool, str]:
         return False, "openai package not installed. Run: uv pip install openai"
 
 
+def _is_retryable_error(error: Exception) -> bool:
+    """Identify transient provider failures without retrying bad requests."""
+    status = getattr(error, "status_code", None)
+    if status is None:
+        status = getattr(error, "status", None)
+    try:
+        status_code = int(status) if status is not None else None
+    except (TypeError, ValueError):
+        status_code = None
+    if status_code in {408, 409, 425, 429} or (status_code is not None and status_code >= 500):
+        return True
+
+    error_name = type(error).__name__.lower()
+    error_text = str(error).lower()
+    transient_markers = (
+        "timeout",
+        "connection",
+        "ratelimit",
+        "rate limit",
+        "internalserver",
+        "serviceunavailable",
+        "temporarily unavailable",
+    )
+    return any(marker in error_name or marker in error_text for marker in transient_markers)
+
+
+class _OpenAIRequestFailure(RuntimeError):
+    """Internal wrapper retaining the number of attempts made."""
+
+    def __init__(self, cause: Exception, attempts: int):
+        super().__init__(str(cause))
+        self.cause = cause
+        self.attempts = attempts
+
+
 class OpenAIProvider:
     name = "openai"
-    capabilities: set[str] = {"text", "vision", "embeddings", "planning"}
+    capabilities: set[str] = {"text", "vision", "ocr", "embeddings", "planning"}
     supports_off_grid = False
 
 
@@ -66,16 +102,43 @@ class OpenAIProvider:
         api_key: str = "",
         model: str = "gpt-4o",
         embedding_model: str = "text-embedding-3-small",
+        max_retries: int = 2,
+        retry_base_delay: float = 0.25,
     ):
         self._api_key = api_key
         self._model = model
         self._embedding_model = embedding_model
+        self._max_retries = max(0, int(max_retries))
+        self._retry_base_delay = max(0.0, float(retry_base_delay))
         self._available = False
         self._error: str | None = None
         self.last_plan_diagnostics: dict[str, Any] = {}
         self.last_completion_meta: dict[str, Any] = {}
         self.last_embedding_meta: dict[str, Any] = {}
         self._init_client()
+
+    def _request_with_retries(
+        self,
+        operation: str,
+        request: Callable[[], Any],
+    ) -> tuple[Any, int]:
+        """Run one provider request with bounded retry and attempt reporting."""
+        for attempt in range(1, self._max_retries + 2):
+            try:
+                return request(), attempt
+            except Exception as error:
+                if attempt > self._max_retries or not _is_retryable_error(error):
+                    raise _OpenAIRequestFailure(error, attempt) from error
+                delay = self._retry_base_delay * (2 ** (attempt - 1))
+                logger.warning(
+                    "Retrying OpenAI %s after transient failure (attempt %d/%d, delay %.2fs)",
+                    operation,
+                    attempt,
+                    self._max_retries + 1,
+                    delay,
+                )
+                if delay:
+                    time.sleep(delay)
 
     def _init_client(self) -> None:
         deps_ok, deps_error = _check_deps()
@@ -115,7 +178,11 @@ class OpenAIProvider:
         from shopstack.tracing import trace_call
 
         if not self._available:
-            self.last_completion_meta = {"error": self._error or "OpenAI not available", "model": self.name}
+            self.last_completion_meta = {
+                "error": self._error or "OpenAI not available",
+                "model": self.name,
+                "attempts": 0,
+            }
             return self.last_completion_meta
         model = kwargs.get("model", self._model)
         max_tokens = kwargs.get("max_tokens", 512)
@@ -140,7 +207,10 @@ class OpenAIProvider:
                 else:
                     request_kwargs["max_tokens"] = max_tokens
                     request_kwargs["temperature"] = kwargs.get("temperature", 0.7)
-                resp = self._client.chat.completions.create(**request_kwargs)
+                resp, attempts = self._request_with_retries(
+                    "completion",
+                    lambda: self._client.chat.completions.create(**request_kwargs),
+                )
                 elapsed_ms = round((time.monotonic() - t0) * 1000, 1)
                 usage = _usage_data(resp.usage)
                 in_tok = int(usage.get("prompt_tokens", 0) or 0)
@@ -155,12 +225,18 @@ class OpenAIProvider:
                     "model": model,
                     "usage": usage,
                     "cost": {"usd": cost, "tier": tier, "latency_ms": elapsed_ms},
+                    "attempts": attempts,
                 }
+                return self.last_completion_meta
+            except _OpenAIRequestFailure as e:
+                logger.warning("OpenAI completion failed after %d attempt(s)", e.attempts, exc_info=True)
+                span.record_exception(e.cause)
+                self.last_completion_meta = {"error": str(e.cause), "model": model, "attempts": e.attempts}
                 return self.last_completion_meta
             except Exception as e:
                 logger.warning("OpenAI completion failed", exc_info=True)
                 span.record_exception(e)
-                self.last_completion_meta = {"error": str(e), "model": model}
+                self.last_completion_meta = {"error": str(e), "model": model, "attempts": 1}
                 return self.last_completion_meta
 
     def analyze_image(
@@ -174,7 +250,7 @@ class OpenAIProvider:
         from shopstack.tracing import trace_call
 
         if not self._available:
-            return {"error": self._error or "OpenAI not available"}
+            return {"error": self._error or "OpenAI not available", "attempts": 0}
         model = self._model
         with trace_call("llm.analyze_image", attributes={
             "provider": self.name,
@@ -206,7 +282,10 @@ class OpenAIProvider:
                         request_kwargs["reasoning_effort"] = reasoning_effort
                 else:
                     request_kwargs["max_tokens"] = max_tokens
-                resp = self._client.chat.completions.create(**request_kwargs)  # type: ignore[arg-type]
+                resp, attempts = self._request_with_retries(
+                    "vision",
+                    lambda: self._client.chat.completions.create(**request_kwargs),
+                )  # type: ignore[arg-type]
                 elapsed_ms = round((time.monotonic() - t0) * 1000, 1)
                 usage = _usage_data(resp.usage)
                 in_tok = int(usage.get("prompt_tokens", 0) or 0)
@@ -222,17 +301,55 @@ class OpenAIProvider:
                     "model": model,
                     "usage": usage,
                     "cost": {"usd": cost, "latency_ms": elapsed_ms},
+                    "attempts": attempts,
                 }
+            except _OpenAIRequestFailure as e:
+                logger.warning("OpenAI vision analysis failed after %d attempt(s)", e.attempts, exc_info=True)
+                span.record_exception(e.cause)
+                return {"error": str(e.cause), "model": self.name, "attempts": e.attempts}
             except Exception as e:
                 logger.warning("OpenAI vision analysis failed", exc_info=True)
                 span.record_exception(e)
-                return {"error": str(e), "model": self.name}
+                return {"error": str(e), "model": self.name, "attempts": 1}
+
+    def extract(self, image_path: str) -> dict[str, Any]:
+        """Transcribe a receipt image for the canonical OCR pipeline.
+
+        This deliberately returns raw text rather than structured receipt
+        fields. ``parse_receipt_text`` remains the deterministic normalization
+        boundary, and ``confirm_receipt`` remains the explicit mutation gate.
+        """
+        reasoning_effort = "high" if self._model.lower().startswith("gpt-5") else None
+        response = self.analyze_image(
+            image_path,
+            prompt=OPENAI_RECEIPT_TEXT_EXTRACTION_PROMPT,
+            max_tokens=1024,
+            reasoning_effort=reasoning_effort,
+        )
+        if response.get("error"):
+            return response
+        text = response.get("description", "")
+        if not isinstance(text, str):
+            text = ""
+        return {
+            "raw_text": text.strip(),
+            "text": text.strip(),
+            "model": response.get("model", self._model),
+            "usage": response.get("usage", {}),
+            "cost": response.get("cost", {}),
+            "latency_ms": response.get("cost", {}).get("latency_ms"),
+            "attempts": response.get("attempts", 1),
+        }
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         from shopstack.tracing import trace_call
 
         if not self._available:
-            self.last_embedding_meta = {"error": self._error or "OpenAI not available", "model": self._embedding_model}
+            self.last_embedding_meta = {
+                "error": self._error or "OpenAI not available",
+                "model": self._embedding_model,
+                "attempts": 0,
+            }
             return [[0.0] * 128 for _ in texts]
         with trace_call("llm.embed", attributes={
             "provider": self.name,
@@ -241,7 +358,10 @@ class OpenAIProvider:
         }) as span:
             try:
                 t0 = time.monotonic()
-                resp = self._client.embeddings.create(model=self._embedding_model, input=texts)
+                resp, attempts = self._request_with_retries(
+                    "embedding",
+                    lambda: self._client.embeddings.create(model=self._embedding_model, input=texts),
+                )
                 elapsed_ms = round((time.monotonic() - t0) * 1000, 1)
                 result = [d.embedding for d in resp.data]
                 usage = _usage_data(resp.usage)
@@ -257,12 +377,22 @@ class OpenAIProvider:
                     "model": self._embedding_model,
                     "usage": usage,
                     "cost": {"usd": cost, "latency_ms": elapsed_ms},
+                    "attempts": attempts,
                 }
                 return result
+            except _OpenAIRequestFailure as e:
+                logger.warning("OpenAI embedding failed after %d attempt(s)", e.attempts, exc_info=True)
+                span.record_exception(e.cause)
+                self.last_embedding_meta = {
+                    "error": str(e.cause),
+                    "model": self._embedding_model,
+                    "attempts": e.attempts,
+                }
+                return [[0.0] * 128 for _ in texts]
             except Exception as e:
                 logger.warning("OpenAI embedding failed", exc_info=True)
                 span.record_exception(e)
-                self.last_embedding_meta = {"error": str(e), "model": self._embedding_model}
+                self.last_embedding_meta = {"error": str(e), "model": self._embedding_model, "attempts": 1}
                 return [[0.0] * 128 for _ in texts]
 
     def plan(self, context: dict[str, Any] | str) -> list[dict[str, Any]]:

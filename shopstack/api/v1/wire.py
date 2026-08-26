@@ -1,4 +1,4 @@
-"""Sub-builder that wires the ``/api/v1/*`` surface into ``app.py``.
+"""Sub-builder that wires the ``/api/v1/*`` surface into FastAPI.
 
 Extracted from ``app.py`` (Pass 25, 2026-06-16) to keep the
 composition root under the 300-line cap asserted by
@@ -6,27 +6,22 @@ composition root under the 300-line cap asserted by
 
 The function does exactly one thing: call
 :func:`shopstack.api.v1.mount_v1_routes`. The docstring is
-load-bearing — it explains why the mount happens inside the
-``with gr.Blocks()`` context AND inside the post-launch hook.
+load-bearing — it keeps the transport composition in one native boundary.
 """
 from __future__ import annotations
 
 import logging
 
-import gradio as gr
+from fastapi import FastAPI
 
 logger = logging.getLogger(__name__)
 
 
-def wire_v1_surface(app: gr.Blocks) -> None:  # noqa: ANN001
-    """Mount the ``/api/v1/*`` routers on the Gradio app's FastAPI layer.
+def wire_v1_surface(app: FastAPI) -> None:
+    """Mount the ``/api/v1/*`` routers on a FastAPI app.
 
-    Called from two places in ``app.py`` (matches every other
-    mount's pattern):
-    1. Inside ``with gr.Blocks() as app:`` — the in-context
-       FastAPI instance.
-    2. From ``_install_post_launch_hooks`` — the post-launch
-       FastAPI instance (Gradio rebuilds ``app.app`` on launch).
+    Called from a composition root when the API surface needs to be
+    mounted independently of the full application builder.
 
     The mount is idempotent: a second call on the same FastAPI
     app logs "router already mounted" and is a no-op. A second

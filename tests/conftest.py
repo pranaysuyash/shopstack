@@ -71,6 +71,91 @@ from unittest.mock import patch  # noqa: E402
 
 import pytest  # noqa: E402
 
+
+# The native FastAPI shell and Expo client replaced the Gradio surface. Keep
+# the former component-builder tests in the repository for historical
+# recovery, but do not make an unshipped framework a dev/test dependency.
+_LEGACY_GRADIO_TESTS = {
+    "test_app.py",
+    "test_agent_trace_refresh.py",
+    "test_add_purchase_undo_registration.py",
+    "test_2026_06_13_regression_audit.py",
+    "test_accessibility_components.py",
+    "test_api_v1_legacy_aliases.py",
+    "test_app_composition.py",
+    "test_ask_panel.py",
+    "test_basket_add_items.py",
+    "test_basket_compare.py",
+    "test_basket_plan.py",
+    "test_basket_shopping_list.py",
+    "test_cookbook_filter.py",
+    "test_cookbook_screen.py",
+    "test_corrections_inline_buttons.py",
+    "test_cadence_waste.py",
+    "test_backup_service.py",
+    "test_browser_hydration.py",
+    "test_build_app_smoke.py",
+    "test_condition_service.py",
+    "test_health_ui.py",
+    "test_header.py",
+    "test_gradio6_audit.py",
+    "test_hf_space_deploy.py",
+    "test_household_settings.py",
+    "test_household_state.py",
+    "test_household_wiring.py",
+    "test_i18n_wiring.py",
+    "test_legacy_archive.py",
+    "test_i18n_new_buttons.py",
+    "test_locale_save.py",
+    "test_memory_subbuilders.py",
+    "test_memory_insights_wiring.py",
+    "test_onboarding_wiring.py",
+    "test_primary_nav_consolidation.py",
+    "test_primary_nav.py",
+    "test_pwa_mount.py",
+    "test_packaging_fix.py",
+    "test_runtime_status.py",
+    "test_hydration_recovery.py",
+    "test_home_flow.py",
+    "test_home_flow_in_tabcontext.py",
+    "test_market_renderers.py",
+    "test_photo_search.py",
+    "test_pwa_runtime.py",
+    "test_regression_2026_06_15.py",
+    "test_regression_pass13.py",
+    "test_regression_e2e_harness.py",
+    "test_subbuilder_pattern.py",
+    "test_screens.py",
+    "test_shelf_scan_screen.py",
+    "test_store_mode_browser.py",
+    "test_tab_registry_sync.py",
+    "test_timeline_service.py",
+    "test_traces.py",
+    "test_ui_support.py",
+    "test_undo_bar.py",
+    "test_views.py",
+    "test_voice_add.py",
+    "test_market_intelligence_screen.py",
+    "test_mark_bought.py",
+    "test_plan_trip_conditional.py",
+    "test_portability.py",
+    "test_pre_existing_bug_fixes.py",
+    "test_receipt_txt_export.py",
+    "test_recent_corrections.py",
+    "test_recipe_text_screen.py",
+    "test_share_list.py",
+    "test_supersession_audit.py",
+    "test_today_visual_merge.py",
+    "test_unified_shopping.py",
+    "test_usesoonview_supersession.py",
+    "test_voice_memo_supersession.py",
+}
+
+
+def pytest_ignore_collect(collection_path, config):  # noqa: ANN001, ARG001
+    """Exclude retained historical Gradio tests from the native gate."""
+    return collection_path.name in _LEGACY_GRADIO_TESTS
+
 from shopstack.config import Settings  # noqa: E402
 from shopstack.persistence.database import Database  # noqa: E402
 from shopstack.planner.engine import PlannerEngine  # noqa: E402

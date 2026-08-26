@@ -207,7 +207,7 @@ def consume_lot(
     """Consume ``body.quantity`` from a lot.
 
     Wraps the existing ``consume_inventory`` service so the
-    mobile app and the Gradio UI share the same write path
+    mobile app and web shell share the same write path
     (motto_v3 §6: pre-existing logic is the source of truth).
 
     The endpoint refuses to consume more than is available. It
@@ -248,10 +248,10 @@ def consume_lot(
     #    pre-existing convention: user_id == household_id).
     #
     #    We use the per-request imported ``db`` handle (the same
-    #    one the Gradio screens use), and call the existing
+    #    one the legacy screens use), and call the existing
     #    ``ToolRegistry.consume_inventory_item`` method. This is
-    #    the same write path the Gradio UI uses, so the mobile
-    #    app and the Gradio app see identical state changes.
+    #    the same write path the web shell uses, so the mobile
+    #    app and web app see identical state changes.
     from shopstack.app_context import tools
     from shopstack.repos.inventory import InventoryRepo
 

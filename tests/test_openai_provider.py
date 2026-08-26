@@ -76,10 +76,11 @@ class TestOpenAIProviderInit:
                 assert provider._embedding_model == "text-embedding-3-large"
 
     def test_capabilities(self):
-        """OpenAIProvider exposes text, vision, and embeddings capabilities."""
+        """OpenAIProvider exposes text, vision, OCR, and embeddings capabilities."""
         from shopstack.providers.openai_provider import OpenAIProvider
         assert "text" in OpenAIProvider.capabilities
         assert "vision" in OpenAIProvider.capabilities
+        assert "ocr" in OpenAIProvider.capabilities
         assert "embeddings" in OpenAIProvider.capabilities
 
     def test_name_and_defaults(self):
@@ -291,13 +292,36 @@ class TestOpenAIProviderAnalyzeImage:
                 with patch("builtins.open", mock_open(read_data=b"png-data")):
                     provider = _get_openai_provider(api_key="sk-test-key", model="gpt-5.6-luna")
                     provider.analyze_image("/tmp/test.png", max_tokens=256, reasoning_effort="high")
+                    call_kwargs = mock_client.chat.completions.create.call_args[1]
+                    assert call_kwargs["max_completion_tokens"] == 256
+                    assert call_kwargs["reasoning_effort"] == "high"
+                    assert "max_tokens" not in call_kwargs
+                    image_url = call_kwargs["messages"][0]["content"][1]["image_url"]["url"]
+                    assert image_url.startswith("data:image/png;base64,")
 
+
+class TestOpenAIProviderReceiptExtraction:
+    def test_extract_returns_raw_text_for_the_ocr_pipeline(self):
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Demo Mart\nMilk 2 L 120\nTotal: 120.00"
+        mock_response.usage = MagicMock(prompt_tokens=12, completion_tokens=18, total_tokens=30)
+        mock_client.chat.completions.create.return_value = mock_response
+
+        with _mock_openai_available():
+            with patch("openai.OpenAI", return_value=mock_client):
+                with patch("builtins.open", mock_open(read_data=b"receipt-image")):
+                    provider = _get_openai_provider(api_key="sk-test-key", model="gpt-5.6-luna")
+                    result = provider.extract("/tmp/receipt.png")
+
+        assert result["text"].startswith("Demo Mart")
+        assert result["raw_text"] == result["text"]
+        assert result["model"] == "gpt-5.6-luna"
         call_kwargs = mock_client.chat.completions.create.call_args[1]
-        assert call_kwargs["max_completion_tokens"] == 256
+        assert call_kwargs["max_completion_tokens"] == 1024
         assert call_kwargs["reasoning_effort"] == "high"
-        assert "max_tokens" not in call_kwargs
-        image_url = call_kwargs["messages"][0]["content"][1]["image_url"]["url"]
-        assert image_url.startswith("data:image/png;base64,")
+        assert "receipt image" in call_kwargs["messages"][0]["content"][0]["text"]
 
 
 # ── embed() ────────────────────────────────────────────────────────────

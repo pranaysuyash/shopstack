@@ -2,7 +2,7 @@
 
 One router per resource group. The :func:`mount_v1_routes` entry
 point in :mod:`shopstack.api.v1.mount` aggregates them and
-attaches them to the Gradio app's FastAPI instance under
+attaches them to the native FastAPI application under
 ``/api/v1``.
 
 **Why per-resource routers (not one big file):**

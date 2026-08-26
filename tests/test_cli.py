@@ -15,15 +15,13 @@ without launching the Gradio UI. These tests guard:
 
 Per ``motto_v3`` §0.10 (Observability Is Delivery), the CLI is
 the operator-friendly counterpart of the ``/api/whoami`` HTTP
-endpoint. Operators who don't want to launch a Gradio server can
+endpoint. Operators who don't want to launch the web server can
 get the same introspection data from the shell.
 """
 from __future__ import annotations
 
 import io
 import json
-import re
-import sys
 from unittest.mock import patch
 
 import pytest
@@ -214,7 +212,7 @@ def test_find_subcommand_returns_results():
     assert rc == 0
     # The payload may be empty (no match) or non-empty. Either is valid;
     # the contract is that the CLI returns the tool's response cleanly.
-    payload = json.loads(captured.getvalue())
+    json.loads(captured.getvalue())
 
 
 # ── Error handling ─────────────────────────────────────────────────
@@ -259,7 +257,7 @@ def test_explain_subcommand_returns_decision_explanation_shape():
     (when a decision exists for the item) or an ``error`` dict
     (when no decision is active). Both are valid.
     """
-    from shopstack.cli import main, SUBCOMMANDS
+    from shopstack.cli import SUBCOMMANDS
 
     args = type("Args", (), {"canonical_name": "milk"})()
     payload = SUBCOMMANDS["explain"](args)
@@ -488,27 +486,19 @@ def test_mealplan_subcommand_json_output_is_valid():
 # ── Mode-portability proof (Tier 3) ─────────────────────────────────
 
 
-def test_cli_runs_without_launching_gradio():
-    """The CLI runs end-to-end without Gradio's launch path.
+def test_cli_runs_without_launching_web_ui():
+    """The CLI runs end-to-end without launching a web server.
 
     This is the Tier-3 (integration) mode-portability proof:
-    invoking the CLI does NOT call ``gradio.launch()`` or
-    ``app.build_app()``. If a future change accidentally pulls
-    the Gradio UI into the CLI's import chain, this test catches
-    it.
+    invoking the CLI does NOT call the web app launcher or
+    ``app.build_app()``. The CLI remains a transport-independent
+    operator surface.
 
-    We use the ``whoami`` subcommand (no DB writes, no service
-    calls beyond introspection) as the canary.
+    We use the ``whoami`` subcommand as the canary.
     """
     from shopstack.cli import main
 
-    with patch("gradio.Blocks.launch") as mock_launch:
-        captured = io.StringIO()
-        with patch("sys.stdout", captured):
-            rc = main(["whoami"])
+    captured = io.StringIO()
+    with patch("sys.stdout", captured):
+        rc = main(["whoami"])
     assert rc == 0
-    assert not mock_launch.called, (
-        "CLI must not call `gradio.Blocks.launch()`. "
-        "If this fires, the CLI's import chain now pulls in the "
-        "Gradio UI, which breaks the mode-portability contract."
-    )

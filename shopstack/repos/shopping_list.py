@@ -18,6 +18,20 @@ class ShoppingListRepo:
         goal: str = "",
         user_id: str = "",
     ) -> dict[str, Any]:
+        # Validate the complete batch before creating a list or adding any
+        # item. A dependent planner value may have the wrong type even when
+        # its reference path resolved successfully; that must fail closed
+        # without leaving an empty list or a partial batch behind.
+        validated_items = [
+            ShoppingListItem(
+                canonical_name=item_data.get("canonical_name", ""),
+                requested_quantity=item_data.get("requested_quantity"),
+                unit=item_data.get("unit"),
+                priority=item_data.get("priority", "optional"),
+                reason=item_data.get("reason", ""),
+            )
+            for item_data in (items or [])
+        ]
         existing = self.db.get_active_shopping_list(user_id=user_id)
         if existing:
             sl = existing
@@ -25,15 +39,8 @@ class ShoppingListRepo:
         else:
             sl = self.db.create_shopping_list(goal=goal, user_id=user_id)
 
-        if items:
-            for item_data in items:
-                sl_item = ShoppingListItem(
-                    canonical_name=item_data.get("canonical_name", ""),
-                    requested_quantity=item_data.get("requested_quantity"),
-                    unit=item_data.get("unit"),
-                    priority=item_data.get("priority", "optional"),
-                    reason=item_data.get("reason", ""),
-                )
+        if validated_items:
+            for sl_item in validated_items:
                 self.db.add_list_item(sl.list_id, sl_item, user_id=user_id)
 
         return {"list": self._load_list(sl.list_id)}

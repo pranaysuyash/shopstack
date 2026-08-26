@@ -1,29 +1,11 @@
-"""PWA static mount — serves ``shopstack/static/`` at root paths.
+"""PWA static mount for the native web app.
 
-Gradio 6.x's framework auto-serves a generic default manifest at
-``/manifest.json`` and intercepts all ``/static/*`` paths with a
-JSON error handler. The user's custom PWA shell (branded manifest,
-service worker, icons) must be served at ROOT paths (``/manifest.json``,
-``/sw.js``, ``/icon-192.svg``, ``/icon-512.svg``) to win over
-Gradio's catch-all.
+The user's custom PWA shell (branded manifest, service worker, icons)
+is served at root paths (``/manifest.json``, ``/sw.js``,
+``/icon-192.svg``, ``/icon-512.svg``), independent of a UI framework.
 
-This module has two layers of defense:
-
-  1. **Middleware** (added 2026-06-13) — wraps the FastAPI app with
-     a BaseHTTPMiddleware that intercepts requests for PWA paths
-     BEFORE FastAPI's router does. This is the strongest layer
-     because middleware runs before route matching, so the
-     Gradio catch-all ``/{path:path}`` never gets a chance to
-     intercept the request.
-
-  2. **add_api_route** (the pre-existing approach) — adds individual
-     routes at root paths AND moves them to the front of the routes
-     list. This works for routes that FastAPI would match first,
-     but is vulnerable to Gradio's catch-all matching first.
-
-If the middleware layer succeeds, the routes are redundant but
-harmless. If the middleware layer fails (e.g., BaseHTTPMiddleware
-not available), the routes layer is the fallback.
+The middleware intercepts PWA requests before FastAPI route matching;
+explicit routes remain as a direct fallback.
 
 The PWA manifest's icon paths reference root paths (not ``/static/...``)
 so the icons resolve. The service worker is registered at ``/sw.js``
@@ -38,11 +20,8 @@ from __future__ import annotations
 
 import json
 import logging
-import mimetypes
 from pathlib import Path
 from typing import Any
-
-import gradio as gr
 
 logger = logging.getLogger(__name__)
 
@@ -91,16 +70,13 @@ def _is_pwa_path(path: str) -> bool:
     return clean.lstrip("/") in _PWA_MEDIA_TYPES
 
 
-def mount_pwa_static(app: gr.Blocks) -> None:
-    """Serve PWA files at root paths so they win over Gradio's defaults.
+def mount_pwa_static(app: Any) -> None:
+    """Serve PWA files at root paths on the native web app.
 
     Why root paths:
-        Gradio 6.x's framework intercepts ``/static/*`` paths with a
-        JSON 404 handler. But it only auto-serves ONE file at root:
-        ``/manifest.json`` (with a generic default). So we serve
-        the PWA shell at root paths:
+        The PWA shell is served at root paths:
 
-            /manifest.json    — overrides Gradio's default with our branded one
+            /manifest.json    — branded application manifest
             /sw.js            — service worker
             /icon-192.svg     — PWA icon (192x192)
             /icon-512.svg     — PWA icon (512x512, maskable)
@@ -108,13 +84,6 @@ def mount_pwa_static(app: gr.Blocks) -> None:
         The PWA manifest's icon paths reference these root paths.
         The service worker is registered at ``/sw.js`` in
         ``shopstack/ui/header.py:_pwa_block``.
-
-    Two layers of defense (see module docstring):
-        1. Middleware (preferred, added 2026-06-13) — runs before route
-           matching, so Gradio's catch-all never gets the request.
-        2. add_api_route (fallback) — adds routes AND moves them to
-           the front of the routes list. Works for routes FastAPI
-           would match first; vulnerable to catch-all.
 
     Best-effort:
         Missing files are silently skipped. The app still works as
@@ -127,28 +96,19 @@ def mount_pwa_static(app: gr.Blocks) -> None:
         logger.debug("PWA static dir not found at %s; skipping mount", static_dir)
         return
 
-    fastapi_app = getattr(app, "app", app)
+    fastapi_app = app
 
     # ─── Layer 1: Middleware (preferred) ─────────────────────────
     # Add a BaseHTTPMiddleware that intercepts PWA paths before any
     # route matching. This is the strongest layer because middleware
     # runs in the request stack BEFORE FastAPI's router.
     try:
-        from fastapi import Request
         from fastapi.responses import FileResponse, JSONResponse
         from starlette.middleware.base import BaseHTTPMiddleware
 
         class _PwaStaticMiddleware(BaseHTTPMiddleware):
-            """Serve PWA files at root paths, bypassing Gradio's catch-all.
+            """Serve PWA files before application route matching.
 
-            Why this exists (motto_v3 §6 pre-existing is not an excuse):
-            Gradio 6.x installs a catch-all ``/{path:path}`` route
-            that matches ANY path not matched by earlier routes.
-            For paths like ``/sw.js`` and ``/icon-192.svg`` (which
-            Gradio doesn't auto-serve), the catch-all returns a
-            404 or HTML page. The middleware intercepts these
-            requests before route matching, so the catch-all never
-            sees them.
             """
 
             async def dispatch(self, request, call_next):
@@ -222,8 +182,7 @@ def mount_pwa_static(app: gr.Blocks) -> None:
         )
         mounted_paths.add(f"/{filename}")
 
-    # Reorder routes: move our PWA routes to the FRONT of the list
-    # (so they're matched before Gradio's catch-all).
+    # Reorder routes so explicit PWA handlers stay ahead of broad routes.
     if mounted_paths:
         routes = fastapi_app.routes
         ours = [r for r in routes if getattr(r, "path", None) in mounted_paths]
@@ -236,10 +195,9 @@ def mount_pwa_static(app: gr.Blocks) -> None:
 def _rewrite_manifest_to_root_paths(manifest: dict[str, Any]) -> dict[str, Any]:
     """Rewrite manifest icon + shortcut paths to root paths.
 
-    The on-disk manifest references ``/static/icon-192.svg`` etc.
-    Since Gradio's framework blocks ``/static/*`` with a JSON 404,
-    we rewrite those paths to root paths (``/icon-192.svg``) which
-    ARE served by our FileResponse routes.
+    The on-disk manifest may reference ``/static/icon-192.svg``.
+    Rewrite those paths to root paths (``/icon-192.svg``), which are
+    served by the explicit PWA handlers above.
     """
     out = dict(manifest)
     if "icons" in out:

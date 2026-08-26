@@ -4,7 +4,7 @@
 
 The trace system already exists as the canonical audit trail in
 ``shopstack.traces.export`` and ``shopstack.services.trace``. The
-Gradio trace screen can inspect it, but the FastAPI backend had no
+The trace screen can inspect it, and the FastAPI backend exposes the
 versioned contract for mobile or the new API-first shell. This router
 exposes the same household-scoped trace data through the v1 surface.
 

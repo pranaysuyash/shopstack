@@ -1,17 +1,13 @@
 """ShopStack API v1 package.
 
-This package is the **versioned, mobile- and external-client-facing**
-HTTP surface. It lives next to the Gradio UI rather than replacing it;
-the Gradio submission is preserved (motto_v3 §0.1 missed-anything, §6
-pre-existing is not an excuse).
+This package is the **versioned, mobile- and web-client-facing** HTTP
+surface. It is the canonical transport contract for both supported UI
+clients.
 
 **Why this exists (decision doc: ``Docs/archive/api_v1_and_mobile_repo_architecture_2026-06-16.md``):**
 
-1. The Gradio app is already a FastAPI app (``gr.Blocks.app.app`` is a
-   Starlette/FastAPI instance — see ``app.py:32-40``). 11 HTTP mounts
-   are already wired (``shopstack/services/*_mount.py``,
-   ``shopstack/ui/pwa_mount.py``), but they are version-untyped, share
-   no OpenAPI schema, and have no consistent request/response shape.
+1. The native FastAPI web app owns the transport boundary. The HTTP
+   mounts share one OpenAPI schema and consistent request/response shapes.
 
 2. The mobile repo (``shopstack-mobile/``) consumes **only** this
    surface. No code sharing. The OpenAPI schema generated here is
@@ -49,29 +45,13 @@ __all__ = [
 ]
 
 
-def mount_v1_routes(gradio_app) -> None:  # noqa: ANN001 — gradio.Blocks
-    """Mount the ``/api/v1/*`` routers on the Gradio app's FastAPI layer.
-
-    Idempotent: safe to call from inside ``with gr.Blocks() as app:``
-    and again from the post-launch hook (Gradio recreates ``app.app``
-    on launch, so the mount has to happen twice — see
-    ``app.py:_install_post_launch_hooks``).
-
-    Args:
-        gradio_app: the ``gr.Blocks`` instance returned by
-            ``build_app()``. Used only to access ``gradio_app.app``,
-            the underlying FastAPI/Starlette instance.
-
-    Best-effort: any mount failure is logged but does not raise.
-    The Gradio UI is the primary surface; the API is a strict
-    superset for external clients.
-    """
-    # Lazy import to avoid a hard dep on FastAPI at module import time
-    # (FastAPI is installed via Gradio, but tests and CLI tools may
-    # import shopstack without it).
+def mount_v1_routes(fastapi_app) -> None:  # noqa: ANN001
+    """Mount the canonical ``/api/v1/*`` routers on FastAPI."""
+    # Lazy import keeps lightweight service and CLI imports independent
+    # of the HTTP layer while the app entrypoint owns FastAPI directly.
     from .mount import mount_v1_routes as _mount
 
-    _mount(gradio_app)
+    _mount(fastapi_app)
 
 
 def openapi_schema() -> dict:

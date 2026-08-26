@@ -20,8 +20,8 @@ FROM python:3.12-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    GRADIO_SERVER_NAME="0.0.0.0" \
-    GRADIO_SERVER_PORT=7860 \
+    SHOPSTACK_HOST="0.0.0.0" \
+    SHOPSTACK_PORT=7860 \
     SHOPSTACK_DB_PATH="/app/data/shopstack.db" \
     SHOPSTACK_DATA_DIR="/app/data"
 
@@ -54,7 +54,7 @@ ENV SHOPSTACK_OFF_THE_GRID=true
 
 EXPOSE 7860
 
-# Health check — Gradio exposes /healthz on newer versions
+# Health check — native FastAPI health endpoint
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7860')" || exit 1
 
@@ -68,8 +68,8 @@ FROM python:3.12-slim AS dev
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    GRADIO_SERVER_NAME="0.0.0.0" \
-    GRADIO_SERVER_PORT=7860 \
+    SHOPSTACK_HOST="0.0.0.0" \
+    SHOPSTACK_PORT=7860 \
     SHOPSTACK_DB_PATH="/app/data/shopstack.db" \
     SHOPSTACK_DATA_DIR="/app/data"
 
@@ -98,4 +98,4 @@ USER shopstack
 
 EXPOSE 7860
 
-CMD ["python", "app.py", "--port", "7860"]
+CMD ["python", "run.py", "--port", "7860"]

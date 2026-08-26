@@ -11,7 +11,7 @@ workspace a token is operating in.
 * Delegates to :meth:`shopstack.persistence.database.Database.list_households`
   / :meth:`add_household` and the ``active_household_id`` property.
 * No parallel truth source — these are the exact same calls the
-  Gradio household screens make.
+  household screens make.
 
 **Auth:** every endpoint requires a valid bearer token
 (``require_household``). ``switch`` mutates server-side active
@@ -22,8 +22,6 @@ ContextVar reset doesn't propagate (defence in depth).
 from __future__ import annotations
 
 import logging
-from typing import Any
-
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from shopstack.api.v1 import auth as auth_mod
@@ -150,7 +148,7 @@ def switch_household(
             ).model_dump(),
         )
 
-    # Mutate server-side active state (Gradio path reads this).
+    # Mutate server-side active state for the shared service layer.
     db.active_household_id = household_id
 
     issued = auth_mod.issue_token(

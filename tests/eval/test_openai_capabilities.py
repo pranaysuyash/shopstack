@@ -96,7 +96,9 @@ def test_embedding_runner_uses_canonical_search_and_caches_documents():
 
     assert result["contract"] == "ShopFindService.semantic_find_inventory_compatible"
     assert result["retrieval_rate_pct"] == 100.0
-    assert result["provider_api_call_count"] == len(evaluator.QUERIES) + len(evaluator.NO_MATCH_QUERIES) + 1
+    assert result["hard_negative_case_count"] == 6
+    assert result["hard_negative_accuracy_pct"] == 100.0
+    assert result["provider_api_call_count"] == len(evaluator.RETRIEVAL_CORPUS) + 1
     assert provider.embed_calls == result["provider_api_call_count"]
     assert result["no_match_abstention_count"] == len(evaluator.NO_MATCH_QUERIES)
 

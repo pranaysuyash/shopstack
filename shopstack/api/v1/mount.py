@@ -1,36 +1,31 @@
 """Single entry point that mounts the ``/api/v1/*`` surface on a
-Gradio ``Blocks`` instance.
+FastAPI application.
 
-Called from ``app.py`` once inside ``with gr.Blocks() as app:``
-and again from the post-launch hook (Gradio recreates
-``app.app`` on launch; see ``app.py:_install_post_launch_hooks``).
+Called from the native application composition root.
+The mount is idempotent in behavior: duplicate route or middleware setup
+is caught and logged but does not prevent the web app from starting.
 The mount is idempotent — duplicate routes are caught and
 logged but do not raise.
 
 The versioned routers are canonical. A small set of compatibility aliases
-remains for the existing Gradio shell and external local tooling; aliases
-must preserve FastAPI dependency resolution and are excluded from OpenAPI.
+remains for external local tooling; aliases preserve FastAPI dependency
+resolution and are excluded from OpenAPI.
 """
 from __future__ import annotations
 
 import logging
 from typing import Any
 
-import gradio as gr
+from fastapi import FastAPI
 
 logger = logging.getLogger(__name__)
 
 
-def mount_v1_routes(gradio_app: gr.Blocks) -> None:
+def mount_v1_routes(fastapi_app: FastAPI) -> None:
     """Mount the v1 surface plus its compatibility aliases.
 
     Idempotent. Logs but never raises.
     """
-    fastapi_app = _get_fastapi_app(gradio_app)
-    if fastapi_app is None:
-        logger.warning("Could not access gradio_app.app; v1 surface NOT mounted")
-        return
-
     # ── 1. v1 routers ──────────────────────────────────────────
     from .routers import (
         account_router,
@@ -188,19 +183,6 @@ def mount_v1_routes(gradio_app: gr.Blocks) -> None:
                 logger.debug("legacy alias %s → %s", alias_path, internal_path)
     except Exception as exc:  # noqa: BLE001
         logger.debug("legacy alias block failed: %s", exc)
-
-
-# ── internal ──────────────────────────────────────────────────
-
-
-def _get_fastapi_app(gradio_app: gr.Blocks) -> Any:
-    """Access the underlying FastAPI/Starlette instance.
-
-    Gradio 6.x exposes it as ``gradio_app.app``. If the
-    attribute is missing or the instance is uninitialised,
-    we return ``None`` and the caller skips the mount.
-    """
-    return getattr(gradio_app, "app", None)
 
 
 __all__ = ["mount_v1_routes"]

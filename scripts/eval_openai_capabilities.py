@@ -10,6 +10,8 @@ The benchmark intentionally measures three separate contracts:
 * Vision: strict JSON extraction using the canonical product-shelf prompt.
 * Embeddings: retrieval quality through ``ShopFindService`` and its normal
   inventory data path, with caching to avoid repeated document billing.
+  The corpus includes direct positives, hard-negative ranking cases, and
+  explicit no-match abstention cases.
 * Field-contract readiness: whether each structured product record contains
   the fields required by downstream normalization. This is not OCR accuracy
   because the image fixtures are not labeled ground truth.
@@ -40,41 +42,22 @@ from typing import Any
 from shopstack.prompts import get_prompt
 from shopstack.prompts.ocr import RECEIPT_STRUCTURED_NORMALIZATION_PROMPT
 from shopstack.prompts.vision import UNDERSTAND_PRODUCT_SHELF_PROMPT
+from shopstack.eval.retrieval_corpus import build_retrieval_corpus, validate_retrieval_corpus
 
 REPO = Path(__file__).resolve().parent.parent
 DEFAULT_OUTPUT = REPO / "Docs/evals/openai_capability_benchmark_latest.json"
 MODEL = os.environ.get("SHOPSTACK_EVAL_MODEL", "gpt-5.6-luna")
 VISION_PROMPT = UNDERSTAND_PRODUCT_SHELF_PROMPT
 VISION_PROMPT_META = get_prompt("vision.understand_product_shelf")
-
-QUERIES: list[tuple[str, str, str]] = [
-    ("milk", "milk", "english"),
-    ("rice", "rice", "english"),
-    ("eggs", "eggs", "english"),
-    ("onion", "onion", "english"),
-    ("tomato", "tomato", "english"),
-    ("potato", "potato", "english"),
-    ("curd", "curd", "english"),
-    ("butter", "butter", "english"),
-    ("bread", "bread", "english"),
-    ("dal", "dal", "english"),
-    ("doodh", "milk", "hindi"),
-    ("dahi", "curd", "hindi"),
-    ("chawal", "rice", "hindi"),
-    ("aloo", "potato", "hindi"),
-    ("anda", "eggs", "hindi"),
-    ("pyaaz", "onion", "hindi"),
-    ("tamatar", "tomato", "hindi"),
-]
-
-NO_MATCH_QUERIES: list[tuple[str, str]] = [
-    ("laptop charger", "no_match"),
-    ("shampoo", "no_match"),
-    ("toothpaste", "no_match"),
-    ("coffee", "no_match"),
-    ("dishwasher", "no_match"),
-    ("coriander", "no_match"),
-]
+RETRIEVAL_CORPUS = build_retrieval_corpus()
+QUERIES = tuple(
+    (case.query, case.expected, case.category)
+    for case in RETRIEVAL_CORPUS
+    if not case.no_match and not case.hard_negatives
+)
+NO_MATCH_QUERIES = tuple(
+    (case.query, "no_match") for case in RETRIEVAL_CORPUS if case.no_match
+)
 
 FIXTURES = {
     "fresh_mart": REPO / "data/fresh_mart.png",
@@ -296,6 +279,14 @@ def run_vision(provider: Any) -> dict[str, Any]:
 
 def run_embeddings(provider: Any) -> dict[str, Any]:
     cached = CachedEmbeddingProvider(provider)
+    corpus = RETRIEVAL_CORPUS
+    corpus_errors = validate_retrieval_corpus(corpus)
+    if corpus_errors:
+        return {
+            "contract": "ShopFindService.semantic_find_inventory_compatible",
+            "error": "invalid_retrieval_corpus",
+            "corpus_errors": list(corpus_errors),
+        }
     with _isolated_application_db(":memory:"):
         from shopstack.persistence.database import Database
         from shopstack.services.find import ShopFindService
@@ -305,25 +296,45 @@ def run_embeddings(provider: Any) -> dict[str, Any]:
         service = ShopFindService(db, embedding_provider=cached)
         started = time.perf_counter()
         rows: list[dict[str, Any]] = []
-        cases = [
-            *[(query, expected, category, False) for query, expected, category in QUERIES],
-            *[(query, None, category, True) for query, category in NO_MATCH_QUERIES],
-        ]
-        for query, expected, category, no_match_case in cases:
-            result = service.semantic_find_inventory_compatible(query, user_id=household)
+        for case in corpus:
+            result = service.semantic_find_inventory_compatible(case.query, user_id=household)
             matches = [
                 str((row.get("lot", {}) or {}).get("canonical_name", "")).lower()
                 for row in result.get("results", [])
             ]
-            retrieved = expected in matches if expected else not matches
+            ranked_candidates = [
+                {
+                    "canonical_name": str((row.get("lot", {}) or {}).get("canonical_name", "")).lower(),
+                    "match_score": row.get("match_score"),
+                    "confidence": row.get("confidence"),
+                    "match_type": row.get("match_type"),
+                }
+                for row in result.get("results", [])[:5]
+            ]
+            target_index = matches.index(case.expected) if case.expected in matches else None
+            hard_negative_indices = {
+                name: matches.index(name)
+                for name in case.hard_negatives
+                if name in matches
+            }
+            retrieved = case.expected in matches if case.expected else not matches
+            hard_negative_ranked_above = any(
+                target_index is not None and index < target_index
+                for index in hard_negative_indices.values()
+            )
             rows.append({
-                "query": query,
-                "expected": expected,
-                "category": category,
-                "no_match_case": no_match_case,
+                "case_id": case.case_id,
+                "query": case.query,
+                "expected": case.expected,
+                "category": case.category,
+                "no_match_case": case.no_match,
+                "hard_negatives": list(case.hard_negatives),
                 "top": matches[0] if matches else None,
                 "retrieved": retrieved,
-                "abstained": no_match_case and not matches,
+                "abstained": case.no_match and not matches,
+                "target_rank": target_index + 1 if target_index is not None else None,
+                "hard_negative_ranked_above": hard_negative_ranked_above,
+                "ranked_candidates": ranked_candidates,
                 "semantic_active": bool(result.get("semantic_active")),
                 "match_type": result.get("match_type"),
             })
@@ -331,8 +342,12 @@ def run_embeddings(provider: Any) -> dict[str, Any]:
         db.close()
     first_embedding = next(iter(cached._cache.values()), [[]])
     dim = len(first_embedding[0]) if first_embedding and first_embedding[0] else 0
-    positive_rows = [row for row in rows if not row["no_match_case"]]
+    positive_rows = [
+        row for row in rows
+        if not row["no_match_case"] and row["category"] != "hard_negative"
+    ]
     no_match_rows = [row for row in rows if row["no_match_case"]]
+    hard_negative_rows = [row for row in rows if row["category"] == "hard_negative"]
     by_category: dict[str, dict[str, int]] = {}
     for row in positive_rows:
         bucket = by_category.setdefault(row["category"], {"correct": 0, "total": 0})
@@ -340,6 +355,10 @@ def run_embeddings(provider: Any) -> dict[str, Any]:
         bucket["correct"] += int(row["retrieved"])
     correct = sum(int(row["retrieved"]) for row in positive_rows)
     abstained = sum(int(row["abstained"]) for row in no_match_rows)
+    hard_negative_correct = sum(
+        int(row["retrieved"] and not row["hard_negative_ranked_above"])
+        for row in hard_negative_rows
+    )
     print(
         f"embeddings {provider.name}: positive={correct}/{len(positive_rows)} "
         f"no_match_abstention={abstained}/{len(no_match_rows)} dim={dim} api_calls={cached.api_calls}"
@@ -356,6 +375,10 @@ def run_embeddings(provider: Any) -> dict[str, Any]:
         "no_match_abstention_count": abstained,
         "no_match_abstention_rate_pct": round(abstained / len(no_match_rows) * 100, 1)
         if no_match_rows else 0.0,
+        "hard_negative_case_count": len(hard_negative_rows),
+        "hard_negative_correct_count": hard_negative_correct,
+        "hard_negative_accuracy_pct": round(hard_negative_correct / len(hard_negative_rows) * 100, 1)
+        if hard_negative_rows else 0.0,
         "total_case_count": len(rows),
         "service_elapsed_ms": elapsed_ms,
         "provider_api_call_count": cached.api_calls,

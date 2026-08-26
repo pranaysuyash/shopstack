@@ -1,4 +1,4 @@
-"""Security middleware for the ShopStack Gradio app.
+"""Security middleware for the ShopStack native web app.
 
 Extracted from ``app.py`` (Pass 26, 2026-06-17) to keep the
 composition root under the 300-line cap asserted by
@@ -9,15 +9,12 @@ Contains:
 * :class:`PermissionsPolicyMiddleware` — adds a restrictive
   ``Permissions-Policy`` header to all responses.
 * :func:`install_permissions_policy_middleware` — idempotent
-  installer that adds the middleware to a ``gr.Blocks`` app's
-  FastAPI instance.
+  installer for a FastAPI application.
 """
 from __future__ import annotations
 
-import gradio as gr
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response
 
 
 class PermissionsPolicyMiddleware(BaseHTTPMiddleware):
@@ -71,17 +68,16 @@ class PermissionsPolicyMiddleware(BaseHTTPMiddleware):
         return response
 
 
-def install_permissions_policy_middleware(app: gr.Blocks) -> None:
-    """Install the Permissions-Policy middleware on the Gradio app's FastAPI instance.
+def install_permissions_policy_middleware(app) -> None:  # noqa: ANN001
+    """Install the Permissions-Policy middleware on a FastAPI app.
 
     Idempotent: if the middleware is already installed (e.g. because a previous
     test in the same process already called this), the ``RuntimeError`` is
     silently caught. In production, ``build_app()`` is called once so the
     middleware is always installed correctly on the first call.
     """
-    fastapi_app = app.app
     try:
-        fastapi_app.add_middleware(PermissionsPolicyMiddleware)
+        app.add_middleware(PermissionsPolicyMiddleware)
     except RuntimeError:
         # ``Cannot add middleware after an application has started`` —
         # occurs when two or more app-launch test files run in the same

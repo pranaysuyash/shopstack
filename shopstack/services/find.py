@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any, Literal
 
 from shopstack.domain.product_matching import score_product_match
@@ -67,6 +67,21 @@ ALIASES: dict[str, list[str]] = {
     "paneer": ["paneer", "cottage cheese"],
     "dal": ["lentil"],
     "daliya": ["porridge", "oats"],
+}
+
+# Stable catalog language for semantic document enrichment. These descriptors
+# are intentionally separate from query aliases: aliases rewrite a user's
+# query, while descriptors make an indexed household item explainable to any
+# retrieval provider without provider-specific prompt or embedding logic.
+SEARCH_DESCRIPTORS: dict[str, tuple[str, ...]] = {
+    "milk": ("dairy drink", "milk beverage"),
+    "curd": ("fermented dairy", "yogurt", "yoghurt"),
+    "butter": ("dairy spread", "spread"),
+    "tomato": ("red salad vegetable", "salad vegetable"),
+    "potato": ("root vegetable", "starchy vegetable"),
+    "bread": ("loaf", "breakfast bread"),
+    "rice": ("grain", "cooking grain", "staple grain"),
+    "dal": ("lentil", "pulse", "legume"),
 }
 
 
@@ -287,7 +302,6 @@ class ShopFindService:
         semantic_results = self._semantic_find_inventory(q, user_id=user_id)
         if semantic_results:
             lot_ids = {r.lot["lot_id"] for r in semantic_results if r.lot}
-            text_results = self.find_inventory_compatible(query, user_id=user_id)
             extra = [r for r in self._text_only_results(query, user_id) if r.lot and r.lot["lot_id"] not in lot_ids]
             combined = list(semantic_results) + extra
             return {
@@ -699,11 +713,13 @@ class ShopFindService:
 
     @staticmethod
     def _lot_search_text(lot: InventoryLot, location: HouseholdLocation | None) -> str:
+        descriptors = SEARCH_DESCRIPTORS.get(lot.canonical_name.lower(), ())
         return " ".join(
             str(part)
             for part in [
                 lot.canonical_name,
                 lot.display_name,
+                *descriptors,
                 lot.category,
                 lot.status,
                 lot.unit,

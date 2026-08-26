@@ -111,6 +111,27 @@ class Scenario(BaseModel):
     tags: list[str] = Field(default_factory=list)
 
 
+class ContinuationScenario(BaseModel):
+    """Typed contract for one bounded, multi-turn planner evaluation."""
+
+    model_config = ConfigDict(extra="forbid")
+    id: str
+    version: int = Field(ge=1)
+    title: str
+    request: str
+    expected_status: str
+    expected_steps: int = Field(ge=1)
+    expected_tool_sequence: list[str] = Field(default_factory=list)
+    expected_binding_references: list[str] = Field(default_factory=list)
+    expected_list_items: list[str] = Field(default_factory=list)
+    initial_state: dict[str, Any] = Field(default_factory=dict)
+    fixture_results: dict[str, Any] = Field(default_factory=dict)
+    faults: list[FaultSpec] = Field(default_factory=list)
+    scripted_responses: list[Any] = Field(default_factory=list)
+    expect_no_mutation: bool = False
+    tags: list[str] = Field(default_factory=list)
+
+
 class EvalModelConfig(BaseModel):
     """A comparison configuration, with requested and observed identity kept apart."""
 

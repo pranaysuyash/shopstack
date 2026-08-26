@@ -33,6 +33,30 @@ def test_off_the_grid_uses_mock_for_ocr():
     assert ocr is not None
 
 
+def test_openai_backend_can_supply_the_canonical_ocr_contract(monkeypatch):
+    from shopstack.providers import registry as registry_mod
+
+    class FakeOpenAIOCRProvider:
+        name = "openai"
+        backend = "openai"
+        available = True
+        capabilities = {"ocr", "vision"}
+
+        def __init__(self, **_kwargs):
+            pass
+
+    monkeypatch.setattr(
+        registry_mod._PROVIDER_SPECS["openai"],
+        "loader",
+        lambda: FakeOpenAIOCRProvider,
+    )
+    settings = Settings(_env_file=None, off_the_grid=False, ocr_backend="openai")
+    registry = ProviderRegistry(settings)
+
+    assert isinstance(registry.ocr, FakeOpenAIOCRProvider)
+    assert registry.ocr.capabilities == {"ocr", "vision"}
+
+
 def test_off_the_grid_blocks_cloud_backends(monkeypatch):
     from shopstack.providers import registry as registry_mod
 
