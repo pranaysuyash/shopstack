@@ -1,6 +1,6 @@
 # ShopStack Recovery and Semantic Salvage Plan
 
-Status: inventory complete, recovery in progress, batch 1 integrated
+Status: inventory complete, recovery in progress, five controlled batches integrated
 
 Date: 2026-08-26
 
@@ -50,10 +50,11 @@ stash. A stash is only provenance.
 | --- | --- |
 | Repository | `/Users/pranay/Projects/shopstack` |
 | Branch | `main` |
-| Current baseline | `3319373dd14a8cfaa10335de85b7ee3e594f0c3c` |
+| Historical pushed baseline | `3319373dd14a8cfaa10335de85b7ee3e594f0c3c` |
+| Current local main | `340de80` (`feat: restore recipe rich empty state`) |
 | Baseline subject | `feat: deliver ShopStack mobile and platform tranche` |
 | Upstream | `origin/main` |
-| Remote alignment at inventory start | `HEAD` and `origin/main` matched; no ahead or behind commits |
+| Remote alignment at inventory start | `HEAD` and `origin/main` matched at `3319373`; recovery commits are local and not pushed |
 | Current local drift | `shopstack/eval/storage.py`, `shopstack/planner/engine.py`, `shopstack/providers/openai_provider.py`, `shopstack/ui/screens/model_stack.py`, new `shopstack/eval/agent/` package, new agent-evaluation screen and tests |
 | Untracked runtime artifact | `:memory:.jsonl`, classified as generated trace output, not source |
 | Last pushed full gate | Build, type/import, security, diff, normal hooks and push passed; full verifier still reported pre-existing lint and four known test issues, so release readiness was not green |
@@ -194,6 +195,48 @@ The repeated files in stashes 0 through 3 are one historical change stream:
   a data-to-UI coupling cluster. They must be reviewed together, not file by
   file in isolation, while provenance remains file-specific.
 
+### 5.2 Completed file-level dispositions
+
+The following is the completed disposition for every unique path changed by
+the six stashes. Paths are grouped only where the decision is identical; no
+group implies that a whole stash or directory was applied.
+
+| Decision | Paths and concrete finding |
+| --- | --- |
+| `ACCEPT-HUNK` / `ADAPT-HUNK` | `shopstack/domain/unit_price.py`, `tests/domain/test_unit_price.py`: decimal quantities such as `1.5 medium` and `1,5 large` filled a current parser gap; integrated as `abbb23b`. `shopstack/services/empty_states.py`, `shopstack/services/i18n.py`, `tests/test_empty_state_coverage.py`, `tests/test_regression_guards.py`: current `recipe.py` already called `render("recipe.no_input")`, but the registry and English/Hindi keys were absent; adapted and integrated as `340de80`. |
+| `TEST-ONLY` | `tests/test_repo_truth.py`: added the existing `correction_events` table to repository truth assertions; integrated as `3a1e2ec`. `tests/test_recent_corrections.py`: narrowed row counting to the exact row class so nested action classes do not inflate the count; integrated as `b00681e`. `tests/test_browser_hydration.py`: modernized the recovered palette flow to the current route and isolated browser timing contract; integrated with the route hardening as `c8b2d50`. |
+| `AUDIT-DERIVED` | `shopstack/api/v1/mount.py`, `shopstack/api/v1/routers/search.py`, `tests/test_api_v1_legacy_aliases.py`: not copied from a stash. The audit found that Starlette route cloning stripped FastAPI dependency and response metadata, and the browser palette called a protected search alias without auth. The APIRoute-safe clone and explicit local legacy adapter preserve the canonical v1 route while keeping protected routes protected; integrated as `c8b2d50`. |
+| `DEFER` | `shopstack/domain/inventory_alerts.py`, `tests/domain/test_inventory_alerts.py`: the stash changes day zero from `EXPIRED` to `EXPIRING_SOON` with critical severity and “expires today.” Current `check_expiry()` has no production callers, and active expiry policies are elsewhere. This is a product-contract decision, not a safe parser correction; no code was integrated. |
+| `DOC-MINE` | `Docs/REMAINING_WORK.md`, `Docs/SYSTEM_STATE.md`: historical and generated snapshots with stale test counts, deployment claims, and legacy paths. No source was restored. Their still-current factual leads were compared against code and the present ledger; the ignored local docs remain outside the recovery commits. |
+| `REJECT: generated or sensitive artifact` | `.tmp-workspace-click.png`; `data/fresh_mart.png`; `data/maa_laxmi.png`; `data/sai_pharma.png`; `shopstack-audit-2.png`; `shopstack-audit-final.png`; `shopstack-audit-updated.png`; `shopstack-audit.png`; `shopstack-first-principles-final.png`; `shopstack-flow-audit.png`; `shopstack-home-flow-final.png`. These are binary evidence or captured inputs, not source. `data/parser_training_real.jsonl` was also rejected: all inspected rows duplicate existing data and have no justified current test contract. |
+| `REJECT: stale or harmful source snapshot` | `app.py`: old monolithic composition conflicts with canonical `shopstack/app_builder.py`. `shopstack/app_context.py`: removes request-scoped household context and replaces the canonical runtime path with a deprecated alias. `shopstack/config.py`: import-time `load_dotenv()` exposes unprefixed credentials through process-wide `os.environ` and also removes current Modal settings. `shopstack/persistence/database.py`: removes connection tracking, safe cleanup, nutrition migration, and current schema behavior. `shopstack/schemas/models.py`: removes nutrition and `ShoppingListItem.item_id` compatibility while weakening current schema comments. `shopstack/ui/screens/corrections.py`: old snapshot removes current escaping, inline action wiring, and persistence behavior. `shopstack/ui/screens/dashboard.py`, `shopstack/ui/screens/shopping.py`, `shopstack/ui/tabs/today.py`, and `shopstack/ui/theme.py`: each removes newer canonical behavior or accessibility safeguards. `shopstack/ui/header.py`: moves a lazy import to module scope and risks the existing import cycle. |
+| `REDUNDANT` or `SUPERSEDED` | `shopstack/services/permissions.py`, `shopstack/services/walkthrough.py`, `shopstack/ui/components/cards.py`, `shopstack/ui/renderers/decision_cards.py`, `shopstack/ui/tabs/basket_add_items.py`, `shopstack/ui/tabs/basket_shopping_list.py`, `shopstack/ui/tabs/context.py`, `shopstack/ui/tabs/memory.py`, `shopstack/ui/tabs/memory_data.py`, `shopstack/ui/tabs/recipe.py`, `tests/test_build_app_smoke.py`, `tests/test_cadence_waste.py`, `tests/test_decisions.py`, `tests/test_household_wiring.py`, `tests/test_views.py`: current main already contains the behavior or a newer canonical form. The recipe source call site is already canonical; only its missing service contract was recovered. |
+| `REJECT: weakens test safety or evidence` | `tests/conftest.py`: stash removes connection cleanup, request-context reset, undo-ledger reset, standalone-test isolation, and post-test community-file cleanup; current main is safer. `tests/test_app.py`, `tests/test_app_composition.py`: stash accepts stale section counts and old `app.py` composition. `tests/test_e2e_reconciliation.py`: old household and route assumptions. `tests/test_env_and_handoff_lock.py`: requires process-wide `HF_TOKEN` loading from `.env`, which conflicts with secret-safe configuration. `tests/test_pass_14_16_venv_smoke.py`: removes subprocess isolation, temporary DB, and environment pinning. `tests/test_regression_e2e_harness.py`: permits failed image uploads and would mask a broken flow. `tests/test_test_count_audit.py`: raises drift tolerance from 10 percent to 25 percent, weakening the audit after improving the counter. `tests/test_whoami_mount.py`: targets the deleted `shopstack.services.whoami_mount` instead of canonical `shopstack.api.v1.routers.meta`. |
+
+### 5.3 Detached worktree file-level conclusion
+
+The detached commit `3b3a2b0a1d41877483e9539224e6e9765d57d86b` has 134 paths
+against 808 in current local main. The trees share 126 paths, have 8 old-only
+paths, and 682 current-only paths. The old-only set is:
+
+```text
+.env
+AGENTS.md
+motto_v2.md
+shopstack/_legacy_decisions.py
+shopstack/data_sources/__init__.py
+shopstack/data_sources/swiggy.py
+tests/test_safe_render.py
+tests/test_swiggy_data_source.py
+```
+
+The old-only source modules are deleted or superseded by the current API,
+domain, and market-source paths. The two old tests target those deleted paths.
+The policy files are not current canonical instruction sources, and `.env` is
+never recovered. No detached-worktree file is currently a recovery candidate.
+The prunable metadata remains untouched so this audit does not destroy
+historical provenance.
+
 ## 6. Concurrent evaluation tranche ledger
 
 The following files arrived after the pushed baseline and are currently dirty:
@@ -280,20 +323,20 @@ At the end, report separately:
 
 ## 9. Immediate next action
 
-The next safe action is symbol-level review of the highest-signal cluster:
+The stash and detached-worktree recovery inventory is now complete. The next
+work is not another bulk salvage pass. It is a separate review of the live
+concurrent evaluation tranche, followed by an explicit product decision on
+the deferred expiry boundary. Any further source recovery must be justified
+by a newly demonstrated current gap and must use a new isolated batch.
 
-1. current concurrent evaluation tranche, to establish ownership and avoid
-   losing live work;
-2. stash 4 expiry candidate and its focused tests after canonical expiry
-   policy review;
-3. stash 3/4 correction persistence, schema, screen, and test cluster;
-4. only then the repeated UI/theme refinements;
-5. detached worktree mining last, and only for named gaps still absent from
-   current `main`.
+The integrated recovery commits on `main` are:
 
-The first salvage batch has now been applied to `main` as commit
-`abbb23b` (`fix: support decimal market size classes`). It contains only
-`shopstack/domain/unit_price.py` and `tests/domain/test_unit_price.py`.
+1. `abbb23b` `fix: support decimal market size classes`
+2. `3a1e2ec` `test: assert correction table in repo truth`
+3. `c8b2d50` `fix: restore safe legacy API aliases`
+4. `b00681e` `test: count correction rows precisely`
+5. `340de80` `feat: restore recipe rich empty state`
+
 The expiry-alert hunk remains deferred because `check_expiry()` has no
 production callers and the repository has other active expiry policies.
 
@@ -326,3 +369,35 @@ Batch result: the unit-price hunk was accepted and cherry-picked into `main`
 as `abbb23b` after 155 relevant tests and Ruff passed. The recovery worktree
 commit was `4ef733f`. The recovery worktree remains available for subsequent
 batches.
+
+### 10.1 Subsequent batch evidence
+
+The repository-truth candidate added the existing `correction_events` table
+to `tests/test_repo_truth.py`. This was test-only and passed with the current
+schema. It was cherry-picked as `3a1e2ec`.
+
+The legacy route review found a real current defect: cloning a FastAPI route
+as a plain Starlette `Route` strips dependency injection and response-model
+metadata. The browser global-search palette also called the legacy path
+without authentication, while the canonical versioned route is protected.
+The adapted APIRoute clone, explicit local legacy search adapter, protected
+route assertions, and isolated browser hydration test passed 16 focused API
+tests plus one standalone browser test. This was cherry-picked as `c8b2d50`.
+
+The correction-row test was modernized to count `class='correction-row'`
+exactly. Ten focused correction tests passed, and the change was cherry-
+picked as `b00681e`.
+
+The recipe review found a current contract gap rather than a stale feature:
+`shopstack/ui/tabs/recipe.py` already rendered `recipe.no_input`, but
+`shopstack/services/empty_states.py` did not register that preset and
+`shopstack/services/i18n.py` lacked its English and Hindi keys. The smallest
+adapted recovery added those keys and focused guards. Fifty-two focused
+empty-state and recipe regression tests passed, plus compilation and diff
+checks. This was cherry-picked as `340de80`.
+
+The full regression-guard file was not treated as green solely from that
+focused result. One unrelated guard still requires the ignored local file
+`Docs/SERVICES_ARCHITECTURE.md`, which is absent from the isolated recovery
+worktree. That environment/documentation dependency remains a separate
+known condition.
